@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+
+# Builds
+build
+
+# Doc builds
+doc
+
+# mac stuff
+.DS_store
