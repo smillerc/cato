@@ -1,0 +1,24 @@
+module test_mach_cone_geometry
+  use iso_fortran_env, only : int32, real64
+  use mod_mach_cone_geometry
+  use funit
+  implicit none
+
+contains
+
+  @test
+  subroutine test_n_intersections()
+
+    ! 0 intersections
+    @assertEqual(0, determine_n_intersections(b_k=1._real64, speed_of_sound=0._real64, l_ki=[0._real64, 0._real64]))
+    @assertEqual(0, determine_n_intersections(b_k=-1._real64, speed_of_sound=0._real64, l_ki=[-2._real64, -1._real64]))
+
+    ! 1 intersection
+    @assertEqual(1, determine_n_intersections(b_k=0._real64, speed_of_sound=0._real64, l_ki=[-1._real64, 1._real64]))
+
+    ! 2 intersections
+    @assertEqual(2, determine_n_intersections(b_k=2._real64, speed_of_sound=4._real64, l_ki=[4._real64, 2._real64]))
+
+  end subroutine test_n_intersections
+
+end module test_mach_cone_geometry

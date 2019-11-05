@@ -1,0 +1,47 @@
+module test_quad_cell
+  use iso_fortran_env, only : rk => real64
+  use mod_quad_cell, only : quad_cell_t
+  use funit
+  implicit none
+
+contains
+
+  @test
+  subroutine test_quad_cell_stats()
+
+    class(quad_cell_t), allocatable :: cell
+    real(rk), dimension(4) :: x = [0,1,1,0]
+    real(rk), dimension(4) :: y = [0,0,1,1]
+
+    allocate(quad_cell_t :: cell)
+    call cell%initialize(x_coords = x, y_coords=y)
+
+    ! Volume
+    @assertEqual(1., cell%volume)
+
+    ! Edge lengths
+    call assert_that(cell%edge_lengths, every_item(is(equal_to(1.0_rk))))
+
+    ! Mid-points
+    @assertEqual([0.5_rk,0.0_rk], cell%edge_midpoints(1,:))
+    @assertEqual([1.0_rk,0.5_rk], cell%edge_midpoints(2,:))
+    @assertEqual([0.5_rk,1.0_rk], cell%edge_midpoints(3,:))
+    @assertEqual([0.0_rk,0.5_rk], cell%edge_midpoints(4,:))
+
+    ! Normal vectors
+    ! Note: the midpoint of the edge should be the tail of the norm vector
+    @assertEqual(cell%edge_midpoints(1,:), cell%edge_norm_vectors(1,1,:))
+    @assertEqual([0.5_rk,-0.5_rk], cell%edge_norm_vectors(1,2,:))
+
+    @assertEqual(cell%edge_midpoints(2,:), cell%edge_norm_vectors(2,1,:))
+    @assertEqual([1.5_rk,0.5_rk], cell%edge_norm_vectors(2,2,:))
+
+    @assertEqual(cell%edge_midpoints(3,:), cell%edge_norm_vectors(3,1,:))
+    @assertEqual([0.5_rk,1.5_rk], cell%edge_norm_vectors(3,2,:))
+
+    @assertEqual(cell%edge_midpoints(4,:), cell%edge_norm_vectors(4,1,:))
+    @assertEqual([-0.5_rk,0.5_rk], cell%edge_norm_vectors(4,2,:))
+    
+  end subroutine test_quad_cell_stats
+
+end module test_quad_cell
