@@ -1,0 +1,11 @@
+repos:
+-   repo: https://github.com/ambv/black
+    rev: stable
+    hooks:
+    - id: black
+
+-   repo: https://github.com/pseewald/fprettify
+    rev: v0.3.4
+    hooks:
+    - id: fprettify
+      args: ['--indent', '2', '--whitespace', '3', '--whitespace-intrinsics', 'False', '--strict-indent', '--enable-replacements', '--c-relations']
