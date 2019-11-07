@@ -4,15 +4,19 @@ add_library(constants
 
 add_library(geometry
             lib/geometry/quad_cell.f90
-            lib/mach_cone_geometry.f90
+            lib/geometry/mach_cone_geometry.f90
             )
 
 target_link_libraries(geometry PUBLIC constants)
 
 add_library(fvleg
-            lib/reconstruction.f90
-            lib/mach_cone_geometry.f90
-            lib/slope_limiter.f90
+            lib/domain/conserved_vars.f90
+            lib/evolution_operator/abstract_evo_operator.f90
+            lib/evolution_operator/local_evo_operator.f90
+            lib/reconstruction/abstract_reconstruction.f90
+            lib/reconstruction/first_order_reconstruction.f90
+            lib/reconstruction/second_order_reconstruction.f90
+            lib/limiters/slope_limiter.f90
             )
 
 include_directories(${HDF5_INCLUDE_DIRS})
