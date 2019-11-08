@@ -2,12 +2,17 @@ add_library(constants
             lib/math_constants.f90
             )
 
+add_library(io 
+            lib/io/mod_input.f90
+            )
+
 add_library(geometry
+            lib/domain/grid.f90
             lib/geometry/quad_cell.f90
             lib/geometry/mach_cone_geometry.f90
             )
 
-target_link_libraries(geometry PUBLIC constants)
+target_link_libraries(geometry PUBLIC constants io)
 
 add_library(fvleg
             lib/domain/conserved_vars.f90
@@ -27,6 +32,7 @@ target_link_libraries(fvleg
                       PUBLIC 
                       constants
                       geometry
+                      io
                       ${Coarray_LIBRARIES}
                             #  functional
                              ${HDF5_LIBRARIES}

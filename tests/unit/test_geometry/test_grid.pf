@@ -1,0 +1,49 @@
+module test_grid
+  use iso_fortran_env, only : ik => int32, rk => real64
+  use mod_grid, only : grid_t
+  use mod_input, only : input_t
+  use funit
+  implicit none
+
+
+  class(grid_t), allocatable :: grid
+  class(input_t), allocatable :: input
+
+contains
+
+  @before
+  subroutine init_grid()
+    allocate(input_t :: input)
+    call input%initialize(ni=4_ik, nj=3_ik, &
+                          xmin=0.0_rk, xmax=3.0_rk, ymin=0.0_rk, ymax=2.0_rk)
+
+    allocate(grid_t :: grid)
+    call grid%initialize(input)
+  end subroutine init_grid
+
+  @test
+  subroutine test_grid_info()
+    @assertEqual(4, grid%get_ni())
+    @assertEqual(3, grid%get_nj())
+    
+    @assertEqual(1, grid%get_ilo())
+    @assertEqual(4, grid%get_ihi())
+
+    @assertEqual(1, grid%get_jlo())
+    @assertEqual(3, grid%get_jhi())
+
+    @assertEqual(1.0_rk, grid%dx)
+    @assertEqual(1.0_rk, grid%dy)
+
+    @assertEqual([0.0_rk,0.0_rk], grid%y(1:2,1))
+    @assertEqual([0.0_rk,1.0_rk], grid%x(1:2,1))
+
+    @assertEqual([0.5_rk, 0.5_rk], grid%cell_centroids(1,1,:))
+    ! call assert_that(grid%cell_volumes, every_item(is(equal_to([2.0_rk, 2.0_rk]))))
+  end subroutine test_grid_info
+
+  @after
+  subroutine test_grid_finalize()
+  end subroutine test_grid_finalize
+
+end module test_grid

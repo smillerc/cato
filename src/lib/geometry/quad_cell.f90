@@ -1,10 +1,12 @@
 module mod_quad_cell
   !< Summary: Define the quadrilateral cell/control volume object
 
-  use iso_fortran_env, only: int32, real64
+  use iso_fortran_env, only: ik => int32, rk => real64
 
   implicit none
 
+  private
+  public :: quad_cell_t
   !<  Numbering convention for a 2D quadrilateral cell
   !<
   !<                     F3
@@ -22,13 +24,14 @@ module mod_quad_cell
   !< C: cell or control volume (in finite-volume lingo)
 
   type quad_cell_t
-    real(real64), dimension(4) :: x = 0.0_real64  !< vertex x coords
-    real(real64), dimension(4) :: y = 0.0_real64  !< vertex y coords
-    real(real64) :: volume = 0.0_real64 !< volume, aka area in 2d
+    real(rk), dimension(4) :: x = 0.0_rk  !< vertex x coords
+    real(rk), dimension(4) :: y = 0.0_rk  !< vertex y coords
+    real(rk), dimension(2) :: centroid = [0.0_rk, 0.0_rk]  !< centroid x,y coords
+    real(rk) :: volume = 0.0_rk !< volume, aka area in 2d
 
-    real(real64), dimension(4, 2, 2) :: edge_norm_vectors = 0.0_real64 !< normal vectors at each face (face_id, x0:x1, y0:y1)
-    real(real64), dimension(4, 2) :: edge_midpoints = 0.0_real64 !< midpoint of each edge (face_id, x, y)
-    real(real64), dimension(4) :: edge_lengths = 0.0_real64
+    real(rk), dimension(4, 2, 2) :: edge_norm_vectors = 0.0_rk !< normal vectors at each face (face_id, x0:x1, y0:y1)
+    real(rk), dimension(4, 2) :: edge_midpoints = 0.0_rk !< midpoint of each edge (face_id, x, y)
+    real(rk), dimension(4) :: edge_lengths = 0.0_rk
   contains
     procedure, public :: initialize
     procedure, private :: calculate_volume
@@ -40,8 +43,8 @@ contains
 
   subroutine initialize(self, x_coords, y_coords)
     class(quad_cell_t), intent(inout) :: self
-    real(real64), intent(in), dimension(4) :: x_coords
-    real(real64), intent(in), dimension(4) :: y_coords
+    real(rk), intent(in), dimension(4) :: x_coords
+    real(rk), intent(in), dimension(4) :: y_coords
 
     self%x = x_coords
     self%y = y_coords
@@ -76,8 +79,17 @@ contains
       v = (x(2) - x(1)) * (y(4) - y(1)) - (x(4) - x(1)) * (y(2) - y(1))
     end associate
 
-    if(self%volume <= 0.0_real64) then
-      error stop "Error: Negative volume (found at) "! // __LINE__ // " in " // __FILE__
+    if(self%volume <= 0.0_rk) then
+      write(*, '(a, 2(g0.4, 1x))') 'N4: ', self%x(4), self%y(4)
+      write(*, '(a, 2(g0.4, 1x))') 'N3: ', self%x(3), self%y(3)
+      write(*, *) '             N4-----o-----N3'
+      write(*, *) '             |            |'
+      write(*, *) '     F4   M4 o      C     o M2   F2'
+      write(*, *) '             |            |'
+      write(*, *) '             N1-----o-----N2'
+      write(*, '(a, 2(g0.4, 1x))') 'N1: ', self%x(1), self%y(1)
+      write(*, '(a, 2(g0.4, 1x))') 'N2: ', self%x(2), self%y(2)
+      error stop "Negative volume!"
     end if
 
   end subroutine
@@ -89,7 +101,7 @@ contains
     integer, dimension(4) :: head_idx = [2, 3, 4, 1]
     integer, dimension(4) :: tail_idx = [1, 2, 3, 4]
     integer :: i
-    real(real64) :: dx, dy
+    real(rk) :: dx, dy
 
     do i = 1, 4
 
