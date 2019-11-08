@@ -1,7 +1,7 @@
 module mod_abstract_evo_operator
   !< Provide a base type for the evolution operators
 
-  use iso_fortran_env, only: int32, real64
+  use iso_fortran_env, only: ik => int32, rk => real64
 
   implicit none
 
@@ -10,7 +10,7 @@ module mod_abstract_evo_operator
 
   type, abstract :: abstract_evo_operator_t
     character(:), allocatable :: name
-    integer(int32) :: error_code
+    integer(ik) :: error_code
     character(:), allocatable :: error_message
   contains
     procedure(initialize), deferred, public :: initialize

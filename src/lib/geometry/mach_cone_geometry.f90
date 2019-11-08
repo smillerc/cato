@@ -5,28 +5,28 @@ module mod_mach_cone_geometry
   !< entire purpose of this module is to calculate the quantities \(\theta_{i,b}\)
   !< and \(\theta_{i,e}\)
 
-  use iso_fortran_env, only: int32, real64
+  use iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi
   implicit none
 
   ! private
   ! public ::
 
-  real(real64), dimension(2) :: l
+  real(rk), dimension(2) :: l
 
 contains
 
   pure subroutine calculate_l_parameter(u_tilde, v_tilde, tau, alpha_k, speed_of_sound, l_parameter)
     !< Calculate the \( \ell_{k} \)] parameter
 
-    real(real64), intent(in) :: u_tilde, v_tilde !<
-    real(real64), intent(in) :: tau !< Time increment, e.g. (x,y,t+tau)
-    real(real64), intent(in) :: alpha_k !< angle of e_hat with respect to the x-axis
-    real(real64), intent(in) :: speed_of_sound
+    real(rk), intent(in) :: u_tilde, v_tilde !<
+    real(rk), intent(in) :: tau !< Time increment, e.g. (x,y,t+tau)
+    real(rk), intent(in) :: alpha_k !< angle of e_hat with respect to the x-axis
+    real(rk), intent(in) :: speed_of_sound
 
-    real(real64), dimension(2), intent(out) :: l_parameter
+    real(rk), dimension(2), intent(out) :: l_parameter
 
-    real(real64) :: cos_alpha, sin_alpha
+    real(rk) :: cos_alpha, sin_alpha
 
     ! Precompute for reuse
     cos_alpha = cos(alpha_k)
@@ -46,13 +46,13 @@ contains
 
   pure function calculate_theta_kl(alpha_k, speed_of_sound, u, l_k) result(theta_kl)
 
-    real(real64), intent(in) :: alpha_k
-    real(real64), intent(in) :: speed_of_sound
-    real(real64), intent(in) :: u
-    real(real64), intent(in) :: l_k
-    real(real64) :: theta_kl
+    real(rk), intent(in) :: alpha_k
+    real(rk), intent(in) :: speed_of_sound
+    real(rk), intent(in) :: u
+    real(rk), intent(in) :: l_k
+    real(rk) :: theta_kl
 
-    theta_kl = pi + sign(1.0_real64, sin(alpha_k)) * &
+    theta_kl = pi + sign(1.0_rk, sin(alpha_k)) * &
                (acos((u + l_k * cos(alpha_k)) / speed_of_sound) - pi)
 
   end function
@@ -61,16 +61,16 @@ contains
     !< Summary: Find the number of intersections based on the input parameters
     !< Refer to the appendix for this particular logic. It makes a bit more sense in context
 
-    real(real64), intent(in) :: speed_of_sound
-    real(real64), intent(in) :: b_k
-    real(real64), dimension(2), intent(in) :: l_ki
+    real(rk), intent(in) :: speed_of_sound
+    real(rk), intent(in) :: b_k
+    real(rk), dimension(2), intent(in) :: l_ki
 
-    integer(int32) :: n_intersections
+    integer(ik) :: n_intersections
 
     if((b_k > speed_of_sound) .or. &
-       ((l_ki(1) <= l_ki(2)) .and. (l_ki(2) < 0.0_real64))) then
+       ((l_ki(1) <= l_ki(2)) .and. (l_ki(2) < 0.0_rk))) then
       n_intersections = 0
-    else if((l_ki(2) >= 0.0_real64) .and. (l_ki(1) < 0.0_real64)) then
+    else if((l_ki(2) >= 0.0_rk) .and. (l_ki(1) < 0.0_rk)) then
       n_intersections = 1
     else
       n_intersections = 2

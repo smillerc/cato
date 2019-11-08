@@ -1,12 +1,12 @@
 module mod_vector_2d
-  use iso_fortran_env, only: int32, real64
+  use iso_fortran_env, only: ik => int32, rk => real64
 
   implicit none
 
   type vector_2d_t
-    real(real64), dimension(2) :: x
-    real(real64), dimension(2) :: y
-    real(real64), dimension(2) :: length
+    real(rk), dimension(2) :: x
+    real(rk), dimension(2) :: y
+    real(rk), dimension(2) :: length
   contains
     procedure, public :: initialize
     procedure, public ::
@@ -27,8 +27,8 @@ module mod_vector_2d
 contains
 
   pure type(vector_2d_t) function vector(x, y) result(vec)
-    real(real64), intent(in), dimension(2) :: x
-    real(real64), intent(in), dimension(2) :: y
+    real(rk), intent(in), dimension(2) :: x
+    real(rk), intent(in), dimension(2) :: y
 
     vec
   end function

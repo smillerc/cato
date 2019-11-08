@@ -1,5 +1,5 @@
 module mod_local_evo_operator
-  use iso_fortran_env, only: int32, real64
+  use iso_fortran_env, only: ik => int32, rk => real64
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
 
   implicit none

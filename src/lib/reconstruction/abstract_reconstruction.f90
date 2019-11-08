@@ -1,7 +1,8 @@
 module mod_abstract_reconstruction
 
-  use iso_fortran_env, only: int32, real64
+  use iso_fortran_env, only: ik => int32, rk => real64
   use mod_conserved_vars, only: conserved_vars_t
+  use mod_grid, only: grid_t
   ! use slope_limiter, only: limit
 
   implicit none
@@ -10,7 +11,7 @@ module mod_abstract_reconstruction
   public :: abstract_reconstruction_t
 
   type, abstract :: abstract_reconstruction_t
-    integer(int32) :: order
+    integer(ik) :: order
     character(:), allocatable :: name
   contains
     procedure(initialize), public, deferred :: initialize
@@ -23,14 +24,16 @@ module mod_abstract_reconstruction
       class(abstract_reconstruction_t), intent(inout) :: self
     end subroutine initialize
 
-    pure subroutine reconstruct(self, U, i, j, U_bar)
+    pure subroutine reconstruct(self, U, grid, i, j, U_bar)
       import :: abstract_reconstruction_t
       import :: conserved_vars_t
-      import :: int32, real64
+      import :: grid_t
+      import :: ik, rk
       class(abstract_reconstruction_t), intent(in) :: self
+      class(grid_t), intent(in) :: grid
       class(conserved_vars_t), intent(in) :: U
-      integer(int32), intent(in) :: i, j
-      real(real64), dimension(4), intent(out) :: U_bar  !< U_bar = [rho, u, v, p]
+      integer(ik), intent(in) :: i, j
+      real(rk), dimension(4), intent(out) :: U_bar  !< U_bar = [rho, u, v, p]
     end subroutine reconstruct
   end interface
 

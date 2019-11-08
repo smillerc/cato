@@ -1,10 +1,10 @@
 program fvleg
 
-  use iso_fortran_env, only: int32, real64
+  use iso_fortran_env, only: ik => int32, rk => real64
 
   implicit none
 
-  real(real64) :: t, t_stop, delta_t
+  real(rk) :: t, t_stop, delta_t
 
   do while(t < t_stop)
 

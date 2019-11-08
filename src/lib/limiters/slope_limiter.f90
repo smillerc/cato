@@ -1,5 +1,5 @@
 module mod_slope_limiter
-  use iso_fortran_env, only: int32, real64
+  use iso_fortran_env, only: ik => int32, rk => real64
 
   implicit none
 
@@ -8,7 +8,7 @@ module mod_slope_limiter
 
   type, abstract :: slope_limiter_t
     character(:), allocatable :: name
-    integer(int32) :: error_code
+    integer(ik) :: error_code
     character(:), allocatable :: error_message
   contains
     procedure(initialize), deferred, public :: initialize
@@ -23,8 +23,8 @@ module mod_slope_limiter
     end subroutine
 
     pure function limit(a, b) result(slope)
-      import :: real64
-      real(real64), intent(in) :: a, b
+      import :: rk
+      real(rk), intent(in) :: a, b
     end function
   end interface
 
@@ -37,10 +37,10 @@ contains
   !   !< Slope limiter based on Equation 10 in DOI: 10.1016/j.jcp.2009.04.001
   !   !< Finds the equation of $$L(a,b) = \frac{max(ab,0)(a+b)}{a^2+b^2}$$
 
-  !   real(real64) :: slope
-  !   real(real64), intent(in) :: a, b
+  !   real(rk) :: slope
+  !   real(rk), intent(in) :: a, b
 
-  !   real(real64) :: max_ab
+  !   real(rk) :: max_ab
 
   !   max_ab = max(a * b, 0.0_real64)
 
