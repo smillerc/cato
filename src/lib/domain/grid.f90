@@ -104,7 +104,7 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate grid_t%x"
 
     do i = self%ilo, self%ihi
-      self%x(i, :) = (i - 1) * self%dx
+      self%x(i, :) = self%xmin + (i - 1) * self%dx
     end do
 
     allocate(self%y(self%ilo:self%ihi, self%jlo:self%jhi), &
@@ -112,7 +112,7 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate grid_t%y"
 
     do j = self%jlo, self%jhi
-      self%y(:, j) = (j - 1) * self%dy
+      self%y(:, j) = self%ymin + (j - 1) * self%dy
     end do
 
     allocate(self%cell_volumes(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), &

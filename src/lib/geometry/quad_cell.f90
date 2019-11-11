@@ -35,6 +35,7 @@ module mod_quad_cell
   contains
     procedure, public :: initialize
     procedure, private :: calculate_volume
+    procedure, private :: calculate_centroid
     procedure, private :: calculate_edge_stats
     procedure, private :: calculate_edge_norm_vectors
   end type quad_cell_t
@@ -50,12 +51,14 @@ contains
     self%y = y_coords
 
     call self%calculate_volume()
+    call self%calculate_centroid()
     call self%calculate_edge_stats()
     call self%calculate_edge_norm_vectors()
 
   end subroutine
 
   subroutine calculate_edge_stats(self)
+    !< Find the edge lengths and midpoints of those edges
     class(quad_cell_t), intent(inout) :: self
 
     associate(x=>self%x, y=>self%y)
@@ -72,6 +75,30 @@ contains
 
   end subroutine
 
+  subroutine calculate_centroid(self)
+    !< Find the centroid x and y location
+    !< This uses the formula for a polygon found here (https://en.wikipedia.org/wiki/Centroid#Of_a_polygon)
+    class(quad_cell_t), intent(inout) :: self
+
+    real(rk), dimension(5) :: x, y
+    integer(ik) :: i
+
+    x(1:4) = self%x; x(5) = self%x(1)
+    y(1:4) = self%y; y(5) = self%y(1)
+
+    self%centroid = 0.0_rk
+
+    associate(v=>self%volume, cx=>self%centroid(1), cy=>self%centroid(2))
+      do i = 1, 4
+        cx = cx + (x(i) + x(i + 1)) * (x(i) * y(i + 1) - x(i + 1) * y(i))
+        cy = cy + (y(i) + y(i + 1)) * (x(i) * y(i + 1) - x(i + 1) * y(i))
+      end do
+      cx = (1.0_rk / (6.0_rk * v)) * cx
+      cy = (1.0_rk / (6.0_rk * v)) * cy
+    end associate
+
+  end subroutine
+
   subroutine calculate_volume(self)
     class(quad_cell_t), intent(inout) :: self
 
@@ -84,7 +111,7 @@ contains
       write(*, '(a, 2(g0.4, 1x))') 'N3: ', self%x(3), self%y(3)
       write(*, *) '             N4-----o-----N3'
       write(*, *) '             |            |'
-      write(*, *) '     F4   M4 o      C     o M2   F2'
+      write(*, *) '             o      C     o'
       write(*, *) '             |            |'
       write(*, *) '             N1-----o-----N2'
       write(*, '(a, 2(g0.4, 1x))') 'N1: ', self%x(1), self%y(1)
