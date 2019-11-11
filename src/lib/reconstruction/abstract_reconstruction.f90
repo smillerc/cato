@@ -3,6 +3,7 @@ module mod_abstract_reconstruction
   use iso_fortran_env, only: ik => int32, rk => real64
   use mod_conserved_vars, only: conserved_vars_t
   use mod_grid, only: grid_t
+  use mod_slope_limiter, only: slope_limiter_t
   ! use slope_limiter, only: limit
 
   implicit none
@@ -13,6 +14,7 @@ module mod_abstract_reconstruction
   type, abstract :: abstract_reconstruction_t
     integer(ik) :: order
     character(:), allocatable :: name
+    class(slope_limiter_t), allocatable :: limiter
   contains
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct), public, deferred :: reconstruct
