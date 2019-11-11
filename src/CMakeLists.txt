@@ -8,6 +8,7 @@ add_library(io
 
 add_library(geometry
             lib/domain/grid.f90
+            lib/geometry/vector_2d.f90
             lib/geometry/quad_cell.f90
             lib/geometry/mach_cone_geometry.f90
             )

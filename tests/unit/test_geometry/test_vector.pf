@@ -1,0 +1,25 @@
+module test_vector
+  use iso_fortran_env, only : ik => int32, rk => real64
+  use mod_vector_2d, only : vector_2d_t, operator(.unitnorm.)
+  use funit
+  implicit none
+
+
+contains
+
+  @test
+  subroutine test_vector_stats()
+    type(vector_2d_t) :: vec, norm_vec
+
+
+    call vec%initialize(x_coords=[1.0_rk,5.0_rk], y_coords=[1.0_rk,4.0_rk])
+    @assertEqual(5.0_rk, vec%length)
+
+    norm_vec = .unitnorm. vec
+
+    @assertEqual(1.0_rk, norm_vec%length)
+
+  end subroutine test_vector_stats
+
+
+end module test_vector
