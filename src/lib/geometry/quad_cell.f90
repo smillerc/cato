@@ -130,7 +130,6 @@ contains
     type(vector_2d_t) :: vec, norm_vec
     integer, dimension(4) :: head_idx = [2, 3, 4, 1]
     integer, dimension(4) :: tail_idx = [1, 2, 3, 4]
-    real(rk), dimension(2, 2) :: head, tail
     integer :: i
     real(rk) :: dx, dy
 

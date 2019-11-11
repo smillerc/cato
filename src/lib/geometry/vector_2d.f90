@@ -60,8 +60,6 @@ contains
     !< Normalize a vector_2d_t to unit length
     class(vector_2d_t), intent(in) :: vec
 
-    real(rk), dimension(2) :: x
-    real(rk), dimension(2) :: y
     real(rk), dimension(2) :: vec_at_origin
 
     vec_at_origin(:) = [vec%x(2) - vec%x(1), vec%y(2) - vec%y(1)]
@@ -72,4 +70,3 @@ contains
   end function
 
 end module mod_vector_2d
-
