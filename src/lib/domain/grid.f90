@@ -10,7 +10,7 @@ module mod_grid
 
   type :: grid_t
     !< Summary: The grid_t type holds all of the geometry info relevant to the grid.
-    ! private
+    private
     integer(ik) :: ihi !< i starting index
     integer(ik) :: ilo !< i ending index
     integer(ik) :: ni
@@ -56,14 +56,18 @@ module mod_grid
     procedure, public :: get_ymax
     procedure, public :: get_x_length
     procedure, public :: get_y_length
-    ! procedure, public :: get_x
-    ! procedure, public :: get_y
-    ! procedure, public :: get_cell_volumes
-    ! procedure, public :: get_cell_centroids
-    ! procedure, public :: get_cell_edge_lengths
-    ! procedure, public :: get_cell_edge_midpoints
-    ! procedure, public :: get_cell_edge_norm_vectors
-    final :: finalize
+    procedure, public :: get_x
+    procedure, public :: get_y
+    procedure, public :: get_dx
+    procedure, public :: get_dy
+    procedure, public :: get_cell_volumes
+    procedure, public :: get_cell_centroids
+    procedure, public :: get_cell_edge_lengths
+    procedure, public :: get_cell_edge_midpoints
+    procedure, public :: get_cell_edge_norm_vectors
+    procedure, public :: finalize
+    final :: force_finalization
+
   end type grid_t
 
 contains
@@ -176,19 +180,39 @@ contains
 
   end subroutine
 
-  subroutine finalize(self)
+  subroutine force_finalization(self)
     type(grid_t), intent(inout) :: self
+    call self%finalize
+  end subroutine
+
+  subroutine finalize(self)
+    class(grid_t), intent(inout) :: self
+    integer(ik) :: alloc_status
 
     print *, 'Finalizing grid_t'
-    if(allocated(self%x)) deallocate(self%x)
-    if(allocated(self%y)) deallocate(self%y)
-    if(allocated(self%cell_volumes)) deallocate(self%cell_volumes)
-    if(allocated(self%cell_centroids)) deallocate(self%cell_centroids)
-    if(allocated(self%cell_edge_lengths)) deallocate(self%cell_edge_lengths)
-    if(allocated(self%cell_edge_midpoints)) deallocate(self%cell_edge_midpoints)
-    if(allocated(self%cell_edge_norm_vectors)) deallocate(self%cell_edge_norm_vectors)
+    if(allocated(self%x)) deallocate(self%x, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%x"
+
+    if(allocated(self%y)) deallocate(self%y, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%y"
+
+    if(allocated(self%cell_volumes)) deallocate(self%cell_volumes, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_volumes"
+
+    if(allocated(self%cell_centroids)) deallocate(self%cell_centroids, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_centroids"
+
+    if(allocated(self%cell_edge_lengths)) deallocate(self%cell_edge_lengths, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_edge_lengths"
+
+    if(allocated(self%cell_edge_midpoints)) deallocate(self%cell_edge_midpoints, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_edge_midpoints"
+
+    if(allocated(self%cell_edge_norm_vectors)) deallocate(self%cell_edge_norm_vectors, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_edge_norm_vectors"
+
     print *, 'Done'
-  end subroutine
+  end subroutine finalize
 
   pure function get_ihi(self) result(ihi)
     !< Public interface to get ihi
@@ -260,6 +284,20 @@ contains
     ymax = self%ymax
   end function
 
+  pure function get_dx(self) result(dx)
+    !< Public interface to get ymax
+    class(grid_t), intent(in) :: self
+    real(rk) :: dx
+    dx = self%dx
+  end function
+
+  pure function get_dy(self) result(dy)
+    !< Public interface to get ymax
+    class(grid_t), intent(in) :: self
+    real(rk) :: dy
+    dy = self%dy
+  end function
+
   pure function get_x_length(self) result(x_length)
     !< Public interface to get x_length
     class(grid_t), intent(in) :: self
@@ -274,53 +312,60 @@ contains
     y_length = self%y_length
   end function
 
-  ! pure subroutine get_x(self,x)
-  !   !< Public interface to get x
-  !   class(grid_t), intent(in) :: self
-  !   real(rk) :: x
-  !   x = self%x
-  ! end subroutine
+  pure function get_x(self, i, j) result(x)
+    !< Public interface to get x
+    class(grid_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j
+    real(rk) :: x
+    x = self%x(i, j)
+  end function
 
-  ! pure subroutine get_y(self,y)
-  !   !< Public interface to get y
-  !   class(grid_t), intent(in) :: self
-  !   real(rk) :: y
-  !   y = self%y
-  ! end subroutine
+  pure function get_y(self, i, j) result(y)
+    !< Public interface to get y
+    class(grid_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j
+    real(rk) :: y
+    y = self%y(i, j)
+  end function
 
-  ! pure subroutine get_cell_volumes(self,cell_volumes)
-  !   !< Public interface to get cell_volumes
-  !   class(grid_t), intent(in) :: self
-  !   real(rk), dimension(:,:) :: cell_volumes
-  !   cell_volumes = self%cell_volumes
-  ! end subroutine
+  pure function get_cell_volumes(self, i, j) result(cell_volumes)
+    !< Public interface to get cell_volumes
+    class(grid_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j
+    real(rk) :: cell_volumes
+    cell_volumes = self%cell_volumes(i, j)
+  end function
 
-  ! pure subroutine get_cell_centroids(self,cell_centroids)
-  !   !< Public interface to get cell_centroids
-  !   class(grid_t), intent(in) :: self
-  !   real(rk), dimension(:,:,:) :: cell_centroids
-  !   cell_centroids = self%cell_centroids
-  ! end subroutine
+  pure function get_cell_centroids(self, i, j, xy) result(cell_centroids)
+    !< Public interface to get cell_centroids
+    class(grid_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j, xy
+    real(rk) :: cell_centroids
+    cell_centroids = self%cell_centroids(i, j, xy)
+  end function
 
-  ! pure subroutine get_cell_edge_lengths(self,cell_edge_lengths)
-  !   !< Public interface to get cell_edge_lengths
-  !   class(grid_t), intent(in) :: self
-  !   real(rk), dimension(:,:,:) :: cell_edge_lengths
-  !   cell_edge_lengths = self%cell_edge_lengths
-  ! end subroutine
+  pure function get_cell_edge_lengths(self, i, j, f) result(cell_edge_lengths)
+    !< Public interface to get cell_edge_lengths
+    class(grid_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j, f
+    real(rk) :: cell_edge_lengths
+    cell_edge_lengths = self%cell_edge_lengths(i, j, f)
+  end function
 
-  ! pure subroutine get_cell_edge_midpoints(self,cell_edge_midpoints)
-  !   !< Public interface to get cell_edge_midpoints
-  !   class(grid_t), intent(in) :: self
-  !   real(rk), dimension(:,:,:,:) :: cell_edge_midpoints
-  !   cell_edge_midpoints = self%cell_edge_midpoints
-  ! end subroutine
+  pure function get_cell_edge_midpoints(self, i, j, f, xy) result(cell_edge_midpoints)
+    !< Public interface to get cell_edge_midpoints
+    class(grid_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j, f, xy
+    real(rk) :: cell_edge_midpoints
+    cell_edge_midpoints = self%cell_edge_midpoints(i, j, f, xy)
+  end function
 
-  ! pure subroutine get_cell_edge_norm_vectors(self,cell_edge_norm_vectors)
-  !   !< Public interface to get cell_edge_norm_vectors
-  !   class(grid_t), intent(in) :: self
-  !   real(rk), dimension(:,:,:,:) :: cell_edge_norm_vectors
-  !   cell_edge_norm_vectors = self%cell_edge_norm_vectors
-  ! end subroutine
+  pure function get_cell_edge_norm_vectors(self, i, j, f, x, y) result(cell_edge_norm_vectors)
+    !< Public interface to get cell_edge_norm_vectors
+    class(grid_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j, f, x, y
+    real(rk) :: cell_edge_norm_vectors
+    cell_edge_norm_vectors = self%cell_edge_norm_vectors(i, j, f, x, y)
+  end function
 
 end module mod_grid

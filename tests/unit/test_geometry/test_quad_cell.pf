@@ -9,6 +9,20 @@ contains
   @test
   subroutine test_quad_cell_stats()
 
+  !                     F3
+  !                     M3
+  !            (0,1)-----o-----(1,1)
+  !              |                |
+  !      F4   M4 o        C       o M2   F2
+  !              |               |
+  !            (0,0)-----o-----(1,0)
+  !                     M1
+  !                     F1
+  ! N: node or vertex
+  ! F: face or edge
+  ! M: midpoint of the edge (o)
+  ! C: cell or control volume (in finite-volume lingo)
+
     class(quad_cell_t), allocatable :: cell
     real(rk), dimension(4) :: x = [0,1,1,0]
     real(rk), dimension(4) :: y = [0,0,1,1]
@@ -28,19 +42,20 @@ contains
     @assertEqual([0.5_rk,1.0_rk], cell%edge_midpoints(3,:))
     @assertEqual([0.0_rk,0.5_rk], cell%edge_midpoints(4,:))
 
-    ! Normal vectors
+    ! Normal vectors (should have length 1 too)
     ! Note: the midpoint of the edge should be the tail of the norm vector
+    ! The following asserts test the location of the tail (midpoint of face), and tail of length 1 away
     @assertEqual(cell%edge_midpoints(1,:), cell%edge_norm_vectors(1,1,:))
-    @assertEqual([0.5_rk,-0.5_rk], cell%edge_norm_vectors(1,2,:))
+    @assertEqual([0.5_rk,-1.0_rk], cell%edge_norm_vectors(1,2,:))
 
     @assertEqual(cell%edge_midpoints(2,:), cell%edge_norm_vectors(2,1,:))
-    @assertEqual([1.5_rk,0.5_rk], cell%edge_norm_vectors(2,2,:))
+    @assertEqual([2.0_rk,0.5_rk], cell%edge_norm_vectors(2,2,:))
 
     @assertEqual(cell%edge_midpoints(3,:), cell%edge_norm_vectors(3,1,:))
-    @assertEqual([0.5_rk,1.5_rk], cell%edge_norm_vectors(3,2,:))
+    @assertEqual([0.5_rk,2.0_rk], cell%edge_norm_vectors(3,2,:))
 
     @assertEqual(cell%edge_midpoints(4,:), cell%edge_norm_vectors(4,1,:))
-    @assertEqual([-0.5_rk,0.5_rk], cell%edge_norm_vectors(4,2,:))
+    @assertEqual([-1.0_rk,0.5_rk], cell%edge_norm_vectors(4,2,:))
     
   end subroutine test_quad_cell_stats
 

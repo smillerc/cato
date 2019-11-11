@@ -2,6 +2,7 @@ module mod_quad_cell
   !< Summary: Define the quadrilateral cell/control volume object
 
   use iso_fortran_env, only: ik => int32, rk => real64
+  use mod_vector_2d, only: vector_2d_t, operator(.unitnorm.)
 
   implicit none
 
@@ -125,8 +126,11 @@ contains
     !< Find the vector normal to the edge originating at the midpoint
 
     class(quad_cell_t), intent(inout) :: self
+
+    type(vector_2d_t) :: vec, norm_vec
     integer, dimension(4) :: head_idx = [2, 3, 4, 1]
     integer, dimension(4) :: tail_idx = [1, 2, 3, 4]
+    real(rk), dimension(2, 2) :: head, tail
     integer :: i
     real(rk) :: dx, dy
 
@@ -143,8 +147,11 @@ contains
         dx = x_head - x_mid
         dy = y_head - y_mid
 
-        n(i, 1, :) = [x_mid, y_mid]
-        n(i, 2, :) = [x_mid + dy, y_mid - dx]
+        call vec%initialize(x_coords=[x_mid, x_mid + dy], y_coords=[y_mid, y_mid - dx])
+        norm_vec = .unitnorm.vec
+
+        n(i, 1, :) = [norm_vec%x(1), norm_vec%y(1)]
+        n(i, 2, :) = [norm_vec%x(2), norm_vec%y(2)]
 
       end associate
 
