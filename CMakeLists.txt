@@ -46,7 +46,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   find_package(Coarray REQUIRED)
   list(APPEND CMAKE_Fortran_FLAGS ${Coarray_COMPILE_OPTIONS})
 
-  list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
+  list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=single")
   set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g\
  -O0 -g -Wall -Wextra \
  -Wconversion \
@@ -78,6 +78,3 @@ message(STATUS "Compile Flags Release: " ${CMAKE_Fortran_FLAGS_RELEASE})
 # add_subdirectory(src/third_party)
 add_subdirectory(src)
 add_subdirectory(tests/unit)
-
-
-

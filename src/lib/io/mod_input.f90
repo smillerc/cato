@@ -72,9 +72,9 @@ contains
 
     file_exists = .false.
 
-    ! if (this_image() == 1) then
-    ! print*, 'Reading input file: ' // trim(filename)
-    ! end if
+    if(this_image() == 1) then
+      print *, 'Reading input file: '//trim(filename)
+    end if
 
     inquire(file=filename, EXIST=file_exists)
     if(.not. file_exists) error stop "Error: Input .ini file not found"

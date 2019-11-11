@@ -1,9 +1,20 @@
+add_library(ini_parser
+            third_party/ini_parser/cfgio_mod.f90
+            third_party/ini_parser/string_conv_mod.f90
+            )
+
 add_library(constants
             lib/math_constants.f90
             )
 
-add_library(io 
+add_library(io
             lib/io/mod_input.f90
+            )
+target_link_libraries(io PUBLIC ini_parser)
+
+
+add_library(utilities
+            lib/limiters/slope_limiter.f90
             )
 
 add_library(geometry
@@ -22,7 +33,6 @@ add_library(fvleg
             lib/reconstruction/abstract_reconstruction.f90
             lib/reconstruction/first_order_reconstruction.f90
             lib/reconstruction/second_order_reconstruction.f90
-            lib/limiters/slope_limiter.f90
             )
 
 include_directories(${HDF5_INCLUDE_DIRS})
@@ -30,9 +40,10 @@ target_include_directories(fvleg PUBLIC ${HDF5_INCLUDE_DIRS})
 
 target_compile_options(fvleg PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(fvleg
-                      PUBLIC 
+                      PUBLIC
                       constants
                       geometry
+                      utilities
                       io
                       ${Coarray_LIBRARIES}
                             #  functional
