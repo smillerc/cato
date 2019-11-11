@@ -6,50 +6,57 @@ module mod_slope_limiter
   private
   public :: slope_limiter_t
 
-  type, abstract :: slope_limiter_t
+  type :: slope_limiter_t
     character(:), allocatable :: name
-    integer(ik) :: error_code
-    character(:), allocatable :: error_message
-  contains
-    procedure(initialize), deferred, public :: initialize
-    procedure(limit), deferred, nopass, public :: limit
+    procedure(limit), pointer, nopass :: limit
   end type
 
-  abstract interface
-    subroutine initialize(self, name)
-      import :: slope_limiter_t
-      class(slope_limiter_t), intent(inout) :: self
-      character(*) :: name
-    end subroutine
+  interface slope_limiter_t
+    module procedure constructor
+  end interface
 
+  interface
     pure function limit(a, b) result(slope)
       import :: rk
+      real(rk) :: slope
       real(rk), intent(in) :: a, b
     end function
   end interface
 
-  ! type, extends(slope_limiter_t) :: sun_ren_2009_limiter
-  ! end type
-
 contains
 
-  ! pure function limit(a, b) result(slope)
-  !   !< Slope limiter based on Equation 10 in DOI: 10.1016/j.jcp.2009.04.001
-  !   !< Finds the equation of $$L(a,b) = \frac{max(ab,0)(a+b)}{a^2+b^2}$$
+  type(slope_limiter_t) pure function constructor(name) result(limiter)
+    character(len=*), intent(in) :: name
 
-  !   real(rk) :: slope
-  !   real(rk), intent(in) :: a, b
+    limiter%name = trim(name)
 
-  !   real(rk) :: max_ab
+    select case(trim(name))
+    case('sun_ren_09')
+      limiter%limit => sun_ren_09_limit
+    case default
+      limiter%limit => sun_ren_09_limit
+      limiter%name = 'sun_ren_09'
+    end select
 
-  !   max_ab = max(a * b, 0.0_real64)
+  end function
 
-  !   if(max_ab > 0) then
-  !     slope = max_ab * (a + b) / (a**2 + b**2)
-  !   else
-  !     slope = 0.0_real64
-  !   end if
+  pure function sun_ren_09_limit(a, b) result(slope)
+    !< Slope limiter based on Equation 10 in DOI: 10.1016/j.jcp.2009.04.001
+    !< Finds the equation of $$L(a,b) = \frac{max(ab,0)(a+b)}{a^2+b^2}$$
 
-  ! end function limit
+    real(rk) :: slope
+    real(rk), intent(in) :: a, b
+
+    real(rk) :: max_ab
+
+    max_ab = max(a * b, 0.0_rk)
+
+    if(max_ab > 0) then
+      slope = max_ab * (a + b) / (a**2 + b**2)
+    else
+      slope = 0.0_rk
+    end if
+
+  end function sun_ren_09_limit
 
 end module mod_slope_limiter
