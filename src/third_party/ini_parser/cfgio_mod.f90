@@ -718,8 +718,7 @@ contains
     character(len=*), intent(in) :: filename
     character(len=512) :: text
     integer(int32) :: iunit
-    iunit = assign_unit()
-    open(iunit, file=filename)
+    open(newunit=iunit, file=filename)
     do
       read(iunit, '(a)', end=999) text
       !print*,"read text:: ",trim(text)
@@ -732,7 +731,7 @@ contains
     class(cfg_t), intent(inout) :: cfg
     character(len=*), intent(in) :: text
     character(len=MXNSTR) :: key, val
-    integer(int32) :: id, istat
+    integer(int32) :: id
     character :: cmt1 = '#', cmt2 = ';', eq = '=', str1
     character(len=MXNSTR) :: str
     str = adjustl(text)
@@ -800,8 +799,7 @@ contains
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: filename
     integer(int32) un
-    un = assign_unit()
-    open(un, file=filename)
+    open(newunit=un, file=filename)
     call print_cfg(cfg, un)
     close(un)
   end subroutine write_cfg_file
@@ -812,18 +810,6 @@ contains
     write(stderr, *) trim(msg)
     stop
   end subroutine errexit
-
-  function assign_unit() result(un)
-    logical :: oflag
-    integer(int32) :: un, i
-    do i = 99, 10, -1
-      inquire(unit=i, opened=oflag)
-      if(.not. oflag) then
-        un = i
-        return
-      endif
-    enddo
-  end function assign_unit
 
   ! parameter key=val parse
   subroutine split_kv(par, key, val)
