@@ -1,15 +1,16 @@
-module mod_grid
+module mod_regular_2d_grid
   use iso_fortran_env, only: ik => int32, rk => real64
+  use mod_grid, only: grid_t
   use mod_quad_cell, only: quad_cell_t
   use mod_input, only: input_t
 
   implicit none
 
   private
-  public :: grid_t
+  public :: regular_2d_grid_t
 
-  type :: grid_t
-    !< Summary: The grid_t type holds all of the geometry info relevant to the grid.
+  type, extends(grid_t) :: regular_2d_grid_t
+    !< Summary: The regular_2d_grid_t type holds all of the geometry info relevant to the grid.
     private
     integer(ik) :: ihi !< i starting index
     integer(ik) :: ilo !< i ending index
@@ -68,13 +69,13 @@ module mod_grid
     procedure, public :: finalize
     final :: force_finalization
 
-  end type grid_t
+  end type regular_2d_grid_t
 
 contains
 
   subroutine initialize(self, input)
 
-    class(grid_t), intent(inout) :: self
+    class(regular_2d_grid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
     integer(ik) :: alloc_status, i, j
@@ -105,7 +106,7 @@ contains
 
     allocate(self%x(self%ilo:self%ihi, self%jlo:self%jhi), &
              stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate grid_t%x"
+    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%x"
 
     do i = self%ilo, self%ihi
       self%x(i, :) = self%xmin + (i - 1) * self%dx
@@ -113,7 +114,7 @@ contains
 
     allocate(self%y(self%ilo:self%ihi, self%jlo:self%jhi), &
              stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate grid_t%y"
+    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%y"
 
     do j = self%jlo, self%jhi
       self%y(:, j) = self%ymin + (j - 1) * self%dy
@@ -121,27 +122,27 @@ contains
 
     allocate(self%cell_volumes(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), &
              stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate grid_t%cell_volumes"
+    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volumes"
     self%cell_volumes = 0.0_rk
 
     allocate(self%cell_centroids(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 2), &
              stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate grid_t%cell_centroids"
+    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroids"
     self%cell_centroids = 0.0_rk
 
     allocate(self%cell_edge_lengths(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 4), &
              stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate grid_t%cell_edge_lengths"
+    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_lengths"
     self%cell_edge_lengths = 0.0_rk
 
     allocate(self%cell_edge_midpoints(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 4, 2), &
              stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate grid_t%cell_edge_midpoints"
+    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_midpoints"
     self%cell_edge_midpoints = 0.0_rk
 
     allocate(self%cell_edge_norm_vectors(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 4, 2, 2), &
              stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate grid_t%cell_edge_norm_vectors"
+    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_norm_vectors"
     self%cell_edge_norm_vectors = 0.0_rk
 
     call self%populate_element_specifications()
@@ -152,7 +153,7 @@ contains
     !< This seemed to be better for memory access patterns elsewhere in the code. Fortran prefers
     !< and structure of arrays rather than an array of structures
 
-    class(grid_t), intent(inout) :: self
+    class(regular_2d_grid_t), intent(inout) :: self
     class(quad_cell_t), allocatable :: quad
 
     integer(ik) :: i, j
@@ -181,140 +182,140 @@ contains
   end subroutine
 
   subroutine force_finalization(self)
-    type(grid_t), intent(inout) :: self
+    type(regular_2d_grid_t), intent(inout) :: self
     call self%finalize
   end subroutine
 
   subroutine finalize(self)
-    class(grid_t), intent(inout) :: self
+    class(regular_2d_grid_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    print *, 'Finalizing grid_t'
+    print *, 'Finalizing regular_2d_grid_t'
     if(allocated(self%x)) deallocate(self%x, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%x"
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%x"
 
     if(allocated(self%y)) deallocate(self%y, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%y"
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%y"
 
     if(allocated(self%cell_volumes)) deallocate(self%cell_volumes, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_volumes"
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volumes"
 
     if(allocated(self%cell_centroids)) deallocate(self%cell_centroids, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_centroids"
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_centroids"
 
     if(allocated(self%cell_edge_lengths)) deallocate(self%cell_edge_lengths, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_edge_lengths"
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_lengths"
 
     if(allocated(self%cell_edge_midpoints)) deallocate(self%cell_edge_midpoints, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_edge_midpoints"
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_midpoints"
 
     if(allocated(self%cell_edge_norm_vectors)) deallocate(self%cell_edge_norm_vectors, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate grid_t%cell_edge_norm_vectors"
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_norm_vectors"
 
     print *, 'Done'
   end subroutine finalize
 
   pure function get_ihi(self) result(ihi)
     !< Public interface to get ihi
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik) :: ihi
     ihi = self%ihi
   end function
 
   pure function get_ilo(self) result(ilo)
     !< Public interface to get ilo
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik) :: ilo
     ilo = self%ilo
   end function
 
   pure function get_ni(self) result(ni)
     !< Public interface to get ni
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik) :: ni
     ni = self%ni
   end function
 
   pure function get_nj(self) result(nj)
     !< Public interface to get nj
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik) :: nj
     nj = self%nj
   end function
 
   pure function get_jlo(self) result(jlo)
     !< Public interface to get jlo
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik) :: jlo
     jlo = self%jlo
   end function
 
   pure function get_jhi(self) result(jhi)
     !< Public interface to get jhi
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik) :: jhi
     jhi = self%jhi
   end function
 
   pure function get_xmin(self) result(xmin)
     !< Public interface to get xmin
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     real(rk) :: xmin
     xmin = self%xmin
   end function
 
   pure function get_xmax(self) result(xmax)
     !< Public interface to get xmax
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     real(rk) :: xmax
     xmax = self%xmax
   end function
 
   pure function get_ymin(self) result(ymin)
     !< Public interface to get ymin
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     real(rk) :: ymin
     ymin = self%ymin
   end function
 
   pure function get_ymax(self) result(ymax)
     !< Public interface to get ymax
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     real(rk) :: ymax
     ymax = self%ymax
   end function
 
   pure function get_dx(self) result(dx)
     !< Public interface to get ymax
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     real(rk) :: dx
     dx = self%dx
   end function
 
   pure function get_dy(self) result(dy)
     !< Public interface to get ymax
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     real(rk) :: dy
     dy = self%dy
   end function
 
   pure function get_x_length(self) result(x_length)
     !< Public interface to get x_length
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     real(rk) :: x_length
     x_length = self%x_length
   end function
 
   pure function get_y_length(self) result(y_length)
     !< Public interface to get y_length
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     real(rk) :: y_length
     y_length = self%y_length
   end function
 
   pure function get_x(self, i, j) result(x)
     !< Public interface to get x
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j
     real(rk) :: x
     x = self%x(i, j)
@@ -322,7 +323,7 @@ contains
 
   pure function get_y(self, i, j) result(y)
     !< Public interface to get y
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j
     real(rk) :: y
     y = self%y(i, j)
@@ -330,7 +331,7 @@ contains
 
   pure function get_cell_volumes(self, i, j) result(cell_volumes)
     !< Public interface to get cell_volumes
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j
     real(rk) :: cell_volumes
     cell_volumes = self%cell_volumes(i, j)
@@ -338,7 +339,7 @@ contains
 
   pure function get_cell_centroids(self, i, j, xy) result(cell_centroids)
     !< Public interface to get cell_centroids
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j, xy
     real(rk) :: cell_centroids
     cell_centroids = self%cell_centroids(i, j, xy)
@@ -346,7 +347,7 @@ contains
 
   pure function get_cell_edge_lengths(self, i, j, f) result(cell_edge_lengths)
     !< Public interface to get cell_edge_lengths
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j, f
     real(rk) :: cell_edge_lengths
     cell_edge_lengths = self%cell_edge_lengths(i, j, f)
@@ -354,7 +355,7 @@ contains
 
   pure function get_cell_edge_midpoints(self, i, j, f, xy) result(cell_edge_midpoints)
     !< Public interface to get cell_edge_midpoints
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j, f, xy
     real(rk) :: cell_edge_midpoints
     cell_edge_midpoints = self%cell_edge_midpoints(i, j, f, xy)
@@ -362,10 +363,10 @@ contains
 
   pure function get_cell_edge_norm_vectors(self, i, j, f, x, y) result(cell_edge_norm_vectors)
     !< Public interface to get cell_edge_norm_vectors
-    class(grid_t), intent(in) :: self
+    class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j, f, x, y
     real(rk) :: cell_edge_norm_vectors
     cell_edge_norm_vectors = self%cell_edge_norm_vectors(i, j, f, x, y)
   end function
 
-end module mod_grid
+end module mod_regular_2d_grid

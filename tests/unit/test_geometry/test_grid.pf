@@ -1,12 +1,12 @@
 module test_grid
   use iso_fortran_env, only : ik => int32, rk => real64
-  use mod_grid, only : grid_t
+  use mod_regular_2d_grid, only : regular_2d_grid_t
   use mod_input, only : input_t
   use funit
   implicit none
 
 
-  class(grid_t), allocatable :: grid
+  class(regular_2d_grid_t), allocatable :: grid
   class(input_t), allocatable :: input
 
 contains
@@ -17,7 +17,7 @@ contains
     call input%initialize(ni=5_ik, nj=3_ik, &
                           xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
-    allocate(grid_t :: grid)
+    allocate(regular_2d_grid_t :: grid)
     call grid%initialize(input)
   end subroutine init_grid
 
@@ -25,7 +25,7 @@ contains
   subroutine test_grid_info()
     @assertEqual(5, grid%get_ni())
     @assertEqual(3, grid%get_nj())
-    
+
     @assertEqual(1, grid%get_ilo())
     @assertEqual(5, grid%get_ihi())
 

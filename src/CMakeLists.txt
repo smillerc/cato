@@ -18,7 +18,9 @@ add_library(utilities
             )
 
 add_library(geometry
-            lib/domain/grid.f90
+            lib/domain/grid_type.f90
+            lib/domain/regular_2d_grid.f90
+            lib/domain/grid_factory.f90
             lib/geometry/vector_2d.f90
             lib/geometry/quad_cell.f90
             lib/geometry/mach_cone_geometry.f90
@@ -33,33 +35,41 @@ add_library(fvleg
             lib/reconstruction/abstract_reconstruction.f90
             lib/reconstruction/first_order_reconstruction.f90
             lib/reconstruction/second_order_reconstruction.f90
+            lib/finite_volume_scheme/fv_scheme.f90
+            lib/finite_volume_scheme/fvleg.f90
+            lib/integrand.f90
+            lib/integrators/strategy.f90
+            lib/integrators/surrogate.f90
+            lib/integrators/runge_kutta_2nd_order.f90
             )
 
-include_directories(${HDF5_INCLUDE_DIRS})
-target_include_directories(fvleg PUBLIC ${HDF5_INCLUDE_DIRS})
+# include_directories(${HDF5_INCLUDE_DIRS})
+# target_include_directories(fvleg PUBLIC ${HDF5_INCLUDE_DIRS})
 
-target_compile_options(fvleg PUBLIC ${Coarray_COMPILE_OPTIONS})
+# target_compile_options(fvleg PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(fvleg
                       PUBLIC
                       constants
                       geometry
                       utilities
                       io
+                      #  functional
                       ${Coarray_LIBRARIES}
-                            #  functional
-                             ${HDF5_LIBRARIES}
-                             ${HDF5_HL_LIBRARIES})
+                      ${HDF5_LIBRARIES}
+                      ${HDF5_HL_LIBRARIES})
 
 add_executable(fvleg_2d.x main.f90)
-
-set_target_properties (fvleg_2d.x PROPERTIES
-  Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
-target_compile_options(fvleg_2d.x PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(fvleg_2d.x
+                      io
                       fvleg
-                    #   functional
-                    #   ${HDF5_LIBRARIES}
-                    #   ${HDF5_HL_LIBRARIES}
+                      #   functional
+                      #   ${HDF5_LIBRARIES}
+                      #   ${HDF5_HL_LIBRARIES}
                       ${Coarray_LIBRARIES}
                       )
+# target_compile_options(fvleg_2d.x PUBLIC ${Coarray_COMPILE_OPTIONS})
+
+
+
+# set_target_properties (fvleg_2d.x PROPERTIES
+#   Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
