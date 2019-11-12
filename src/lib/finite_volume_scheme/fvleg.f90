@@ -17,6 +17,9 @@ module mod_fvleg
     procedure, public :: eval_fluxes => eval_fvleg_fluxes
     procedure, public :: t => time_derivative
 
+    procedure, public :: add => add_fvleg
+    procedure, public :: multiply => multiply_fvleg
+    procedure, public :: assign => assign_fvleg
   end type
 
 contains
@@ -35,8 +38,25 @@ contains
   end subroutine
 
   function time_derivative(self) result(dState_dt)
-    class(fvleg_t), intent(in)  :: self
+    class(fvleg_t), intent(in) :: self
     class(integrand), allocatable :: dState_dt
   end function time_derivative
+
+  function add_fvleg(lhs, rhs) result(operator_result)
+    class(fvleg_t), intent(in) :: lhs
+    class(integrand), intent(in) :: rhs
+    class(integrand), allocatable :: operator_result
+  end function add_fvleg
+
+  function multiply_fvleg(lhs, rhs) result(operator_result)
+    class(fvleg_t), intent(in) :: lhs
+    class(integrand), allocatable :: operator_result
+    real(rk), intent(in) :: rhs
+  end function multiply_fvleg
+
+  subroutine assign_fvleg(lhs, rhs)
+    class(fvleg_t), intent(inout) :: lhs
+    class(integrand), intent(in) :: rhs
+  end subroutine assign_fvleg
 
 end module mod_fvleg

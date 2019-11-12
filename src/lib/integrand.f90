@@ -15,38 +15,42 @@ module mod_integrand
     procedure, non_overridable :: get_time_integrator
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
 
-    ! procedure(symmetric_operator), deferred :: add
-    ! procedure(asymmetric_operator), deferred :: multiply
-    ! procedure(symmetric_assignment), deferred :: assign
+    procedure(symmetric_operator), deferred :: add
+    procedure(asymmetric_operator), deferred :: multiply
+    procedure(symmetric_assignment), deferred :: assign
 
-    ! ! Map operators to corresponding procedures
-    ! generic :: operator(+) => add
-    ! generic :: operator(*) => multiply
-    ! generic :: assignment(=) => assign
+    ! Map operators to corresponding procedures
+    generic :: operator(+) => add
+    generic :: operator(*) => multiply
+    generic :: assignment(=) => assign
   end type
 
   abstract interface
     function time_derivative(self) result(dState_dt)
       import :: integrand
-      class(integrand), intent(in)  :: self
+      class(integrand), intent(in) :: self
       class(integrand), allocatable :: dState_dt
     end function time_derivative
-    ! function symmetric_operator(lhs, rhs) result(operator_result)
-    !   import :: integrand
-    !   class(integrand), intent(in)  :: lhs, rhs
-    !   class(integrand), allocatable :: operator_result
-    ! end function symmetric_operator
-    ! function asymmetric_operator(lhs, rhs) result(operator_result)
-    !   import :: integrand
-    !   class(integrand), intent(in)  :: lhs
-    !   class(integrand), allocatable :: operator_result
-    !   real, intent(in)  :: rhs
-    ! end function asymmetric_operator
-    ! subroutine symmetric_assignment(lhs, rhs)
-    !   import :: integrand
-    !   class(integrand), intent(in)    :: rhs
-    !   class(integrand), intent(inout) :: lhs
-    ! end subroutine symmetric_assignment
+
+    function symmetric_operator(lhs, rhs) result(operator_result)
+      import :: integrand
+      class(integrand), intent(in) :: lhs, rhs
+      class(integrand), allocatable :: operator_result
+    end function symmetric_operator
+
+    function asymmetric_operator(lhs, rhs) result(operator_result)
+      import :: integrand
+      import :: rk
+      class(integrand), intent(in) :: lhs
+      class(integrand), allocatable :: operator_result
+      real(rk), intent(in) :: rhs
+    end function asymmetric_operator
+
+    subroutine symmetric_assignment(lhs, rhs)
+      import :: integrand
+      class(integrand), intent(in) :: rhs
+      class(integrand), intent(inout) :: lhs
+    end subroutine symmetric_assignment
   end interface
 
 contains
