@@ -14,6 +14,7 @@ module mod_input
 
     ! grid
     logical :: read_from_hdf5 = .false.
+    character(:), allocatable :: grid_type
     real(rk) :: xmin
     real(rk) :: xmax
     real(rk) :: ymin
@@ -43,7 +44,7 @@ module mod_input
 
   contains
     procedure, public :: initialize
-    procedure, private :: read_from_ini
+    procedure, public :: read_from_ini
   end type input_t
 
 contains
@@ -91,6 +92,9 @@ contains
 
     ! Grid
     call cfg%get("grid", "read_from_hdf5", self%read_from_hdf5, .false.)
+    call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
+    self%grid_type = trim(char_buffer)
+
     call cfg%get("grid", "xmin", self%xmin)
     call cfg%get("grid", "xmax", self%xmax)
     call cfg%get("grid", "ymin", self%ymin)
