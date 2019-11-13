@@ -7,7 +7,7 @@ module mod_quad_cell
   implicit none
 
   private
-  public :: quad_cell_t
+  public :: quad_cell_t, quad_cell_edge_vector_mapping_t
   !<  Numbering convention for a 2D quadrilateral cell
   !<
   !<                     F3
@@ -41,7 +41,49 @@ module mod_quad_cell
     procedure, private :: calculate_edge_norm_vectors
   end type quad_cell_t
 
+  integer(ik), parameter :: N1 = 1
+  integer(ik), parameter :: M1 = 2
+  integer(ik), parameter :: N2 = 3
+  integer(ik), parameter :: M2 = 4
+  integer(ik), parameter :: N3 = 5
+  integer(ik), parameter :: M3 = 6
+  integer(ik), parameter :: N4 = 7
+  integer(ik), parameter :: M4 = 8
+
+  type :: quad_cell_edge_vector_mapping_t
+    integer(ik), dimension(4, 3, 3) :: edge_to_loc
+  end type quad_cell_edge_vector_mapping_t
+  ! type :: quad_cell_edge_vector_mapping
+  ! [[7,1,3], & ! k=1,1 ()
+  !  [1,2,3], & ! k=1,c
+  !  [1,3,5], & ! k=1,2
+  ! end type
+
+  interface quad_cell_edge_vector_mapping_t
+    module procedure mapping_constructor
+  end interface
+
 contains
+
+  pure function mapping_constructor() result(map)
+    type(quad_cell_edge_vector_mapping) :: map
+
+    map%edge_to_loc(1, 1, :) = [N2, N1, N4] ! k=1,1
+    map%edge_to_loc(1, 2, :) = [N2, M1, N1] ! k=1,c
+    map%edge_to_loc(1, 3, :) = [N3, N2, N1] ! k=1,2
+
+    map%edge_to_loc(2, 1, :) = [N3, N2, N1] ! k=2,1
+    map%edge_to_loc(2, 2, :) = [N3, M2, N2] ! k=2,c
+    map%edge_to_loc(2, 3, :) = [N4, N3, N2] ! k=2,2
+
+    map%edge_to_loc(3, 1, :) = [N4, N3, N2] ! k=3,1
+    map%edge_to_loc(3, 2, :) = [N4, M3, N3] ! k=3,c
+    map%edge_to_loc(3, 3, :) = [N1, N4, N3] ! k=3,2
+
+    map%edge_to_loc(4, 1, :) = [N1, N4, N3] ! k=4,1
+    map%edge_to_loc(4, 2, :) = [N1, M4, N4] ! k=4,c
+    map%edge_to_loc(4, 3, :) = [N2, N1, N4] ! k=4,2
+  end function
 
   subroutine initialize(self, x_coords, y_coords)
     class(quad_cell_t), intent(inout) :: self
