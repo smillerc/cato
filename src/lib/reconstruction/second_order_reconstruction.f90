@@ -114,7 +114,7 @@ contains
     class(second_order_reconstruction_t), intent(in) :: self
     real(rk), dimension(:, :) :: v !< variable to estimate the gradient
     integer(ik), intent(in) :: i, j
-    real(rk), dimension(2, 2) :: grad_v
+    real(rk), dimension(2) :: grad_v
 
     associate(limit=>self%limiter%limit, &
               volume=>, &
