@@ -29,19 +29,68 @@ module mod_regular_2d_grid
     real(rk) :: x_length !< Length of the domain in x
     real(rk) :: y_length !< Length of the domain in y
 
-    real(rk), dimension(:, :), allocatable :: x
-    real(rk), dimension(:, :), allocatable :: y
-
     ! Rather than keep an array of element types, make arrays that hold the
     ! element information. Use the element type to populate this
     ! once at the beginning of the simulation or on demand
 
-    real(rk), dimension(:, :), allocatable :: cell_volumes !< (i,j)
-    real(rk), dimension(:, :, :), allocatable :: cell_centroids !< (i, j, x:y)
-    real(rk), dimension(:, :, :), allocatable :: cell_edge_lengths  !< (i, j, face1:face4)
-    real(rk), dimension(:, :, :, :), allocatable :: cell_edge_midpoints !< (i, j, face1:face4, x:y)
-    real(rk), dimension(:, :, :, :, :), allocatable :: cell_edge_norm_vectors  !< (i, j, face1:face4, x:1:x2, y1:y2)
+    real(rk), dimension(:, :), allocatable :: cell_volumes !< (i,j); volume of each cell
 
+    !  Numbering convention for a 2D quadrilateral cell
+    !
+    !                     E3
+    !                     M3
+    !              N4-----o-----N3
+    !              |            |
+    !      E4   M4 o      C     o M2   E2
+    !              |            |
+    !              N1-----o-----N2
+    !                     M1
+    !                     E1
+    ! N: node or vertex
+    ! E: face or edge or interface
+    ! M: midpoint of the edge (o)
+    ! C: cell or control volume (in finite-volume lingo)
+
+    real(rk), dimension(:, :), allocatable :: node_x !< (i, j, N1:N4); x location of each node
+    real(rk), dimension(:, :), allocatable :: node_y !< (i, j, N1:N4); y location of each node
+
+    ! real(rk), dimension(:, :, :, :), allocatable :: cell_node_xy
+    !           !< (i, j, N1:M4, x:y), so it stores each node (N) and midpoint (M) in order,
+    !           !< e.g. the node dimension is [N1, M1, N2, ... , N4, M4]
+
+    real(rk), dimension(:, :, :), allocatable :: cell_centroid_xy
+    !< (i, j, x:y); x,y of the cell centroid
+
+    real(rk), dimension(:, :, :), allocatable :: cell_edge_lengths
+    !< (i, j, face1:face4); length of each edge
+
+    real(rk), dimension(:, :, :, :), allocatable :: cell_edge_norm_vectors
+    !< (i, j, face1:face4, x:y); normal direction vector of each face
+
+    real(rk), dimension(:, :, :, :, :), allocatable :: cell_edge_vectors
+    !< (i, j, face1:face4, loc1:loc2, x:y)
+    !< This describes the point locations of the set of edge vectors at each location the mach cone is evaluated.
+    !< For instance, for edge E1, a mach cone is constructed at N1, M1, and N2.
+    !< At the corner location 1 at N1, e.g. index `loc1`, or k=1,1 (in paper lingo), the 3 points that define the 2
+    !< edge vectors are N2, N1, and N4 or (N2,N1) and (N4,N1). To take advantage of memory access patterns, since
+    !< mach cones are made 12x at each cell for each timestep, these points are lumped into a big array. The index
+    !< loc1:loc2 spans the 1st corner, midpoint, and 2nd corner.
+
+    ! k=1,1 -> [N2, N1, N4]
+    ! k=1,c -> [N2, M1, N1]
+    ! k=1,2 -> [N3, N2, N1]
+
+    ! k=2,1 -> [N3, N2, N1]
+    ! k=2,c -> [N3, M2, N2]
+    ! k=2,2 -> [N4, N3, N2]
+
+    ! k=3,1 -> [N4, N3, N2]
+    ! k=3,c -> [N4, M3, N3]
+    ! k=3,2 -> [N1, N4, N3]
+
+    ! k=4,1 -> [N1, N4, N3]
+    ! k=4,c -> [N1, M4, N4]
+    ! k=4,2 -> [N2, N1, N4]
   contains
     procedure, public :: initialize
     procedure, private :: populate_element_specifications
@@ -64,7 +113,7 @@ module mod_regular_2d_grid
     procedure, public :: get_cell_volumes
     procedure, public :: get_cell_centroids
     procedure, public :: get_cell_edge_lengths
-    procedure, public :: get_cell_edge_midpoints
+    procedure, public :: get_cell_node_xy
     procedure, public :: get_cell_edge_norm_vectors
     procedure, public :: finalize
     final :: force_finalization
@@ -104,20 +153,20 @@ contains
     self%dy = self%y_length / (self%nj - 1)
     if(self%dy <= 0) error stop "grid%dy <= 0"
 
-    allocate(self%x(self%ilo:self%ihi, self%jlo:self%jhi), &
+    allocate(self%node_x(self%ilo:self%ihi, self%jlo:self%jhi), &
              stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%x"
 
     do i = self%ilo, self%ihi
-      self%x(i, :) = self%xmin + (i - 1) * self%dx
+      self%node_x(i, :) = self%xmin + (i - 1) * self%dx
     end do
 
-    allocate(self%y(self%ilo:self%ihi, self%jlo:self%jhi), &
+    allocate(self%node_y(self%ilo:self%ihi, self%jlo:self%jhi), &
              stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%y"
 
     do j = self%jlo, self%jhi
-      self%y(:, j) = self%ymin + (j - 1) * self%dy
+      self%node_y(:, j) = self%ymin + (j - 1) * self%dy
     end do
 
     allocate(self%cell_volumes(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), &
@@ -125,22 +174,22 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volumes"
     self%cell_volumes = 0.0_rk
 
-    allocate(self%cell_centroids(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 2), &
+    allocate(self%cell_centroid_xy(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 2), &
              stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroids"
-    self%cell_centroids = 0.0_rk
+    self%cell_centroid_xy = 0.0_rk
 
     allocate(self%cell_edge_lengths(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 4), &
              stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_lengths"
     self%cell_edge_lengths = 0.0_rk
 
-    allocate(self%cell_edge_midpoints(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 4, 2), &
+    allocate(self%cell_node_xy(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 8, 2), &
              stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_midpoints"
-    self%cell_edge_midpoints = 0.0_rk
+    self%cell_node_xy = 0.0_rk
 
-    allocate(self%cell_edge_norm_vectors(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 4, 2, 2), &
+    allocate(self%cell_edge_norm_vectors(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 4, 2), &
              stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_norm_vectors"
     self%cell_edge_norm_vectors = 0.0_rk
@@ -163,16 +212,17 @@ contains
 
         allocate(quad_cell_t :: quad)
 
-        associate(x=>self%x, y=>self%y)
+        associate(x=>self%node_x, y=>self%node_y)
           call quad%initialize(x_coords=[x(i, j), x(i + 1, j), x(i + 1, j + 1), x(i, j + 1)], &
                                y_coords=[y(i, j), y(i + 1, j), y(i + 1, j + 1), y(i, j + 1)])
+
         end associate
 
         self%cell_volumes(i, j) = quad%volume
-        self%cell_centroids(i, j, :) = quad%centroid
-        self%cell_edge_lengths(i, j, :) = quad%edge_lengths
-        self%cell_edge_midpoints(i, j, :, :) = quad%edge_midpoints
-        self%cell_edge_norm_vectors(i, j, :, :, :) = quad%edge_norm_vectors
+        ! self%cell_centroid_xy(i, j, :) = quad%centroid
+        ! self%cell_edge_lengths(i, j, :) = quad%edge_lengths
+        ! self%cell_edge_midpoints(i, j, :, :) = quad%edge_midpoints
+        ! self%cell_edge_norm_vectors(i, j, :, :) = quad%edge_norm_vectors
 
         deallocate(quad)
 
@@ -191,23 +241,23 @@ contains
     integer(ik) :: alloc_status
 
     print *, 'Finalizing regular_2d_grid_t'
-    if(allocated(self%x)) deallocate(self%x, stat=alloc_status)
+    if(allocated(self%node_x)) deallocate(self%node_x, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%x"
 
-    if(allocated(self%y)) deallocate(self%y, stat=alloc_status)
+    if(allocated(self%node_y)) deallocate(self%node_y, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%y"
 
     if(allocated(self%cell_volumes)) deallocate(self%cell_volumes, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volumes"
 
-    if(allocated(self%cell_centroids)) deallocate(self%cell_centroids, stat=alloc_status)
+    if(allocated(self%cell_centroid_xy)) deallocate(self%cell_centroid_xy, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_centroids"
 
     if(allocated(self%cell_edge_lengths)) deallocate(self%cell_edge_lengths, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_lengths"
 
-    if(allocated(self%cell_edge_midpoints)) deallocate(self%cell_edge_midpoints, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_midpoints"
+    if(allocated(self%cell_node_xy)) deallocate(self%cell_node_xy, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_node_xy"
 
     if(allocated(self%cell_edge_norm_vectors)) deallocate(self%cell_edge_norm_vectors, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_norm_vectors"
@@ -318,7 +368,7 @@ contains
     class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j
     real(rk) :: x
-    x = self%x(i, j)
+    x = self%node_x(i, j)
   end function
 
   pure function get_y(self, i, j) result(y)
@@ -326,7 +376,7 @@ contains
     class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j
     real(rk) :: y
-    y = self%y(i, j)
+    y = self%node_y(i, j)
   end function
 
   pure function get_cell_volumes(self, i, j) result(cell_volumes)
@@ -342,7 +392,7 @@ contains
     class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j, xy
     real(rk) :: cell_centroids
-    cell_centroids = self%cell_centroids(i, j, xy)
+    cell_centroids = self%cell_centroid_xy(i, j, xy)
   end function
 
   pure function get_cell_edge_lengths(self, i, j, f) result(cell_edge_lengths)
@@ -353,20 +403,28 @@ contains
     cell_edge_lengths = self%cell_edge_lengths(i, j, f)
   end function
 
-  pure function get_cell_edge_midpoints(self, i, j, f, xy) result(cell_edge_midpoints)
+  pure function get_cell_node_xy(self, i, j, n, xy) result(cell_node_xy)
     !< Public interface to get cell_edge_midpoints
     class(regular_2d_grid_t), intent(in) :: self
-    integer(ik), intent(in) :: i, j, f, xy
-    real(rk) :: cell_edge_midpoints
-    cell_edge_midpoints = self%cell_edge_midpoints(i, j, f, xy)
+    integer(ik), intent(in) :: i, j, n, xy
+    real(rk) :: cell_node_xy
+    cell_node_xy = self%cell_node_xy(i, j, n, xy)
   end function
 
-  pure function get_cell_edge_norm_vectors(self, i, j, f, x, y) result(cell_edge_norm_vectors)
+  pure function get_node_xy_pair(self, i, j, n_id) result(xy_pair)
+    class(regular_2d_grid_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j, n_id
+    real(rk), dimension(2) :: xy_pair
+
+    xy_pair = self
+  end function
+
+  pure function get_cell_edge_norm_vectors(self, i, j, f, xy) result(cell_edge_norm_vectors)
     !< Public interface to get cell_edge_norm_vectors
     class(regular_2d_grid_t), intent(in) :: self
-    integer(ik), intent(in) :: i, j, f, x, y
+    integer(ik), intent(in) :: i, j, f, xy
     real(rk) :: cell_edge_norm_vectors
-    cell_edge_norm_vectors = self%cell_edge_norm_vectors(i, j, f, x, y)
+    cell_edge_norm_vectors = self%cell_edge_norm_vectors(i, j, f, xy)
   end function
 
 end module mod_regular_2d_grid
