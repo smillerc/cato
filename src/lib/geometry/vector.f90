@@ -5,7 +5,7 @@ module mod_vector
   implicit none
 
   private
-  public :: vector_t, operator(.unitnorm.), operator(.dot.), operator(.cross.)
+  public :: vector_t, operator(.unitnorm.), operator(.dot.), operator(.cross.), angle_between
 
   type vector_t
     real(rk) :: x
