@@ -4,13 +4,17 @@ module mod_finite_volume_schemes
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_surrogate, only: surrogate
   use mod_strategy, only: strategy
-  use mod_integrand, only: integrand
+  use mod_integrand, only: integrand_t
+  use mod_conserved_vars, only: conserved_vars_t
+  use mod_grid, only: grid_t
 
   implicit none
   private
   public :: finite_volume_scheme_t
 
-  type, abstract, extends(integrand) :: finite_volume_scheme_t
+  type, abstract, extends(integrand_t) :: finite_volume_scheme_t
+    class(grid_t), allocatable :: grid
+    class(conserved_vars_t), allocatable :: conserved_vars
     class(abstract_reconstruction_t), allocatable :: reconstruction_operator
   contains
     procedure(reconstruct), public, deferred :: reconstruct
@@ -23,10 +27,11 @@ module mod_finite_volume_schemes
       class(finite_volume_scheme_t), intent(inout) :: self
     end subroutine
 
-    subroutine eval_fluxes(self)
+    pure function eval_fluxes(self) result(H)
       import :: finite_volume_scheme_t
+      real(rk), dimension(2, 4) :: H !< Flux tensor
       class(finite_volume_scheme_t), intent(inout) :: self
-    end subroutine
+    end function
 
   end interface
 contains
