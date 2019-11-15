@@ -42,6 +42,10 @@ module mod_input
     ! physics
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk
 
+    ! finite volume scheme specifics
+    character(:), allocatable :: reconstruction_type
+    real(rk) :: tau = 0.0_rk !< time increment for FVEG and FVLEG schemes
+
   contains
     procedure, public :: initialize
     procedure, public :: read_from_ini
@@ -89,6 +93,10 @@ contains
 
     ! Physics
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
+
+    ! FV scheme
+    call cfg%get("scheme", "reconstruction_type", char_buffer, 'piecewise_linear')
+    self%reconstruction_type = trim(char_buffer)
 
     ! Grid
     call cfg%get("grid", "read_from_hdf5", self%read_from_hdf5, .false.)
