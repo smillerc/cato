@@ -1,5 +1,5 @@
 module mod_strategy
-  !< Substitute for integrand (avoiding circular references)
+  !< Substitute for integrand_t (avoiding circular references)
 
   use iso_fortran_env, only: ik => int32, rk => real64
   use mod_surrogate, only: surrogate

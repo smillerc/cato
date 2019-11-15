@@ -6,7 +6,7 @@ module mod_integrand
   implicit none
   private
 
-  type, abstract, public, extends(surrogate) :: integrand
+  type, abstract, public, extends(surrogate) :: integrand_t
     private
     class(strategy), allocatable :: time_integrator
   contains
@@ -27,36 +27,36 @@ module mod_integrand
 
   abstract interface
     function time_derivative(self) result(dState_dt)
-      import :: integrand
-      class(integrand), intent(in) :: self
-      class(integrand), allocatable :: dState_dt
+      import :: integrand_t
+      class(integrand_t), intent(in) :: self
+      class(integrand_t), allocatable :: dState_dt
     end function time_derivative
 
     function symmetric_operator(lhs, rhs) result(operator_result)
-      import :: integrand
-      class(integrand), intent(in) :: lhs, rhs
-      class(integrand), allocatable :: operator_result
+      import :: integrand_t
+      class(integrand_t), intent(in) :: lhs, rhs
+      class(integrand_t), allocatable :: operator_result
     end function symmetric_operator
 
     function asymmetric_operator(lhs, rhs) result(operator_result)
-      import :: integrand
+      import :: integrand_t
       import :: rk
-      class(integrand), intent(in) :: lhs
-      class(integrand), allocatable :: operator_result
+      class(integrand_t), intent(in) :: lhs
+      class(integrand_t), allocatable :: operator_result
       real(rk), intent(in) :: rhs
     end function asymmetric_operator
 
     subroutine symmetric_assignment(lhs, rhs)
-      import :: integrand
-      class(integrand), intent(in) :: rhs
-      class(integrand), intent(inout) :: lhs
+      import :: integrand_t
+      class(integrand_t), intent(in) :: rhs
+      class(integrand_t), intent(inout) :: lhs
     end subroutine symmetric_assignment
   end interface
 
 contains
 
   subroutine set_time_integrator(self, s)
-    class(integrand), intent(inout) :: self
+    class(integrand_t), intent(inout) :: self
     class(strategy), intent(in) :: s
 
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
@@ -65,14 +65,14 @@ contains
   end subroutine
 
   function get_time_integrator(self) result(self_strategy)
-    class(integrand), intent(in) :: self
+    class(integrand_t), intent(in) :: self
     class(strategy), allocatable :: self_strategy
 
     allocate(self_strategy, source=self%time_integrator)
   end function
 
   subroutine integrate(model, dt)
-    class(integrand) :: model ! integrand
+    class(integrand_t) :: model ! integrand_t
     real(rk), intent(in) :: dt ! time step size
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, dt)
