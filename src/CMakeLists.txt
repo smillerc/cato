@@ -35,6 +35,7 @@ add_library(fvleg
             lib/reconstruction/abstract_reconstruction.f90
             lib/reconstruction/first_order_reconstruction.f90
             lib/reconstruction/second_order_reconstruction.f90
+            lib/reconstruction/reconstruction_factory.f90
             lib/finite_volume_scheme/fv_scheme.f90
             lib/finite_volume_scheme/fvleg.f90
             lib/integrand.f90
