@@ -53,11 +53,6 @@ module mod_quad_cell
   type :: quad_cell_edge_vector_mapping_t
     integer(ik), dimension(4, 3, 3) :: edge_to_loc
   end type quad_cell_edge_vector_mapping_t
-  ! type :: quad_cell_edge_vector_mapping
-  ! [[7,1,3], & ! k=1,1 ()
-  !  [1,2,3], & ! k=1,c
-  !  [1,3,5], & ! k=1,2
-  ! end type
 
   interface quad_cell_edge_vector_mapping_t
     module procedure mapping_constructor
