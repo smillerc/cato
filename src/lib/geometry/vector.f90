@@ -64,12 +64,12 @@ contains
     scalar_dot_product = dot_product([vec1%x, vec1%y],[[vec2%x, vec2%y]])
   end function
 
-  type(vector_t) pure function vec_cross_product(vec1, vec2) result(cross_product)
-    !< Create the .cross. operator for the vector_t type
+  real(rk) pure function vec_cross_product(vec1, vec2) result(cross_product)
+    !< Create the .cross. operator for the vector_t type. Since these vectors are only 2d, then
+    !< the cross product is a scalar quantity
     class(vector_t), intent(in) :: vec1, vec2
 
-    cross_product = vector_t(x=vec1%x * vec2%y, &
-                             y=-(vec2%x * vec1%x))
+    cross_product = vec1%x * vec2%y - vec2%x * vec1%x
   end function
 
   real(rk) pure function angle_between(vec1, vec2) result(angle)
