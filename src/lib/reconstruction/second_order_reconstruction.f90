@@ -14,7 +14,6 @@ module mod_second_order_reconstruction
     private
     !< 2nd order (piecewise linear) reconstruction operator
     class(grid_t), pointer :: grid !< grid type to hold control volume info
-
     real(rk), dimension(4, 2) :: cell_gradient = 0.0_rk !< approximated cell gradient (unique to each cell)
   contains
     procedure, public :: reconstruct => reconstruct_second_order
@@ -61,9 +60,10 @@ contains
     self%cell_average = self%find_cell_average(i, j)
     self%cell_gradient = self%estimate_gradients(i, j)
     self%cell_is_selected = .true.
-  end subroutine
+  end subroutine select_cell_to_reconstruct
 
   pure function reconstruct(self, x, y, i, j) result(U_bar)
+    !//TODO: Rework the arguments, since I ask for x,y,i,j here and set i,j in a different location
     !< Reconstruct the value of the conserved variables (U) in a cell (i,j) at location (x,y) based on the
     !> cell average and gradient.
 
@@ -104,7 +104,7 @@ contains
       gradients(4, :, :) = self%estimate_single_gradient(p, i, j)
     end associate
 
-  end function
+  end function estimate_gradients
 
   pure function estimate_single_gradient(self, v, i, j) result(grad_v)
     !< Find the gradient of a variable (v) within a cell at indices (i,j) based on the neighbor information.
@@ -132,6 +132,6 @@ contains
                 limit(v(i, j + 1) - v(i, j), v(i, j) - v(i, j - 1)) * (n3 * delta_l3 - n1 * delta_l1))
     end associate
 
-  end function
+  end function estimate_single_gradient
 
 end module mod_second_order_reconstruction

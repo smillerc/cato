@@ -14,37 +14,53 @@ module mod_abstract_reconstruction
   type, abstract :: abstract_reconstruction_t
     integer(ik) :: order
     character(:), allocatable :: name
+    logical :: cell_is_selected = .false.
     class(slope_limiter_t), allocatable :: limiter
+    class(conserved_vars_t), pointer :: conserved_vars !< aka U, the vector of conserved variables
+    real(rk), dimension(4) :: cell_average = 0.0_rk !< average values of the cell conserved variables
   contains
-    procedure(initialize), public, deferred :: initialize
+    procedure, private :: find_cell_average
     procedure(reconstruct), public, deferred :: reconstruct
   end type abstract_reconstruction_t
 
   abstract interface
-    subroutine initialize(self)
-      import :: abstract_reconstruction_t
-      class(abstract_reconstruction_t), intent(inout) :: self
-    end subroutine initialize
 
-    pure subroutine reconstruct(self, U, grid, i, j, U_bar)
+    pure function reconstruct(self, x, y, i, j) result(U_bar)
+      !< Reconstruct the value of the conserved variables (U) in a cell (i,j) at location (x,y) based on the
+      !> cell average and gradient.
       import :: abstract_reconstruction_t
-      import :: conserved_vars_t
-      import :: regular_2d_grid_t
       import :: ik, rk
+
       class(abstract_reconstruction_t), intent(in) :: self
-      class(regular_2d_grid_t), intent(in) :: grid
-      class(conserved_vars_t), intent(in) :: U
+      real(rk), dimension(4) :: U_bar  !< U_bar = [rho, u, v, p]
+      real(rk), intent(in) :: x, y !< where should U_bar be reconstructed at?
       integer(ik), intent(in) :: i, j
-      real(rk), dimension(4), intent(out) :: U_bar  !< U_bar = [rho, u, v, p]
-    end subroutine reconstruct
+    end function reconstruct
   end interface
 
 contains
 
-  ! pure function reconstruct_piecewise() result(W)
-  !   !< Follows the reconstruction scheme of DOI: 10.1016/j.jcp.2009.04.001, although it
-  !   !< inherits it from DOI: 10.1016/j.jcp.2006.03.018, where the explaination is a bit clearer,
-  !   !< and without typos
-  ! end function
+  pure function find_cell_average(self, i, j) result(U_bar)
+    class(abstract_reconstruction_t), intent(in) :: self
+    real(rk), dimension(4) :: U_bar
+    integer(ik), intent(in) :: i, j
+
+    associate(rho=>self%conserved_vars%density, p=>self%conserved_vars%pressure, &
+              u=>self%conserved_vars%x_velocity, v=>self%conserved_vars%y_velocity)
+
+      ! density
+      U_bar(1) = sum(rho(i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
+
+      ! x velocity
+      U_bar(2) = sum(u(i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
+
+      ! y velocity
+      U_bar(3) = sum(v(i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
+
+      ! pressure
+      U_bar(4) = sum(p(i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
+    end associate
+
+  end function
 
 end module mod_abstract_reconstruction
