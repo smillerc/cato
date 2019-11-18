@@ -43,12 +43,12 @@ contains
     select case(input%reconstruction_type)
     case('0th_order')
       allocate(first_order_reconstruction_t :: self%reconstruction_ptr)
-      call self%reconstruction_ptr%initialize()
+      call self%reconstruction_ptr%initialize(input)
       ptr => self%reconstruction_ptr
 
     case('piecewise_linear')
       allocate(second_order_reconstruction_t :: self%reconstruction_ptr)
-      call self%reconstruction_ptr%initialize()
+      call self%reconstruction_ptr%initialize(input)
       ptr => self%reconstruction_ptr
 
     case default
