@@ -3,7 +3,7 @@ module mod_reconstruction_factory
   use iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  use mod_first_order_reconstruction, only: first_order_reconstruction_t
+  ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
   use mod_second_order_reconstruction, only: second_order_reconstruction_t
 
   implicit none
@@ -41,10 +41,10 @@ contains
     class(abstract_reconstruction_t), pointer :: ptr
 
     select case(input%reconstruction_type)
-    case('0th_order')
-      allocate(first_order_reconstruction_t :: self%reconstruction_ptr)
-      call self%reconstruction_ptr%initialize(input)
-      ptr => self%reconstruction_ptr
+      ! case('cell_average')
+      !   allocate(first_order_reconstruction_t :: self%reconstruction_ptr)
+      !   call self%reconstruction_ptr%initialize(input)
+      !   ptr => self%reconstruction_ptr
 
     case('piecewise_linear')
       allocate(second_order_reconstruction_t :: self%reconstruction_ptr)

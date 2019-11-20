@@ -18,17 +18,13 @@ module mod_second_order_reconstruction
     real(rk), dimension(4, 2) :: cell_gradient = 0.0_rk !< approximated cell gradient (unique to each cell)
   contains
     procedure, public :: initialize => init_second_order
-    procedure, public :: reconstruct => reconstruct_second_order
+    procedure, public :: reconstruct_domain
+    procedure, public :: reconstruct_point
     procedure, public :: select_and_find_gradient
     procedure, private :: estimate_gradients
     procedure, private :: estimate_single_gradient
-    ! procedure, private :: finalize
-    ! final :: finalize_second_order
+    final :: finalize
   end type
-
-  ! interface second_order_reconstruction_t
-  !   module procedure :: constructor
-  ! end interface
 
 contains
 
@@ -47,15 +43,30 @@ contains
 
   end subroutine init_second_order
 
-  ! subroutine finalize(self)
-  !   type(second_order_reconstruction_t), intent(inout) :: self
-  !   call self%finalize_second_order
-  ! end subroutine finalize
+  subroutine finalize(self)
+    type(second_order_reconstruction_t), intent(inout) :: self
 
-  ! subroutine finalize_second_order(self)
-  !   type(second_order_reconstruction_t), intent(inout) :: self
-  !   ! nullify(self%limiter)
-  ! end subroutine finalize_second_order
+    nullify(self%grid)
+    nullify(self%conserved_vars)
+
+  end subroutine finalize
+
+  pure function reconstruct_point(self, xy, cell_ij) result(U_bar)
+    !< Reconstruct the value of the conserved variables (U) at location (x,y) based on the
+    class(second_order_reconstruction_t), intent(in) :: self
+    real(rk), dimension(2), intent(in) :: xy !< where should U_bar be reconstructed at?
+    real(rk), dimension(4) :: U_bar  !< U_bar = reconstructed [rho, u, v, p]
+    integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
+  end function reconstruct_point
+
+  pure subroutine reconstruct_domain(self, reconstructed_domain)
+    class(second_order_reconstruction_t), intent(in) :: self
+    real(rk), dimension(:, :, :, :, :), intent(inout) :: reconstructed_domain
+    !< ([rho, u ,v, p], point, node/midpoint, i, j);
+    !< The node/midpoint dimension just selects which set of points,
+    !< e.g. 1 - all corners, 2 - all midpoints
+
+  end subroutine reconstruct_domain
 
   subroutine select_and_find_gradient(self, i, j, grid, conserved_vars)
     !< This sets the interface to select the cell to reconstruct and calculate the gradient. Because the
@@ -65,32 +76,32 @@ contains
     class(conserved_vars_t), intent(in) :: conserved_vars
     integer(ik) :: i, j
 
-    call self%find_cell_average(i, j, conserved_vars)
-    self%cell_gradient = self%estimate_gradients(i, j, conserved_vars, grid)
-    self%cell_is_selected = .true.
+    ! call self%find_cell_average(i, j, conserved_vars)
+    ! self%cell_gradient = self%estimate_gradients(i, j, conserved_vars, grid)
+    ! self%cell_is_selected = .true.
   end subroutine select_and_find_gradient
 
-  pure function reconstruct_second_order(self, x, y, grid) result(U_bar)
+  pure function reconstruct_second_order(self, xy, grid) result(U_bar)
     !< Reconstruct the value of the conserved variables (U) in a cell (i,j) at location (x,y) based on the
     !> cell average and gradient.
 
     class(second_order_reconstruction_t), intent(in) :: self
-    real(rk), intent(in) :: x, y !< where should U_bar be reconstructed at?
+    real(rk), dimension(2), intent(in) :: xy !< where should U_bar be reconstructed at?
     class(grid_t), intent(in) :: grid
     real(rk), dimension(4) :: U_bar  !< U_bar = [rho, u, v, p]
 
     real(rk), dimension(2) :: centroid_xy
     real(rk) :: grad_rho, grad_u, grad_v, grad_p
 
-   if(.not. self%cell_is_selected) error stop "Cell i,j was never selected in the reconstruction procedure! (this shouldn't happen)"
+    !  if(.not. self%cell_is_selected) error stop "Cell i,j was never selected in the reconstruction procedure! (this shouldn't happen)"
 
-    centroid_xy = grid%get_cell_centroid_xy(i=self%current_cell_ij(1), j=self%current_cell_ij(1))
+    !   centroid_xy = grid%get_cell_centroid_xy(i=self%current_cell_ij(1), j=self%current_cell_ij(1))
 
-    associate(dV_dx=>self%cell_gradient(1, :), dV_dy=>self%cell_gradient(2, :), &
-              x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
+    !   associate(dV_dx=>self%cell_gradient(1, :), dV_dy=>self%cell_gradient(2, :), &
+    !             x_ij=>centroid_xy(1), y_ij=>centroid_xy(2), x => xy(1), y=xy(2))
 
-      U_bar = self%cell_average + dV_dx * (x - x_ij) + dV_dy * (y - y_ij)
-    end associate
+    !     U_bar = self%cell_average + dV_dx * (x - x_ij) + dV_dy * (y - y_ij)
+    !   end associate
   end function reconstruct_second_order
 
   pure function estimate_gradients(self, i, j, conserved_vars, grid) result(gradients)
@@ -100,21 +111,21 @@ contains
     real(rk), dimension(4, 2) :: gradients
     integer(ik), intent(in) :: i, j
 
-    associate(rho=>conserved_vars%density, p=>conserved_vars%pressure, &
-              u=>conserved_vars%x_velocity, v=>conserved_vars%y_velocity)
+    ! associate(rho=>conserved_vars%density, p=>conserved_vars%pressure, &
+    !           u=>conserved_vars%x_velocity, v=>conserved_vars%y_velocity)
 
-      ! density
-      gradients(1, :) = self%estimate_single_gradient(rho, i, j, grid)
+    !   ! density
+    !   gradients(1, :) = self%estimate_single_gradient(rho, i, j, grid)
 
-      ! x velocity
-      gradients(2, :) = self%estimate_single_gradient(u, i, j, grid)
+    !   ! x velocity
+    !   gradients(2, :) = self%estimate_single_gradient(u, i, j, grid)
 
-      ! y velocity
-      gradients(3, :) = self%estimate_single_gradient(v, i, j, grid)
+    !   ! y velocity
+    !   gradients(3, :) = self%estimate_single_gradient(v, i, j, grid)
 
-      ! pressure
-      gradients(4, :) = self%estimate_single_gradient(p, i, j, grid)
-    end associate
+    !   ! pressure
+    !   gradients(4, :) = self%estimate_single_gradient(p, i, j, grid)
+    ! end associate
 
   end function estimate_gradients
 
