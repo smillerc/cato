@@ -9,6 +9,8 @@ module mod_slope_limiter
   type :: slope_limiter_t
     character(:), allocatable :: name
     procedure(limit), pointer, nopass :: limit
+  contains
+    final :: finalize
   end type
 
   interface slope_limiter_t
@@ -39,6 +41,11 @@ contains
     end select
 
   end function
+
+  subroutine finalize(self)
+    type(slope_limiter_t), intent(inout) :: self
+    nullify(self%limit)
+  end subroutine finalize
 
   pure function sun_ren_09_limit(a, b) result(slope)
     !< Slope limiter based on Equation 10 in DOI: 10.1016/j.jcp.2009.04.001
