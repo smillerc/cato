@@ -45,6 +45,7 @@ module mod_input
     ! finite volume scheme specifics
     character(:), allocatable :: reconstruction_type
     real(rk) :: tau = 0.0_rk !< time increment for FVEG and FVLEG schemes
+    character(:), allocatable :: slope_limiter
 
   contains
     procedure, public :: initialize
