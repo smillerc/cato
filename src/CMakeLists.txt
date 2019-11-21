@@ -22,6 +22,7 @@ add_library(geometry
             lib/domain/regular_2d_grid.f90
             lib/domain/grid_factory.f90
             lib/geometry/vector_2d.f90
+            lib/geometry/vector.f90
             lib/geometry/quad_cell.f90
             lib/geometry/mach_cone_geometry.f90
             )
@@ -29,7 +30,8 @@ add_library(geometry
 target_link_libraries(geometry PUBLIC constants io)
 
 add_library(fvleg
-            lib/domain/conserved_vars.f90
+            lib/equation_of_state.f90
+            lib/domain/fluxes.f90
             lib/evolution_operator/abstract_evo_operator.f90
             lib/evolution_operator/local_evo_operator.f90
             lib/reconstruction/abstract_reconstruction.f90
