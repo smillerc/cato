@@ -12,10 +12,22 @@ module mod_abstract_evo_operator
   public :: abstract_evo_operator_t
 
   type, abstract :: abstract_evo_operator_t
-    class(grid_t), pointer :: grid !< pointer to the grid object
-    real(rk), dimension(:, :, :), pointer :: conserved_vars !< pointer to U
-    type(mach_cone_geometry_t) :: mach_cone !< Mach cone used to provide angles theta_ib and theta_ie
-    class(abstract_reconstruction_t), pointer :: reconstruction_operator !< pointer to the R_Omega operator used to provide values at the P' location
+    !< This class provides the framework for any evolution operators. For example, the local evolution
+    !< operator will inherit from this class. Most of the attributes are the same, just that the
+    !< implementation varies between those who inherit this class
+
+    class(mach_cone_geometry_t), allocatable :: mach_cone
+    !< Mach cone used to provide angles theta_ib and theta_ie
+
+    class(grid_t), pointer :: grid
+    !< pointer to the grid object
+
+    real(rk), dimension(:, :, :), pointer :: conserved_vars
+    !< pointer to U ((rho, u, v, p), i, j)
+
+    class(abstract_reconstruction_t), pointer :: reconstruction_operator
+    !< pointer to the R_Omega operator used to provide values at the P' location
+
     character(:), allocatable :: name
     real(rk) :: tau !< time increment to evolve
   contains
@@ -33,7 +45,7 @@ module mod_abstract_evo_operator
       real(rk), dimension(4) :: U_bar !< Conserved variable values specified location
       class(abstract_evo_operator_t), intent(in) :: self
       real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
-      !< ([rho, u ,v, p], point, node/midpoint, i, j);
+      !< ((rho, u ,v, p), point, node/midpoint, i, j);
       !< The node/midpoint dimension just selects which set of points,
       !< e.g. 1 - all corners, 2 - all midpoints
 

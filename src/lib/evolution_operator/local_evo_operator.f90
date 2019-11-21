@@ -5,7 +5,6 @@ module mod_local_evo_operator
   use mod_input, only: input_t
   use mod_mach_cone_geometry, only: mach_cone_geometry_t
   use mod_grid, only: grid_t
-  use mod_conserved_vars, only: conserved_vars_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory_t
 
@@ -42,13 +41,13 @@ contains
     !< Constructor for the FVLEG operator
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid
-    class(conserved_vars_t), intent(in), target :: conserved_vars
+    real(rk), dimension(:, :, :), target :: conserved_vars
 
     ! ! allocate(operator)
-    ! operator%name = "FVLEG"
-    ! call operator%set_tau(input%tau)
-    ! operator%grid => grid
-    ! operator%conserved_vars => conserved_vars
+    operator%name = "FVLEG"
+    call operator%set_tau(input%tau)
+    operator%grid => grid
+    operator%conserved_vars => conserved_vars
 
     ! p_prime_reconstruction_operator = recon_factory
 
@@ -61,7 +60,7 @@ contains
 
     class(local_evo_operator_t), intent(in) :: self
     real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
-    !< ([rho, u ,v, p], point, node/midpoint, i, j);
+    !< ((rho, u ,v, p), point, node/midpoint, i, j);
     !< The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints
 
@@ -96,103 +95,118 @@ contains
     !   deallocate(self%p_prime_reconstruction_operator, stat=alloc_stat)
     !   if (alloc_stat /= 0) error stop 'Unable to deallocate local_evo_operator_t%p_prime_reconstruction_operator'
     ! end if
-  end function
+  end function evolve
 
   subroutine finalize(self)
     !< Cleanup the operator type
     type(local_evo_operator_t), intent(inout) :: self
     ! deallocate(self%mach_cone)
     nullify(self%grid)
-  end subroutine
+    nullify(self%conserved_vars)
+    nullify(self%reconstruction_operator)
+  end subroutine finalize
 
   pure function get_pressure(self) result(pressure)
     !< Implementation of the p(P) within the local evolution operator (Eq 45 in the text)
 
     class(local_evo_operator_t), intent(in) :: self
     real(rk) :: pressure
-    integer(ik) :: i, a
+    integer(ik) :: i, arc
 
-    ! pressure = 0.0_rk
+    pressure = 0.0_rk
 
-    ! do a = 1, self%mach_cone%n_arcs
-    !   do i = 1, self%mach_cone%n_intersections(a)
+    do arc = 1, self%mach_cone%n_arcs
+      do i = 1, self%mach_cone%n_intersections(arc)
 
-    !     associate(theta_ie=>self%mach_cone%theta_ie(i), theta_ib=>self%mach_cone%theta_ib(i), &
-    !               p_i=>self%reconstructed_primative_state(4), &
-    !               u_i=>self%reconstructed_primative_state(2), v_i=>self%reconstructed_primative_state(1), &
-    !               rho_tilde=>self%reference_state(1), a_tilde=>self%reference_state(4))
+        associate(theta_ie=>self%mach_cone%theta_ie(arc, i), theta_ib=>self%mach_cone%theta_ib(arc, i), &
+                  p_i=>self%mach_cone%arc_conserved_vars(4, arc, i), &
+                  u_i=>self%mach_cone%arc_conserved_vars(2, arc, i), &
+                  v_i=>self%mach_cone%arc_conserved_vars(1, arc, i), &
+                  rho_tilde=>self%mach_cone%reference_state(1), &
+                  a_tilde=>self%mach_cone%reference_state(4))
 
-    !       pressure = pressure + p_i * (theta_ie - theta_ib) - &
-    !                 rho_tilde * a_tilde * u_i * (sin(theta_ie) - sin(theta_ib)) + &
-    !                 rho_tilde * a_tilde * v_i * (cos(theta_ie) - cos(theta_ib))
-    !     end associate
-    !   end do
-    ! end do
+          pressure = pressure + p_i * (theta_ie - theta_ib) - &
+                     rho_tilde * a_tilde * u_i * (sin(theta_ie) - sin(theta_ib)) + &
+                     rho_tilde * a_tilde * v_i * (cos(theta_ie) - cos(theta_ib))
+        end associate
+      end do
+    end do
 
-    ! pressure = pressure / (2.0_rk * pi)
+    pressure = pressure / (2.0_rk * pi)
 
   end function get_pressure
 
-  pure function get_density(self, reconstruction_operator) result(density)
+  pure function get_density(self) result(density)
     !< Implementation of the rho(P) within the local evolution operator (Eq. 42 in the text)
     class(local_evo_operator_t), intent(in) :: self
-    class(abstract_reconstruction_t), pointer, intent(in) :: reconstruction_operator
 
     real(rk) :: density  !< rho(P)
-    integer(ik) :: i, a, alloc_status
+    integer(ik) :: i, arc
     integer(ik), dimension(2) :: p_prime_ij
     real(rk), dimension(4) :: p_prime_u_bar !< [rho, u, v, p] at P'
+    logical :: p_prime_found
 
-    ! do a = 1, self%mach_cone%n_arcs
-    !   do i = 1, self%mach_cone%n_intersections(a)
+    density = 0.0_rk
 
-    !     associate(theta_ie=>self%mach_cone%theta_ie(i), theta_ib=>self%mach_cone%theta_ib(i), &
-    !               p_i=>self%reconstructed_primative_state(4), &
-    !               u_i=>self%reconstructed_primative_state(2), v_i=>self%reconstructed_primative_state(1), &
-    !               rho_tilde=>self%reference_state(1), a_tilde=>self%reference_state(4))
+    do arc = 1, self%mach_cone%n_arcs
+      do i = 1, self%mach_cone%n_intersections(arc)
 
-    !       density = density + (p_i / a_tilde**2) * (theta_ie - theta_ib) - &
-    !                 (rho_tilde / a_tilde) * u_i * (sin(theta_ie) - sin(theta_ib)) + &
-    !                 (rho_tilde / a_tilde) * v_i * (cos(theta_ie) - cos(theta_ib))
-    !     end associate
-    !   end do
-    ! end do
+        associate(theta_ie=>self%mach_cone%theta_ie(arc, i), theta_ib=>self%mach_cone%theta_ib(arc, i), &
+                  p_i=>self%mach_cone%arc_conserved_vars(4, arc, i), &
+                  u_i=>self%mach_cone%arc_conserved_vars(2, arc, i), &
+                  v_i=>self%mach_cone%arc_conserved_vars(1, arc, i), &
+                  rho_tilde=>self%mach_cone%reference_state(1), &
+                  a_tilde=>self%mach_cone%reference_state(4))
 
-    ! density = density / (2.0_rk * pi)
+          density = density + (p_i / a_tilde**2) * (theta_ie - theta_ib) - &
+                    (rho_tilde / a_tilde) * u_i * (sin(theta_ie) - sin(theta_ib)) + &
+                    (rho_tilde / a_tilde) * v_i * (cos(theta_ie) - cos(theta_ib))
+        end associate
+      end do
+    end do
 
-    ! p_prime_u_bar = reconstruction_operator%reconstruct(xy=self%mach_cone%p_prime_xy)
-    ! associate(rho_p_prime=>p_prime_u_bar(1), &
-    !           pressure_p_prime=>p_prime_u_bar(4), a_tilde=>self%reference_state(4))
-    !   density = density + rho_p_prime - pressure_p_prime / a_tilde**2
-    ! end associate
+    density = density / (2.0_rk * pi)
+
+    ! Reconstruct at P' to get rho(P') and p(P')
+    p_prime_u_bar = self%reconstruction_operator%reconstruct_point(xy=self%mach_cone%p_prime_xy, &
+                                                                   cell_ij=self%mach_cone%p_prime_ij)
+
+    associate(rho_p_prime=>p_prime_u_bar(1), pressure_p_prime=>p_prime_u_bar(4), &
+              a_tilde=>self%mach_cone%reference_state(4))
+      density = density + rho_p_prime - (pressure_p_prime / a_tilde**2)
+    end associate
+
   end function get_density
 
   pure function get_x_velocity(self) result(u)
     !< Implementation of the u(P) within the local evolution operator (Eq 43 in the text)
 
     class(local_evo_operator_t), intent(in) :: self
-    real(rk) :: u
-    integer(ik) :: i, a
+    real(rk) :: u !< x velocity at P
+    integer(ik) :: i
+    integer(ik) :: arc  !< arc index within the mach cone
 
-    ! u = 0.0_rk
+    u = 0.0_rk
 
-    ! do a = 1, self%mach_cone%n_arcs
-    !   do i = 1, self%mach_cone%n_intersections(a)
+    do arc = 1, self%mach_cone%n_arcs
+      do i = 1, self%mach_cone%n_intersections(arc)
 
-    !     associate(theta_ie=>self%mach_cone%theta_ie(i), theta_ib=>self%mach_cone%theta_ib(i), &
-    !               p_i=>self%reconstructed_primative_state(4), &
-    !               u_i=>self%reconstructed_primative_state(2), v_i=>self%reconstructed_primative_state(1), &
-    !               rho_tilde=>self%reference_state(1), a_tilde=>self%reference_state(4))
+        associate(theta_ie=>self%mach_cone%theta_ie(arc, i), theta_ib=>self%mach_cone%theta_ib(arc, i), &
+                  p_i=>self%mach_cone%arc_conserved_vars(4, arc, i), &
+                  u_i=>self%mach_cone%arc_conserved_vars(2, arc, i), &
+                  v_i=>self%mach_cone%arc_conserved_vars(1, arc, i), &
+                  rho_tilde=>self%mach_cone%reference_state(1), &
+                  a_tilde=>self%mach_cone%reference_state(4))
 
-    !       u = u - (p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) + &
-    !           u_i * (0.5_rk * (theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib))) - &
-    !           v_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib))
+          u = u - (p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) + &
+              u_i * (0.5_rk * (theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib))) - &
+              v_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib))
 
-    !     end associate
-    !   end do
-    ! end do
+        end associate
+      end do
+    end do
 
-    ! u = u / pi
+    u = u / pi
 
   end function get_x_velocity
 
@@ -200,26 +214,30 @@ contains
     !< Implementation of the v(P) within the local evolution operator (Eq 44 in the text)
 
     class(local_evo_operator_t), intent(in) :: self
-    real(rk) :: v
-    integer :: i, a
-    ! v = 0.0_rk
+    real(rk) :: v !< y velocity at P
+    integer(ik) :: i
+    integer(ik) :: arc  !< arc index within the mach cone
 
-    ! do a = 1, self%mach_cone%n_arcs
-    !   do i = 1, self%mach_cone%n_intersections(a)
+    v = 0.0_rk
 
-    !     associate(theta_ie=>self%mach_cone%theta_ie(i), theta_ib=>self%mach_cone%theta_ib(i), &
-    !               p_i=>self%reconstructed_primative_state(4), &
-    !               u_i=>self%reconstructed_primative_state(2), v_i=>self%reconstructed_primative_state(1), &
-    !               rho_tilde=>self%reference_state(1), a_tilde=>self%reference_state(4))
+    do arc = 1, self%mach_cone%n_arcs
+      do i = 1, self%mach_cone%n_intersections(arc)
 
-    !       v = v + (p_i / (rho_tilde * a_tilde)) * (cos(theta_ie) - cos(theta_ib)) + &
-    !           u_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib)) + &
-    !           v_i * (0.5_rk * (theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib)))
-    !     end associate
-    !   end do
-    ! end do
+        associate(theta_ie=>self%mach_cone%theta_ie(arc, i), theta_ib=>self%mach_cone%theta_ib(arc, i), &
+                  p_i=>self%mach_cone%arc_conserved_vars(4, arc, i), &
+                  u_i=>self%mach_cone%arc_conserved_vars(2, arc, i), &
+                  v_i=>self%mach_cone%arc_conserved_vars(1, arc, i), &
+                  rho_tilde=>self%mach_cone%reference_state(1), &
+                  a_tilde=>self%mach_cone%reference_state(4))
 
-    ! v = v / pi
+          v = v + (p_i / (rho_tilde * a_tilde)) * (cos(theta_ie) - cos(theta_ib)) + &
+              u_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib)) + &
+              v_i * (0.5_rk * (theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib)))
+        end associate
+      end do
+    end do
+
+    v = v / pi
   end function get_y_velocity
 
 end module mod_local_evo_operator
