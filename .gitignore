@@ -40,3 +40,4 @@ doc
 # mac stuff
 .DS_store
 papers/~$method_explanation.pptx
+.ipynb_checkpoints
