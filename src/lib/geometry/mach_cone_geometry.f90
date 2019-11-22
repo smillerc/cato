@@ -13,7 +13,7 @@ module mod_mach_cone_geometry
   implicit none
 
   private
-  public :: mach_cone_geometry_t
+  public :: mach_cone_geometry_t, new_cone
 
   type :: mach_cone_geometry_t
     !< Type to encapsulate and calculate the geometry of the mach cone for the evolution operators
@@ -35,7 +35,7 @@ module mod_mach_cone_geometry
     !< ((rho,u,v,p), (intersection_1, intersection_2), cell_1:cell_n)
 
     real(rk), dimension(4), public :: reference_state !< Reference state (rho,u,v,a)
-    ! real(rk), public :: tau
+    real(rk) :: tau
     real(rk), dimension(4, 4) :: reconstructed_state
 
     ! Private attributes
@@ -59,76 +59,14 @@ module mod_mach_cone_geometry
   end type
 
   interface mach_cone_geometry_t
-    module procedure constructor
+    module procedure new_cone
   end interface
 
 contains
 
-  ! subroutine initialize(self, tau)
-
-  !   ! p_position_xy, cell_group_indices, reconstructed_state, reference_state, tau)
-  !   ! // TODO: fix me!
-  !   !< Implementation of the mach cone constructor
-  !   class(mach_cone_geometry_t), intent(inout) :: self
-
-  !   ! real(rk), dimension(2), intent(in) :: p_position_xy
-  !   !   !< (x,y) position of P (aka Mach cone apex)
-
-  !   ! integer(ik), dimension(:,:), intent(in) :: cell_group_indices
-  !   !   !< List of the cells sharing an interface with this position P
-  !   !   !< ((i,j), cell_1:cell_n)
-
-  !   ! real(rk), dimension(:,:), intent(in) :: edge_points
-  !   !   !< List of points that describe the edge vectors (x,y)
-  !   !   !< The edge vectors are defined as (head:tail) by e1=([x1,y1]:[x2,y2]) and e2=([x3,y3]:[x1,y1])
-
-  !   ! real(rk), dimension(:,:), intent(in) :: reconstructed_state
-  !   !   !< Reconstructed U state for point P for each of the neighboring cells
-  !   !   !< ((rho, u, v, p), cell_1:cell_n)
-
-  !   ! real(rk), dimension(4), intent(in) :: reference_state
-  !   !   !< Reference state (U_tilde) at point P (rho, u, v, p)
-  !   !   !< This is typically just the average from the neighboring cells
-
-  !   real(rk), intent(in) :: tau !< time increment
-
-  !   integer(ik) :: k
-
-  !   ! ! Although these are specified as a pair of x,y points, they will get shifted to the origin
-  !   ! self%edge_vectors(1) = vector_t(x=edge_points, y=e1(:, 2))
-
-  !   ! self%edge_vectors(2) = vector_t(x=e2(:, 1), y=e2(:, 2))
-
-  !   ! self%reference_velocity = reference_state_uva(1:2)
-  !   ! self%reference_speed_of_sound = reference_state_uva(3)
-
-  !   ! ! Find the (x,y) location of the center of the Mach circle (P')
-  !   ! associate(x=>e1(1, 1), y=>e1(1, 2), &
-  !   !           u_tilde=>self%reference_velocity(1), v_tilde=>self%reference_velocity(2))
-
-  !   !   ! This defines P' (x,y) globally, not with respect to P0
-  !   !   self%p_prime_xy = [x - u_tilde * tau, y - v_tilde * tau]
-  !   ! end associate
-
-  !   ! ! Find the angle with respect to the x-axis for each edge vector
-  !   ! do k = 1, 2
-  !   !   associate(x=>self%edge_vectors(k)%x, y=>self%edge_vectors(k)%y, len=>self%edge_vectors(k)%length)
-
-  !   !     self%sin_alpha_k(k) = y / len
-  !   !     self%cos_alpha_k(k) = x / len
-  !   !   end associate
-  !   ! end do
-
-  !   ! call self%determine_if_p_prime_is_in_cell()
-  !   ! call self%calculate_l_parameter()
-  !   ! call self%calculate_theta_kl()
-  !   ! call self%determine_n_intersections()
-  !   ! call self%calculate_arc_thetas()
-  ! end subroutine initialize
-
-  type(mach_cone_geometry_t) pure function constructor(tau, edge_vectors, &
-                                                       reconstructed_state, reference_state, cell_indices) result(cone)
-
+  pure function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
+    !< Constructor for the Mach cone type
+    type(mach_cone_geometry_t) :: new_cone
     real(rk), intent(in) :: tau  !< time increment, tau -> 0 (very small number)
     real(rk), dimension(:, :, :), intent(in) :: edge_vectors
     !< ((x,y), (tail,head), (vector_1:vector_n)); set of vectors that define the cell edges
@@ -158,11 +96,11 @@ contains
     real(rk), dimension(2) :: theta_ie
     logical :: p_prime_in_cell
     integer(ik) :: n_arcs
-    integer(ik) :: cell_ij
+    integer(ik), dimension(2) :: cell_ij
 
-    cone%tau = tau
     n_total_vectors = size(edge_vectors, dim=3)
     n_neighbor_cells = n_total_vectors / 2
+    new_cone%tau = tau
 
     ! In the cone reference state, index 4 is sound speed rather than pressure
     cone_reference_state = reference_state
@@ -187,12 +125,12 @@ contains
               u_tilde=>cone_reference_state(1), v_tilde=>cone_reference_state(2))
 
       ! This defines P' (x,y) globally, not with respect to P
-      cone%p_prime_xy = [x - u_tilde * tau, y - v_tilde * tau]
+      new_cone%p_prime_xy = [x - u_tilde * tau, y - v_tilde * tau]
     end associate
 
     ! The P' vector points from P (tail), to P' (head)
-    p_prime_vector = vector_t(x=[edge_vectors(1, 1, 1), cone%p_prime_xy(1)], &
-                              y=[edge_vectors(2, 1, 1), cone%p_prime_xy(2)])
+    p_prime_vector = vector_t(x=[edge_vectors(1, 1, 1), new_cone%p_prime_xy(1)], &
+                              y=[edge_vectors(2, 1, 1), new_cone%p_prime_xy(2)])
 
     ! Loop through each neighbor cell and determine intersections and angles
     do neighbor_cell = 1, n_neighbor_cells
@@ -205,18 +143,18 @@ contains
                                  reference_state=cone_reference_state, tau=tau, &
                                  n_intersections=n_intersections, n_arcs=n_arcs, &
                                  theta_ib=theta_ib, theta_ie=theta_ie, &
-                                 p_prime_in_cell=p_prime_in_cell, cell_index=cell_ij)
+                                 p_prime_in_cell=p_prime_in_cell)
 
-      cone%n_intersections = n_intersections
-      cone%theta_ib(neighbor_cell, :) = theta_ib
-      cone%theta_ie(neighbor_cell, :) = theta_ie
+      new_cone%n_intersections = n_intersections
+      new_cone%theta_ib(neighbor_cell, :) = theta_ib
+      new_cone%theta_ie(neighbor_cell, :) = theta_ie
 
       ! arc 1 & 2 (if more than one arc)
-      cone%cell_conserved_vars(:, 1, neighbor_cell) = reconstructed_state(:, neighbor_cell)
-      cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
+      new_cone%cell_conserved_vars(:, 1, neighbor_cell) = reconstructed_state(:, neighbor_cell)
+      new_cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
 
-      cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
-      if(p_prime_in_cell) cone%p_prime_xy = cell_ij
+      new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
+      if(p_prime_in_cell) new_cone%p_prime_xy = cell_ij
 
     end do
 
@@ -226,25 +164,24 @@ contains
                                         n_intersections, n_arcs, theta_ib, theta_ie, p_prime_in_cell)
     !< For each neighbor cell, this procedure calculates the angles, number of intersections,
     !< and whether P' is in this cell
-    type(vector_t), intent(in) :: p_prime_vector
-    real(rk), dimension(2, 2), intent(in) :: edge_vector_1
-    real(rk), dimension(2, 2), intent(in) :: edge_vector_2
-    real(rk), dimension(4), intent(in) :: reference_state
-    real(rk), intent(in) :: tau
-    integer(ik), dimension(2), intent(out) :: n_intersections
+    type(vector_t), intent(in) :: p_prime_vector  !< vector pointing to P' from P (this should be shifted to the origin by now)
+    real(rk), dimension(2, 2), intent(in) :: edge_vector_1 !< ((x1,y1), (x2,y2))
+    real(rk), dimension(2, 2), intent(in) :: edge_vector_2  !< ((x1,y1), (x2,y2))
+    real(rk), dimension(4), intent(in) :: reference_state !< (rho,u,v,a)
+    real(rk), intent(in) :: tau  !< time increment
+    integer(ik), dimension(2), intent(out) :: n_intersections  !< # of intersections for each edge vector (0, 1, or 2)
     integer(ik), intent(out) :: n_arcs
     real(rk), dimension(2), intent(out) :: theta_ib
     real(rk), dimension(2), intent(out) :: theta_ie
     logical, intent(out) :: p_prime_in_cell
 
     type(vector_t), dimension(2) :: edge_vectors
-
     real(rk), dimension(2) :: b_k
     real(rk), dimension(2, 2) :: l_k
     real(rk), dimension(2, 2) :: theta_kl
-    integer(ik) :: k
     real(rk), dimension(2) :: sin_alpha
     real(rk), dimension(2) :: cos_alpha
+    integer(ik) :: k
 
     ! Although these are specified as a pair of x,y points, they will get shifted to the origin
     edge_vectors(1) = vector_t(x=edge_vector_1(:, 2), y=edge_vector_1(:, 2))
