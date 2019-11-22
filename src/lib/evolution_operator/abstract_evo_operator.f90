@@ -16,14 +16,14 @@ module mod_abstract_evo_operator
     !< operator will inherit from this class. Most of the attributes are the same, just that the
     !< implementation varies between those who inherit this class
 
-    class(mach_cone_geometry_t), allocatable :: mach_cone
-    !< Mach cone used to provide angles theta_ib and theta_ie
-
     class(grid_t), pointer :: grid
     !< pointer to the grid object
 
     real(rk), dimension(:, :, :), pointer :: conserved_vars
     !< pointer to U ((rho, u, v, p), i, j)
+
+    real(rk), dimension(:, :, :, :, :), pointer :: reference_state
+    !< pointer to the reference state at each point ((rho, u ,v, p), point, node/midpoint, i, j)
 
     class(abstract_reconstruction_t), pointer :: reconstruction_operator
     !< pointer to the R_Omega operator used to provide values at the P' location
