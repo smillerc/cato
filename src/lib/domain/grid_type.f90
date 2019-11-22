@@ -56,7 +56,7 @@ module mod_grid
     !< (xy, i, j); (x,y) location of the cell centroid
 
     real(rk), dimension(:, :, :), allocatable :: cell_edge_lengths
-    !< (i, j, face1:face4); length of each edge
+    !< (edge1:edge4, i, j, face1:face4); length of each edge
 
     real(rk), dimension(:, :, :, :, :), allocatable :: cell_node_xy
     !< (xy, point, node:midpoint, i, j); The node/midpoint dimension just selects which set of points,
@@ -73,7 +73,8 @@ module mod_grid
     procedure(get_cell_centroid_xy), deferred, public :: get_cell_centroid_xy
     procedure(get_cell_edge_lengths), deferred, public :: get_cell_edge_lengths
     procedure(get_4d_data), deferred, public :: get_cell_edge_norm_vectors
-    ! procedure(get_cell_node_xy), deferred, public :: get_cell_node_xy
+    procedure(get_midpoint_vectors), deferred, public :: get_midpoint_vectors
+    procedure(get_corner_vectors), deferred, public :: get_corner_vectors
   end type grid_t
 
   abstract interface
@@ -129,6 +130,25 @@ module mod_grid
       real(rk) :: cell_edge_norm_vectors
     end function
 
+    pure function get_midpoint_vectors(self, cell_ij, edge) result(vectors)
+      !< Public interface to get_midpoint_vectors
+      import :: grid_t
+      import :: ik, rk
+      class(grid_t), intent(in) :: self
+      integer(ik), dimension(2), intent(in) :: cell_ij
+      character(len=*), intent(in) :: edge ! 'bottom', or 'top'
+      real(rk), dimension(2, 2, 2) :: vectors !< ((x,y), (head,tail), (vector1, vector2))
+    end function
+
+    pure function get_corner_vectors(self, cell_ij, corner) result(vectors)
+      !< Public interface to get_corner_vectors
+      import :: grid_t
+      import :: ik, rk
+      class(grid_t), intent(in) :: self
+      integer(ik), dimension(2), intent(in) :: cell_ij
+      character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
+      real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (head,tail), (vector1:vector4))
+    end function
   end interface
 
 end module mod_grid

@@ -60,7 +60,10 @@ module mod_regular_2d_grid
     procedure, public :: get_cell_edge_lengths
     ! procedure, public :: get_cell_node_xy
     procedure, public :: get_cell_edge_norm_vectors
+    procedure, public :: get_midpoint_vectors
+    procedure, public :: get_corner_vectors
     procedure, public :: finalize
+
     final :: force_finalization
 
   end type regular_2d_grid_t
@@ -386,6 +389,24 @@ contains
     integer(ik), intent(in) :: i, j, f, xy
     real(rk) :: cell_edge_norm_vectors
     cell_edge_norm_vectors = self%cell_edge_norm_vectors(i, j, f, xy)
+  end function
+
+  pure function get_midpoint_vectors(self, cell_ij, edge) result(vectors)
+    ! // TODO: implement this
+    !< Public interface to get_midpoint_vectors
+    class(regular_2d_grid_t), intent(in) :: self
+    integer(ik), dimension(2), intent(in) :: cell_ij
+    character(len=*), intent(in) :: edge ! 'bottom', or 'top'
+    real(rk), dimension(2, 2, 2) :: vectors !< ((x,y), (head,tail), (vector1, vector2))
+  end function
+
+  pure function get_corner_vectors(self, cell_ij, corner) result(vectors)
+    ! // TODO: implement this
+    !< Public interface to get_corner_vectors
+    class(regular_2d_grid_t), intent(in) :: self
+    integer(ik), dimension(2), intent(in) :: cell_ij
+    character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
+    real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (head,tail), (vector1:vector4))
   end function
 
 end module mod_regular_2d_grid
