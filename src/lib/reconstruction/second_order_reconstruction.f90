@@ -1,7 +1,6 @@
 module mod_second_order_reconstruction
   use iso_fortran_env, only: ik => int32, rk => real64
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  use mod_conserved_vars, only: conserved_vars_t
   use mod_grid, only: grid_t
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
@@ -12,15 +11,10 @@ module mod_second_order_reconstruction
   public :: second_order_reconstruction_t
 
   type, extends(abstract_reconstruction_t) :: second_order_reconstruction_t
-    private
-    !< 2nd order (piecewise linear) reconstruction operator
-    ! class(grid_t), pointer :: grid !< grid type to hold control volume info
-    real(rk), dimension(4, 2) :: cell_gradient = 0.0_rk !< approximated cell gradient (unique to each cell)
   contains
     procedure, public :: initialize => init_second_order
     procedure, public :: reconstruct_domain
     procedure, public :: reconstruct_point
-    procedure, public :: select_and_find_gradient
     procedure, private :: estimate_gradients
     procedure, private :: estimate_single_gradient
     final :: finalize
@@ -57,104 +51,119 @@ contains
     real(rk), dimension(2), intent(in) :: xy !< where should U_bar be reconstructed at?
     real(rk), dimension(4) :: U_bar  !< U_bar = reconstructed [rho, u, v, p]
     integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
+
+    real(rk), dimension(4) :: cell_ave !< cell average of (rho, u, v, p)
+    real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
+    real(rk), dimension(4, 2) :: grad_U !< cell gradient
+    integer(ik) :: i, j
+    i = cell_ij(1); j = cell_ij(2)
+
+    cell_ave = sum(self%conserved_vars(:, i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
+    grad_U = self%estimate_gradients(i, j)
+    centroid_xy = self%grid%get_cell_centroid_xy(i, j)
+
+    associate(dV_dx=>grad_U(1, :), dV_dy=>grad_U(2, :), &
+              x=>xy(1), y=>xy(2), &
+              x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
+
+      U_bar = cell_ave + dV_dx * (x - x_ij) + dV_dy * (y - y_ij)
+    end associate
+
   end function reconstruct_point
 
   pure subroutine reconstruct_domain(self, reconstructed_domain)
+    !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
+    !< of the data necessary, like the cell average and gradient
     class(second_order_reconstruction_t), intent(in) :: self
     real(rk), dimension(:, :, :, :, :), intent(inout) :: reconstructed_domain
-    !< ([rho, u ,v, p], point, node/midpoint, i, j);
+    !< ((rho, u ,v, p), point, node/midpoint, i, j);
     !< The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints
 
+    real(rk), dimension(4) :: cell_ave !< cell average of (rho, u, v, p)
+    real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
+    real(rk), dimension(4, 2) :: grad_U !< cell gradient
+    integer(ik) :: i, j  !< cell i,j index
+    integer(ik) :: n  !< node index -> i.e. is it a corner (1), or midpoint (2)
+    integer(ik) :: p  !< point index -> which point in the grid element (corner 1-4, or midpoint 1-4)
+
+    do concurrent(j=self%grid%jlo:self%grid%jhi)
+      do concurrent(i=self%grid%ilo:self%grid%ihi)
+
+        ! The cell average is reused for each cell
+        cell_ave = sum(self%conserved_vars(:, i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
+        grad_U = self%estimate_gradients(i, j)
+        centroid_xy = self%grid%get_cell_centroid_xy(i=self%current_cell_ij(1), j=self%current_cell_ij(1))
+
+        ! First do corners, then to midpoints
+        do concurrent(n=1:ubound(reconstructed_domain, dim=3))
+
+          ! Loop through each point (N1-N4, and M1-M4)
+          do concurrent(p=1:ubound(reconstructed_domain, dim=2))
+
+            associate(U_bar=>reconstructed_domain, &
+                      x=>self%grid%cell_node_xy(1, p, n, i, j), &
+                      y=>self%grid%cell_node_xy(2, p, n, i, j), &
+                      dV_dx=>grad_U(1, :), dV_dy=>grad_U(2, :), &
+                      x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
+
+              ! reconstructed_state(rho:p, point, node/midpoint, i, j)
+              U_bar(:, p, n, i, j) = cell_ave + dV_dx * (x - x_ij) + dV_dy * (y - y_ij)
+
+            end associate
+
+          end do
+        end do
+      end do
+    end do
+
   end subroutine reconstruct_domain
 
-  subroutine select_and_find_gradient(self, i, j, grid, conserved_vars)
-    !< This sets the interface to select the cell to reconstruct and calculate the gradient. Because the
-    !< gradient is reused, this is stored in the type to be used later by the reconstruct function
-    class(second_order_reconstruction_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
-    class(conserved_vars_t), intent(in) :: conserved_vars
-    integer(ik) :: i, j
-
-    ! call self%find_cell_average(i, j, conserved_vars)
-    ! self%cell_gradient = self%estimate_gradients(i, j, conserved_vars, grid)
-    ! self%cell_is_selected = .true.
-  end subroutine select_and_find_gradient
-
-  pure function reconstruct_second_order(self, xy, grid) result(U_bar)
-    !< Reconstruct the value of the conserved variables (U) in a cell (i,j) at location (x,y) based on the
-    !> cell average and gradient.
-
+  pure function estimate_gradients(self, i, j) result(gradients)
     class(second_order_reconstruction_t), intent(in) :: self
-    real(rk), dimension(2), intent(in) :: xy !< where should U_bar be reconstructed at?
-    class(grid_t), intent(in) :: grid
-    real(rk), dimension(4) :: U_bar  !< U_bar = [rho, u, v, p]
-
-    real(rk), dimension(2) :: centroid_xy
-    real(rk) :: grad_rho, grad_u, grad_v, grad_p
-
-    !  if(.not. self%cell_is_selected) error stop "Cell i,j was never selected in the reconstruction procedure! (this shouldn't happen)"
-
-    !   centroid_xy = grid%get_cell_centroid_xy(i=self%current_cell_ij(1), j=self%current_cell_ij(1))
-
-    !   associate(dV_dx=>self%cell_gradient(1, :), dV_dy=>self%cell_gradient(2, :), &
-    !             x_ij=>centroid_xy(1), y_ij=>centroid_xy(2), x => xy(1), y=xy(2))
-
-    !     U_bar = self%cell_average + dV_dx * (x - x_ij) + dV_dy * (y - y_ij)
-    !   end associate
-  end function reconstruct_second_order
-
-  pure function estimate_gradients(self, i, j, conserved_vars, grid) result(gradients)
-    class(second_order_reconstruction_t), intent(in) :: self
-    class(grid_t), intent(in) :: grid
-    class(conserved_vars_t), intent(in) :: conserved_vars
-    real(rk), dimension(4, 2) :: gradients
+    real(rk), dimension(2, 4) :: gradients !< ([x,y], [rho,u,v,p])
     integer(ik), intent(in) :: i, j
 
-    ! associate(rho=>conserved_vars%density, p=>conserved_vars%pressure, &
-    !           u=>conserved_vars%x_velocity, v=>conserved_vars%y_velocity)
+    ! density
+    gradients(:, 1) = self%estimate_single_gradient(i, j, var_idx=1)
 
-    !   ! density
-    !   gradients(1, :) = self%estimate_single_gradient(rho, i, j, grid)
+    ! x velocity
+    gradients(:, 2) = self%estimate_single_gradient(i, j, var_idx=2)
 
-    !   ! x velocity
-    !   gradients(2, :) = self%estimate_single_gradient(u, i, j, grid)
+    ! y velocity
+    gradients(:, 3) = self%estimate_single_gradient(i, j, var_idx=3)
 
-    !   ! y velocity
-    !   gradients(3, :) = self%estimate_single_gradient(v, i, j, grid)
-
-    !   ! pressure
-    !   gradients(4, :) = self%estimate_single_gradient(p, i, j, grid)
-    ! end associate
+    ! pressure
+    gradients(:, 4) = self%estimate_single_gradient(i, j, var_idx=4)
 
   end function estimate_gradients
 
-  pure function estimate_single_gradient(self, v, i, j, grid) result(grad_v)
+  pure function estimate_single_gradient(self, i, j, var_idx) result(grad_v)
     !< Find the gradient of a variable (v) within a cell at indices (i,j) based on the neighbor information.
     !< See Eq. 9 in https://doi.org/10.1016/j.jcp.2006.03.018. The slope limiter is set via the constructor
     !< of this derived type.
 
     class(second_order_reconstruction_t), intent(in) :: self
-    class(grid_t), intent(in) :: grid
-    real(rk), dimension(:, :), intent(in) :: v !< variable to estimate the gradient
-    integer(ik), intent(in) :: i, j
-    real(rk), dimension(2) :: grad_v
+    integer(ik), intent(in) :: var_idx !< index of the variable to estimate the gradient
+    integer(ik), intent(in) :: i, j !< cell index
+    real(rk), dimension(2) :: grad_v !< (dV/dx, dV/dy) gradient of the variable
 
-    ! associate(limit => self%limiter%limit, &
-    !           volume => grid%get_cell_volumes(i,j), &
-    !           n1 => grid%cell_edge_norm_vectors(i, j, 1, :), &
-    !           n2 => grid%cell_edge_norm_vectors(i, j, 2, :), &
-    !           n3 => grid%cell_edge_norm_vectors(i, j, 3, :), &
-    !           n4 => grid%cell_edge_norm_vectors(i, j, 4, :), &
-    !           delta_l1 => grid%edge_lengths(i, j, 1), &
-    !           delta_l2 => grid%edge_lengths(i, j, 2), &
-    !           delta_l3 => grid%edge_lengths(i, j, 3), &
-    !           delta_l4 => grid%edge_lengths(i, j, 4))
+    associate(L=>self%limiter, &
+              U=>self%conserved_vars, v=>var_idx, &
+              volume=>self%grid%get_cell_volumes(i, j), &
+              n1=>self%grid%cell_edge_norm_vectors(:, 1, i, j), &
+              n2=>self%grid%cell_edge_norm_vectors(:, 2, i, j), &
+              n3=>self%grid%cell_edge_norm_vectors(:, 3, i, j), &
+              n4=>self%grid%cell_edge_norm_vectors(:, 4, i, j), &
+              delta_l1=>self%grid%cell_edge_lengths(1, i, j), &
+              delta_l2=>self%grid%cell_edge_lengths(2, i, j), &
+              delta_l3=>self%grid%cell_edge_lengths(3, i, j), &
+              delta_l4=>self%grid%cell_edge_lengths(4, i, j))
 
-    !   grad_v = (1._rk / (2.0_rk * volume)) * &
-    !            (limit(v(i + 1, j) - v(i, j), v(i, j) - v(i - 1, j)) * (n2 * delta_l2 - n4 * delta_l4) + &
-    !             limit(v(i, j + 1) - v(i, j), v(i, j) - v(i, j - 1)) * (n3 * delta_l3 - n1 * delta_l1))
-    ! end associate
+      grad_v = (1._rk / (2.0_rk * volume)) * &
+               (L%limit(U(v, i + 1, j) - U(v, i, j), U(v, i, j) - U(v, i - 1, j)) * (n2 * delta_l2 - n4 * delta_l4) + &
+                L%limit(U(v, i, j + 1) - U(v, i, j), U(v, i, j) - U(v, i, j - 1)) * (n3 * delta_l3 - n1 * delta_l1))
+    end associate
 
   end function estimate_single_gradient
 

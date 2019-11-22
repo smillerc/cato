@@ -1,7 +1,6 @@
 module mod_abstract_reconstruction
 
   use iso_fortran_env, only: ik => int32, rk => real64
-  use mod_conserved_vars, only: conserved_vars_t
   use mod_regular_2d_grid, only: regular_2d_grid_t
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
@@ -24,7 +23,6 @@ module mod_abstract_reconstruction
     real(rk), dimension(4), public :: cell_average = 0.0_rk !< average values of the cell conserved variables
     type(slope_limiter_t), public :: limiter  !< Slope limiter (if any)
   contains
-    procedure, public :: find_cell_average
     procedure, public, non_overridable :: set_slope_limiter
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct_point), public, deferred :: reconstruct_point
@@ -59,24 +57,10 @@ module mod_abstract_reconstruction
 
       class(abstract_reconstruction_t), intent(in) :: self
       real(rk), dimension(:, :, :, :, :), intent(inout) :: reconstructed_domain
-      !< ([rho, u ,v, p], point, node/midpoint, i, j);
+      !< ((rho, u ,v, p), point, node/midpoint, i, j);
       !< The node/midpoint dimension just selects which set of points,
       !< e.g. 1 - all corners, 2 - all midpoints
     end subroutine reconstruct_domain
-
-    ! subroutine select_and_find_gradient(self, ij, grid, conserved_vars)
-    !   !< This sets the interface to select the cell to reconstruct and calculate the gradient. Because the
-    !   !< gradient is reused, this is stored in the type to be used later by the reconstruct function
-    !   import :: abstract_reconstruction_t
-    !   import :: grid_t
-    !   import :: conserved_vars_t
-    !   import :: ik
-
-    !   class(abstract_reconstruction_t), intent(inout) :: self
-    !   class(grid_t), intent(in) :: grid
-    !   class(conserved_vars_t), intent(in) :: conserved_vars
-    !   integer(ik), dimension(2) :: ij
-    ! end subroutine select_and_find_gradient
 
   end interface
 
@@ -86,31 +70,5 @@ contains
     character(len=*) :: name
     self%limiter = slope_limiter_t(name)
   end subroutine set_slope_limiter
-
-  subroutine find_cell_average(self, i, j, conserved_vars)
-    !< Find the average based on the 4 neighbors and selected cell
-    class(abstract_reconstruction_t), intent(inout) :: self
-    class(conserved_vars_t), intent(in) :: conserved_vars
-    real(rk), dimension(4) :: U_bar
-    integer(ik), intent(in) :: i, j
-
-    associate(rho=>conserved_vars%density, p=>conserved_vars%pressure, &
-              u=>conserved_vars%x_velocity, v=>conserved_vars%y_velocity)
-
-      ! density
-      U_bar(1) = sum(rho(i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
-
-      ! x velocity
-      U_bar(2) = sum(u(i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
-
-      ! y velocity
-      U_bar(3) = sum(v(i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
-
-      ! pressure
-      U_bar(4) = sum(p(i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
-    end associate
-
-    self%cell_average = U_bar
-  end subroutine
 
 end module mod_abstract_reconstruction

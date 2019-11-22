@@ -1,7 +1,6 @@
 module mod_first_order_reconstruction
 !   use iso_fortran_env, only: ik => int32, rk => real64
 !   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-!   use mod_conserved_vars, only: conserved_vars_t
 !   use mod_regular_2d_grid, only: regular_2d_grid_t
 !   use mod_input, only: input_t
 !   use mod_grid, only: grid_t
