@@ -6,7 +6,6 @@ module mod_fvleg
   use mod_integrand, only: integrand_t
   use mod_input, only: input_t
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
-  use mod_conserved_vars, only: conserved_vars_t
   use mod_reconstruction_factory, only: reconstruction_factory_t
   use mod_local_evo_operator, only: local_evo_operator_t
   use mod_second_order_reconstruction, only: second_order_reconstruction_t
@@ -53,14 +52,36 @@ contains
     ! recon_factory = reconstruction_factory_t(input)
     ! scheme%reconstruction_operator = recon_factory%create_reconstruction(input)
 
-    allocate(scheme%conserved_vars(4, input%ni, input%nj), stat=alloc_status)
+    allocate(scheme%conserved_vars(4, input%ni - 1, input%nj - 1), stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%conserved_vars"
 
-    allocate(scheme%reconstructed_state(4, 4, 2, input%ni, input%nj), stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%reconstructed_state"
+    allocate(scheme%evolved_corner_state(4, input%ni, input%nj), stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_corner_state"
+    !< ((rho,u,v,p), i, j); Reconstructed U at each corner
 
-    allocate(scheme%reference_state(4, 4, 2, input%ni, input%nj), stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%reference_state"
+    allocate(scheme%corner_reference_state(4, input%ni, input%nj), stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%corner_reference_state"
+    !< ((rho, u ,v, p), i, j); Reference state (tilde) at each corner
+
+    allocate(scheme%evolved_updown_midpoints_state(4, input%ni, input%nj), stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_updown_midpoints_state"
+    !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the up/down edges (edges 2 and 4)
+
+    allocate(scheme%evolved_leftright_midpoints_state(4, input%ni, input%nj), stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_leftright_midpoints_state"
+    !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
+
+    allocate(scheme%updown_midpoints_reference_state(4, input%ni, input%nj), stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%updown_midpoints_reference_state"
+    !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the up/down edges (edges 2 and 4)
+
+    allocate(scheme%leftright_midpoints_reference_state(4, input%ni, input%nj), stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%leftright_midpoints_reference_state"
+    !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
+
+    allocate(scheme%reconstructed_state(4, 4, 2, input%ni - 1, input%nj - 1), stat=alloc_status)
+    !< ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%reconstructed_state"
 
   end function
 
@@ -78,11 +99,27 @@ contains
     if(allocated(self%conserved_vars)) deallocate(self%conserved_vars, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%conserved_vars"
 
+    if(allocated(self%evolved_corner_state)) deallocate(self%evolved_corner_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%evolved_corner_state"
+
+    if(allocated(self%corner_reference_state)) deallocate(self%corner_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%corner_reference_state"
+
+    if(allocated(self%evolved_updown_midpoints_state)) deallocate(self%evolved_updown_midpoints_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%evolved_updown_midpoints_state"
+
+    if(allocated(self%evolved_leftright_midpoints_state)) deallocate(self%evolved_leftright_midpoints_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%evolved_leftright_midpoints_state"
+
+    if(allocated(self%updown_midpoints_reference_state)) deallocate(self%updown_midpoints_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%updown_midpoints_reference_state"
+
+    if(allocated(self%leftright_midpoints_reference_state)) deallocate(self%leftright_midpoints_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%leftright_midpoints_reference_state"
+
     if(allocated(self%reconstructed_state)) deallocate(self%reconstructed_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%reconstructed_state"
 
-    if(allocated(self%reference_state)) deallocate(self%reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%reference_state"
   end subroutine
 
   subroutine reconstruct_fvleg(self)
@@ -133,27 +170,28 @@ contains
     local_dU_dt%evolution_operator = self%evolution_operator
     local_dU_dt%reconstruction_operator = self%reconstruction_operator
 
-    allocate(local_dU_dt%reconstructed_state(size(self%reconstructed_state, dim=1), &
-                                             size(self%reconstructed_state, dim=2), &
-                                             size(self%reconstructed_state, dim=3), &
-                                             size(self%reconstructed_state, dim=4), &
-                                             size(self%reconstructed_state, dim=5)), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_dU_dt%reconstructed_state"
+    ! // TODO: fix this
+    ! allocate(local_dU_dt%reconstructed_state(size(self%reconstructed_state, dim=1), &
+    !                                          size(self%reconstructed_state, dim=2), &
+    !                                          size(self%reconstructed_state, dim=3), &
+    !                                          size(self%reconstructed_state, dim=4), &
+    !                                          size(self%reconstructed_state, dim=5)), &
+    !          stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate local_dU_dt%reconstructed_state"
 
-    allocate(local_dU_dt%reference_state(size(self%reference_state, dim=1), &
-                                         size(self%reference_state, dim=2), &
-                                         size(self%reference_state, dim=3), &
-                                         size(self%reference_state, dim=4), &
-                                         size(self%reference_state, dim=5)), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_dU_dt%reference_state"
+    ! allocate(local_dU_dt%reference_state(size(self%reference_state, dim=1), &
+    !                                      size(self%reference_state, dim=2), &
+    !                                      size(self%reference_state, dim=3), &
+    !                                      size(self%reference_state, dim=4), &
+    !                                      size(self%reference_state, dim=5)), &
+    !          stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate local_dU_dt%reference_state"
 
-    allocate(local_dU_dt%conserved_vars(size(self%conserved_vars, dim=1), &
-                                        size(self%conserved_vars, dim=2), &
-                                        size(self%conserved_vars, dim=3)), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_dU_dt%conserved_vars"
+    ! allocate(local_dU_dt%conserved_vars(size(self%conserved_vars, dim=1), &
+    !                                     size(self%conserved_vars, dim=2), &
+    !                                     size(self%conserved_vars, dim=3)), &
+    !          stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate local_dU_dt%conserved_vars"
 
     ! Set the RHS of Eq. 3 in the main text
     ! local_dU_dt%conserved_vars = self%integrate_fluxes() //TODO: fix
