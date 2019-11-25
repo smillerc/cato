@@ -3,6 +3,14 @@ add_library(ini_parser
             third_party/ini_parser/string_conv_mod.f90
             )
 
+add_library(eos
+            lib/equation_of_state.f90
+            )
+
+add_library(finterp
+            third_party/finterp/linear_interpolation_module.f90
+            )
+
 add_library(constants
             lib/math_constants.f90
             )
@@ -10,8 +18,9 @@ add_library(constants
 add_library(io
             lib/io/mod_input.f90
             )
-target_link_libraries(io PUBLIC ini_parser)
 
+target_link_libraries(io PUBLIC ini_parser)
+target_link_libraries(eos PUBLIC io)
 
 add_library(utilities
             lib/limiters/slope_limiter.f90
@@ -24,14 +33,13 @@ add_library(geometry
             lib/geometry/vector_2d.f90
             lib/geometry/vector.f90
             lib/geometry/quad_cell.f90
-            lib/geometry/mach_cone_geometry.f90
             )
 
 target_link_libraries(geometry PUBLIC constants io)
 
 add_library(fvleg
-            lib/equation_of_state.f90
             lib/domain/fluxes.f90
+            lib/geometry/mach_cone_geometry.f90
             lib/evolution_operator/abstract_evo_operator.f90
             lib/evolution_operator/local_evo_operator.f90
             lib/reconstruction/abstract_reconstruction.f90
@@ -52,6 +60,7 @@ add_library(fvleg
 # target_compile_options(fvleg PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(fvleg
                       PUBLIC
+                      eos
                       constants
                       geometry
                       utilities
