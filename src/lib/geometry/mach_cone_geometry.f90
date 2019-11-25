@@ -17,40 +17,44 @@ module mod_mach_cone_geometry
 
   type :: mach_cone_geometry_t
     !< Type to encapsulate and calculate the geometry of the mach cone for the evolution operators
-    ! private
-    ! Public attributes
-    real(rk), dimension(4, 2), public :: theta_ie
-    real(rk), dimension(4, 2), public :: theta_ib
 
-    real(rk), dimension(2), public :: p_prime_xy = 0.0_rk
+    real(rk), dimension(4, 2) :: theta_ie = 0.0_rk
+    !< ((edge_vector_1:edge_vector_4), (intersection_1:intersection_2)); arc end angle
 
-    integer(ik), dimension(2), public :: p_prime_ij
+    real(rk), dimension(4, 2) :: theta_ib = 0.0_rk
+    !< ((edge_vector_1:edge_vector_4), (intersection_1:intersection_2)); arc begin angle
+
+    real(rk), dimension(2) :: p_prime_xy = 0.0_rk
+    !< (x,y); Location of P'
+
+    integer(ik), dimension(2) :: p_prime_ij = [0, 0]
     !< x,y location of P' or the apex of the Mach cone (global, not relative to P0)
 
-    integer(ik), public :: neighbor_cells = 0
-    integer(ik), dimension(2), public :: n_intersections = 0
-    logical, dimension(4), public :: p_prime_in_cell = .false.  !< is P' inside the control volume?
+    integer(ik) :: n_neighbor_cells = 0
+    !< How many cells influence this cone
 
-    real(rk), dimension(4, 2, 4), public :: cell_conserved_vars
+    real(rk) :: radius
+    !< Radius of the cone
+
+    integer(ik), dimension(2) :: n_intersections = 0
+    !< Number of intersections for each edge vector
+
+    logical, dimension(4) :: p_prime_in_cell = .false.
+    !< is P' inside the control volume?
+
+    real(rk), dimension(4, 2, 4) :: cell_conserved_vars = 0.0_rk
     !< ((rho,u,v,p), (intersection_1, intersection_2), cell_1:cell_n)
 
-    real(rk), dimension(4), public :: reference_state !< Reference state (rho,u,v,a)
-    real(rk) :: tau
-    real(rk), dimension(4, 4) :: reconstructed_state
+    real(rk), dimension(4) :: reference_state
+    !< (rho,u,v,a); Reference state (local cell average of U)
 
-    ! Private attributes
-    ! real(rk), dimension(2, 2) :: theta
-    ! real(rk), dimension(2) :: sin_alpha_k
-    ! real(rk), dimension(2) :: cos_alpha_k
-    ! real(rk) :: reference_speed_of_sound !< a_tilde
-    ! real(rk), dimension(2) :: b !< b parameter (see appendix in text)
-    ! real(rk), dimension(2, 2) :: l
-    ! real(rk), dimension(2) :: reference_velocity !< [u_tilde, v_tilde]
-    ! type(vector_t), dimension(2) :: edge_vectors !< edge vectors relative to P0
-    ! type(vector_t) :: p_prime_pos_vector !< vector defining P' location relative to P0
+    real(rk) :: tau
+    !< Time evolution increment
+
+    real(rk), dimension(4, 4) :: reconstructed_state = 0.0_rk
+    !< ((rho,u,v,p), (edge_vector_1:edge_vector_4))
+
   contains
-    ! procedure, public :: initialize
-    ! procedure, public :: get_p_state
     procedure, nopass, private :: calculate_l_parameter
     procedure, nopass, private :: calculate_theta_kl
     procedure, nopass, private :: determine_n_intersections
@@ -66,8 +70,12 @@ contains
 
   pure function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
     !< Constructor for the Mach cone type
+
     type(mach_cone_geometry_t) :: new_cone
-    real(rk), intent(in) :: tau  !< time increment, tau -> 0 (very small number)
+
+    real(rk), intent(in) :: tau
+    !< time increment, tau -> 0 (very small number)
+
     real(rk), dimension(:, :, :), intent(in) :: edge_vectors
     !< ((x,y), (tail,head), (vector_1:vector_n)); set of vectors that define the cell edges
 
@@ -78,14 +86,13 @@ contains
     !< ((rho,u,v,p), cell); reconstructed state for point P.
     !< P has a different reconstruction for each cell
 
-    real(rk), dimension(4), intent(in) :: reference_state
+    real(rk), dimension(4), intent(in) :: reference_state  !< (rho, u, v, p)
     !< (rho, u, v, p); reference state of the point P
 
     real(rk), dimension(4) :: cone_reference_state
     !< (rho, u, v, a); reference state of the point P
 
     integer(ik) :: n_total_vectors  !< number of edge vectors (should be 2 or 4)
-    integer(ik) :: n_neighbor_cells  !< number of cells contained in this mach cone
     integer(ik) :: neighbor_cell  !< index for looping through neighbor cells
     integer(ik), dimension(2, 4) :: edge_vector_ordering  !< index order for each set of vectors
     real(rk), dimension(2, 2) :: edge_vector_1, edge_vector_2
@@ -98,15 +105,18 @@ contains
     integer(ik) :: n_arcs
     integer(ik), dimension(2) :: cell_ij
 
+    edge_vector_ordering = 0
     n_total_vectors = size(edge_vectors, dim=3)
-    n_neighbor_cells = n_total_vectors / 2
     new_cone%tau = tau
 
     ! In the cone reference state, index 4 is sound speed rather than pressure
+    !< (rho, u, v, a) vs  !< (rho, u, v, p)
     cone_reference_state = reference_state
+    ! //TODO: Move speed of sound calculation to the EOS module
     associate(a=>cone_reference_state(4), rho=>reference_state(1), &
               p=>reference_state(4), gamma=>eos%get_gamma())
       a = sqrt(gamma * p / rho)
+      new_cone%radius = a * tau
     end associate
 
     ! the order of the vectors matters, mainly for the cross product to determine
@@ -114,15 +124,17 @@ contains
     select case(n_total_vectors)
     case(2)
       edge_vector_ordering(:, 1:2) = reshape([[2, 1],[1, 2]], shape=[2, 2])
+      new_cone%n_neighbor_cells = 2
     case(4)
       edge_vector_ordering = reshape([[4, 1],[1, 2],[2, 3],[3, 4]], shape=[2, 4])
+      new_cone%n_neighbor_cells = 4
     case default
       error stop 'Code not set up yet to handle mach cones with other than 2 or 4 edge vectors'
     end select
 
     ! All the edge vectors take the point P as the origin (or tail) of their vectors
     associate(x=>edge_vectors(1, 1, 1), y=>edge_vectors(2, 1, 1), &
-              u_tilde=>cone_reference_state(1), v_tilde=>cone_reference_state(2))
+              u_tilde=>cone_reference_state(2), v_tilde=>cone_reference_state(3))
 
       ! This defines P' (x,y) globally, not with respect to P
       new_cone%p_prime_xy = [x - u_tilde * tau, y - v_tilde * tau]
@@ -133,9 +145,12 @@ contains
                               y=[edge_vectors(2, 1, 1), new_cone%p_prime_xy(2)])
 
     ! Loop through each neighbor cell and determine intersections and angles
-    do neighbor_cell = 1, n_neighbor_cells
-
+    do neighbor_cell = 1, new_cone%n_neighbor_cells
+      p_prime_in_cell = .false.
+      ! cell_indices is indexed via ((i,j), cell_1:cell_n)
       cell_ij = cell_indices(:, neighbor_cell)
+
+      ! indexing for edge_vectors is ((x,y), (tail,head), (vector_1:vector_n))
       edge_vector_1 = edge_vectors(:, :, edge_vector_ordering(neighbor_cell, 1))
       edge_vector_2 = edge_vectors(:, :, edge_vector_ordering(neighbor_cell, 2))
 
@@ -154,7 +169,7 @@ contains
       new_cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
 
       new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
-      if(p_prime_in_cell) new_cone%p_prime_xy = cell_ij
+      if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
 
     end do
 
@@ -165,8 +180,8 @@ contains
     !< For each neighbor cell, this procedure calculates the angles, number of intersections,
     !< and whether P' is in this cell
     type(vector_t), intent(in) :: p_prime_vector  !< vector pointing to P' from P (this should be shifted to the origin by now)
-    real(rk), dimension(2, 2), intent(in) :: edge_vector_1 !< ((x1,y1), (x2,y2))
-    real(rk), dimension(2, 2), intent(in) :: edge_vector_2  !< ((x1,y1), (x2,y2))
+    real(rk), dimension(2, 2), intent(in) :: edge_vector_1 !< 1st edge vector ((x,y), (head,tail))
+    real(rk), dimension(2, 2), intent(in) :: edge_vector_2  !< 2nd edge vector ((x,y), (head,tail))
     real(rk), dimension(4), intent(in) :: reference_state !< (rho,u,v,a)
     real(rk), intent(in) :: tau  !< time increment
     integer(ik), dimension(2), intent(out) :: n_intersections  !< # of intersections for each edge vector (0, 1, or 2)
@@ -184,21 +199,28 @@ contains
     integer(ik) :: k
 
     ! Although these are specified as a pair of x,y points, they will get shifted to the origin
-    edge_vectors(1) = vector_t(x=edge_vector_1(:, 2), y=edge_vector_1(:, 2))
-    edge_vectors(2) = vector_t(x=edge_vector_2(:, 2), y=edge_vector_2(:, 2))
+    edge_vectors(1) = vector_t(x=[edge_vector_1(1, 1), edge_vector_1(1, 2)], &
+                               y=[edge_vector_1(2, 1), edge_vector_1(2, 2)])
+
+    edge_vectors(2) = vector_t(x=[edge_vector_2(1, 1), edge_vector_2(1, 2)], &
+                               y=[edge_vector_2(2, 1), edge_vector_2(2, 2)])
 
     do k = 1, 2
       associate(x=>edge_vectors(k)%x, y=>edge_vectors(k)%y, len=>edge_vectors(k)%length)
-        sin_alpha(k) = y / len
-        cos_alpha(k) = x / len
+        sin_alpha(k) = (y / len)
+        cos_alpha(k) = (x / len)
       end associate
     end do
 
     p_prime_in_cell = determine_if_p_prime_is_in_cell(edge_vectors(1), edge_vectors(2), p_prime_vector)
     b_k = calculate_b(sin_alpha, cos_alpha, reference_state)
+    ! print*, 'b_k', b_k
     l_k = calculate_l_parameter(tau, sin_alpha, cos_alpha, reference_state, b_k)
+    ! print*, 'l_k', l_k
     theta_kl = calculate_theta_kl(sin_alpha, cos_alpha, reference_state, l_k)
+    ! print*, 'theta_kl', theta_kl
     n_intersections = determine_n_intersections(reference_state, b_k, l_k)
+    ! print*, 'n_intersections',n_intersections
     call calculate_arc_thetas(theta_kl, n_intersections, p_prime_in_cell, n_arcs, theta_ib, theta_ie)
 
   end subroutine
@@ -272,6 +294,9 @@ contains
           theta_ie(2) = theta(1, 1) + 2 * pi
         endif
       else
+        ! This cell doesn't contribute at all (setting to 0 for the sake of clean-ness)...
+        theta_ib = 0.0_rk
+        theta_ie = 0.0_rk
         n_arcs = 0
       end if
     end associate
@@ -283,9 +308,9 @@ contains
     real(rk), dimension(2) :: b
     real(rk), dimension(2), intent(in) :: sin_alpha
     real(rk), dimension(2), intent(in) :: cos_alpha
-    real(rk), dimension(4), intent(in) :: ref_state
+    real(rk), dimension(4), intent(in) :: ref_state  !< (rho, u, v, a)
 
-    associate(u_tilde=>ref_state(1), v_tilde=>ref_state(2))
+    associate(u_tilde=>ref_state(2), v_tilde=>ref_state(3))
       b(1) = abs(u_tilde * sin_alpha(1) + v_tilde * cos_alpha(1))
       b(2) = abs(u_tilde * sin_alpha(2) + v_tilde * cos_alpha(2))
     end associate
@@ -300,14 +325,14 @@ contains
     real(rk), dimension(2), intent(in) :: b
     real(rk), dimension(2), intent(in) :: sin_alpha
     real(rk), dimension(2), intent(in) :: cos_alpha
-    real(rk), dimension(4), intent(in) :: ref_state
+    real(rk), dimension(4), intent(in) :: ref_state !< (rho, u, v, a)
     integer(ik) :: k
 
     l = 0.0_rk
 
     do concurrent(k=1:2)
       associate(a_tilde=>ref_state(4), &
-                u_tilde=>ref_state(1), v_tilde=>ref_state(2))
+                u_tilde=>ref_state(2), v_tilde=>ref_state(3))
 
         if(b(k) <= a_tilde) then
           l(k, 1) = -tau * (u_tilde * cos_alpha(k) + v_tilde * sin_alpha(k)) - &
@@ -327,7 +352,7 @@ contains
     real(rk), dimension(2, 2) :: theta
     real(rk), dimension(2), intent(in) :: sin_alpha
     real(rk), dimension(2), intent(in) :: cos_alpha
-    real(rk), dimension(4), intent(in) :: ref_state
+    real(rk), dimension(4), intent(in) :: ref_state  !< (rho, u, v, a)
     real(rk), dimension(2, 2), intent(in) :: l_k
 
     real(rk) :: sine_alpha_kl
@@ -335,7 +360,7 @@ contains
 
     do concurrent(k=1:2)
       do concurrent(l=1:2)
-        associate(a_tilde=>ref_state(4), u_tilde=>ref_state(1), v_tilde=>ref_state(2))
+        associate(a_tilde=>ref_state(4), u_tilde=>ref_state(2), v_tilde=>ref_state(3))
 
           sine_alpha_kl = v_tilde + l_k(k, l) * sin_alpha(k) / a_tilde
 
@@ -350,14 +375,13 @@ contains
     !< Summary: Find the number of intersections based on the input parameters
     !< Refer to the appendix for this particular logic
     integer(ik), dimension(2) :: n
-    real(rk), dimension(4), intent(in) :: ref_state
+    real(rk), dimension(4), intent(in) :: ref_state  !< (rho, u, v, a)
     real(rk), dimension(2), intent(in) :: b
     real(rk), dimension(2, 2), intent(in) :: l
     integer(ik) :: k
 
     do concurrent(k=1:2)
       associate(a_tilde=>ref_state(4))
-
         if((b(k) > a_tilde) .or. &
            ((l(k, 1) <= l(k, 2)) .and. (l(k, 2) < 0.0_rk))) then
           n(k) = 0
@@ -379,8 +403,9 @@ contains
 
     ! In the text, these inequalities are swapped, but I define the P' position vector
     ! as starting at P0 and going to P'
-    if(((p_prime_vector.cross.edge_vector_1) <= 0.0_rk) .and. &
-       ((edge_vector_2.cross.p_prime_vector) <= 0.0_rk)) then
+    ! print*, 'p_prime_vector.cross.edge_vector_1',p_prime_vector.cross.edge_vector_1
+    ! print*, 'edge_vector_2.cross.p_prime_vector',edge_vector_2.cross.p_prime_vector
+    if((p_prime_vector.cross.edge_vector_1) >= 0.0_rk .and. (edge_vector_2.cross.p_prime_vector) >= 0.0_rk) then
       in_cell = .true.
     else
       in_cell = .false.

@@ -1,24 +1,150 @@
 module test_mach_cone_geometry
-  use iso_fortran_env, only : int32, real64
+  use iso_fortran_env, only : ik => int32, rk => real64
   use mod_mach_cone_geometry
   use funit
+
   implicit none
+
+  real(rk), parameter :: pi = 4.0_rk * atan(1.0_rk)
 
 contains
 
+  ! Corner/midpoint index convention         Cell Indexing convention
+  ! --------------------------------         ------------------------
+  !
+  !   C----M----C----M----C
+  !   |         |         |                             E3
+  !   O    x    O    x    O                      N4-----M3----N3
+  !   |         |         |                      |            |
+  !   C----M----C----M----C                  E4  M4     C     M2  E2
+  !   |         |         |                      |            |
+  !   O    x    O    x    O                      N1----M1----N2
+  !   |         |         |                            E1
+  !   C----M----C----M----C
+  !
+  ! For left/right midpoints, the edge vectors go left then right.
+  ! The neighboring cells are above (i,j) and below (i,j-1)
+  ! For quad cells, N - corner, M - midpoint, E - edge
+
   @test
-  subroutine test_n_intersections()
+  subroutine test_midpoint_cone_p_prime_below()
+    !< Test the Mach cone, where the apex is a midpoint and P' is below it
 
-    ! 0 intersections
-    @assertEqual(0, determine_n_intersections(b_k=1._real64, speed_of_sound=0._real64, l_ki=[0._real64, 0._real64]))
-    @assertEqual(0, determine_n_intersections(b_k=-1._real64, speed_of_sound=0._real64, l_ki=[-2._real64, -1._real64]))
+    !   |         |
+    !   C----M----C
+    !   |  (.) P' |
 
-    ! 1 intersection
-    @assertEqual(1, determine_n_intersections(b_k=0._real64, speed_of_sound=0._real64, l_ki=[-1._real64, 1._real64]))
+    type(mach_cone_geometry_t) :: mach_cone
+    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
+    real(rk), dimension(4,2) :: midpoint_state
+    real(rk), dimension(4) :: reference_state = 1.0_rk
+    integer(ik), dimension(2,2) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(4, 2) :: theta
 
-    ! 2 intersections
-    @assertEqual(2, determine_n_intersections(b_k=2._real64, speed_of_sound=4._real64, l_ki=[4._real64, 2._real64]))
+    i = 1
+    j = 1
+    ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+    midpoint_edge_vectors = reshape([[3.0_rk,4.0_rk], & ! tail, vector 1
+                                     [6.0_rk,4.0_rk], & ! head, vector 1
+                                     [3.0_rk,4.0_rk], & ! tail, vector 2
+                                     [0.0_rk,4.0_rk] &  ! head, vector 2
+                                    ],shape=[2,2,2])
 
-  end subroutine test_n_intersections
+    ! cell ordering is 1) top, 2) bottom
+    neighbor_cell_indices = reshape([[i,j], &  ! cell above
+                                    [i,j-1] &  ! cell below
+                                    ],shape=[2,2])
+
+    reference_state = [1.0_rk,0.0_rk,4.0_rk,1.0_rk]
+    midpoint_state = 1.0_rk
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=midpoint_edge_vectors, &
+                         reconstructed_state=midpoint_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+
+
+    ! P' should be in the cell below the midpoint
+    @assertEqual([3.0_rk, 3.96_rk], mach_cone%p_prime_xy)
+    @assertEqual([.false.,.true.,.false.,.false.], mach_cone%p_prime_in_cell)
+    @assertEqual([i,j-1], mach_cone%p_prime_ij)
+
+    theta = 0.0_rk
+    @assertEqual(theta, mach_cone%theta_ib)
+
+    theta = 0.0_rk
+    theta(2,:) = 2*pi ! 1st and 2nd intersections should both be 2pi
+    @assertEqual(theta, mach_cone%theta_ie)
+
+  end subroutine test_midpoint_cone_p_prime_below
+
+  @test
+  subroutine test_midpoint_cone_p_prime_above()
+    !< Test the Mach cone, where the apex is a midpoint and P' is above it
+
+    !   |  (.) P' |
+    !   C----M----C
+    !   |         |
+
+    type(mach_cone_geometry_t) :: mach_cone
+    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
+    real(rk), dimension(4,2) :: midpoint_state
+    real(rk), dimension(4) :: reference_state = 1.0_rk
+    integer(ik), dimension(2,2) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(4, 2) :: theta
+
+    i = 1
+    j = 1
+    ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+    midpoint_edge_vectors = reshape([[3.0_rk,4.0_rk], & ! tail, vector 1
+                                     [6.0_rk,4.0_rk], & ! head, vector 1
+                                     [3.0_rk,4.0_rk], & ! tail, vector 2
+                                     [0.0_rk,4.0_rk] &  ! head, vector 2
+                                    ],shape=[2,2,2])
+
+    ! cell ordering is 1) top, 2) bottom
+    neighbor_cell_indices = reshape([[i,j], &  ! cell above
+                                    [i,j-1] &  ! cell below
+                                    ],shape=[2,2])
+
+    reference_state = [1.0_rk,0.0_rk,-4.0_rk,1.0_rk]
+    midpoint_state = 1.0_rk
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=midpoint_edge_vectors, &
+                         reconstructed_state=midpoint_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+
+
+    ! P' should be in the cell below the midpoint
+    @assertEqual([3.0_rk, 4.04_rk], mach_cone%p_prime_xy)
+    @assertEqual([.true.,.false.,.false.,.false.], mach_cone%p_prime_in_cell)
+    @assertEqual([i,j], mach_cone%p_prime_ij)
+
+    theta = 0.0_rk
+    @assertEqual(theta, mach_cone%theta_ib)
+
+    theta = 0.0_rk
+    theta(1,:) = 2*pi ! 1st and 2nd intersections should both be 2pi
+    @assertEqual(theta, mach_cone%theta_ie)
+
+    ! print*, 'mach_cone%p_prime_xy', mach_cone%p_prime_xy
+    ! print*, 'mach_cone%p_prime_ij', mach_cone%p_prime_ij
+    ! print*, 'mach_cone%n_neighbor_cells', mach_cone%n_neighbor_cells
+    ! print*, 'mach_cone%n_intersections', mach_cone%n_intersections
+    ! print*, 'mach_cone%theta_ib',  mach_cone%theta_ib
+    ! print*, 'mach_cone%theta_ie', mach_cone%theta_ie
+    ! print*, 'mach_cone%p_prime_in_cell', mach_cone%p_prime_in_cell
+    ! print*, 'mach_cone%radius', mach_cone%radius
+
+  end subroutine test_midpoint_cone_p_prime_above
+
+  ! @test
+  ! subroutine test_corner_cone()
+  ! end subroutine
 
 end module test_mach_cone_geometry
