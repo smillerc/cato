@@ -1,0 +1,34 @@
+module test_nearest
+  !> Units test for 1d nearest neighbor interpolation.
+
+  use linear_interpolation_module
+  use, intrinsic :: iso_fortran_env, only: wp => real64
+  use funit
+
+  implicit none
+
+  integer, parameter :: nx = 6  !! number of points in x
+  real(wp), dimension(nx), parameter :: x = [1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp, 5.0_wp, 6.0_wp]
+  real(wp), dimension(nx), parameter :: fcn_1d = [1.0_wp, 2.0_wp, 3.0_wp, 4.0_wp, 5.0_wp, 6.0_wp]
+  real(wp), dimension(nx), parameter :: x_to_test = [0.1_wp, 2.1_wp, 3.4_wp, 4.0_wp, 4.9_wp, 9.0_wp]
+  real(wp), parameter :: tol = 1.0e-14_wp  !! error tolerance
+
+contains
+
+  @test
+  subroutine test_nearest_1d
+    type(nearest_interp_1d) :: s1
+    real(wp) :: interp_x, real_x
+    integer :: i, iflag
+    ! initialize
+    call s1%initialize(x, fcn_1d, iflag)
+
+    if(iflag /= 0) error stop 'Error initializing 1D nearest neighbor interpolator'
+
+    do i = 1, nx
+      call s1%evaluate(x_to_test(i), interp_x)
+      real_x = x(i)
+      @assertEqual(real_x, interp_x, tol)
+    end do
+  end subroutine
+end module

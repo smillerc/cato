@@ -1,2 +1,3 @@
 add_subdirectory(test_geometry)
 add_subdirectory(test_slope_limiters)
+add_subdirectory(test_interpolation)
