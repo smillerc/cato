@@ -4,5 +4,5 @@ module math_constants
 
   implicit none
 
-  real(rk), parameter :: pi = 4.0_rk * tan(1.0_rk)
+  real(rk), parameter :: pi = 4.0_rk * atan(1.0_rk)
 end module math_constants
