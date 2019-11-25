@@ -9,7 +9,7 @@ module mod_eos
 
   type :: eos_t
     private
-    real(rk) :: gamma
+    real(rk) :: gamma = 5.0_rk / 3.0_rk
   contains
     procedure, public :: get_gamma
     procedure, public :: set_gamma
