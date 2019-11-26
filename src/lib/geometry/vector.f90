@@ -8,10 +8,13 @@ module mod_vector
   public :: vector_t, operator(.unitnorm.), operator(.dot.), operator(.cross.), angle_between
 
   type vector_t
-    real(rk) :: x
-    real(rk) :: y
-    real(rk) :: length
+    real(rk) :: x = 0.0_rk
+    real(rk) :: y = 0.0_rk
+    real(rk) :: length = 0.0_rk
   contains
+    private
+    procedure, pass :: write => write_vector
+    generic, public :: write(formatted) => write
   end type
 
   interface vector_t
@@ -44,13 +47,26 @@ contains
 
   type(vector_t) pure function constructor_from_2d(x, y) result(vec)
     !< Constructor from a set of (x,y) pairs
-    real(rk), intent(in), dimension(2) :: x
-    real(rk), intent(in), dimension(2) :: y
+    real(rk), intent(in), dimension(2) :: x !< (x1,x2)
+    real(rk), intent(in), dimension(2) :: y !< (y1,y2)
 
     vec%x = x(2) - x(1)
     vec%y = y(2) - y(1)
     vec%length = norm2([vec%x, vec%y])
   end function
+
+  subroutine write_vector(self, unit, iotype, v_list, iostat, iomsg)
+    !< Implementation of `write(*,*) vector_t`
+
+    class(vector_t), intent(in) :: self  !< vector class
+    integer, intent(in) :: unit  !< input/output unit
+    character(*), intent(in) :: iotype
+    integer, intent(in)  :: v_list(:)
+    integer, intent(out) :: iostat
+    character(*), intent(inout) :: iomsg
+
+    write(unit, '(3(a,f0.4))', iostat=iostat) 'Vector(x,y): (', self%x, ', ', self%y, ') Length: ', self%length
+  end subroutine
 
   type(vector_t) pure function unit_normal(vec) result(norm_vec)
     !< Creat the .unitnorm. operator for the vector_t type
@@ -69,7 +85,7 @@ contains
     !< the cross product is a scalar quantity
     class(vector_t), intent(in) :: vec1, vec2
 
-    cross_product = vec1%x * vec2%y - vec2%x * vec1%x
+    cross_product = vec1%x * vec2%y - vec1%y * vec2%x
   end function
 
   real(rk) pure function angle_between(vec1, vec2) result(angle)
