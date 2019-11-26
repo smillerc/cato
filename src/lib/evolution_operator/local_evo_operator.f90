@@ -29,6 +29,8 @@ module mod_local_evo_operator
     procedure, private, nopass :: get_x_velocity
     procedure, private, nopass :: get_y_velocity
     procedure, private :: evolve_leftright_midpoints
+    procedure, private :: evolve_downup_midpoints
+    procedure, private :: evolve_corners
     ! procedure, private :: find_p_prime_location
     final :: finalize
   end type local_evo_operator_t
@@ -129,7 +131,7 @@ contains
 
     integer(ik) :: i, j, alloc_stat
     integer(ik) :: midpoint_idx  !< used to select the midpoint in the reconstructed_state
-    integer(ik) :: edge_idx  !< used to select the edge in the reconstructed_state
+    integer(ik) :: point_idx  !< used to select the edge in the reconstructed_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     !< ((x,y), head/tail, vector_id); set of vectors that define the midpoint
@@ -137,15 +139,11 @@ contains
     real(rk), dimension(4, 2) :: reconstructed_midpoint_state
     !< ((rho, u, v, p), cell_id); the reconstructed state of the midpoint with respect to each cell
 
-    ! allocate(mach_cone_geometry_t :: mach_cone, stat=alloc_stat)
-    ! if (alloc_stat /= 0) error stop 'Unable to allocate mach_cone in local_evo_operator_t%evolve_leftright_midpoints'
-    ! call mach_cone%initialize(tau=self%tau)
-
     midpoint_idx = 2
 
     ! Corner/midpoint index convention         Cell Indexing convention
     ! --------------------------------         ------------------------
-    !
+
     !   C----M----C----M----C
     !   |         |         |                             E3
     !   O    x    O    x    O                      N4-----M3----N3
@@ -156,6 +154,14 @@ contains
     !   |         |         |                            E1
     !   C----M----C----M----C
 
+    !  |          |
+    !  |  cell 1  |
+    !  |  (i,j)   |
+    !  C1----M----C2
+    !  |  cell 2  |
+    !  | (i,j-1)  |
+    !  |          |
+
     ! For left/right midpoints, the edge vectors go left then right.
     ! The neighboring cells are above (i,j) and below (i,j-1)
     ! For quad cells, N - corner, M - midpoint, E - edge
@@ -163,18 +169,23 @@ contains
     do concurrent(i=1:ubound(evolved_leftright_midpoints_state, dim=2))
       do concurrent(j=1:ubound(evolved_leftright_midpoints_state, dim=3))
 
-        neighbor_cell_indices = reshape([[i, j],[i, j + 1]], shape=[2, 2])
+        neighbor_cell_indices = reshape([[i, j], &  ! cell above
+                                         [i, j - 1] &  ! cell below
+                                         ], shape=[2, 2])
 
         ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
         midpoint_edge_vectors = self%grid%get_midpoint_vectors(cell_ij=[i, j], edge='bottom')
 
-        ! cell below the midpoint
-        edge_idx = 3
-        reconstructed_midpoint_state(:, 1) = reconstructed_state(:, edge_idx, midpoint_idx, i, j - 1)
+        ! reconstructed_state indexing
+        !< ((rho, u ,v, p), point, node/midpoint, i, j);
 
-        ! cell above the midpoint
-        edge_idx = 1
-        reconstructed_midpoint_state(:, 2) = reconstructed_state(:, edge_idx, midpoint_idx, i, j)
+        ! Cell 1: cell above the midpoint -> midpoint point is on the bottom (M1) of the parent cell
+        point_idx = 1
+        reconstructed_midpoint_state(:, 1) = reconstructed_state(:, point_idx, midpoint_idx, i, j)
+
+        ! Cell 2: cell below the midpoint -> midpoint is on the top (M3) of the parent cell
+        point_idx = 3
+        reconstructed_midpoint_state(:, 2) = reconstructed_state(:, point_idx, midpoint_idx, i, j - 1)
 
         mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
                              reconstructed_state=reconstructed_midpoint_state, &
@@ -182,13 +193,209 @@ contains
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_leftright_midpoints_state(:, i, j) = [self%get_density(mach_cone), &
-                                                      self%get_x_velocity(mach_cone), &
-                                                      self%get_y_velocity(mach_cone), &
-                                                      self%get_pressure(mach_cone)]
+        evolved_leftright_midpoints_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+                                                      self%get_x_velocity(mach_cone), & ! u
+                                                      self%get_y_velocity(mach_cone), & ! v
+                                                      self%get_pressure(mach_cone) &    ! p
+                                                      ]
       end do
     end do
-  end subroutine
+  end subroutine evolve_leftright_midpoints
+
+  pure subroutine evolve_downup_midpoints(self, reconstructed_state, &
+                                          downup_midpoints_reference_state, evolved_downup_midpoints_state)
+    !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
+    !< are the midpoints defined by vectors pointing to the down and up.
+
+    class(local_evo_operator_t), intent(in) :: self
+
+    real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
+    !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
+
+    real(rk), dimension(:, :, :), intent(in) :: downup_midpoints_reference_state
+    !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges
+
+    real(rk), dimension(:, :, :), intent(inout) :: evolved_downup_midpoints_state
+    !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges
+
+    ! Locals
+    type(mach_cone_geometry_t) :: mach_cone
+    !< Mach cone used to provide angles theta_ib and theta_ie
+
+    integer(ik) :: i, j, alloc_stat
+    integer(ik) :: midpoint_idx  !< used to select the midpoint in the reconstructed_state
+    integer(ik) :: point_idx  !< used to select the edge in the reconstructed_state
+    integer(ik), dimension(2, 2) :: neighbor_cell_indices
+    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
+    !< ((x,y), head/tail, vector_id); set of vectors that define the midpoint
+
+    real(rk), dimension(4, 2) :: reconstructed_midpoint_state
+    !< ((rho, u, v, p), cell_id); the reconstructed state of the midpoint with respect to each cell
+
+    midpoint_idx = 2
+
+    ! Corner/midpoint index convention         Cell Indexing convention
+    ! --------------------------------         ------------------------
+
+    !   C----M----C----M----C
+    !   |         |         |                             E3
+    !   O    x    O    x    O                      N4-----M3----N3
+    !   |         |         |                      |            |
+    !   C----M----C----M----C                  E4  M4     C     M2  E2
+    !   |         |         |                      |            |
+    !   O    x    O    x    O                      N1----M1----N2
+    !   |         |         |                            E1
+    !   C----M----C----M----C
+
+    !  |         C2         |
+    !  |  cell 1 |  cell 2  |
+    !  | (i-1,j) |  (i,j)   |
+    !  |         M          |
+    !  |         |          |
+    !  |         |          |
+    !  |         C1         |
+
+    ! For down/up midpoints, the edge vectors go down then up.
+    ! The neighboring cells are left (i, j) and right (i-1, j)
+    ! For quad cells, N - corner, M - midpoint, E - edge
+
+    do concurrent(i=1:ubound(evolved_downup_midpoints_state, dim=2))
+      do concurrent(j=1:ubound(evolved_downup_midpoints_state, dim=3))
+
+        ! cell ordering is 1) left, 2) right
+        neighbor_cell_indices = reshape([[i - 1, j], &  ! cell left
+                                         [i, j] &  ! cell right
+                                         ], shape=[2, 2])
+
+        midpoint_edge_vectors = self%grid%get_midpoint_vectors(cell_ij=[i, j], edge='left')
+
+        ! Cell 1: cell to the left -> midpoint point is on the left (M4) of the parent cell
+        point_idx = 4
+        reconstructed_midpoint_state(:, 1) = reconstructed_state(:, point_idx, midpoint_idx, i - 1, j)
+
+        ! Cell 2: cell to the right -> midpoint point is on the right (M2) of the parent cell
+        point_idx = 2
+        reconstructed_midpoint_state(:, 2) = reconstructed_state(:, point_idx, midpoint_idx, i, j)
+
+        mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
+                             reconstructed_state=reconstructed_midpoint_state, &
+                             reference_state=downup_midpoints_reference_state(:, i, j), &
+                             cell_indices=neighbor_cell_indices)
+
+        ! Set the evolved state at the midpoint
+        evolved_downup_midpoints_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+                                                   self%get_x_velocity(mach_cone), & ! u
+                                                   self%get_y_velocity(mach_cone), & ! v
+                                                   self%get_pressure(mach_cone) &    ! p
+                                                   ]
+      end do
+    end do
+  end subroutine evolve_downup_midpoints
+
+  pure subroutine evolve_corners(self, reconstructed_state, &
+                                 corner_reference_state, evolved_corner_state)
+    !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
+    !< are the midpoints defined by vectors pointing to the down and up.
+
+    class(local_evo_operator_t), intent(in) :: self
+
+    real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
+    !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
+
+    real(rk), dimension(:, :, :), intent(in) :: corner_reference_state
+    !< ((rho,u,v,p), i, j); Reference state (tilde) at each corner
+
+    real(rk), dimension(:, :, :), intent(inout) :: evolved_corner_state
+    !< ((rho,u,v,p), i, j); Reconstructed U at each corner
+
+    ! Locals
+    type(mach_cone_geometry_t) :: mach_cone
+    !< Mach cone used to provide angles theta_ib and theta_ie
+
+    integer(ik) :: i, j, alloc_stat
+    integer(ik) :: corner_idx  !< used to select the corner in the reconstructed_state
+    integer(ik) :: point_idx  !< used to select the point in the reconstructed_state
+    integer(ik), dimension(2, 4) :: neighbor_cell_indices
+    real(rk), dimension(2, 2, 4) :: corner_edge_vectors
+    !< ((x,y), head/tail, vector_id); set of vectors that define the corner
+
+    real(rk), dimension(4, 4) :: reconstructed_corner_state
+    !< ((rho, u, v, p), cell_id); the reconstructed state of the corner with respect to each cell
+
+    corner_idx = 1
+
+    ! Corner/midpoint index convention         Cell Indexing convention
+    ! --------------------------------         ------------------------
+
+    !   C----M----C----M----C
+    !   |         |         |                             E3
+    !   O    x    O    x    O                      N4-----M3----N3
+    !   |         |         |                      |            |
+    !   C----M----C----M----C                  E4  M4     C     M2  E2
+    !   |         |         |                      |            |
+    !   O    x    O    x    O                      N1----M1----N2
+    !   |         |         |                            E1
+    !   C----M----C----M----C
+
+    !           C3
+    !   cell 4  |   cell 3
+    !   (i-1,j) |   (i,j)
+    !           |
+    ! C4-------C0--------C2
+    !           |
+    ! (i-1,j-1) |   (i,j-1)
+    !   cell 1  |   cell 2
+    !          C1
+
+    ! For down/up midpoints, the edge vectors go down then up.
+    ! The neighboring cells are left (i, j) and right (i-1, j)
+    ! For quad cells, N - corner, M - midpoint, E - edge
+
+    do concurrent(i=1:ubound(evolved_corner_state, dim=2))
+      do concurrent(j=1:ubound(evolved_corner_state, dim=3))
+
+        ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
+        neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
+                                         [i, j - 1], &  ! lower right
+                                         [i, j], &  ! upper right
+                                         [i - 1, j] &  ! upper left
+                                         ], shape=[2, 4])
+
+        corner_edge_vectors = self%grid%get_corner_vectors(cell_ij=[i, j], corner='lowerleft')
+
+        ! reconstructed_state indexing
+        !< ((rho, u ,v, p), point, node/midpoint, i, j);
+
+        ! Cell 1: lower left cell -> corner is in the upper right (N3) of its parent cell
+        point_idx = 3
+        reconstructed_corner_state(:, 1) = reconstructed_state(:, point_idx, corner_idx, i - 1, j - 1)
+
+        ! Cell 2: lower right cell -> corner is in the upper left (N4) of its parent cell
+        point_idx = 4
+        reconstructed_corner_state(:, 2) = reconstructed_state(:, point_idx, corner_idx, i, j - 1)
+
+        ! Cell 3: upper right cell-> corner is in the lower left (N1) of its parent cell
+        point_idx = 1
+        reconstructed_corner_state(:, 3) = reconstructed_state(:, point_idx, corner_idx, i, j)
+
+        ! Cell 4: upper left cell -> corner is in the lower right (N2) of its parent cell
+        point_idx = 2
+        reconstructed_corner_state(:, 4) = reconstructed_state(:, point_idx, corner_idx, i - 1, j)
+
+        mach_cone = new_cone(tau=self%tau, edge_vectors=corner_edge_vectors, &
+                             reconstructed_state=reconstructed_corner_state, &
+                             reference_state=corner_reference_state(:, i, j), &
+                             cell_indices=neighbor_cell_indices)
+
+        ! Set the evolved state at the midpoint
+        evolved_corner_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+                                         self%get_x_velocity(mach_cone), & ! u
+                                         self%get_y_velocity(mach_cone), & ! v
+                                         self%get_pressure(mach_cone) &    ! p
+                                         ]
+      end do
+    end do
+  end subroutine evolve_corners
 
   pure function evolve(self, reconstructed_state, i, j, edge, loc) result(U_bar)
     !< Evolve the interface (edge) quantities based on their local reconstruction and neighboring cells
@@ -286,14 +493,14 @@ contains
 
     pressure = 0.0_rk
 
-    do cell = 1, mach_cone%neighbor_cells
+    do cell = 1, mach_cone%n_neighbor_cells
       do i = 1, mach_cone%n_intersections(cell)
 
         associate(theta_ie=>mach_cone%theta_ie(cell, i), &
                   theta_ib=>mach_cone%theta_ib(cell, i), &
-                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
                   u_i=>mach_cone%cell_conserved_vars(2, i, cell), &
-                  v_i=>mach_cone%cell_conserved_vars(1, i, cell), &
+                  v_i=>mach_cone%cell_conserved_vars(3, i, cell), &
+                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
@@ -321,14 +528,14 @@ contains
 
     density = 0.0_rk
 
-    do cell = 1, mach_cone%neighbor_cells
+    do cell = 1, mach_cone%n_neighbor_cells
       do i = 1, mach_cone%n_intersections(cell)
 
         associate(theta_ie=>mach_cone%theta_ie(cell, i), &
                   theta_ib=>mach_cone%theta_ib(cell, i), &
-                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
                   u_i=>mach_cone%cell_conserved_vars(2, i, cell), &
-                  v_i=>mach_cone%cell_conserved_vars(1, i, cell), &
+                  v_i=>mach_cone%cell_conserved_vars(3, i, cell), &
+                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
@@ -362,14 +569,14 @@ contains
 
     u = 0.0_rk
 
-    do cell = 1, mach_cone%neighbor_cells
+    do cell = 1, mach_cone%n_neighbor_cells
       do i = 1, mach_cone%n_intersections(cell)
 
         associate(theta_ie=>mach_cone%theta_ie(cell, i), &
                   theta_ib=>mach_cone%theta_ib(cell, i), &
-                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
                   u_i=>mach_cone%cell_conserved_vars(2, i, cell), &
-                  v_i=>mach_cone%cell_conserved_vars(1, i, cell), &
+                  v_i=>mach_cone%cell_conserved_vars(3, i, cell), &
+                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
@@ -395,14 +602,14 @@ contains
 
     v = 0.0_rk
 
-    do cell = 1, mach_cone%neighbor_cells
+    do cell = 1, mach_cone%n_neighbor_cells
       do i = 1, mach_cone%n_intersections(cell)
 
         associate(theta_ie=>mach_cone%theta_ie(cell, i), &
                   theta_ib=>mach_cone%theta_ib(cell, i), &
-                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
                   u_i=>mach_cone%cell_conserved_vars(2, i, cell), &
-                  v_i=>mach_cone%cell_conserved_vars(1, i, cell), &
+                  v_i=>mach_cone%cell_conserved_vars(3, i, cell), &
+                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
