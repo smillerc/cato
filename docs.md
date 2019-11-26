@@ -1,26 +1,34 @@
-title: FVLEG2D
+---
+project: FVLEG
+summary: Finite Volume Local Evolution Galerkin Fluid Solver
+author: Sam Miller
 src_dir: ./src
 output_dir: ./doc
+media_dir: ./media
+exclude_dir: ./src/tests
 project_github: https://github.com/smillerc/fvleg_2d
-summary: A modern fortran framework to solve the Euler equations using the FVLEG method
-author: Sam Miller
 github: https://github.com/smillerc
-email: smillerc@live.com
-<!-- md_extensions: markdown.extensions.toc(anchorlink=True)
-               markdown.extensions.smarty(smart_quotes=False)
-               markdown.extensions.extra
-               markdown_checklist.extension -->
 docmark: <
 display: public
          protected
          private
 source: true
-search: false
-warn: true
-<!-- graph: true -->
+graph: true
 sort: alpha
+coloured_edges: true
+extra_filetypes: .inc !
 print_creation_date: true
 creation_date: %Y-%m-%d %H:%M %z
 extra_mods: iso_fortran_env:https://gcc.gnu.org/onlinedocs/gfortran/ISO_005fFORTRAN_005fENV.html
+md_extensions: markdown.extensions.toc
+               markdown.extensions.smarty
+---
 
-This project solves the Euler equations in 2d using the FVLEG method.
+--------------------
+
+[TOC]
+
+Brief description
+-----------------
+
+A modern Fortran code that solves the Euler equations using the Finite Volume Local Evolution Galerkin method
