@@ -65,9 +65,9 @@ contains
   subroutine test_all_the_things()
 
     real(wp) :: tolerance, rnd
-    real(wp), dimension(6) :: interpolated_value, actual_value, err, errmax
+    real(wp), dimension(6) :: interpolated_value, actual_value, errmax
     logical :: fail
-    integer :: i, j, k, l, m, n, idx, idy, idz, idq, idr, ids
+    integer :: i, j, k, l, m, n
     integer, dimension(6) :: iflag
 
     fail = .false.
