@@ -27,6 +27,9 @@ module mod_mach_cone_geometry
     real(rk), dimension(2) :: p_prime_xy = 0.0_rk
     !< (x,y); Location of P'
 
+    real(rk), dimension(2) :: p_xy = 0.0_rk
+    !< (x,y); Location of P
+
     integer(ik), dimension(2) :: p_prime_ij = [0, 0]
     !< x,y location of P' or the apex of the Mach cone (global, not relative to P0)
 
@@ -65,6 +68,25 @@ module mod_mach_cone_geometry
   interface mach_cone_geometry_t
     module procedure new_cone
   end interface
+
+  ! Corner/midpoint index convention         Cell Indexing convention
+  ! --------------------------------         ------------------------
+  !
+  !   C----M----C3----M----C
+  !   |         |         |                             E3
+  !   O    x    O    x    O                      N4-----M3----N3
+  !   |         |         |                      |            |
+  !   C4----M---C0----M----C2                E4  M4     C     M2  E2
+  !   |         |         |                      |            |
+  !   O    x    O    x    O                      N1----M1----N2
+  !   |         |         |                            E1
+  !   C----M----C1----M----C
+  !
+  ! For left/right midpoints, the edge vectors go left then right.
+  ! The neighboring cells are above (i,j) and below (i,j-1)
+  ! For quad cells, N - corner, M - midpoint, E - edge
+
+  ! Corner vector order should be (vec1 (C0->C1), vec2 (C0->C2), vec3 (C0->C3), vec4 (C0->C4))
 
 contains
 
@@ -137,6 +159,7 @@ contains
               u_tilde=>cone_reference_state(2), v_tilde=>cone_reference_state(3))
 
       ! This defines P' (x,y) globally, not with respect to P
+      new_cone%p_xy = [x, y]
       new_cone%p_prime_xy = [x - u_tilde * tau, y - v_tilde * tau]
     end associate
 
@@ -147,14 +170,17 @@ contains
     ! Loop through each neighbor cell and determine intersections and angles
     do neighbor_cell = 1, new_cone%n_neighbor_cells
       p_prime_in_cell = .false.
-      ! cell_indices is indexed via ((i,j), cell_1:cell_n)
-      cell_ij = cell_indices(:, neighbor_cell)
+
+      cell_ij = cell_indices(:, neighbor_cell)  ! cell_indices is indexed via ((i,j), cell_1:cell_n)
 
       ! indexing for edge_vectors is ((x,y), (tail,head), (vector_1:vector_n))
-      edge_vector_1 = edge_vectors(:, :, edge_vector_ordering(neighbor_cell, 1))
-      edge_vector_2 = edge_vectors(:, :, edge_vector_ordering(neighbor_cell, 2))
+      ! edge_vector_ordering ((), ())
+      edge_vector_1 = edge_vectors(:, :, edge_vector_ordering(1, neighbor_cell))
+      edge_vector_2 = edge_vectors(:, :, edge_vector_ordering(2, neighbor_cell))
 
-      call calculate_arc_segment(p_prime_vector=p_prime_vector, edge_vector_1=edge_vector_1, edge_vector_2=edge_vector_2, &
+      ! print*, 'Neighbor cell: ', neighbor_cell
+      call calculate_arc_segment(p_prime_vector=p_prime_vector, &
+                                 edge_vector_1=edge_vector_1, edge_vector_2=edge_vector_2, &
                                  reference_state=cone_reference_state, tau=tau, &
                                  n_intersections=n_intersections, n_arcs=n_arcs, &
                                  theta_ib=theta_ib, theta_ie=theta_ie, &
@@ -403,13 +429,19 @@ contains
 
     ! In the text, these inequalities are swapped, but I define the P' position vector
     ! as starting at P0 and going to P'
-    ! print*, 'p_prime_vector.cross.edge_vector_1',p_prime_vector.cross.edge_vector_1
-    ! print*, 'edge_vector_2.cross.p_prime_vector',edge_vector_2.cross.p_prime_vector
-    if((p_prime_vector.cross.edge_vector_1) >= 0.0_rk .and. (edge_vector_2.cross.p_prime_vector) >= 0.0_rk) then
+    ! write(*,*) 'p_prime_vector: ', p_prime_vector
+    ! write(*,*) 'edge_vector_1:  ', edge_vector_1
+    ! write(*,*) 'edge_vector_2:  ', edge_vector_2
+
+    ! In the text is has >= instead of <= for some reason, but the following works
+    ! like it's supposed to.
+    if((p_prime_vector.cross.edge_vector_1) <= 0.0_rk .and. &
+       (edge_vector_2.cross.p_prime_vector) <= 0.0_rk) then
       in_cell = .true.
     else
       in_cell = .false.
     end if
+
   end function determine_if_p_prime_is_in_cell
 
 end module mod_mach_cone_geometry
