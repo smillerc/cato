@@ -61,7 +61,7 @@ module mod_quad_cell
 contains
 
   pure function mapping_constructor() result(map)
-    type(quad_cell_edge_vector_mapping) :: map
+    type(quad_cell_edge_vector_mapping_t) :: map
 
     map%edge_to_loc(1, 1, :) = [N2, N1, N4] ! k=1,1
     map%edge_to_loc(1, 2, :) = [N2, M1, N1] ! k=1,c
