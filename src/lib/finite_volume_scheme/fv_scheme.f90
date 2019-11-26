@@ -55,13 +55,13 @@ module mod_finite_volume_schemes
 
     ! Indexing the midpoints is a pain, so they're split by the up/down edges and left/right edges
 
-    real(rk), dimension(:, :, :), allocatable :: evolved_updown_midpoints_state
+    real(rk), dimension(:, :, :), allocatable :: evolved_downup_midpoints_state
     !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the up/down edges (edges 2 and 4)
 
     real(rk), dimension(:, :, :), allocatable :: evolved_leftright_midpoints_state
     !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
 
-    real(rk), dimension(:, :, :), allocatable :: updown_midpoints_reference_state
+    real(rk), dimension(:, :, :), allocatable :: downup_midpoints_reference_state
     !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the up/down edges (edges 2 and 4)
 
     real(rk), dimension(:, :, :), allocatable :: leftright_midpoints_reference_state
@@ -119,7 +119,7 @@ contains
     ! up/down midpoints -> needs to average cells right and left
     do j = self%grid%jlo, self%grid%jhi
       do i = self%grid%ilo, self%grid%ihi
-        associate(U_tilde=>self%updown_midpoints_reference_state, U=>self%conserved_vars)
+        associate(U_tilde=>self%downup_midpoints_reference_state, U=>self%conserved_vars)
           U_tilde(:, i, j) = 0.5_rk * (U(:, i - 1, j) + U(:, i, j))
         end associate
       end do

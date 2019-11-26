@@ -63,16 +63,16 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%corner_reference_state"
     !< ((rho, u ,v, p), i, j); Reference state (tilde) at each corner
 
-    allocate(scheme%evolved_updown_midpoints_state(4, input%ni, input%nj), stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_updown_midpoints_state"
+    allocate(scheme%evolved_downup_midpoints_state(4, input%ni, input%nj), stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_downup_midpoints_state"
     !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the up/down edges (edges 2 and 4)
 
     allocate(scheme%evolved_leftright_midpoints_state(4, input%ni, input%nj), stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_leftright_midpoints_state"
     !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
 
-    allocate(scheme%updown_midpoints_reference_state(4, input%ni, input%nj), stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%updown_midpoints_reference_state"
+    allocate(scheme%downup_midpoints_reference_state(4, input%ni, input%nj), stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%downup_midpoints_reference_state"
     !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the up/down edges (edges 2 and 4)
 
     allocate(scheme%leftright_midpoints_reference_state(4, input%ni, input%nj), stat=alloc_status)
@@ -105,14 +105,14 @@ contains
     if(allocated(self%corner_reference_state)) deallocate(self%corner_reference_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%corner_reference_state"
 
-    if(allocated(self%evolved_updown_midpoints_state)) deallocate(self%evolved_updown_midpoints_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%evolved_updown_midpoints_state"
+    if(allocated(self%evolved_downup_midpoints_state)) deallocate(self%evolved_downup_midpoints_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%evolved_downup_midpoints_state"
 
     if(allocated(self%evolved_leftright_midpoints_state)) deallocate(self%evolved_leftright_midpoints_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%evolved_leftright_midpoints_state"
 
-    if(allocated(self%updown_midpoints_reference_state)) deallocate(self%updown_midpoints_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%updown_midpoints_reference_state"
+    if(allocated(self%downup_midpoints_reference_state)) deallocate(self%downup_midpoints_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%downup_midpoints_reference_state"
 
     if(allocated(self%leftright_midpoints_reference_state)) deallocate(self%leftright_midpoints_reference_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate fvleg_t%leftright_midpoints_reference_state"
