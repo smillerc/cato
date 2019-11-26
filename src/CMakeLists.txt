@@ -33,13 +33,13 @@ add_library(geometry
             lib/geometry/vector_2d.f90
             lib/geometry/vector.f90
             lib/geometry/quad_cell.f90
+            lib/geometry/mach_cone_geometry.f90
             )
 
-target_link_libraries(geometry PUBLIC constants io)
+target_link_libraries(geometry PUBLIC constants io eos)
 
 add_library(fvleg
             lib/domain/fluxes.f90
-            lib/geometry/mach_cone_geometry.f90
             lib/evolution_operator/abstract_evo_operator.f90
             lib/evolution_operator/local_evo_operator.f90
             lib/reconstruction/abstract_reconstruction.f90
