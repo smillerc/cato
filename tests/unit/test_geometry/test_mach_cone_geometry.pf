@@ -27,7 +27,7 @@ contains
   ! For quad cells, N - corner, M - midpoint, E - edge
 
   @test
-  subroutine test_midpoint_cone_p_prime_below()
+  subroutine test_midpoint_leftright_cone_p_prime_below()
     !< Test the Mach cone, where the apex is a midpoint and P' is below it
 
     !  |          |
@@ -52,12 +52,12 @@ contains
     midpoint_edge_vectors = reshape([[3.0_rk,4.0_rk], & ! tail, vector 1
                                      [0.0_rk,4.0_rk], & ! head, vector 1
                                      [3.0_rk,4.0_rk], & ! tail, vector 2
-                                     [6.0_rk,4.0_rk] &  ! head, vector 2
+                                     [6.0_rk,4.0_rk]  & ! head, vector 2
                                     ],shape=[2,2,2])
 
     ! cell ordering is 1) top, 2) bottom
-    neighbor_cell_indices = reshape([[i,j], &  ! cell above
-                                    [i,j-1] &  ! cell below
+    neighbor_cell_indices = reshape([[i,j  ], &  ! cell above
+                                     [i,j-1]  &  ! cell below
                                     ],shape=[2,2])
 
     reference_state = [1.0_rk,0.0_rk,4.0_rk,1.0_rk]
@@ -81,10 +81,10 @@ contains
     theta(2,:) = 2*pi ! 1st and 2nd intersections should both be 2pi
     @assertEqual(theta, mach_cone%theta_ie)
 
-  end subroutine test_midpoint_cone_p_prime_below
+  end subroutine test_midpoint_leftright_cone_p_prime_below
 
   @test
-  subroutine test_midpoint_cone_p_prime_above()
+  subroutine test_midpoint_leftright_cone_p_prime_above()
     !< Test the Mach cone, where the apex is a midpoint and P' is above it
 
     !  |  cell 1  |
@@ -148,7 +148,120 @@ contains
     ! print*, 'mach_cone%p_prime_in_cell', mach_cone%p_prime_in_cell
     ! print*, 'mach_cone%radius', mach_cone%radius
 
-  end subroutine test_midpoint_cone_p_prime_above
+  end subroutine test_midpoint_leftright_cone_p_prime_above
+
+  @test
+  subroutine test_midpoint_downup_cone_p_prime_right()
+    !< Test the Mach cone, where the apex is a midpoint and P' is to the right of it
+
+    !  |         C2         |
+    !  |  cell 1 |  cell 2  |
+    !  | (i-1,j) |  (i,j)   |
+    !  |         M          |
+    !  |         |   (.) P' |
+    !  |         |          |
+    !  |         C1         |
+
+    type(mach_cone_geometry_t) :: mach_cone
+    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
+    real(rk), dimension(4,2) :: midpoint_state
+    real(rk), dimension(4) :: reference_state = 1.0_rk
+    integer(ik), dimension(2,2) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(4, 2) :: theta
+
+    i = 1
+    j = 1
+
+    midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
+                                     [0.0_rk,-3.0_rk], & ! head, vector 1
+                                     [0.0_rk, 0.0_rk], & ! tail, vector 2
+                                     [0.0_rk, 3.0_rk]  & ! head, vector 2
+                                    ],shape=[2,2,2])
+
+    ! cell ordering is 1) left, 2) right
+    neighbor_cell_indices = reshape([[i-1, j], &  ! cell left
+                                     [i  , j]  &  ! cell right
+                                    ],shape=[2,2])
+
+    reference_state = [1.0_rk,-4.0_rk,0.0_rk,1.0_rk]
+    midpoint_state = 1.0_rk
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=midpoint_edge_vectors, &
+                         reconstructed_state=midpoint_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+
+    ! P' should be in the cell below the midpoint
+    @assertEqual([0.04_rk, 0.0_rk], mach_cone%p_prime_xy)
+    @assertEqual([.false.,.true.,.false.,.false.], mach_cone%p_prime_in_cell)
+    @assertEqual([i,j], mach_cone%p_prime_ij)
+
+    theta = 0.0_rk
+    @assertEqual(theta, mach_cone%theta_ib)
+
+    theta = 0.0_rk
+    theta(2,:) = 2*pi ! 1st and 2nd intersections should both be 2pi
+    @assertEqual(theta, mach_cone%theta_ie)
+
+  end subroutine test_midpoint_downup_cone_p_prime_right
+
+  @test
+  subroutine test_midpoint_downup_cone_p_prime_left()
+    !< Test the Mach cone, where the apex is a midpoint and P' is above it
+
+    !  |         C2         |
+    !  |  cell 1 |  cell 2  |
+    !  | (i-1,j) |    (i,j) |
+    !  |         M          |
+    !  |  (.) P' |          |
+    !  |         |          |
+    !  |         C1         |
+
+    type(mach_cone_geometry_t) :: mach_cone
+    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
+    real(rk), dimension(4,2) :: midpoint_state
+    real(rk), dimension(4) :: reference_state = 1.0_rk
+    integer(ik), dimension(2,2) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(4, 2) :: theta
+
+    i = 1
+    j = 1
+    midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk],  & ! tail, vector 1
+                                     [0.0_rk,-3.0_rk],  & ! head, vector 1
+                                     [0.0_rk, 0.0_rk],  & ! tail, vector 2
+                                     [0.0_rk, 3.0_rk]   & ! head, vector 2
+                                    ],shape=[2,2,2])
+
+    ! cell ordering is 1) left, 2) right
+    neighbor_cell_indices = reshape([[i-1, j], &   ! cell left
+                                     [i  , j]  &   ! cell right
+                                    ],shape=[2,2])
+
+    reference_state = [1.0_rk,4.0_rk,0.0_rk,1.0_rk]
+    midpoint_state = 1.0_rk
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=midpoint_edge_vectors, &
+                         reconstructed_state=midpoint_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+
+    ! P' should be in the cell below the midpoint
+    @assertEqual([-0.04_rk, 0.0_rk], mach_cone%p_prime_xy)
+    @assertEqual([.true.,.false.,.false.,.false.], mach_cone%p_prime_in_cell)
+    @assertEqual([i-1,j], mach_cone%p_prime_ij)
+
+    theta = 0.0_rk
+    @assertEqual(theta, mach_cone%theta_ib)
+
+    theta = 0.0_rk
+    theta(1,:) = 2*pi ! 1st and 2nd intersections should both be 2pi
+    @assertEqual(theta, mach_cone%theta_ie)
+
+  end subroutine test_midpoint_downup_cone_p_prime_left
 
   @test
   subroutine test_corner_cone_p_prime_upper_right()
@@ -298,11 +411,11 @@ contains
 
     !           C3
     !   cell 4  |   cell 3
-    ! ij: (1,2) |  ij: (2,2)
+    !   (i-1,j) |   (i,j)
     !           |
     ! C4-------C0--------C2
     !   (.) P'  |
-    ! ij: (1,1) |  ij: (2,1)
+    ! (i-1,j-1) |   (i,j-1)
     !   cell 1  |   cell 2
     !          C1
 
@@ -327,7 +440,7 @@ contains
                                    [-3.0_rk, 0.0_rk]  &  ! (x,y) head, vector 4
                                   ],shape=[2,2,4])
 
-    ! cell ordering is 1) top, 2) bottom
+    ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
     neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
                                      [i    , j - 1], &  ! lower right
                                      [i    , j    ], &  ! upper right
