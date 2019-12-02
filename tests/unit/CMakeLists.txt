@@ -1,3 +1,5 @@
+add_subdirectory(test_misc)
 add_subdirectory(test_geometry)
 add_subdirectory(test_slope_limiters)
 add_subdirectory(test_interpolation)
+add_subdirectory(test_fv_schemes)

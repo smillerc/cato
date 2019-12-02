@@ -62,7 +62,7 @@ module mod_finite_volume_schemes
     !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
 
     real(rk), dimension(:, :, :), allocatable :: downup_midpoints_reference_state
-    !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the up/down edges (edges 2 and 4)
+    !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the down/up edges (edges 2 and 4)
 
     real(rk), dimension(:, :, :), allocatable :: leftright_midpoints_reference_state
     !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
