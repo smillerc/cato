@@ -11,7 +11,8 @@ module mod_flux_tensor
   type flux_tensor_t
     real(rk), dimension(2, 4) :: state
   contains
-    procedure, private :: assign_from_flux
+    procedure, pass(lhs), private :: assign_from_flux
+    procedure, pass(flux) :: real_mul_flux
     procedure, private :: flux_mul_real
     procedure, private :: flux_div_real
     procedure, private :: flux_add_real
@@ -22,7 +23,7 @@ module mod_flux_tensor
     generic :: assignment(=) => assign_from_flux
     generic :: operator(+) => flux_add_flux, flux_add_real
     generic :: operator(-) => flux_sub_flux, flux_sub_real
-    generic :: operator(*) => flux_mul_real
+    generic :: operator(*) => flux_mul_real, real_mul_flux
     generic :: operator(/) => flux_div_real
     ! generic :: operator(.dot.) => flux_dot_vector
   end type
@@ -65,16 +66,10 @@ contains
 
   end function
 
-  ! type(flux_tensor_t) pure function assign_from_flux(self, other_flux) result(output)
-  !   class(flux_tensor_t), intent(in) :: self
-  !   class(flux_tensor_t), intent(in) :: other_flux
-  !   output%state = other_flux%state
-  ! end function
-
-  pure subroutine assign_from_flux(target, source)
-    class(flux_tensor_t), intent(inout) :: target
-    class(flux_tensor_t), intent(in) :: source
-    target%state = source%state
+  pure subroutine assign_from_flux(lhs, rhs)
+    class(flux_tensor_t), intent(inout) :: lhs
+    class(flux_tensor_t), intent(in) :: rhs
+    lhs%state = rhs%state
   end subroutine assign_from_flux
 
   type(flux_tensor_t) pure function flux_add_flux(self, other_flux) result(output)
@@ -107,10 +102,10 @@ contains
     output%state = self%state * scalar
   end function
 
-  type(flux_tensor_t) pure function real_mul_flux(scalar, self) result(output)
-    class(flux_tensor_t), intent(in) :: self
+  type(flux_tensor_t) pure function real_mul_flux(scalar, flux) result(output)
+    class(flux_tensor_t), intent(in) :: flux
     real(rk), intent(in) :: scalar
-    output%state = self%state * scalar
+    output%state = flux%state * scalar
   end function
 
   type(flux_tensor_t) pure function flux_div_real(self, scalar) result(output)
