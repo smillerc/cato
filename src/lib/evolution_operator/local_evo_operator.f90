@@ -16,22 +16,15 @@ module mod_local_evo_operator
   type(reconstruction_factory_t) :: recon_factory
 
   type, extends(abstract_evo_operator_t) :: local_evo_operator_t
-    ! private
-    ! ! character(:), allocatable :: reconstruction_type
-
-    ! real(rk), dimension(4) :: reference_state !> Refrence state of [rho,u,v,a]
-    ! real(rk), dimension(4) :: reconstructed_primative_state !> [rho,u,v,p] evaluated at corner or midpoint node
-
+    !< Local Evolution Operator (E0)
   contains
-    procedure, public :: evolve
-    procedure, private, nopass :: get_pressure
     procedure, private :: get_density
+    procedure, private, nopass :: get_pressure
     procedure, private, nopass :: get_x_velocity
     procedure, private, nopass :: get_y_velocity
-    procedure, private :: evolve_leftright_midpoints
-    procedure, private :: evolve_downup_midpoints
-    procedure, private :: evolve_corners
-    ! procedure, private :: find_p_prime_location
+    procedure, public :: evolve_leftright_midpoints
+    procedure, public :: evolve_downup_midpoints
+    procedure, public :: evolve_corners
     final :: finalize
   end type local_evo_operator_t
 
@@ -61,56 +54,14 @@ contains
   subroutine finalize(self)
     !< Cleanup the operator type
     type(local_evo_operator_t), intent(inout) :: self
-    ! deallocate(self%mach_cone)
     nullify(self%grid)
     nullify(self%reference_state)
     nullify(self%conserved_vars)
     nullify(self%reconstruction_operator)
   end subroutine finalize
 
-!  ! Locals
-!   integer(ik) :: i, j
-!   integer(ik), dimension(2,2,2) :: midpoint_edge_vectors
-!     !< ((x,y), head/tail, vector_id); set of vectors that define the midpoint
-
-!   allocate(mach_cone_geometry_t :: self%mach_cone, stat=alloc_stat)
-!   if (alloc_stat /= 0) error stop 'Unable to allocate local_evo_operator_t%mach_cone'
-!   call self%mach_cone%initialize(tau=self%tau)
-
-!   ! left/right midpoints
-!   ! order is left then right
-!   do i = 1, 2
-!     do j = 1, 2
-
-!       ! left
-!       ! right
-!       midpoint_neighbor_cells = reshape([[i-1,j], [i, j]], shape=[2,2])
-
-!     end do
-!   end do
-
-!   ! up/down midpoints
-!   ! order is down then up. I know this is opposite of the name, but who says down/up?
-
-!   ! left/right
-!   midpoint_edge_vectors = self%grid%get_midpoint_vectors(cell_ij=[i,j], edge='bottom')
-
-!   call self%mach_cone%set_p_state(xy=, &
-!                                   edge_vectors=midpoint_edge_vectors, &
-!                                   reconstructed_state=self%, &
-!                                   reference_state=)
-
-!   ! midpoint_neighbor_cells = reshape([[i,j-1], [i, j]], shape=[2,2])
-
-!   ! corners
-!   ! the order of neighhor cell indices is important here,
-!   ! it starts at the lower left-most and
-!   ! goes counter-clockwise around the common corner node
-!   corner_neighbor_cells = reshape([[i - 1,j - 1], [i, j-1], &
-!                                    [i, j], [i - 1, j]], shape=[2,4])
-
   pure subroutine evolve_leftright_midpoints(self, reconstructed_state, &
-                                             leftright_midpoints_reference_state, evolved_leftright_midpoints_state)
+                                             reference_state, evolved_state)
     !< Create Mach cones and evolve the state at all of the left/right midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the left and right.
 
@@ -119,17 +70,17 @@ contains
     real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
 
-    real(rk), dimension(:, :, :), intent(in) :: leftright_midpoints_reference_state
+    real(rk), dimension(:, :, :), intent(in) :: reference_state
     !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges
 
-    real(rk), dimension(:, :, :), intent(inout) :: evolved_leftright_midpoints_state
+    real(rk), dimension(:, :, :), intent(out) :: evolved_state
     !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
-    integer(ik) :: i, j, alloc_stat
+    integer(ik) :: i, j
     integer(ik) :: midpoint_idx  !< used to select the midpoint in the reconstructed_state
     integer(ik) :: point_idx  !< used to select the edge in the reconstructed_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
@@ -166,8 +117,8 @@ contains
     ! The neighboring cells are above (i,j) and below (i,j-1)
     ! For quad cells, N - corner, M - midpoint, E - edge
 
-    do concurrent(i=1:ubound(evolved_leftright_midpoints_state, dim=2))
-      do concurrent(j=1:ubound(evolved_leftright_midpoints_state, dim=3))
+    do concurrent(i=1:ubound(evolved_state, dim=2))
+      do concurrent(j=1:ubound(evolved_state, dim=3))
 
         neighbor_cell_indices = reshape([[i, j], &  ! cell above
                                          [i, j - 1] &  ! cell below
@@ -189,21 +140,21 @@ contains
 
         mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
                              reconstructed_state=reconstructed_midpoint_state, &
-                             reference_state=leftright_midpoints_reference_state(:, i, j), &
+                             reference_state=reference_state(:, i, j), &
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_leftright_midpoints_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
-                                                      self%get_x_velocity(mach_cone), & ! u
-                                                      self%get_y_velocity(mach_cone), & ! v
-                                                      self%get_pressure(mach_cone) &    ! p
-                                                      ]
+        evolved_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+                                  self%get_x_velocity(mach_cone), & ! u
+                                  self%get_y_velocity(mach_cone), & ! v
+                                  self%get_pressure(mach_cone) &    ! p
+                                  ]
       end do
     end do
   end subroutine evolve_leftright_midpoints
 
   pure subroutine evolve_downup_midpoints(self, reconstructed_state, &
-                                          downup_midpoints_reference_state, evolved_downup_midpoints_state)
+                                          reference_state, evolved_state)
     !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the down and up.
 
@@ -212,17 +163,17 @@ contains
     real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
 
-    real(rk), dimension(:, :, :), intent(in) :: downup_midpoints_reference_state
+    real(rk), dimension(:, :, :), intent(in) :: reference_state
     !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges
 
-    real(rk), dimension(:, :, :), intent(inout) :: evolved_downup_midpoints_state
-    !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges
+    real(rk), dimension(:, :, :), intent(out) :: evolved_state
+    !< ((rho,u,v,p), i, j); Evolved U at each midpoint on the left/right edges
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
-    integer(ik) :: i, j, alloc_stat
+    integer(ik) :: i, j
     integer(ik) :: midpoint_idx  !< used to select the midpoint in the reconstructed_state
     integer(ik) :: point_idx  !< used to select the edge in the reconstructed_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
@@ -259,8 +210,8 @@ contains
     ! The neighboring cells are left (i, j) and right (i-1, j)
     ! For quad cells, N - corner, M - midpoint, E - edge
 
-    do concurrent(i=1:ubound(evolved_downup_midpoints_state, dim=2))
-      do concurrent(j=1:ubound(evolved_downup_midpoints_state, dim=3))
+    do concurrent(i=1:ubound(evolved_state, dim=2))
+      do concurrent(j=1:ubound(evolved_state, dim=3))
 
         ! cell ordering is 1) left, 2) right
         neighbor_cell_indices = reshape([[i - 1, j], &  ! cell left
@@ -279,21 +230,21 @@ contains
 
         mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
                              reconstructed_state=reconstructed_midpoint_state, &
-                             reference_state=downup_midpoints_reference_state(:, i, j), &
+                             reference_state=reference_state(:, i, j), &
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_downup_midpoints_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
-                                                   self%get_x_velocity(mach_cone), & ! u
-                                                   self%get_y_velocity(mach_cone), & ! v
-                                                   self%get_pressure(mach_cone) &    ! p
-                                                   ]
+        evolved_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+                                  self%get_x_velocity(mach_cone), & ! u
+                                  self%get_y_velocity(mach_cone), & ! v
+                                  self%get_pressure(mach_cone) &    ! p
+                                  ]
       end do
     end do
   end subroutine evolve_downup_midpoints
 
   pure subroutine evolve_corners(self, reconstructed_state, &
-                                 corner_reference_state, evolved_corner_state)
+                                 reference_state, evolved_state)
     !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the down and up.
 
@@ -302,17 +253,17 @@ contains
     real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
 
-    real(rk), dimension(:, :, :), intent(in) :: corner_reference_state
+    real(rk), dimension(:, :, :), intent(in) :: reference_state
     !< ((rho,u,v,p), i, j); Reference state (tilde) at each corner
 
-    real(rk), dimension(:, :, :), intent(inout) :: evolved_corner_state
+    real(rk), dimension(:, :, :), intent(out) :: evolved_state
     !< ((rho,u,v,p), i, j); Reconstructed U at each corner
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
-    integer(ik) :: i, j, alloc_stat
+    integer(ik) :: i, j
     integer(ik) :: corner_idx  !< used to select the corner in the reconstructed_state
     integer(ik) :: point_idx  !< used to select the point in the reconstructed_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
@@ -351,8 +302,8 @@ contains
     ! The neighboring cells are left (i, j) and right (i-1, j)
     ! For quad cells, N - corner, M - midpoint, E - edge
 
-    do concurrent(i=1:ubound(evolved_corner_state, dim=2))
-      do concurrent(j=1:ubound(evolved_corner_state, dim=3))
+    do concurrent(i=1:ubound(evolved_state, dim=2))
+      do concurrent(j=1:ubound(evolved_state, dim=3))
 
         ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
         neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
@@ -384,105 +335,18 @@ contains
 
         mach_cone = new_cone(tau=self%tau, edge_vectors=corner_edge_vectors, &
                              reconstructed_state=reconstructed_corner_state, &
-                             reference_state=corner_reference_state(:, i, j), &
+                             reference_state=reference_state(:, i, j), &
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_corner_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
-                                         self%get_x_velocity(mach_cone), & ! u
-                                         self%get_y_velocity(mach_cone), & ! v
-                                         self%get_pressure(mach_cone) &    ! p
-                                         ]
+        evolved_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+                                  self%get_x_velocity(mach_cone), & ! u
+                                  self%get_y_velocity(mach_cone), & ! v
+                                  self%get_pressure(mach_cone) &    ! p
+                                  ]
       end do
     end do
   end subroutine evolve_corners
-
-  pure function evolve(self, reconstructed_state, i, j, edge, loc) result(U_bar)
-    !< Evolve the interface (edge) quantities based on their local reconstruction and neighboring cells
-
-    real(rk), dimension(4) :: U_bar !< Conserved variable values specified location
-
-    class(local_evo_operator_t), intent(in) :: self
-    real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j);
-    !< The node/midpoint dimension just selects which set of points,
-    !< e.g. 1 - all corners, 2 - all midpoints
-
-    integer(ik), intent(in) :: i, j !< Cell indices
-    integer(ik), intent(in) :: edge !< Cell edge index
-    character(len=3), intent(in) :: loc !< where is this evolution taking place? Needs to be one of the following ['k,1','k,c','k,2']
-
-    real(rk) :: rho, u, v, p
-    real(rk) :: x, y
-    integer(ik) :: alloc_stat
-    integer(ik), dimension(2, 4) :: cell_group
-
-    ! cell_group = 0
-    ! ! midpoints
-    ! if (loc == 'k,c') then
-    !   select case(edge)
-    !   case(1)
-    !     cell_group(:,1:2) = reshape([[i,j], [i,j-1]],[2,2])
-    !   case(2)
-    !     cell_group(:,1:2) = reshape([[i,j], [i+1,j]],[2,2])
-    !   case(3)
-    !     cell_group(:,1:2) = reshape([[i,j], [i,j+1]],[2,2])
-    !   case(4)
-    !     cell_group(:,1:2) = reshape([[i,j], [i-1,j]],[2,2])
-    !   case default
-    !     error stop 'Invalid edge for midpoint in local_evo_operator_t%evolve'
-    !   end select
-    ! end if
-
-    ! ! corners
-    ! if (loc == 'k,1' .or. loc == 'k,2') then
-    !   select case(edge)
-    !   case(1)
-    !     cell_group(:,1:4) = reshape([[i,j], [i,j-1], &
-    !                                  [i-1,j], [i-1,j-1]], [2,4])
-    !   case(2)
-    !     cell_group(:,1:4) = reshape([[i,j], [i,j-1], &
-    !                                  [i+1,j], [i+1,j-1]], [2,4])
-    !   case(3)
-    !     cell_group(:,1:4) = reshape([[i,j], [i,j+1], &
-    !                                  [i+1,j], [i+1,j+1]], [2,4])
-    !   case(4)
-    !     cell_group(:,1:4) = reshape([[i,j], [i,j+1], &
-    !                                  [i-1,j], [i-1,j+1]], [2,4])
-    !   case default
-    !     error stop 'Invalid edge for midpoint in local_evo_operator_t%evolve'
-    !   end select
-    ! end if
-
-    ! if (allocated(self%mach_cone)) deallocate(self%mach_cone, stat=alloc_stat)
-    ! if (alloc_stat /= 0) error stop 'Unable to deallocate local_evo_operator_t%mach_cone inside of local_evo_operator_t%evolve'
-
-    ! allocate(mach_cone_geometry_t :: self%mach_cone)
-
-    ! select case(loc)
-    ! case("k,1") ! 1st corner
-    !   call self%mach_cone%initialize(cell_group=cell_group,reference_state=self%reference_state())
-    ! ! case("k,c") ! midpoint
-    ! !   self%mach_cone = mach_cone_geometry_t(edge_points=self%grid%cell_edge_vectors(:,2,edge,i,j))
-    ! ! case("k,2") ! 2nd corner
-    ! !   self%mach_cone = mach_cone_geometry_t(edge_points=self%grid%cell_edge_vectors(:,3,edge,i,j))
-    ! case default
-    !   error stop "Invalid location for the local evolution operator E0 "// &
-    !     "(Needs to be one of the following ['k,1','k,c','k,2'])"
-    ! end select
-
-    ! p = self%get_pressure()
-    ! rho = self%get_density(reconstruction_operator)
-    ! u = self%get_x_velocity()
-    ! v = self%get_y_velocity
-
-    ! U_bar = [rho, u, v, p]
-
-    ! if (allocated(self%p_prime_reconstruction_operator)) then
-    !   deallocate(self%p_prime_reconstruction_operator, stat=alloc_stat)
-    !   if (alloc_stat /= 0) error stop 'Unable to deallocate local_evo_operator_t%p_prime_reconstruction_operator'
-    ! end if
-  end function evolve
 
   pure function get_pressure(mach_cone) result(pressure)
     !< Implementation of p(P) within the local evolution operator (Eq 45 in the text)
@@ -522,9 +386,7 @@ contains
 
     real(rk) :: density  !< rho(P)
     integer(ik) :: i, cell
-    integer(ik), dimension(2) :: p_prime_ij
     real(rk), dimension(4) :: p_prime_u_bar !< [rho, u, v, p] at P'
-    logical :: p_prime_found
 
     density = 0.0_rk
 
