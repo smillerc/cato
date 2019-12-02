@@ -36,7 +36,8 @@ module mod_input
     character(:), allocatable :: contour_io_format
 
     ! timing
-    real(rk) :: max_time = 1
+    real(rk) :: max_time = 1.0_rk
+    real(rk) :: initial_delta_t = 0.0_rk
     real(rk) :: contour_interval = 0.5_rk
 
     ! physics
@@ -90,7 +91,11 @@ contains
     ! General
     call cfg%get("general", "title", char_buffer)
     self%title = trim(char_buffer)
-    call cfg%get("general", "contour_interval", self%contour_interval)
+
+    ! Time
+    call cfg%get("time", "max_time", self%max_time)
+    call cfg%get("time", "initial_delta_t", self%initial_delta_t)
+    call cfg%get("time", "contour_interval", self%contour_interval)
 
     ! Physics
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
@@ -104,8 +109,11 @@ contains
     call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
     self%grid_type = trim(char_buffer)
 
+    call cfg%get("grid", "ni", self%ni)
     call cfg%get("grid", "xmin", self%xmin)
     call cfg%get("grid", "xmax", self%xmax)
+
+    call cfg%get("grid", "nj", self%nj)
     call cfg%get("grid", "ymin", self%ymin)
     call cfg%get("grid", "ymax", self%ymax)
 

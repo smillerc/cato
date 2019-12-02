@@ -13,7 +13,7 @@ program fvleg
   class(grid_factory_t), allocatable :: grid_factory
   class(grid_t), pointer :: grid => null()
   class(finite_volume_scheme_t), allocatable :: fv
-  real(rk) :: t, delta_t
+  real(rk) :: t = 0.0_rk, delta_t
 
   call get_command_argument(1, command_line_arg)
   input_filename = trim(command_line_arg)
@@ -24,12 +24,14 @@ program fvleg
   grid_factory = grid_factory_t()
   grid => grid_factory%create_grid(input)
 
+  delta_t = input%initial_delta_t
   do while(t < input%max_time)
-
+    write(*, '(2(a, 1x, g0.4))') 'Time:', t, ' Delta t:', delta_t
     ! U = U
-    call fv%integrate(delta_t)
+    ! call fv%integrate(delta_t)
 
     t = t + delta_t
+
   end do
 
 end program

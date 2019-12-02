@@ -66,9 +66,10 @@ target_link_libraries(fvleg
                       utilities
                       io
                       #  functional
-                      ${Coarray_LIBRARIES}
-                      ${HDF5_LIBRARIES}
-                      ${HDF5_HL_LIBRARIES})
+                    #   ${Coarray_LIBRARIES}
+                    #   ${HDF5_LIBRARIES}
+                    #   ${HDF5_HL_LIBRARIES}
+                    )
 
 add_executable(fvleg_2d.x main.f90)
 target_link_libraries(fvleg_2d.x

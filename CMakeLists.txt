@@ -48,7 +48,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
 
   list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=single")
   set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g\
- -O0 -g -Wall -Wextra \
+ -Wall -Wextra \
  -Wconversion \
  -fimplicit-none -fbacktrace \
  -fcheck=all \
