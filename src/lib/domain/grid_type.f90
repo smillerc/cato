@@ -53,17 +53,17 @@ module mod_grid
     real(rk), dimension(:, :), allocatable :: node_y !< (i, j, N1:N4); y location of each node
 
     real(rk), dimension(:, :, :), allocatable :: cell_centroid_xy
-    !< (xy, i, j); (x,y) location of the cell centroid
+    !< ((x,y), i, j); (x,y) location of the cell centroid
 
     real(rk), dimension(:, :, :), allocatable :: cell_edge_lengths
-    !< (edge1:edge4, i, j, face1:face4); length of each edge
+    !< ((edge_1:edge_n), i, j); length of each edge
 
     real(rk), dimension(:, :, :, :, :), allocatable :: cell_node_xy
-    !< (xy, point, node:midpoint, i, j); The node/midpoint dimension just selects which set of points,
+    !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints
 
     real(rk), dimension(:, :, :, :), allocatable :: cell_edge_norm_vectors
-    !< (xy, face, i, j); normal direction vector of each face
+    !< ((x,y), edge, i, j); normal direction vector of each face
 
   contains
     procedure(initialize), deferred :: initialize

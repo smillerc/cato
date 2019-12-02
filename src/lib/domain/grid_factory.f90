@@ -29,6 +29,7 @@ contains
 
   subroutine final_factory(self)
     type(grid_factory_t), intent(inout) :: self
+    print *, 'Finalizing grid_factory_t'
     nullify(self%grid_ptr)
   end subroutine final_factory
 
@@ -46,7 +47,9 @@ contains
       ptr => self%grid_ptr
 
     case default
-      if(this_image() == 1) error stop "Error in grid_factory_t, unrecognizable input grid type"
+      allocate(regular_2d_grid_t :: self%grid_ptr)
+      call self%grid_ptr%initialize(input)
+      ptr => self%grid_ptr
     end select
 
   end function create_grid

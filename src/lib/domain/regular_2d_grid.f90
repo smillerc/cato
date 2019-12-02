@@ -89,10 +89,10 @@ contains
     self%xmax = input%xmax
     self%ymin = input%ymin
     self%ymax = input%ymax
-    self%x_length = self%xmax - self%xmin
+    self%x_length = abs(self%xmax - self%xmin)
     if(self%x_length <= 0) error stop "grid%x_length <= 0"
 
-    self%y_length = self%ymax - self%ymin
+    self%y_length = abs(self%ymax - self%ymin)
     if(self%y_length <= 0) error stop "grid%x_length <= 0"
 
     self%dx = self%x_length / (self%ni - 1)
