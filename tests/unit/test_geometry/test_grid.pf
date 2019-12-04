@@ -1,51 +1,108 @@
 module test_grid
-  use iso_fortran_env, only : ik => int32, rk => real64
-  use mod_regular_2d_grid, only : regular_2d_grid_t
-  use mod_input, only : input_t
+  use iso_fortran_env, only: ik => int32, rk => real64
+  use mod_regular_2d_grid, only: regular_2d_grid_t
+  use mod_grid, only: grid_t
+  use mod_grid_factory, only: grid_factory
+  use mod_input, only: input_t
   use funit
+
   implicit none
 
-
-  class(regular_2d_grid_t), allocatable :: grid
-  class(input_t), allocatable :: input
+  integer(ik), parameter :: ni_nodes = 5
+  integer(ik), parameter :: nj_nodes = 3
+  integer(ik), parameter :: ni_cells = ni_nodes - 1
+  integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik) :: alloc_stat
 
 contains
 
-  @before
-  subroutine init_grid()
-    allocate(input_t :: input)
-    call input%initialize(ni=5_ik, nj=3_ik, &
-                          xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+  ! @before
+  ! subroutine init_grid()
+  !   allocate(input_t :: input)
+  !   call input%initialize(ni=5_ik, nj=3_ik, &
+  !                         xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
-    allocate(regular_2d_grid_t :: grid)
-    call grid%initialize(input)
-  end subroutine init_grid
+  !   allocate(regular_2d_grid_t :: grid)
+  !   call grid%initialize(input)
+  ! end subroutine init_grid
 
   @test
   subroutine test_grid_info()
-    @assertEqual(5, grid%get_ni())
-    @assertEqual(3, grid%get_nj())
 
-    @assertEqual(1, grid%get_ilo())
-    @assertEqual(5, grid%get_ihi())
+    class(grid_t), allocatable :: grid
+    type(input_t) :: input
 
-    @assertEqual(1, grid%get_jlo())
-    @assertEqual(3, grid%get_jhi())
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
-    @assertEqual(1.0_rk, grid%get_dx())
-    @assertEqual(2.0_rk, grid%get_dy())
+    grid = grid_factory(input)
 
-    @assertEqual([-2.0_rk, 0.0_rk, 2.0_rk], [grid%get_y(1,1), grid%get_y(1,2), grid%get_y(1,3)])
+    @assertEqual(5, grid%ni_node)
+    @assertEqual(3, grid%nj_node)
+
+    @assertEqual(4, grid%ni_cell)
+    @assertEqual(2, grid%nj_cell)
+
+    @assertEqual(1, grid%ilo_node)
+    @assertEqual(5, grid%ihi_node)
+
+    @assertEqual(0, grid%ilo_bc_node)
+    @assertEqual(0, grid%jlo_bc_node)
+    @assertEqual(0, grid%ilo_bc_cell)
+    @assertEqual(0, grid%jlo_bc_cell)
+
+    @assertEqual(6, grid%ihi_bc_node)
+    @assertEqual(4, grid%jhi_bc_node)
+    @assertEqual(5, grid%ihi_bc_cell)
+    @assertEqual(3, grid%jhi_bc_cell)
+
+    @assertEqual(1, grid%jlo_node)
+    @assertEqual(3, grid%jhi_node)
+
+    @assertEqual(1.0_rk, grid%min_dx)
+    @assertEqual(2.0_rk, grid%min_dy)
+
+    ! Check spacing in y (real domain)
+    @assertEqual([-2.0_rk, 0.0_rk, 2.0_rk],[grid%get_y(1, 1), grid%get_y(1, 2), grid%get_y(1, 3)])
+    ! Check spacing in y (ghost/boundary domain)
+    @assertEqual([-4.0_rk, 4.0_rk],[grid%get_y(0, 0), grid%get_y(0, 4)])
+
+    ! Check spacing in x (real domain)
     @assertEqual([-2.0_rk, -1.0_rk, 0.0_rk, 1.0_rk, 2.0_rk], [grid%get_x(1,1), grid%get_x(2,1), grid%get_x(3,1), grid%get_x(4,1), grid%get_x(5,1)])
+    ! Check spacing in y (ghost/boundary domain)
+    @assertEqual([-3.0_rk, 3.0_rk],[grid%get_x(0, 0), grid%get_x(6, 0)])
 
-    ! @assertEqual([-1.5_rk, -1.0_rk], [grid%get_cell_centroids(1,1,1), grid%get_cell_centroids(1,1,2)])
+    @assertEqual(2.0_rk, grid%get_cell_volumes(1, 1))
+    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ilo_bc_cell, grid%jlo_bc_cell))
+    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ihi_bc_cell, grid%jhi_bc_cell))
 
-    @assertEqual(2.0_rk, grid%get_cell_volumes(1,1))
+    ! Check bounds and shape
+    @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_volume))
+    @assertEqual([0, 0], lbound(grid%cell_volume))
+    @assertEqual([ni_cells + 1, nj_cells + 1], ubound(grid%cell_volume))
+
+    @assertEqual([2, ni_cells + 2, nj_cells + 2], shape(grid%cell_centroid_xy))
+    @assertEqual([1, 0, 0], lbound(grid%cell_centroid_xy))
+    @assertEqual([2, ni_cells + 1, nj_cells + 1], ubound(grid%cell_centroid_xy))
+
+    @assertEqual([4, ni_cells + 2, nj_cells + 2], shape(grid%cell_edge_lengths))
+    @assertEqual([1, 0, 0], lbound(grid%cell_edge_lengths))
+    @assertEqual([4, ni_cells + 1, nj_cells + 1], ubound(grid%cell_edge_lengths))
+
+    @assertEqual([2, 4, ni_cells + 2, nj_cells + 2], shape(grid%cell_edge_norm_vectors))
+    @assertEqual([1, 1, 0, 0], lbound(grid%cell_edge_norm_vectors))
+    @assertEqual([2, 4, ni_cells + 1, nj_cells + 1], ubound(grid%cell_edge_norm_vectors))
+
+    @assertEqual([2, 4, 2, ni_cells + 2, nj_cells + 2], shape(grid%cell_node_xy))
+    @assertEqual([1, 1, 1, 0, 0], lbound(grid%cell_node_xy))
+    @assertEqual([2, 4, 2, ni_cells + 1, nj_cells + 1], ubound(grid%cell_node_xy))
+
   end subroutine test_grid_info
 
-  @after
-  subroutine test_grid_finalize()
-    call grid%finalize()
-  end subroutine test_grid_finalize
+  ! @after
+  ! subroutine test_grid_finalize()
+  !   call grid%finalize()
+  ! end subroutine test_grid_finalize
 
 end module test_grid

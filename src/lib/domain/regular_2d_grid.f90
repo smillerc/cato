@@ -12,7 +12,7 @@ module mod_regular_2d_grid
   type, extends(grid_t) :: regular_2d_grid_t
     !< Summary: The regular_2d_grid_t type holds all of the geometry info relevant to the grid.
 
-    real(rk), dimension(:, :, :, :, :), allocatable :: cell_edge_vectors
+    ! real(rk), dimension(:, :, :, :, :), allocatable :: cell_edge_vectors
     !< (x:y, loc1:loc2, face1:face4, i, j)
     !< This describes the point locations of the set of edge vectors at each location the mach cone is evaluated.
     !< For instance, for edge E1, a mach cone is constructed at N1, M1, and N2.
@@ -39,22 +39,22 @@ module mod_regular_2d_grid
   contains
     procedure, public :: initialize
     procedure, private :: populate_element_specifications
-    procedure, public :: get_ihi
-    procedure, public :: get_ilo
-    procedure, public :: get_jlo
-    procedure, public :: get_jhi
-    procedure, public :: get_ni
-    procedure, public :: get_nj
-    procedure, public :: get_xmin
-    procedure, public :: get_xmax
-    procedure, public :: get_ymin
-    procedure, public :: get_ymax
-    procedure, public :: get_x_length
-    procedure, public :: get_y_length
+    ! procedure, public :: get_ihi
+    ! procedure, public :: get_ilo
+    ! procedure, public :: get_jlo
+    ! procedure, public :: get_jhi
+    ! procedure, public :: get_ni
+    ! procedure, public :: get_nj
+    ! procedure, public :: get_xmin
+    ! procedure, public :: get_xmax
+    ! procedure, public :: get_ymin
+    ! procedure, public :: get_ymax
+    ! procedure, public :: get_x_length
+    ! procedure, public :: get_y_length
     procedure, public :: get_x
     procedure, public :: get_y
-    procedure, public :: get_dx
-    procedure, public :: get_dy
+    ! procedure, public :: get_dx
+    ! procedure, public :: get_dy
     procedure, public :: get_cell_volumes
     procedure, public :: get_cell_centroid_xy
     procedure, public :: get_cell_edge_lengths
@@ -77,80 +77,127 @@ contains
 
     integer(ik) :: alloc_status, i, j
 
-    self%ilo = 1
-    self%ihi = self%ilo + input%ni - 1
-    self%ni = input%ni
+    ! Low node/cell indices (always starts at 1)
+    self%ilo_node = 1
+    self%jlo_node = 1
+    self%ilo_cell = 1
+    self%jlo_cell = 1
 
-    self%jlo = 1
-    self%jhi = self%jlo + input%nj - 1
-    self%nj = input%nj
+    ! High node/cell indices
+    self%ihi_node = input%ni_nodes
+    self%jhi_node = input%nj_nodes
+    self%ihi_cell = self%ihi_node - 1
+    self%jhi_cell = self%jhi_node - 1
+
+    ! Low i/j boundary condition indices
+    self%ilo_bc_node = 0
+    self%jlo_bc_node = 0
+    self%ilo_bc_cell = 0
+    self%jlo_bc_cell = 0
+
+    ! Hihh i/j boundary condition indices
+    self%ihi_bc_node = self%ihi_node + 1
+    self%jhi_bc_node = self%jhi_node + 1
+    self%ihi_bc_cell = self%ihi_cell + 1
+    self%jhi_bc_cell = self%jhi_cell + 1
+
+    self%ni_node = input%ni_nodes
+    self%nj_node = input%nj_nodes
+    self%ni_cell = self%ni_node - 1
+    self%nj_cell = self%nj_node - 1
 
     self%xmin = input%xmin
     self%xmax = input%xmax
     self%ymin = input%ymin
     self%ymax = input%ymax
+
     self%x_length = abs(self%xmax - self%xmin)
     if(self%x_length <= 0) error stop "grid%x_length <= 0"
 
     self%y_length = abs(self%ymax - self%ymin)
     if(self%y_length <= 0) error stop "grid%x_length <= 0"
 
-    self%dx = self%x_length / (self%ni - 1)
-    if(self%dx <= 0) error stop "grid%dx <= 0"
+    self%min_dx = self%x_length / real(self%ni_cell, rk)
+    self%max_dx = self%min_dx ! placeholder for now
+    if(self%min_dx <= 0) error stop "grid%dx <= 0"
 
-    self%dy = self%y_length / (self%nj - 1)
-    if(self%dy <= 0) error stop "grid%dy <= 0"
+    self%min_dy = self%y_length / real(self%nj_cell, rk)
+    self%max_dy = self%min_dy ! placeholder for now
+    if(self%min_dy <= 0) error stop "grid%dy <= 0"
 
-    allocate(self%node_x(self%ilo:self%ihi, self%jlo:self%jhi), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%x"
+    ! Allocate node based arrays
+    associate(imin=>self%ilo_bc_node, imax=>self%ihi_bc_node, &
+              jmin=>self%jlo_bc_node, jmax=>self%jhi_bc_node)
 
-    do i = self%ilo, self%ihi
-      self%node_x(i, :) = self%xmin + (i - 1) * self%dx
+      allocate(self%node_x(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_x"
+
+      allocate(self%node_y(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_y"
+    end associate
+
+    ! Set the x spacing
+    do i = self%ilo_node, self%ihi_node
+      self%node_x(i, :) = self%xmin + (i - 1) * self%min_dx
     end do
 
-    allocate(self%node_y(self%ilo:self%ihi, self%jlo:self%jhi), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%y"
+    ! Set the low i boundary location
+    associate(x_0=>self%node_x(self%ilo_node, :), &
+              x_1=>self%node_x(self%ilo_node + 1, :))
+      self%node_x(self%ilo_bc_node, :) = x_0 - (x_1 - x_0)
+    end associate
 
-    do j = self%jlo, self%jhi
-      self%node_y(:, j) = self%ymin + (j - 1) * self%dy
+    ! Set the high i boundary
+    associate(x_n=>self%node_x(self%ihi_node, :), &
+              x_n_minus_1=>self%node_x(self%ihi_node - 1, :))
+      self%node_x(self%ihi_bc_node, :) = x_n + (x_n - x_n_minus_1)
+    end associate
+
+    ! Set the y spacing
+    do j = self%jlo_node, self%jhi_node
+      self%node_y(:, j) = self%ymin + (j - 1) * self%min_dy
     end do
 
-    allocate(self%cell_volume(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volume"
-    self%cell_volume = 0.0_rk
+    ! Set the low j boundary location
+    associate(y_0=>self%node_y(:, self%jlo_node), &
+              y_1=>self%node_y(:, self%jlo_node + 1))
+      self%node_y(:, self%jlo_bc_node) = y_0 - (y_1 - y_0)
+    end associate
 
-    allocate(self%cell_centroid_xy(2, self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroids"
-    self%cell_centroid_xy = 0.0_rk
+    ! Set the high j boundary
+    associate(y_n=>self%node_y(:, self%jhi_node), &
+              y_n_minus_1=>self%node_y(:, self%jhi_node - 1))
+      self%node_y(:, self%jhi_bc_node) = y_n + (y_n - y_n_minus_1)
+    end associate
 
-    allocate(self%cell_edge_lengths(4, self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_lengths"
-    self%cell_edge_lengths = 0.0_rk
+    ! Allocate cell based arrays
+    associate(imin=>self%ilo_bc_cell, imax=>self%ihi_bc_cell, &
+              jmin=>self%jlo_bc_cell, jmax=>self%jhi_bc_cell)
 
-    allocate(self%cell_edge_vectors(2, 3, 4, self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_vectors"
-    self%cell_edge_lengths = 0.0_rk
+      allocate(self%cell_volume(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volume"
+      self%cell_volume = 0.0_rk
 
-    ! allocate(self%cell_node_xy(self%ilo:self%ihi - 1, self%jlo:self%jhi - 1, 8, 2), &
-    !          stat=alloc_status)
-    ! if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_midpoints"
-    ! self%cell_node_xy = 0.0_rk
+      allocate(self%cell_centroid_xy(2, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroid_xy"
+      self%cell_centroid_xy = 0.0_rk
 
-    allocate(self%cell_edge_norm_vectors(2, 4, self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), &
-             stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_norm_vectors"
-    self%cell_edge_norm_vectors = 0.0_rk
+      allocate(self%cell_edge_lengths(4, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_lengths"
+      self%cell_edge_lengths = 0.0_rk
 
-    ! ! 3 - only need p, u, and v for reconstruction
-    ! ! 8 - 4 corner nodes and 4 midpoints
-    ! allocate(self%reconstructed_state(3, 8, self%ilo:self%ihi - 1, self%jlo:self%jhi - 1), stat=alloc_status)
-    ! if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%reconstructed_state"
+      ! allocate(self%cell_edge_vectors(2, 3, 4, imin:imax, jmin:jmax), stat=alloc_status)
+      ! if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_vectors"
+      ! self%cell_edge_vectors = 0.0_rk
+
+      allocate(self%cell_edge_norm_vectors(2, 4, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_norm_vectors"
+      self%cell_edge_norm_vectors = 0.0_rk
+
+      allocate(self%cell_node_xy(2, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_node_xy"
+      self%cell_node_xy = 0.0_rk
+    end associate
 
     call self%populate_element_specifications()
   end subroutine
@@ -165,8 +212,8 @@ contains
 
     integer(ik) :: i, j
 
-    do j = self%jlo, self%jhi - 1
-      do i = self%ilo, self%ihi - 1
+    do j = self%jlo_bc_cell, self%jhi_bc_cell
+      do i = self%ilo_bc_cell, self%ihi_bc_cell
 
         allocate(quad_cell_t :: quad)
 
@@ -191,7 +238,7 @@ contains
 
   subroutine force_finalization(self)
     type(regular_2d_grid_t), intent(inout) :: self
-    call self%finalize
+    call self%finalize()
   end subroutine
 
   subroutine finalize(self)
@@ -199,133 +246,126 @@ contains
     integer(ik) :: alloc_status
 
     print *, 'Finalizing regular_2d_grid_t'
-    if(allocated(self%node_x)) deallocate(self%node_x, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%x"
-
-    if(allocated(self%node_y)) deallocate(self%node_y, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%y"
-
     if(allocated(self%cell_volume)) deallocate(self%cell_volume, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volume"
 
+    if(allocated(self%node_x)) deallocate(self%node_x, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%node_x"
+
+    if(allocated(self%node_y)) deallocate(self%node_y, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%node_y"
+
     if(allocated(self%cell_centroid_xy)) deallocate(self%cell_centroid_xy, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_centroids"
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_centroid_xy"
 
     if(allocated(self%cell_edge_lengths)) deallocate(self%cell_edge_lengths, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_lengths"
 
-    if(allocated(self%cell_edge_vectors)) deallocate(self%cell_edge_vectors, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_vectors"
-
-    ! if(allocated(self%cell_node_xy)) deallocate(self%cell_node_xy, stat=alloc_status)
-    ! if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_node_xy"
+    if(allocated(self%cell_node_xy)) deallocate(self%cell_node_xy, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_node_xy"
 
     if(allocated(self%cell_edge_norm_vectors)) deallocate(self%cell_edge_norm_vectors, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_norm_vectors"
 
-    ! if(allocated(self%reconstructed_state)) deallocate(self%reconstructed_state, stat=alloc_status)
-    ! if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%reconstructed_state"
-
-    print *, 'Done'
   end subroutine finalize
 
-  pure function get_ihi(self) result(ihi)
-    !< Public interface to get ihi
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik) :: ihi
-    ihi = self%ihi
-  end function
+  ! pure function get_ihi(self) result(ihi)
+  !   !< Public interface to get ihi
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   integer(ik) :: ihi
+  !   ihi = self%ihi
+  ! end function
 
-  pure function get_ilo(self) result(ilo)
-    !< Public interface to get ilo
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik) :: ilo
-    ilo = self%ilo
-  end function
+  ! pure function get_ilo(self) result(ilo)
+  !   !< Public interface to get ilo
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   integer(ik) :: ilo
+  !   ilo = self%ilo
+  ! end function
 
-  pure function get_ni(self) result(ni)
-    !< Public interface to get ni
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik) :: ni
-    ni = self%ni
-  end function
+  ! pure function get_ni(self) result(ni)
+  !   !< Public interface to get ni
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   integer(ik) :: ni
+  !   ni = self%ni
+  ! end function
 
-  pure function get_nj(self) result(nj)
-    !< Public interface to get nj
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik) :: nj
-    nj = self%nj
-  end function
+  ! pure function get_nj(self) result(nj)
+  !   !< Public interface to get nj
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   integer(ik) :: nj
+  !   nj = self%nj
+  ! end function
 
-  pure function get_jlo(self) result(jlo)
-    !< Public interface to get jlo
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik) :: jlo
-    jlo = self%jlo
-  end function
+  ! pure function get_jlo(self) result(jlo)
+  !   !< Public interface to get jlo
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   integer(ik) :: jlo
+  !   jlo = self%jlo
+  ! end function
 
-  pure function get_jhi(self) result(jhi)
-    !< Public interface to get jhi
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik) :: jhi
-    jhi = self%jhi
-  end function
+  ! pure function get_jhi(self) result(jhi)
+  !   !< Public interface to get jhi
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   integer(ik) :: jhi
+  !   jhi = self%jhi
+  ! end function
 
-  pure function get_xmin(self) result(xmin)
-    !< Public interface to get xmin
-    class(regular_2d_grid_t), intent(in) :: self
-    real(rk) :: xmin
-    xmin = self%xmin
-  end function
+  ! pure function get_xmin(self) result(xmin)
+  !   !< Public interface to get xmin
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   real(rk) :: xmin
+  !   xmin = self%xmin
+  ! end function
 
-  pure function get_xmax(self) result(xmax)
-    !< Public interface to get xmax
-    class(regular_2d_grid_t), intent(in) :: self
-    real(rk) :: xmax
-    xmax = self%xmax
-  end function
+  ! pure function get_xmax(self) result(xmax)
+  !   !< Public interface to get xmax
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   real(rk) :: xmax
+  !   xmax = self%xmax
+  ! end function
 
-  pure function get_ymin(self) result(ymin)
-    !< Public interface to get ymin
-    class(regular_2d_grid_t), intent(in) :: self
-    real(rk) :: ymin
-    ymin = self%ymin
-  end function
+  ! pure function get_ymin(self) result(ymin)
+  !   !< Public interface to get ymin
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   real(rk) :: ymin
+  !   ymin = self%ymin
+  ! end function
 
-  pure function get_ymax(self) result(ymax)
-    !< Public interface to get ymax
-    class(regular_2d_grid_t), intent(in) :: self
-    real(rk) :: ymax
-    ymax = self%ymax
-  end function
+  ! pure function get_ymax(self) result(ymax)
+  !   !< Public interface to get ymax
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   real(rk) :: ymax
+  !   ymax = self%ymax
+  ! end function
 
-  pure function get_dx(self) result(dx)
-    !< Public interface to get ymax
-    class(regular_2d_grid_t), intent(in) :: self
-    real(rk) :: dx
-    dx = self%dx
-  end function
+  ! pure function get_dx(self) result(dx)
+  !   !< Public interface to get ymax
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   real(rk) :: dx
+  !   dx = self%dx
+  ! end function
 
-  pure function get_dy(self) result(dy)
-    !< Public interface to get ymax
-    class(regular_2d_grid_t), intent(in) :: self
-    real(rk) :: dy
-    dy = self%dy
-  end function
+  ! pure function get_dy(self) result(dy)
+  !   !< Public interface to get ymax
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   real(rk) :: dy
+  !   dy = self%dy
+  ! end function
 
-  pure function get_x_length(self) result(x_length)
-    !< Public interface to get x_length
-    class(regular_2d_grid_t), intent(in) :: self
-    real(rk) :: x_length
-    x_length = self%x_length
-  end function
+  ! pure function get_x_length(self) result(x_length)
+  !   !< Public interface to get x_length
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   real(rk) :: x_length
+  !   x_length = self%x_length
+  ! end function
 
-  pure function get_y_length(self) result(y_length)
-    !< Public interface to get y_length
-    class(regular_2d_grid_t), intent(in) :: self
-    real(rk) :: y_length
-    y_length = self%y_length
-  end function
+  ! pure function get_y_length(self) result(y_length)
+  !   !< Public interface to get y_length
+  !   class(regular_2d_grid_t), intent(in) :: self
+  !   real(rk) :: y_length
+  !   y_length = self%y_length
+  ! end function
 
   pure function get_x(self, i, j) result(x)
     !< Public interface to get x

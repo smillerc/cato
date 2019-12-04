@@ -9,20 +9,41 @@ module mod_grid
   public :: grid_t
 
   type, abstract :: grid_t
-    ! private
-    integer(ik) :: ihi !< i starting index
-    integer(ik) :: ilo !< i ending index
-    integer(ik) :: ni
-    integer(ik) :: jlo !< j starting index
-    integer(ik) :: jhi !< j ending index
-    integer(ik) :: nj
 
-    real(rk) :: xmin !< Min x location
-    real(rk) :: xmax !< Max x location
-    real(rk) :: dx
-    real(rk) :: ymin !< Min y location
-    real(rk) :: ymax !< Max y location
-    real(rk) :: dy
+    ! Node indicies
+    integer(ik) :: ilo_bc_node = 0 !< low i boundary condition node index
+    integer(ik) :: jlo_bc_node = 0 !< low j boundary condition node index
+    integer(ik) :: ihi_bc_node = 0 !< high i boundary condition node index
+    integer(ik) :: jhi_bc_node = 0 !< high j boundary condition node index
+
+    integer(ik) :: ilo_node = 0 !< low i node index (not including boundary)
+    integer(ik) :: jlo_node = 0 !< low j node index (not including boundary)
+    integer(ik) :: ihi_node = 0 !< high i node index (not including boundary)
+    integer(ik) :: jhi_node = 0 !< high j node index (not including boundary)
+    integer(ik) :: ni_node = 0 !< Number of i nodes (not including boundary nodes)
+    integer(ik) :: nj_node = 0 !< Number of j nodes (not including boundary nodes)
+
+    ! Cell indices (this may seem a bit redundant, but the main idea is to improved code readibility)
+    integer(ik) :: ilo_bc_cell = 0 !< low i boundary condition cell index
+    integer(ik) :: jlo_bc_cell = 0 !< low j boundary condition cell index
+    integer(ik) :: ihi_bc_cell = 0 !< high i boundary condition cell index
+    integer(ik) :: jhi_bc_cell = 0 !< high j boundary condition cell index
+
+    integer(ik) :: ilo_cell = 0 !< low i cell index (not including boundary)
+    integer(ik) :: jlo_cell = 0 !< low j cell index (not including boundary)
+    integer(ik) :: ihi_cell = 0 !< high i cell index (not including boundary)
+    integer(ik) :: jhi_cell = 0 !< high j cell index (not including boundary)
+    integer(ik) :: ni_cell = 0 !< Number of i cells (not including boundary)
+    integer(ik) :: nj_cell = 0 !< Number of j cells (not including boundary)
+
+    real(rk) :: xmin = 0.0_rk   !< Min x location
+    real(rk) :: xmax = 0.0_rk   !< Max x location
+    real(rk) :: min_dx = 0.0_rk !< Minimum spacing in x
+    real(rk) :: max_dx = 0.0_rk !< Maximum spacing in x
+    real(rk) :: ymin = 0.0_rk   !< Min y location
+    real(rk) :: ymax = 0.0_rk   !< Max y location
+    real(rk) :: min_dy = 0.0_rk !< Minimum spacing in y
+    real(rk) :: max_dy = 0.0_rk !< Maximum spacing in y
 
     real(rk) :: x_length !< Length of the domain in x
     real(rk) :: y_length !< Length of the domain in y

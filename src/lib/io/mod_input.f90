@@ -15,12 +15,12 @@ module mod_input
     ! grid
     logical :: read_from_hdf5 = .false.
     character(:), allocatable :: grid_type
-    real(rk) :: xmin
-    real(rk) :: xmax
-    real(rk) :: ymin
-    real(rk) :: ymax
-    integer(ik) :: ni
-    integer(ik) :: nj
+    real(rk) :: xmin = 0.0_rk
+    real(rk) :: xmax = 0.0_rk
+    real(rk) :: ymin = 0.0_rk
+    real(rk) :: ymax = 0.0_rk
+    integer(ik) :: ni_nodes = 0
+    integer(ik) :: nj_nodes = 0
 
     ! boundary
     character(:), allocatable ::  plus_x_bc
@@ -54,17 +54,20 @@ module mod_input
   end type input_t
 
 contains
+
   subroutine initialize(self, ni, nj, xmin, xmax, ymin, ymax)
     class(input_t), intent(inout) :: self
     integer(ik), intent(in) :: ni, nj
     real(rk), intent(in) :: xmin, xmax, ymin, ymax
 
-    self%ni = ni
-    self%nj = nj
+    self%ni_nodes = ni
+    self%nj_nodes = nj
     self%xmin = xmin
     self%xmax = xmax
     self%ymin = ymin
     self%ymax = ymax
+    self%reconstruction_type = 'piecewise_linear'
+    self%slope_limiter = 'sun_ren_09'
 
   end subroutine initialize
 
@@ -109,11 +112,11 @@ contains
     call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
     self%grid_type = trim(char_buffer)
 
-    call cfg%get("grid", "ni", self%ni)
+    call cfg%get("grid", "ni_nodes", self%ni_nodes)
     call cfg%get("grid", "xmin", self%xmin)
     call cfg%get("grid", "xmax", self%xmax)
 
-    call cfg%get("grid", "nj", self%nj)
+    call cfg%get("grid", "nj_nodes", self%nj_nodes)
     call cfg%get("grid", "ymin", self%ymin)
     call cfg%get("grid", "ymax", self%ymax)
 
