@@ -39,6 +39,9 @@ add_library(geometry
 target_link_libraries(geometry PUBLIC constants io eos)
 
 add_library(fvleg
+            lib/boundary_conditions/boundary_conditions.f90
+            lib/boundary_conditions/periodic_bc.f90
+            lib/boundary_conditions/bc_factory.f90
             lib/domain/fluxes.f90
             lib/evolution_operator/abstract_evo_operator.f90
             lib/evolution_operator/local_evo_operator.f90

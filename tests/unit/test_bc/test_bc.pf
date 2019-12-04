@@ -1,0 +1,126 @@
+module test_bc
+  use iso_fortran_env, only: ik => int32, rk => real64
+  use mod_input, only: input_t
+  use mod_bc_factory, only: bc_factory
+  use mod_boundary_conditions, only: boundary_condition_t
+  use mod_grid_factory, only: grid_factory
+  use mod_grid, only: grid_t
+  use funit
+
+  implicit none
+
+  integer(ik), parameter :: ni_nodes = 5
+  integer(ik), parameter :: nj_nodes = 3
+  integer(ik), parameter :: ni_cells = ni_nodes - 1
+  integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik) :: alloc_status
+
+contains
+
+  @test
+  subroutine test_bc_factory()
+    class(boundary_condition_t), allocatable :: bc_plus_x
+    class(boundary_condition_t), allocatable :: bc_plus_y
+    class(boundary_condition_t), allocatable :: bc_minus_x
+    class(boundary_condition_t), allocatable :: bc_minus_y
+
+    type(input_t) :: input
+    class(grid_t), allocatable :: grid
+    real(rk), dimension(:, :, :), allocatable :: U
+    real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+
+    grid = grid_factory(input)
+
+    ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
+    associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
+              jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
+
+      allocate(U(4, imin:imax, jmin:jmax), stat=alloc_status)
+      ! ((rho, u, v, p), i, j) Conserved variables for each cell
+      if(alloc_status /= 0) error stop "Unable to allocate U"
+
+      allocate(reconstructed_domain(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
+      reconstructed_domain = 0.0_rk
+      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
+      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+    end associate
+
+    bc_plus_x = bc_factory(bc_type='periodic', location='+x')
+    bc_plus_y = bc_factory(bc_type='periodic', location='+y')
+    bc_minus_x = bc_factory(bc_type='periodic', location='-x')
+    bc_minus_y = bc_factory(bc_type='periodic', location='-y')
+
+    @assertEqual('+x', bc_plus_x%location)
+    @assertEqual('+y', bc_plus_y%location)
+    @assertEqual('-x', bc_minus_x%location)
+    @assertEqual('-y', bc_minus_y%location)
+
+    ! Test the conserved var state
+    U = 0.0_rk
+
+    !   Domain cartoon layout
+    !   |---|---|---|---|---|---|
+    !   | . | . | . | . | . | . | <- j3 (grid%jhi_bc_cell)
+    !   |---|---|---|---|---|---|
+    !   | . | x | x | x | x | . | <- j2 (grid%jhi_cell) -> x set to 2.0_rk
+    !   |---|---|---|---|---|---|
+    !   | . | x | x | x | x | . | <- j1 (grid%jlo_cell) -> x set to 1.0_rk
+    !   |---|---|---|---|---|---|
+    !   | . | . | . | . | . | . | <- j0 (grid%jlo_bc_cell)
+    !   |---|---|---|---|---|---|
+    !    i0  i1  i2  i3  i4  i5
+
+    ! i0: grid%ilo_bc_cell
+    ! i1: grid%ilo_cell
+    ! i4: grid%ihi_cell
+    ! i5: grid%ihi_bc_cell
+
+    !  . : ghost cell (aka boundary cell)
+    !  x : physical domain cell
+
+    associate(imin=>grid%ilo_cell, imax=>grid%ihi_cell, &
+              jmin=>grid%jlo_cell, jmax=>grid%jhi_cell)
+      U(:, imin:imax, jmax) = 1.0_rk ! bottom
+      U(:, imin:imax, jmax) = 2.0_rk ! top
+      U(:, imin, jmax) = 3.0_rk      ! top left corner
+      U(:, imax, jmax) = 4.0_rk      ! top right corner
+      U(:, imin, jmin) = 5.0_rk      ! bottom left corner
+      U(:, imax, jmin) = 6.0_rk      ! bottom right corner
+    end associate
+
+    call bc_plus_x%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
+    call bc_plus_y%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
+    call bc_minus_x%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
+    call bc_minus_y%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
+
+    associate(imin=>grid%ilo_cell, imax=>grid%ihi_cell, &
+              jmin=>grid%jlo_cell, jmax=>grid%jhi_cell, &
+              imin_bc=>grid%ilo_bc_cell, imax_bc=>grid%ihi_bc_cell, &
+              jmin_bc=>grid%jlo_bc_cell, jmax_bc=>grid%jhi_bc_cell)
+
+      ! bottom ghost layer = top domain layer (w/o corners)
+      @assertEqual(2.0_rk, U(:, imin:imax, jmin_bc))
+
+      ! top ghost layer = bottom domain layer (w/o corners)
+      @assertEqual(1.0_rk, U(:, imin:imax, jmax_bc))
+
+      ! top left ghost corner = bottom right domain corner cell
+      @assertEqual(6.0_rk, U(:, imin_bc, jmax_bc))
+
+      ! top right ghost corner = bottom left domain corner cell
+      @assertEqual(5.0_rk, U(:, imax_bc, jmax_bc))
+
+      ! bottom left ghost corner = top right domain corner cell
+      @assertEqual(4.0_rk, U(:, imin_bc, jmin_bc))
+
+      ! bottom right ghost corner = top left domain corner cell
+      @assertEqual(3.0_rk, U(:, imin_bc, jmax_bc))
+    end associate
+
+  end subroutine
+
+end module test_bc

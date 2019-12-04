@@ -32,7 +32,7 @@ message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
 message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
 
 
-find_package(OpenMP)
+# find_package(OpenMP)
 # find_package(OpenCL REQUIRED)
 
 # if build type not specified, default to release
@@ -54,13 +54,13 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -fcheck=all \
  -ffpe-trap=zero,overflow,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE "-O2 -floop-parallelize-all -march=native -fcoarray")
+  set(CMAKE_Fortran_FLAGS_RELEASE "-O2 -floop-parallelize-all -march=native -fcoarray=single")
 endif()
 
 # compiler flags for ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   list(APPEND CMAKE_Fortran_FLAGS "-fpp -parallel -stand f18 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770")
-  set(CMAKE_Fortran_FLAGS_DEBUG " -O0 -g -traceback -warn all -check all -debug all  -coarray=single")
+  set(CMAKE_Fortran_FLAGS_DEBUG " -O0 -g -traceback -warn all -check all -debug all -coarray=single")
   set(CMAKE_Fortran_FLAGS_RELEASE " -O2  -coarray")
 endif()
 
