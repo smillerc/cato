@@ -46,6 +46,13 @@ contains
 
     @assertEqual(1, grid%ilo_node)
     @assertEqual(5, grid%ihi_node)
+    @assertEqual(1, grid%ilo_cell)
+    @assertEqual(4, grid%ihi_cell)
+
+    @assertEqual(1, grid%jlo_node)
+    @assertEqual(3, grid%jhi_node)
+    @assertEqual(1, grid%jlo_cell)
+    @assertEqual(2, grid%jhi_cell)
 
     @assertEqual(0, grid%ilo_bc_node)
     @assertEqual(0, grid%jlo_bc_node)
@@ -56,9 +63,6 @@ contains
     @assertEqual(4, grid%jhi_bc_node)
     @assertEqual(5, grid%ihi_bc_cell)
     @assertEqual(3, grid%jhi_bc_cell)
-
-    @assertEqual(1, grid%jlo_node)
-    @assertEqual(3, grid%jhi_node)
 
     @assertEqual(1.0_rk, grid%min_dx)
     @assertEqual(2.0_rk, grid%min_dy)

@@ -396,7 +396,7 @@ contains
     class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j
     real(rk), dimension(2) :: cell_centroid_xy
-    cell_centroid_xy = self%cell_centroid_xy(i, j, :)
+    cell_centroid_xy = self%cell_centroid_xy(:, i, j)
   end function
 
   pure function get_cell_edge_lengths(self, i, j, f) result(cell_edge_lengths)
@@ -404,7 +404,7 @@ contains
     class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j, f
     real(rk) :: cell_edge_lengths
-    cell_edge_lengths = self%cell_edge_lengths(i, j, f)
+    cell_edge_lengths = self%cell_edge_lengths(f, i, j)
   end function
 
   ! pure function get_cell_node_xy(self, i, j, n, xy) result(cell_node_xy)
@@ -428,7 +428,7 @@ contains
     class(regular_2d_grid_t), intent(in) :: self
     integer(ik), intent(in) :: i, j, f, xy
     real(rk) :: cell_edge_norm_vectors
-    cell_edge_norm_vectors = self%cell_edge_norm_vectors(i, j, f, xy)
+    cell_edge_norm_vectors = self%cell_edge_norm_vectors(xy, f, i, j)
   end function
 
   pure function get_midpoint_vectors(self, cell_ij, edge) result(vectors)
@@ -438,6 +438,8 @@ contains
     integer(ik), dimension(2), intent(in) :: cell_ij
     character(len=*), intent(in) :: edge ! 'bottom', or 'top'
     real(rk), dimension(2, 2, 2) :: vectors !< ((x,y), (head,tail), (vector1, vector2))
+
+    vectors = 0.0_rk
   end function
 
   pure function get_corner_vectors(self, cell_ij, corner) result(vectors)
@@ -447,6 +449,8 @@ contains
     integer(ik), dimension(2), intent(in) :: cell_ij
     character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
     real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (head,tail), (vector1:vector4))
+
+    vectors = 0.0_rk
   end function
 
 end module mod_regular_2d_grid
