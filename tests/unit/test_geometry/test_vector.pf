@@ -1,9 +1,8 @@
 module test_vector
-  use iso_fortran_env, only : ik => int32, rk => real64
+  use iso_fortran_env, only: ik => int32, rk => real64
   use mod_vector
   use funit
   implicit none
-
 
 contains
 
@@ -11,10 +10,10 @@ contains
   subroutine test_vector_stats()
     type(vector_t) :: vec, norm_vec
 
-    vec = vector_t(x=[1.0_rk,5.0_rk], y=[1.0_rk,4.0_rk])
+    vec = vector_t(x=[1.0_rk, 5.0_rk], y=[1.0_rk, 4.0_rk])
     @assertEqual(5.0_rk, vec%length)
 
-    norm_vec = .unitnorm. vec
+    norm_vec = .unitnorm.vec
     @assertEqual(1.0_rk, norm_vec%length)
 
   end subroutine test_vector_stats
@@ -23,7 +22,7 @@ contains
   subroutine test_from_2d()
     type(vector_t) :: vec2d, vec1d
 
-    vec2d = vector_t(x=[1.0_rk,3.0_rk], y=[1.0_rk,3.0_rk])
+    vec2d = vector_t(x=[1.0_rk, 3.0_rk], y=[1.0_rk, 3.0_rk])
     vec1d = vector_t(x=2.0_rk, y=2.0_rk)
     @assertEqual(vec2d%length, vec1d%length)
 
@@ -36,7 +35,7 @@ contains
     vec1 = vector_t(x=2, y=2)
     vec2 = vector_t(x=1, y=5)
 
-    @assertEqual(8.0_rk, vec1 .cross. vec2)
+    @assertEqual(8.0_rk, vec1.cross.vec2)
   end subroutine test_cross_product
 
   @test
@@ -46,7 +45,7 @@ contains
     vec1 = vector_t(x=2, y=2)
     vec2 = vector_t(x=1, y=5)
 
-    @assertEqual(12.0_rk, vec1 .dot. vec2)
+    @assertEqual(12.0_rk, vec1.dot.vec2)
   end subroutine test_dot_product
 
 end module test_vector
