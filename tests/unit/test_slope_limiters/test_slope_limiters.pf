@@ -1,10 +1,9 @@
 module test_slope_limiters
-  use iso_fortran_env, only : ik => int32, rk => real64
-  use mod_slope_limiter, only : slope_limiter_t
+  use iso_fortran_env, only: ik => int32, rk => real64
+  use mod_slope_limiter, only: slope_limiter_t
 
   use funit
   implicit none
-
 
 contains
 
@@ -15,7 +14,7 @@ contains
 
     limiter = slope_limiter_t(name='sun_ren_09')
 
-    @assertEqual(2.0_rk, limiter%limit(a=2.0_rk,b=2.0_rk))
+    @assertEqual(2.0_rk, limiter%limit(a=2.0_rk, b=2.0_rk))
 
     limiter = slope_limiter_t(name='unknown')
     @assertEqual('sun_ren_09', limiter%name)

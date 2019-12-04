@@ -54,7 +54,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -fcheck=all \
  -ffpe-trap=zero,overflow,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE "-O2 -floop-parallelize-all")
+  set(CMAKE_Fortran_FLAGS_RELEASE "-O2 -floop-parallelize-all -march=native ")
 endif()
 
 # compiler flags for ifort

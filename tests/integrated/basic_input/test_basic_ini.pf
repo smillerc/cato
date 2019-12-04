@@ -1,7 +1,7 @@
 module test_grid
-  use iso_fortran_env, only : ik => int32, rk => real64
-  use mod_regular_2d_grid, only : regular_2d_grid_t
-  use mod_input, only : input_t
+  use iso_fortran_env, only: ik => int32, rk => real64
+  use mod_regular_2d_grid, only: regular_2d_grid_t
+  use mod_input, only: input_t
   use funit
   implicit none
 
@@ -16,19 +16,19 @@ contains
 
     open(newunit=ini_file, file=trim(filename), status='new')
 
-    write(ini_file,*) "; This is a basic ini input file"
-    write(ini_file,*) "[general]"
-    write(ini_file,*) "title='simple ini input'"
-    write(ini_file,*) "[grid]"
-    write(ini_file,*) "read_from_grid=false"
-    write(ini_file,*) "ni=5"
-    write(ini_file,*) "xmin=-5"
-    write(ini_file,*) "xmax=5"
-    write(ini_file,*) "nj=10"
-    write(ini_file,*) "ymin=-5"
-    write(ini_file,*) "ymax=10"
-    write(ini_file,*) "[physics]"
-    write(ini_file,*) "polytropic_index=1.6"
+    write(ini_file, *) "; This is a basic ini input file"
+    write(ini_file, *) "[general]"
+    write(ini_file, *) "title='simple ini input'"
+    write(ini_file, *) "[grid]"
+    write(ini_file, *) "read_from_grid=false"
+    write(ini_file, *) "ni=5"
+    write(ini_file, *) "xmin=-5"
+    write(ini_file, *) "xmax=5"
+    write(ini_file, *) "nj=10"
+    write(ini_file, *) "ymin=-5"
+    write(ini_file, *) "ymax=10"
+    write(ini_file, *) "[physics]"
+    write(ini_file, *) "polytropic_index=1.6"
     close(ini_file)
 
   end subroutine write_ini
