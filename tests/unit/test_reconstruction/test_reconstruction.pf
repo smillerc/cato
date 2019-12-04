@@ -1,0 +1,84 @@
+module test_reconstruction
+  use iso_fortran_env, only: ik => int32, rk => real64
+  use mod_input, only: input_t
+  use mod_abstract_reconstruction, only: abstract_reconstruction_t
+  ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
+  use mod_second_order_reconstruction, only: second_order_reconstruction_t
+  use mod_reconstruction_factory, only: reconstruction_factory_t
+  use mod_grid_factory, only: grid_factory
+  use mod_grid, only: grid_t
+  use funit
+
+  implicit none
+
+  integer(ik), parameter :: ni_nodes = 5
+  integer(ik), parameter :: nj_nodes = 3
+  integer(ik), parameter :: ni_cells = ni_nodes - 1
+  integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik) :: alloc_status
+
+contains
+
+  @test
+  subroutine test_recon_factory()
+
+    type(reconstruction_factory_t) :: recon_factory
+    class(abstract_reconstruction_t), allocatable :: reconstruction_operator
+
+    type(input_t) :: input
+    class(grid_t), allocatable :: grid
+    real(rk), dimension(:, :, :), allocatable :: U
+    real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+
+    grid = grid_factory(input)
+
+    ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
+    associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
+              jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
+
+      allocate(U(4, imin:imax, jmin:jmax), stat=alloc_status)
+      U = 0.0_rk
+      ! ((rho,u,v,p),i,j) Conserved variables for each cell
+      if(alloc_status /= 0) error stop "Unable to allocate U"
+
+      allocate(reconstructed_domain(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
+      reconstructed_domain = 0.0_rk
+      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
+      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+    end associate
+
+    input%slope_limiter = 'sun_ren_09'
+    recon_factory = reconstruction_factory_t(input)
+    reconstruction_operator = recon_factory%create_reconstruction(grid=grid)
+
+    @assertEqual(2, reconstruction_operator%order)
+
+    ! Test the basic slope limiter
+    @assertEqual(2.0_rk, reconstruction_operator%limiter%limit(2.0_rk, 2.0_rk))
+    @assertEqual(0.0_rk, reconstruction_operator%limiter%limit(-2.0_rk, 2.0_rk))
+
+    U(1, :, :) = 1.0_rk  ! rho
+    U(2, :, :) = -2.0_rk  ! u
+    U(3, :, :) = 3.0_rk  ! v
+    U(4, :, :) = 4.0_rk  ! p
+    call reconstruction_operator%reconstruct_domain(conserved_vars=U, reconstructed_domain=reconstructed_domain)
+    @assertEqual(1.0_rk, reconstructed_domain(1, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
+    @assertEqual(-2.0_rk, reconstructed_domain(2, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
+    @assertEqual(3.0_rk, reconstructed_domain(3, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
+    @assertEqual(4.0_rk, reconstructed_domain(4, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
+
+    ! U = 2.0_rk
+    ! call reconstruction_operator%reconstruct_domain(conserved_vars=U, reconstructed_domain=reconstructed_domain)
+    ! @assertEqual(2.0_rk, reconstructed_domain)
+
+    ! @assertEqual(2.0_rk, reconstruction_operator%grid%get_cell_volumes(1, 1))
+    ! @assertEqual([ni_cells, nj_cells], shape(reconstruction_operator%grid%cell_volume))
+    ! @assertEqual([4, ni_cells, nj_cells], shape(reconstruction_operator%conserved_vars))
+
+  end subroutine
+
+end module test_reconstruction
