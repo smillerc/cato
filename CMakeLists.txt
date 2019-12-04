@@ -46,22 +46,22 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   find_package(Coarray REQUIRED)
   list(APPEND CMAKE_Fortran_FLAGS ${Coarray_COMPILE_OPTIONS})
 
-  list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=single")
-  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g\
+  list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
+  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -fcoarray=single\
  -Wall -Wextra \
  -Wconversion \
  -fimplicit-none -fbacktrace \
  -fcheck=all \
  -ffpe-trap=zero,overflow,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE "-O2 -floop-parallelize-all -march=native ")
+  set(CMAKE_Fortran_FLAGS_RELEASE "-O2 -floop-parallelize-all -march=native -fcoarray")
 endif()
 
 # compiler flags for ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
-  list(APPEND CMAKE_Fortran_FLAGS "-fpp -coarray=single")
-  set(CMAKE_Fortran_FLAGS_DEBUG " -O0 -g -traceback")
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O2")
+  list(APPEND CMAKE_Fortran_FLAGS "-fpp -parallel")
+  set(CMAKE_Fortran_FLAGS_DEBUG " -O0 -g -traceback -check all -debug all  -coarray=single")
+  set(CMAKE_Fortran_FLAGS_RELEASE " -O2  -coarray")
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
