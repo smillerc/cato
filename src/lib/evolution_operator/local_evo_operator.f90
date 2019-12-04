@@ -28,26 +28,21 @@ module mod_local_evo_operator
     final :: finalize
   end type local_evo_operator_t
 
-  interface local_evo_operator
+  interface local_evo_operator_t
     module procedure :: constructor
   end interface
 contains
 
-  type(local_evo_operator_t) function constructor(input, grid, conserved_vars) result(operator)
+  type(local_evo_operator_t) function constructor(input, grid, reconstruction_operator) result(operator)
     !< Constructor for the FVLEG operator
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid
-    real(rk), dimension(:, :, :), intent(in), target :: conserved_vars
-    ! real(rk), dimension(:, :, :), intent(in), target :: reference_state
+    class(abstract_reconstruction_t), intent(in), target :: reconstruction_operator
 
-    ! ! allocate(operator)
     operator%name = "FVLEG"
-    call operator%set_tau(input%tau)
     operator%grid => grid
-    operator%conserved_vars => conserved_vars
-    ! operator%reference_state => reference_state
-
-    ! p_prime_reconstruction_operator = recon_factory
+    operator%reconstruction_operator => reconstruction_operator
+    call operator%set_tau(input%tau)
 
   end function constructor
 
@@ -55,12 +50,10 @@ contains
     !< Cleanup the operator type
     type(local_evo_operator_t), intent(inout) :: self
     nullify(self%grid)
-    nullify(self%reference_state)
-    nullify(self%conserved_vars)
     nullify(self%reconstruction_operator)
   end subroutine finalize
 
-  pure subroutine evolve_leftright_midpoints(self, reconstructed_state, &
+  pure subroutine evolve_leftright_midpoints(self, conserved_vars, reconstructed_state, &
                                              reference_state, evolved_state)
     !< Create Mach cones and evolve the state at all of the left/right midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the left and right.
@@ -75,6 +68,8 @@ contains
 
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
     !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges
+
+    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
@@ -144,7 +139,7 @@ contains
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+        evolved_state(:, i, j) = [self%get_density(conserved_vars, mach_cone), &    ! rho
                                   self%get_x_velocity(mach_cone), & ! u
                                   self%get_y_velocity(mach_cone), & ! v
                                   self%get_pressure(mach_cone) &    ! p
@@ -153,7 +148,7 @@ contains
     end do
   end subroutine evolve_leftright_midpoints
 
-  pure subroutine evolve_downup_midpoints(self, reconstructed_state, &
+  pure subroutine evolve_downup_midpoints(self, conserved_vars, reconstructed_state, &
                                           reference_state, evolved_state)
     !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the down and up.
@@ -168,6 +163,8 @@ contains
 
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
     !< ((rho,u,v,p), i, j); Evolved U at each midpoint on the left/right edges
+
+    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
@@ -234,7 +231,7 @@ contains
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+        evolved_state(:, i, j) = [self%get_density(conserved_vars, mach_cone), &    ! rho
                                   self%get_x_velocity(mach_cone), & ! u
                                   self%get_y_velocity(mach_cone), & ! v
                                   self%get_pressure(mach_cone) &    ! p
@@ -243,7 +240,7 @@ contains
     end do
   end subroutine evolve_downup_midpoints
 
-  pure subroutine evolve_corners(self, reconstructed_state, &
+  pure subroutine evolve_corners(self, conserved_vars, reconstructed_state, &
                                  reference_state, evolved_state)
     !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the down and up.
@@ -258,6 +255,8 @@ contains
 
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
     !< ((rho,u,v,p), i, j); Reconstructed U at each corner
+
+    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
@@ -339,7 +338,7 @@ contains
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_state(:, i, j) = [self%get_density(mach_cone), &    ! rho
+        evolved_state(:, i, j) = [self%get_density(conserved_vars, mach_cone), &    ! rho
                                   self%get_x_velocity(mach_cone), & ! u
                                   self%get_y_velocity(mach_cone), & ! v
                                   self%get_pressure(mach_cone) &    ! p
@@ -379,10 +378,11 @@ contains
 
   end function get_pressure
 
-  pure function get_density(self, mach_cone) result(density)
+  pure function get_density(self, conserved_vars, mach_cone) result(density)
     !< Implementation of rho(P) within the local evolution operator (Eq. 42 in the text)
     class(local_evo_operator_t), intent(in) :: self
     class(mach_cone_geometry_t), intent(in) :: mach_cone
+    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
 
     real(rk) :: density  !< rho(P)
     integer(ik) :: i, cell
@@ -411,7 +411,8 @@ contains
     density = density / (2.0_rk * pi)
 
     ! Reconstruct at P' to get rho(P') and p(P')
-    p_prime_u_bar = self%reconstruction_operator%reconstruct_point(xy=mach_cone%p_prime_xy, &
+    p_prime_u_bar = self%reconstruction_operator%reconstruct_point(conserved_vars=conserved_vars, &
+                                                                   xy=mach_cone%p_prime_xy, &
                                                                    cell_ij=mach_cone%p_prime_ij)
 
     associate(rho_p_prime=>p_prime_u_bar(1), pressure_p_prime=>p_prime_u_bar(4), &
