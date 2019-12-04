@@ -32,7 +32,7 @@ message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
 message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
 
 
-# find_package(OpenMP)
+find_package(OpenMP)
 # find_package(OpenCL REQUIRED)
 
 # if build type not specified, default to release
