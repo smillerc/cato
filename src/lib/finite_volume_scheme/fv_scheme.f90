@@ -18,15 +18,18 @@ module mod_finite_volume_schemes
     !< state variables of each finite cell. The reconstruction, grid, and evolution implementations are passed
     !< on to decendents like the FVLEG scheme.
 
-    class(grid_t), allocatable :: grid
-    !< Grid class to hold geometric information (edge lengths, volumes, etc.)
-
     class(abstract_reconstruction_t), allocatable :: reconstruction_operator
     !< R_Omega reconstruction operator used to reconstruct the corners/midpoints based on the cell
     !< average (and gradient if high(er) order reconstruction used)
 
     real(rk), dimension(:, :, :), allocatable :: conserved_vars
     !< ((rho, u ,v, p), i, j); Conserved variables for each cell
+
+    class(abstract_evo_operator_t), allocatable :: evolution_operator
+    !< Evolution operator to construct (rho, u, v, p) at each corner and midpoint
+
+    class(grid_t), allocatable :: grid
+    !< Grid class to hold geometric information (edge lengths, volumes, etc.)
 
     ! Corner/midpoint index convention
     ! --------------------------------
@@ -72,9 +75,6 @@ module mod_finite_volume_schemes
     !< e.g. 1 - all corners, 2 - all midpoints. Note, this DOES repeat nodes, since corners and midpoints are
     !< shared by neighboring cells, but each point has its own reconstructed value based on the parent cell's state
 
-    class(abstract_evo_operator_t), allocatable :: evolution_operator
-    !< Evolution operator to construct (rho, u, v, p) at each corner and midpoint
-
   contains
     procedure(reconstruct), public, deferred :: reconstruct
     ! procedure(eval_fluxes), public, deferred :: eval_fluxes
@@ -108,8 +108,8 @@ contains
     integer(ik) :: i, j
 
     ! left/right midpoints -> needs to average cells above and below
-    do j = self%grid%jlo, self%grid%jhi
-      do i = self%grid%ilo, self%grid%ihi
+    do j = self%grid%jlo_cell, self%grid%jhi_cell
+      do i = self%grid%ilo_cell, self%grid%ihi_cell
         associate(U_tilde=>self%leftright_midpoints_reference_state, U=>self%conserved_vars)
           U_tilde(:, i, j) = 0.5_rk * (U(:, i, j) + U(:, i, j - 1))
         end associate
@@ -117,8 +117,8 @@ contains
     end do
 
     ! up/down midpoints -> needs to average cells right and left
-    do j = self%grid%jlo, self%grid%jhi
-      do i = self%grid%ilo, self%grid%ihi
+    do j = self%grid%jlo_cell, self%grid%jhi_cell
+      do i = self%grid%ilo_cell, self%grid%ihi_cell
         associate(U_tilde=>self%downup_midpoints_reference_state, U=>self%conserved_vars)
           U_tilde(:, i, j) = 0.5_rk * (U(:, i - 1, j) + U(:, i, j))
         end associate
@@ -126,8 +126,8 @@ contains
     end do
 
     ! Corners
-    do j = self%grid%jlo, self%grid%jhi
-      do i = self%grid%ilo, self%grid%ihi
+    do j = self%grid%jlo_cell, self%grid%jhi_cell
+      do i = self%grid%ilo_cell, self%grid%ihi_cell
         associate(U_tilde=>self%corner_reference_state, U=>self%conserved_vars)
           U_tilde(:, i, j) = 0.25_rk * (U(:, i, j) + U(:, i - 1, j) + &
                                         U(:, i, j - 1) + U(:, i - 1, j - 1))

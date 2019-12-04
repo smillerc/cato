@@ -1,61 +1,98 @@
 module test_fvleg
-  use iso_fortran_env, only : ik => int32, rk => real64
-  use mod_fvleg, only : fvleg_t, new_fvleg
-  use mod_input, only : input_t
-  use mod_regular_2d_grid, only : regular_2d_grid_t
-  use mod_grid, only : grid_t
+  use iso_fortran_env, only: ik => int32, rk => real64
+  use mod_fvleg, only: fvleg_t, new_fvleg
+  use mod_input, only: input_t
+  use mod_regular_2d_grid, only: regular_2d_grid_t
+  use mod_grid, only: grid_t
   use funit
 
   implicit none
 
+  integer(ik), parameter :: ni_nodes = 5
+  integer(ik), parameter :: nj_nodes = 3
+  integer(ik), parameter :: ni_cells = ni_nodes - 1
+  integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik) :: alloc_stat
+
 contains
 
   @test
-  subroutine test_fvleg_operators()
-
+  subroutine test_fvleg_dimensions()
     class(input_t), allocatable :: input
-    type(fvleg_t) :: fvleg_a , fvleg_b, fvleg_c
-    real(rk), dimension(:, :, :), allocatable :: conserved_vars
+    type(fvleg_t) :: fvleg
 
-    integer(ik) :: ni_nodes, nj_nodes
-    integer(ik) :: ni_cells, nj_cells
     allocate(input_t :: input)
-
-    ni_nodes = 5
-    nj_nodes = 3
-    ni_cells = ni_nodes - 1
-    nj_cells = nj_nodes - 1
-
     call input%initialize(ni=ni_nodes, nj=nj_nodes, &
                           xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
-    call fvleg_a%initialize(input)
-    fvleg_a%conserved_vars = 1.0_rk
+    call fvleg%initialize(input)
+    fvleg%conserved_vars = 1.0_rk
 
-    call fvleg_b%initialize(input)
-    fvleg_a%conserved_vars = 2.0_rk
+    ! Check shape and bounds
+    ! Cell-valued quantities (the +2 is to accound for boundary cells)
+    @assertEqual([4, ni_cells + 2, nj_cells + 2], shape(fvleg%conserved_vars))
+    @assertEqual([1, 0, 0], lbound(fvleg%conserved_vars))
+    @assertEqual([4, ni_cells + 1, nj_cells + 1], ubound(fvleg%conserved_vars))
 
-    ! Make a dummy U vector to play with
-    allocate(conserved_vars, mold=fvleg_a%conserved_vars)
-    conserved_vars = 4.0_rk
-
-    ! Cell-valued quantities
-    @assertEqual([ni_cells,nj_cells], shape(fvleg_a%grid%cell_volume))
-    @assertEqual([4,ni_cells,nj_cells], shape(fvleg_a%conserved_vars))
-    @assertEqual([4, 4, 2, ni_cells, nj_cells], shape(fvleg_a%reconstructed_state))
+    @assertEqual([4, 4, 2, ni_cells + 2, nj_cells + 2], shape(fvleg%reconstructed_state))
+    @assertEqual([1, 1, 1, 0, 0], lbound(fvleg%reconstructed_state))
+    @assertEqual([4, 4, 2, ni_cells + 1, nj_cells + 1], ubound(fvleg%reconstructed_state))
 
     ! Node-valued quantites
-    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg_a%evolved_corner_state))
-    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg_a%evolved_downup_midpoints_state))
-    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg_a%evolved_leftright_midpoints_state))
-    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg_a%corner_reference_state))
-    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg_a%downup_midpoints_reference_state))
-    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg_a%leftright_midpoints_reference_state))
+    ! Note: these do not have ghost/boundary values, they inherit their state
+    ! using the conserved values array (which does have boundary cells)
+    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg%evolved_corner_state))
+    @assertEqual([1, 1, 1], lbound(fvleg%evolved_corner_state))
+    @assertEqual([4, ni_nodes, nj_nodes], ubound(fvleg%evolved_corner_state))
 
-    fvleg_c = fvleg_a + fvleg_b
-    ! Check the + operator
-    @assertEqual(3.0_rk, fvleg_c%conserved_vars)
+    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg%evolved_downup_midpoints_state))
+    @assertEqual([1, 1, 1], lbound(fvleg%evolved_downup_midpoints_state))
+    @assertEqual([4, ni_nodes, nj_nodes], ubound(fvleg%evolved_downup_midpoints_state))
 
-  end subroutine
+    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg%evolved_leftright_midpoints_state))
+    @assertEqual([1, 1, 1], lbound(fvleg%evolved_leftright_midpoints_state))
+    @assertEqual([4, ni_nodes, nj_nodes], ubound(fvleg%evolved_leftright_midpoints_state))
+
+    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg%corner_reference_state))
+    @assertEqual([1, 1, 1], lbound(fvleg%corner_reference_state))
+    @assertEqual([4, ni_nodes, nj_nodes], ubound(fvleg%corner_reference_state))
+
+    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg%downup_midpoints_reference_state))
+    @assertEqual([1, 1, 1], lbound(fvleg%downup_midpoints_reference_state))
+    @assertEqual([4, ni_nodes, nj_nodes], ubound(fvleg%downup_midpoints_reference_state))
+
+    @assertEqual([4, ni_nodes, nj_nodes], shape(fvleg%leftright_midpoints_reference_state))
+    @assertEqual([1, 1, 1], lbound(fvleg%leftright_midpoints_reference_state))
+    @assertEqual([4, ni_nodes, nj_nodes], ubound(fvleg%leftright_midpoints_reference_state))
+
+  end subroutine test_fvleg_dimensions
+
+  ! @test
+  ! subroutine test_fvleg_operators()
+
+  ! class(input_t), allocatable :: input
+  ! type(fvleg_t) :: fvleg_a, fvleg_b, fvleg_c
+  ! real(rk), dimension(:, :, :), allocatable :: conserved_vars
+
+  ! allocate(input_t :: input)
+
+  ! call input%initialize(ni=ni_nodes, nj=nj_nodes, &
+  !                       xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+
+  ! call fvleg_a%initialize(input)
+  ! fvleg_a%conserved_vars = 1.0_rk
+
+  ! call fvleg_b%initialize(input)
+  ! fvleg_b%conserved_vars = 2.0_rk
+
+  ! ! Make a dummy U vector to play with
+  ! allocate(conserved_vars, mold=fvleg_a%conserved_vars)
+  ! conserved_vars = 4.0_rk
+
+  ! fvleg_c = fvleg_a + fvleg_b
+  ! Check the + operator
+  ! @assertEqual(3.0_rk, fvleg_c%conserved_vars)
+
+  ! end subroutine
 
 end module test_fvleg
