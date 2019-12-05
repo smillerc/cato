@@ -29,8 +29,8 @@ module mod_boundary_conditions
       import :: boundary_condition_t
       import :: rk
       class(boundary_condition_t), intent(in) :: self
-      real(rk), dimension(:, :, :), allocatable :: conserved_vars
-      real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_state
+      real(rk), dimension(:, :, :), intent(inout) :: conserved_vars
+      real(rk), dimension(:, :, :, :, :), intent(inout) :: reconstructed_state
     end subroutine apply_bc
   end interface
 contains

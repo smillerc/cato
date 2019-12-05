@@ -10,7 +10,7 @@ module test_bc
   implicit none
 
   integer(ik), parameter :: ni_nodes = 5
-  integer(ik), parameter :: nj_nodes = 3
+  integer(ik), parameter :: nj_nodes = 5
   integer(ik), parameter :: ni_cells = ni_nodes - 1
   integer(ik), parameter :: nj_cells = nj_nodes - 1
   integer(ik) :: alloc_status
@@ -36,16 +36,16 @@ contains
     grid = grid_factory(input)
 
     ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
-    associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
-              jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
+    associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
+              bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
 
-      allocate(U(4, imin:imax, jmin:jmax), stat=alloc_status)
+      allocate(U(4, left:right, bottom:top), stat=alloc_status)
       ! ((rho, u, v, p), i, j) Conserved variables for each cell
       if(alloc_status /= 0) error stop "Unable to allocate U"
 
-      allocate(reconstructed_domain(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
-      reconstructed_domain = 0.0_rk
-      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
+      allocate(reconstructed_domain(4, 4, 2, left:right, bottom:top), stat=alloc_status)
+
+      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so right=ni-1, etc
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
     end associate
 
@@ -61,35 +61,56 @@ contains
 
     ! Test the conserved var state
     U = 0.0_rk
+    reconstructed_domain = 0.0_rk
+
+    ! the boundary routines
 
     !   Domain cartoon layout
-    !   |---|---|---|---|---|---|
-    !   | . | . | . | . | . | . | <- j3 (grid%jhi_bc_cell)
-    !   |---|---|---|---|---|---|
-    !   | . | x | x | x | x | . | <- j2 (grid%jhi_cell) -> x set to 2.0_rk
-    !   |---|---|---|---|---|---|
-    !   | . | x | x | x | x | . | <- j1 (grid%jlo_cell) -> x set to 1.0_rk
-    !   |---|---|---|---|---|---|
-    !   | . | . | . | . | . | . | <- j0 (grid%jlo_bc_cell)
-    !   |---|---|---|---|---|---|
-    !    i0  i1  i2  i3  i4  i5
+    !   |---||---|---|---|---||---|
+    !   | 2 || 1 | 5 | 5 | 2 || 1 | <- j3; aka top_ghost (grid%jhi_bc_cell)
+    !   |===||===|===|===|===||===|
+    !   | 3 || 4 | 7 | 7 | 3 || 4 | <- j2; aka top (grid%jhi_cell)
+    !   |---||---|---|---|---||---|
+    !   | 6 || 8 | D | D | 6 || 8 |
+    !   |---||---|---|---|---||---|
+    !   | 6 || 8 | D | D | 6 || 8 |
+    !   |---||---|---|---|---||---|
+    !   | 2 || 1 | 5 | 5 | 2 || 1 | <- j1; aka bottom (grid%jlo_cell)
+    !   |===||===|===|===|===||===|
+    !   | 3 || 4 | 7 | 7 | 3 || 4 | <- j0; aka bottom_ghost (grid%jlo_bc_cell)
+    !   |---||---|---|---|---||---|
+    !    i0   i1  i2  i3  i4   i5
 
-    ! i0: grid%ilo_bc_cell
-    ! i1: grid%ilo_cell
-    ! i4: grid%ihi_cell
-    ! i5: grid%ihi_bc_cell
+    ! i0; aka left_ghost, grid%ilo_bc_cell
+    ! i1; aka left, grid%ilo_cell
+    ! i4; aka right, grid%ihi_cell
+    ! i5; aka right_ghost grid%ihi_bc_cell
 
     !  . : ghost cell (aka boundary cell)
     !  x : physical domain cell
+    !  D : unaffected central cell
 
-    associate(imin=>grid%ilo_cell, imax=>grid%ihi_cell, &
-              jmin=>grid%jlo_cell, jmax=>grid%jhi_cell)
-      U(:, imin:imax, jmax) = 1.0_rk ! bottom
-      U(:, imin:imax, jmax) = 2.0_rk ! top
-      U(:, imin, jmax) = 3.0_rk      ! top left corner
-      U(:, imax, jmax) = 4.0_rk      ! top right corner
-      U(:, imin, jmin) = 5.0_rk      ! bottom left corner
-      U(:, imax, jmin) = 6.0_rk      ! bottom right corner
+    ! Set unique values along the (real) edges so I can test the bc routines
+    associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
+              bottom=>grid%jlo_cell, top=>grid%jhi_cell)
+
+      U(:, left:right, bottom) = 5.0_rk ! "5" cells in cartoon
+      U(:, left:right, top) = 7.0_rk    ! "7" cells in cartoon
+      U(:, left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
+      U(:, right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
+      U(:, left, bottom) = 1.0_rk       ! "1" cells in cartoon
+      U(:, left, top) = 4.0_rk          ! "4" cells in cartoon
+      U(:, right, bottom) = 2.0_rk      ! "2" cells in cartoon
+      U(:, right, top) = 3.0_rk         ! "3" cells in cartoon
+
+      reconstructed_domain(:, :, :, left:right, bottom) = 5.0_rk ! "5" cells in cartoon
+      reconstructed_domain(:, :, :, left:right, top) = 7.0_rk    ! "7" cells in cartoon
+      reconstructed_domain(:, :, :, right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
+      reconstructed_domain(:, :, :, left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
+      reconstructed_domain(:, :, :, left, bottom) = 1.0_rk       ! "1" cells in cartoon
+      reconstructed_domain(:, :, :, left, top) = 4.0_rk          ! "4" cells in cartoon
+      reconstructed_domain(:, :, :, right, bottom) = 2.0_rk      ! "2" cells in cartoon
+      reconstructed_domain(:, :, :, right, top) = 3.0_rk         ! "3" cells in cartoon
     end associate
 
     call bc_plus_x%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
@@ -97,30 +118,27 @@ contains
     call bc_minus_x%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
     call bc_minus_y%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
 
-    associate(imin=>grid%ilo_cell, imax=>grid%ihi_cell, &
-              jmin=>grid%jlo_cell, jmax=>grid%jhi_cell, &
-              imin_bc=>grid%ilo_bc_cell, imax_bc=>grid%ihi_bc_cell, &
-              jmin_bc=>grid%jlo_bc_cell, jmax_bc=>grid%jhi_bc_cell)
+    associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
+              bottom=>grid%jlo_cell, top=>grid%jhi_cell, &
+              left_ghost=>grid%ilo_bc_cell, right_ghost=>grid%ihi_bc_cell, &
+              bottom_ghost=>grid%jlo_bc_cell, top_ghost=>grid%jhi_bc_cell)
 
-      ! bottom ghost layer = top domain layer (w/o corners)
-      @assertEqual(2.0_rk, U(:, imin:imax, jmin_bc))
+      ! bottom ghost layer
+      @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], U(1, :, bottom_ghost))
+      @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], reconstructed_domain(1, 1, 1, :, bottom_ghost))
 
-      ! top ghost layer = bottom domain layer (w/o corners)
-      @assertEqual(1.0_rk, U(:, imin:imax, jmax_bc))
+      ! top ghost layer
+      @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], U(1, :, top_ghost))
+      @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], reconstructed_domain(1, 1, 1, :, top_ghost))
 
-      ! top left ghost corner = bottom right domain corner cell
-      @assertEqual(6.0_rk, U(:, imin_bc, jmax_bc))
+      ! left ghost layer
+      @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], U(1, left_ghost, :))
+      @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], reconstructed_domain(1, 1, 1, left_ghost, :))
 
-      ! top right ghost corner = bottom left domain corner cell
-      @assertEqual(5.0_rk, U(:, imax_bc, jmax_bc))
-
-      ! bottom left ghost corner = top right domain corner cell
-      @assertEqual(4.0_rk, U(:, imin_bc, jmin_bc))
-
-      ! bottom right ghost corner = top left domain corner cell
-      @assertEqual(3.0_rk, U(:, imin_bc, jmax_bc))
+      ! right ghost layer
+      @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], U(1, right_ghost, :))
+      @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], reconstructed_domain(1, 1, 1, right_ghost, :))
     end associate
-
   end subroutine
 
 end module test_bc
