@@ -41,3 +41,8 @@ doc
 .DS_store
 papers/~$method_explanation.pptx
 .ipynb_checkpoints
+
+# test details
+tests/**/fvleg_2d.x
+*.h5
+*.xdmf

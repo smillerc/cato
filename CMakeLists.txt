@@ -48,7 +48,7 @@ message(STATUS "CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE}")
 # compiler flags for gfortran
 if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   find_package(Coarray REQUIRED)
-  list(APPEND CMAKE_Fortran_FLAGS ${Coarray_COMPILE_OPTIONS})
+  # list(APPEND CMAKE_Fortran_FLAGS ${Coarray_COMPILE_OPTIONS})
 
   list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
   set(CMAKE_Fortran_FLAGS_DEBUG
@@ -56,8 +56,8 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -Wall -Wextra -Wpedantic\
  -Wconversion \
  -fimplicit-none -fbacktrace \
- -fcheck=all \
- -ffpe-trap=zero,overflow,underflow -finit-real=nan")
+ -fcheck=all") # \
+  # -ffpe-trap=zero,overflow,underflow -finit-real=nan")
 
   set(CMAKE_Fortran_FLAGS_RELEASE
       "-O2 -floop-parallelize-all -march=native -fcoarray=single")

@@ -1,6 +1,6 @@
 module mod_input
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use iso_fortran_env, only: ik => int32, rk => real64, output_unit
   use cfgio_mod, only: cfg_t, parse_cfg
 
   implicit none
@@ -38,7 +38,7 @@ module mod_input
     ! timing
     real(rk) :: max_time = 1.0_rk
     real(rk) :: initial_delta_t = 0.0_rk
-    real(rk) :: contour_interval = 0.5_rk
+    real(rk) :: contour_interval_dt = 0.5_rk
 
     ! physics
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk
@@ -88,7 +88,7 @@ contains
     file_exists = .false.
 
     if(this_image() == 1) then
-      print *, 'Reading input file: '//trim(filename)
+      write(output_unit, '(a)') 'Reading input file: '//trim(filename)
     end if
 
     inquire(file=filename, EXIST=file_exists)
@@ -103,14 +103,16 @@ contains
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "initial_delta_t", self%initial_delta_t)
-    call cfg%get("time", "contour_interval", self%contour_interval)
+    call cfg%get("time", "contour_interval_dt", self%contour_interval_dt)
 
     ! Physics
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
 
-    ! FV scheme
     call cfg%get("scheme", "reconstruction_type", char_buffer, 'piecewise_linear')
     self%reconstruction_type = trim(char_buffer)
+
+    call cfg%get("scheme", "slope_limiter", char_buffer, 'sun_ren_09')
+    self%slope_limiter = trim(char_buffer)
 
     ! Grid
     call cfg%get("grid", "read_from_hdf5", self%read_from_hdf5, .false.)

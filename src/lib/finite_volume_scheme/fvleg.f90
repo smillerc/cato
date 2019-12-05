@@ -51,6 +51,7 @@ contains
     type(reconstruction_factory_t) :: recon_factory
     integer(ik) :: alloc_status
 
+    self%title = input%title
     self%grid = grid_factory(input)
 
     ! Set boundary conditions

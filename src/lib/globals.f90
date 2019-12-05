@@ -3,6 +3,7 @@ module mod_globals
 
   implicit none
 
+  logical :: globals_set = .false.
   character(:), allocatable :: compiler_flags_str
   character(:), allocatable :: compiler_version_str
   character(:), allocatable :: git_hash
@@ -16,6 +17,7 @@ module mod_globals
 contains
 
   subroutine set_global_options()
+    globals_set = .true.
     include 'version.h'
     compiler_flags_str = compiler_options()
     compiler_version_str = compiler_version()

@@ -5,6 +5,9 @@ add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
 
 add_library(finterp third_party/finterp/linear_interpolation_module.f90)
 
+add_library(functional third_party/functional/mod_functional.f90
+                       third_party/functional/mod_interfaces.f90)
+
 add_library(io lib/io/mod_hdf5.f90 lib/io/mod_input.f90)
 
 add_library(eos lib/equation_of_state.f90)
@@ -32,6 +35,7 @@ target_link_libraries(geometry PUBLIC global_constants io eos)
 
 add_library(
   fvleg
+  lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/bc_factory.f90
@@ -57,15 +61,17 @@ target_link_libraries(
          geometry
          utilities
          io
+         functional
          # functional # ${Coarray_LIBRARIES} ${HDF5_LIBRARIES}
          # ${HDF5_HL_LIBRARIES}
 )
 
 add_executable(fvleg_2d.x main.f90)
 target_link_libraries(
-  fvleg_2d.x io fvleg
-  # functional ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES}
-  ${Coarray_LIBRARIES})
+  fvleg_2d.x fvleg
+
+  # functional ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} ${Coarray_LIBRARIES}
+)
 # target_compile_options(fvleg_2d.x PUBLIC ${Coarray_COMPILE_OPTIONS})
 
 # set_target_properties (fvleg_2d.x PROPERTIES Fortran_MODULE_DIRECTORY

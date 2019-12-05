@@ -19,6 +19,11 @@ module mod_finite_volume_schemes
     !< state variables of each finite cell. The reconstruction, grid, and evolution implementations are passed
     !< on to decendents like the FVLEG scheme.
 
+    character(:), allocatable :: title
+    integer(ik) :: timestep = 0
+    real(rk) :: delta_t = 0.0_rk
+    real(rk) :: time = 0.0_rk
+
     class(abstract_reconstruction_t), allocatable :: reconstruction_operator
     !< R_Omega reconstruction operator used to reconstruct the corners/midpoints based on the cell
     !< average (and gradient if high(er) order reconstruction used)
