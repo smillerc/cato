@@ -22,7 +22,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Packages
-find_package(HDF5 COMPONENTS Fortran_HL REQUIRED)
+find_package(
+  HDF5
+  COMPONENTS Fortran_HL
+  REQUIRED)
 
 find_package(PFUNIT REQUIRED)
 enable_testing()
@@ -31,9 +34,7 @@ message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
 message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
 message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
 
-
-# find_package(OpenMP)
-# find_package(OpenCL REQUIRED)
+# find_package(OpenMP) find_package(OpenCL REQUIRED)
 
 # if build type not specified, default to release
 if(NOT CMAKE_BUILD_TYPE)
@@ -47,20 +48,27 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   list(APPEND CMAKE_Fortran_FLAGS ${Coarray_COMPILE_OPTIONS})
 
   list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
-  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -fcoarray=single\
+  set(CMAKE_Fortran_FLAGS_DEBUG
+      "-O0 -g -fcoarray=single\
  -Wall -Wextra -Wpedantic\
  -Wconversion \
  -fimplicit-none -fbacktrace \
  -fcheck=all \
  -ffpe-trap=zero,overflow,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE "-O2 -floop-parallelize-all -march=native -fcoarray=single")
+  set(CMAKE_Fortran_FLAGS_RELEASE
+      "-O2 -floop-parallelize-all -march=native -fcoarray=single")
 endif()
 
 # compiler flags for ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
-  list(APPEND CMAKE_Fortran_FLAGS "-fpp -parallel -stand f18 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770")
-  set(CMAKE_Fortran_FLAGS_DEBUG " -O0 -g -traceback -warn all -check all -debug all -coarray=single")
+  list(
+    APPEND
+      CMAKE_Fortran_FLAGS
+      "-fpp -parallel -stand f18 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770"
+  )
+  set(CMAKE_Fortran_FLAGS_DEBUG
+      " -O0 -g -traceback -warn all -check all -debug all -coarray=single")
   set(CMAKE_Fortran_FLAGS_RELEASE " -O2  -coarray")
 endif()
 
@@ -70,7 +78,6 @@ message(STATUS "Coarray_COMPILE_OPTIONS:" ${Coarray_COMPILE_OPTIONS})
 message(STATUS "Compile Flags: " ${CMAKE_Fortran_FLAGS})
 message(STATUS "Compile Flags Debug: " ${CMAKE_Fortran_FLAGS_DEBUG})
 message(STATUS "Compile Flags Release: " ${CMAKE_Fortran_FLAGS_RELEASE})
-
 
 # add_library(clfortran src/lib/opencl/mod_clfortran.f90)
 # target_link_libraries(clfortran OpenCL::OpenCL)
