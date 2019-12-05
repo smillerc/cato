@@ -1,9 +1,9 @@
+add_library(global_constants lib/globals.f90 lib/math_constants.f90)
+
 add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
                        third_party/ini_parser/string_conv_mod.f90)
 
 add_library(finterp third_party/finterp/linear_interpolation_module.f90)
-
-add_library(constants lib/math_constants.f90)
 
 add_library(io lib/io/mod_hdf5.f90 lib/io/mod_input.f90)
 
@@ -12,7 +12,7 @@ add_library(eos lib/equation_of_state.f90)
 include_directories(${HDF5_INCLUDE_DIRS})
 target_include_directories(io PUBLIC ${HDF5_INCLUDE_DIRS})
 
-target_link_libraries(io PUBLIC ini_parser ${HDF5_LIBRARIES}
+target_link_libraries(io PUBLIC global_constants ini_parser ${HDF5_LIBRARIES}
                                 ${HDF5_HL_LIBRARIES})
 target_link_libraries(eos PUBLIC io)
 
@@ -28,7 +28,7 @@ add_library(
   lib/geometry/quad_cell.f90
   lib/geometry/mach_cone_geometry.f90)
 
-target_link_libraries(geometry PUBLIC constants io eos)
+target_link_libraries(geometry PUBLIC global_constants io eos)
 
 add_library(
   fvleg
@@ -53,7 +53,7 @@ add_library(
 target_link_libraries(
   fvleg
   PUBLIC eos
-         constants
+         global_constants
          geometry
          utilities
          io

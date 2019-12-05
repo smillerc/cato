@@ -1,6 +1,7 @@
 program fvleg
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use iso_fortran_env, only: ik => int32, rk => real64, output_unit
+  use mod_globals, only: print_version_stats
   use mod_input, only: input_t
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
   use mod_grid, only: grid_t
@@ -14,6 +15,17 @@ program fvleg
   class(grid_t), pointer :: grid => null()
   class(finite_volume_scheme_t), allocatable :: fv
   real(rk) :: t = 0.0_rk, delta_t
+
+  write(output_unit, '(a)')
+  write(output_unit, '(a)') "_______________   ____.____     ___________ ________            ________  ________"
+  write(output_unit, '(a)') "\_   _____/\   \ /   /|    |    \_   _____//  _____/            \_____  \ \______ \"
+  write(output_unit, '(a)') " |    __)   \   Y   / |    |     |    __)_/   \  ___    ______   /  ____/  |    |  \"
+  write(output_unit, '(a)') " |     \     \     /  |    |___  |        \    \_\  \  /_____/  /       \  |    `   \"
+  write(output_unit, '(a)') " \___  /      \___/   |_______ \/_______  /\______  /           \_______ \/_______  /"
+  write(output_unit, '(a)') "     \/                       \/        \/        \/                    \/        \/"
+  write(output_unit, '(a)')
+
+  call print_version_stats()
 
   call get_command_argument(1, command_line_arg)
   input_filename = trim(command_line_arg)

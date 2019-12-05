@@ -2,10 +2,13 @@ cmake_minimum_required(VERSION 3.12)
 
 project(
   fvleg_2d
-  VERSION 0.0.1
   DESCRIPTION "A modern fortran implementation of the FVLEG scheme"
   HOMEPAGE_URL "https://github.com/smillerc/fvleg_2d"
   LANGUAGES Fortran C)
+
+set(fvleg_2d_VERSION_MAJOR 0)
+set(fvleg_2d_VERSION_MINOR 1)
+set(fvleg_2d_PATCH_VERSION 0)
 
 set(CMAKE_VERBOSE_MAKEFILE "Off")
 set(CMAKE_CXX_STANDARD 11)
@@ -78,6 +81,24 @@ message(STATUS "Coarray_COMPILE_OPTIONS:" ${Coarray_COMPILE_OPTIONS})
 message(STATUS "Compile Flags: " ${CMAKE_Fortran_FLAGS})
 message(STATUS "Compile Flags Debug: " ${CMAKE_Fortran_FLAGS_DEBUG})
 message(STATUS "Compile Flags Release: " ${CMAKE_Fortran_FLAGS_RELEASE})
+
+# Host information There is much more info available with this query, but for
+# now only get the host name
+cmake_host_system_information(RESULT HOST_NAME QUERY HOSTNAME)
+
+# Insert the git version information into the version.h header file See
+# https://goo.gl/697j8v (short stackoverflow link)
+include(GetGitRevisionDescription)
+get_git_head_revision(GIT_REFSPEC GIT_SHA1)
+git_local_changes(GIT_LOCAL_CHANGES)
+
+# This takes variables like HOST_NAME, CMAKE_Fortran_COMPILER_VERSION, etc, and
+# includes it in the draco build
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/version.h.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/generated/version.h" @ONLY)
+
+# Include the newly generated version.h file
+include_directories(${CMAKE_BINARY_DIR}/generated)
 
 # add_library(clfortran src/lib/opencl/mod_clfortran.f90)
 # target_link_libraries(clfortran OpenCL::OpenCL)
