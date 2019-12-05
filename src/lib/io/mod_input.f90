@@ -29,8 +29,8 @@ module mod_input
     character(:), allocatable ::  plus_y_bc
     character(:), allocatable :: minus_y_bc
 
-    character(:), allocatable ::  plus_z_bc
-    character(:), allocatable :: minus_z_bc
+    ! character(:), allocatable ::  plus_z_bc
+    ! character(:), allocatable :: minus_z_bc
 
     ! io
     character(:), allocatable :: contour_io_format
@@ -68,6 +68,11 @@ contains
     self%ymax = ymax
     self%reconstruction_type = 'piecewise_linear'
     self%slope_limiter = 'sun_ren_09'
+
+    self%plus_x_bc = 'periodic'
+    self%minus_x_bc = 'periodic'
+    self%plus_y_bc = 'periodic'
+    self%minus_y_bc = 'periodic'
 
   end subroutine initialize
 
@@ -131,10 +136,10 @@ contains
     call cfg%get("boundary_conditions", "minus_y", char_buffer, 'periodic')
     self%minus_y_bc = trim(char_buffer)
 
-    call cfg%get("boundary_conditions", "plus_z", char_buffer, 'periodic')
-    self%plus_z_bc = trim(char_buffer)
-    call cfg%get("boundary_conditions", "minus_z", char_buffer, 'periodic')
-    self%minus_z_bc = trim(char_buffer)
+    ! call cfg%get("boundary_conditions", "plus_z", char_buffer, 'periodic')
+    ! self%plus_z_bc = trim(char_buffer)
+    ! call cfg%get("boundary_conditions", "minus_z", char_buffer, 'periodic')
+    ! self%minus_z_bc = trim(char_buffer)
 
     ! Input/Output
     call cfg%get("io", "format", char_buffer, 'xdmf')

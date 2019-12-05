@@ -3,6 +3,7 @@ module mod_finite_volume_schemes
   use iso_fortran_env, only: ik => int32, rk => real64
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_surrogate, only: surrogate
+  use mod_boundary_conditions, only: boundary_condition_t
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
   use mod_grid, only: grid_t
@@ -30,6 +31,11 @@ module mod_finite_volume_schemes
 
     class(grid_t), allocatable :: grid
     !< Grid class to hold geometric information (edge lengths, volumes, etc.)
+
+    class(boundary_condition_t), allocatable :: bc_plus_x
+    class(boundary_condition_t), allocatable :: bc_plus_y
+    class(boundary_condition_t), allocatable :: bc_minus_x
+    class(boundary_condition_t), allocatable :: bc_minus_y
 
     ! Corner/midpoint index convention
     ! --------------------------------

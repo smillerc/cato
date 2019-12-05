@@ -11,6 +11,7 @@ module mod_fvleg
   use mod_second_order_reconstruction, only: second_order_reconstruction_t
   use mod_flux_tensor, only: H => flux_tensor_t
   use mod_grid_factory, only: grid_factory
+  use mod_bc_factory, only: bc_factory
   use mod_grid, only: grid_t
   ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
 
@@ -25,6 +26,7 @@ module mod_fvleg
     procedure, public :: initialize
     procedure, public :: reconstruct => reconstruct_fvleg
     procedure, public :: evolve_domain
+    procedure, public :: apply_bc
     procedure, public :: t => time_derivative
     procedure, private :: integrate_fluxes
     procedure, private :: duplicate
@@ -50,6 +52,12 @@ contains
     integer(ik) :: alloc_status
 
     self%grid = grid_factory(input)
+
+    ! Set boundary conditions
+    self%bc_plus_x = bc_factory(bc_type=input%plus_x_bc, location='+x')
+    self%bc_plus_y = bc_factory(bc_type=input%plus_y_bc, location='+y')
+    self%bc_minus_x = bc_factory(bc_type=input%minus_x_bc, location='-x')
+    self%bc_minus_y = bc_factory(bc_type=input%minus_y_bc, location='-y')
 
     associate(imin=>self%grid%ilo_bc_cell, imax=>self%grid%ihi_bc_cell, &
               jmin=>self%grid%jlo_bc_cell, jmax=>self%grid%jhi_bc_cell)
@@ -147,6 +155,16 @@ contains
     call self%reconstruction_operator%reconstruct_domain(self%conserved_vars, self%reconstructed_state)
   end subroutine
 
+  subroutine apply_bc(self)
+    !< Apply the boundary conditions
+    class(fvleg_t), intent(inout) :: self
+
+    call self%bc_plus_x%apply_bc(conserved_vars=self%conserved_vars, reconstructed_state=self%reconstructed_state)
+    call self%bc_plus_y%apply_bc(conserved_vars=self%conserved_vars, reconstructed_state=self%reconstructed_state)
+    call self%bc_minus_x%apply_bc(conserved_vars=self%conserved_vars, reconstructed_state=self%reconstructed_state)
+    call self%bc_minus_y%apply_bc(conserved_vars=self%conserved_vars, reconstructed_state=self%reconstructed_state)
+  end subroutine
+
   function time_derivative(self) result(dU_dt)
     !< Implementation of dU/dt = 1/Omega_ij Sum(1,k) Integral(H . n dl)
     class(fvleg_t), intent(in) :: self
@@ -156,8 +174,8 @@ contains
 
     local_dU_dt = self%duplicate()
 
-    ! Reconstruct the domain
     call local_dU_dt%reconstruct()
+    call local_dU_dt%apply_bc()
     call local_dU_dt%evolve_domain()
 
     ! Set the RHS of Eq. 3 in the main text
