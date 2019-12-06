@@ -46,3 +46,6 @@ papers/~$method_explanation.pptx
 tests/**/fvleg_2d.x
 *.h5
 *.xdmf
+
+# VS code settings
+.vscode/settings.json
