@@ -34,6 +34,8 @@ module mod_input
 
     ! io
     character(:), allocatable :: contour_io_format
+    character(:), allocatable :: initial_condition_file
+    logical :: read_init_cond_from_file = .false.
 
     ! timing
     real(rk) :: max_time = 1.0_rk
@@ -45,7 +47,7 @@ module mod_input
 
     ! finite volume scheme specifics
     character(:), allocatable :: reconstruction_type
-    real(rk) :: tau = 0.0_rk !< time increment for FVEG and FVLEG schemes
+    real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: slope_limiter
 
   contains
@@ -92,7 +94,7 @@ contains
     end if
 
     inquire(file=filename, EXIST=file_exists)
-    if(.not. file_exists) error stop "Error: Input .ini file not found"
+    if(.not. file_exists) error stop "Input .ini file not found"
 
     cfg = parse_cfg(trim(filename))
 
@@ -127,7 +129,12 @@ contains
     call cfg%get("grid", "ymin", self%ymin)
     call cfg%get("grid", "ymax", self%ymax)
 
-    ! boundary conditions
+    ! Initial Conditions
+    call cfg%get("initial_conditions", "read_from_file", self%read_init_cond_from_file, .true.)
+    call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
+    self%initial_condition_file = trim(char_buffer)
+
+    ! Boundary conditions
     call cfg%get("boundary_conditions", "plus_x", char_buffer, 'periodic')
     self%plus_x_bc = trim(char_buffer)
     call cfg%get("boundary_conditions", "minus_x", char_buffer, 'periodic')
@@ -137,11 +144,6 @@ contains
     self%plus_y_bc = trim(char_buffer)
     call cfg%get("boundary_conditions", "minus_y", char_buffer, 'periodic')
     self%minus_y_bc = trim(char_buffer)
-
-    ! call cfg%get("boundary_conditions", "plus_z", char_buffer, 'periodic')
-    ! self%plus_z_bc = trim(char_buffer)
-    ! call cfg%get("boundary_conditions", "minus_z", char_buffer, 'periodic')
-    ! self%minus_z_bc = trim(char_buffer)
 
     ! Input/Output
     call cfg%get("io", "format", char_buffer, 'xdmf')

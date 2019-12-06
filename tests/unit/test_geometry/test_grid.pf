@@ -1,5 +1,5 @@
 module test_grid
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use iso_fortran_env, only: ik => int32, rk => real64, stdout => output_unit
   use mod_regular_2d_grid, only: regular_2d_grid_t
   use mod_grid, only: grid_t
   use mod_grid_factory, only: grid_factory
@@ -12,6 +12,10 @@ module test_grid
   integer(ik), parameter :: nj_nodes = 3
   integer(ik), parameter :: ni_cells = ni_nodes - 1
   integer(ik), parameter :: nj_cells = nj_nodes - 1
+  real(rk), parameter :: xmin = -2.0_rk
+  real(rk), parameter :: xmax = 2.0_rk
+  real(rk), parameter :: ymin = -2.0_rk
+  real(rk), parameter :: ymax = 2.0_rk
   integer(ik) :: alloc_stat
 
 contains
@@ -27,16 +31,25 @@ contains
   ! end subroutine init_grid
 
   @test
-  subroutine test_grid_info()
+  subroutine test_init_from_ini()
 
     class(grid_t), allocatable :: grid
     type(input_t) :: input
 
     input = input_t(reconstruction_type='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-                    xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+                    read_init_cond_from_file=.false., &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
     grid = grid_factory(input)
+
+    call test_grid_bounds(grid)
+  end subroutine test_init_from_ini
+
+  subroutine test_grid_bounds(grid)
+
+    class(grid_t), intent(in) :: grid
+    ! type(input_t) :: input
 
     @assertEqual(5, grid%ni_node)
     @assertEqual(3, grid%nj_node)
@@ -102,11 +115,42 @@ contains
     @assertEqual([1, 1, 1, 0, 0], lbound(grid%cell_node_xy))
     @assertEqual([2, 4, 2, ni_cells + 1, nj_cells + 1], ubound(grid%cell_node_xy))
 
-  end subroutine test_grid_info
+  end subroutine test_grid_bounds
 
-  ! @after
-  ! subroutine test_grid_finalize()
-  !   call grid%finalize()
-  ! end subroutine test_grid_finalize
+  @test
+  subroutine test_init_from_h5()
+    class(grid_t), allocatable :: grid
+    type(input_t) :: input
+    integer(ik) :: py_unit, py_stat, exit_stat
+    character(len=200) :: py_message = ""
+
+    ! open(newunit=py_unit, file='make_simple.py', status='replace')
+    ! write(py_unit, '(a)')          'import numpy as np'
+    ! write(py_unit, '(a)')          'import h5py'
+    ! write(py_unit, '(2(a,f0.5),a,i0,a)') 'x = np.linspace(', xmin, ', ', xmax, ', ', ni_nodes, ', dtype=np.float32)'
+    ! write(py_unit, '(2(a,f0.5),a,i0,a)') 'y = np.linspace(', xmin, ', ', xmax, ', ', nj_nodes, ', dtype=np.float32)'
+    ! write(py_unit, '(a)')          'xx, yy = np.meshgrid(x, y)'
+    ! write(py_unit, '(a)')          'with h5py.File("simple.h5", mode="w") as h5:'
+    ! write(py_unit, '(a)')          '    h5.create_dataset("/x",data=xx.T)'
+    ! write(py_unit, '(a)')          '    h5.create_dataset("/y",data=yy.T)'
+    ! close(py_unit)
+
+    ! write(stdout, *) 'Calling python script to generate an hdf5 grid...'
+    ! call execute_command_line('python3 make_simple.py', cmdstat=py_stat, exitstat=exit_stat, cmdmsg=py_message)
+    ! if (py_stat /= 0 .or. exit_stat /= 0) then
+    !   write(stdout, *) py_message
+    !   error stop 'The python grid generation script failed for some reason...'
+    ! end if
+    ! write(stdout, *) 'Done'
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.true., &
+                    initial_condition_file='simple.h5', &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    grid = grid_factory(input)
+    call test_grid_bounds(grid)
+  end subroutine test_init_from_h5
 
 end module test_grid
