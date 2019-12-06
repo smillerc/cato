@@ -32,6 +32,7 @@ contains
 
     input = input_t(reconstruction_type='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
                     xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
     grid = grid_factory(input)
