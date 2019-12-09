@@ -20,15 +20,89 @@ module test_grid
 
 contains
 
-  ! @before
-  ! subroutine init_grid()
-  !   allocate(input_t :: input)
-  !   call input%initialize(ni=5_ik, nj=3_ik, &
-  !                         xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+  @test
+  subroutine test_corner_edge_vector_query()
 
-  !   allocate(regular_2d_grid_t :: grid)
-  !   call grid%initialize(input)
-  ! end subroutine init_grid
+    class(grid_t), allocatable :: grid
+    type(input_t) :: input
+
+    real(rk), dimension(2, 2, 4) :: actual_corner_vectors, grid_corner_vectors
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    grid = grid_factory(input)
+
+    grid_corner_vectors = grid%get_corner_vectors(cell_ij=[1,1], corner='lower-left')
+    print*
+    print*, 'grid_corner_vectors', grid_corner_vectors
+    print*
+    actual_corner_vectors = reshape([[-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 1
+                                     [-2.0_rk, -4.0_rk], & ! (x,y) head, vector 1
+                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 2
+                                     [-1.0_rk, -2.0_rk], &  ! (x,y) head, vector 2
+                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 3
+                                     [-2.0_rk,  0.0_rk], &  ! (x,y) head, vector 3
+                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 4
+                                     [-3.0_rk,  -2.0_rk] &  ! (x,y) head, vector 4
+                                   ], shape=[2, 2, 4])
+
+    @assertEqual(actual_corner_vectors, grid_corner_vectors)
+  end subroutine test_corner_edge_vector_query
+
+  @test
+  subroutine test_leftright_midpoint_edge_vector_query()
+
+    class(grid_t), allocatable :: grid
+    type(input_t) :: input
+
+    real(rk), dimension(2, 2, 2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 2, 2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    grid = grid_factory(input)
+
+    grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1,1], edge='bottom')
+    actual_midpoint_vectors = reshape([[-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 1
+                                     [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
+                                     [-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 2
+                                     [-1.0_rk, -2.0_rk] &  ! (x,y) head, vector 2
+                                   ], shape=[2, 2, 2])
+
+    @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
+  end subroutine test_leftright_midpoint_edge_vector_query
+
+  @test
+  subroutine test_downup_midpoint_edge_vector_query()
+
+    class(grid_t), allocatable :: grid
+    type(input_t) :: input
+
+    real(rk), dimension(2, 2, 2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 2, 2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    grid = grid_factory(input)
+
+    grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1,1], edge='left')
+    actual_midpoint_vectors = reshape([[-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 1
+                                      [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
+                                      [-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 2
+                                      [-2.0_rk,  0.0_rk] &  ! (x,y) head, vector 2
+                                   ], shape=[2, 2, 2])
+
+    @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
+  end subroutine test_downup_midpoint_edge_vector_query
 
   @test
   subroutine test_init_from_ini()
@@ -45,6 +119,42 @@ contains
 
     call test_grid_bounds(grid)
   end subroutine test_init_from_ini
+
+  @test
+  subroutine test_init_from_h5()
+    class(grid_t), allocatable :: grid
+    type(input_t) :: input
+    integer(ik) :: py_unit, py_stat, exit_stat
+    character(len=200) :: py_message = ""
+
+    ! open(newunit=py_unit, file='make_simple.py', status='replace')
+    ! write(py_unit, '(a)')          'import numpy as np'
+    ! write(py_unit, '(a)')          'import h5py'
+    ! write(py_unit, '(2(a,f0.5),a,i0,a)') 'x = np.linspace(', xmin, ', ', xmax, ', ', ni_nodes, ', dtype=np.float32)'
+    ! write(py_unit, '(2(a,f0.5),a,i0,a)') 'y = np.linspace(', xmin, ', ', xmax, ', ', nj_nodes, ', dtype=np.float32)'
+    ! write(py_unit, '(a)')          'xx, yy = np.meshgrid(x, y)'
+    ! write(py_unit, '(a)')          'with h5py.File("simple.h5", mode="w") as h5:'
+    ! write(py_unit, '(a)')          '    h5.create_dataset("/x",data=xx.T)'
+    ! write(py_unit, '(a)')          '    h5.create_dataset("/y",data=yy.T)'
+    ! close(py_unit)
+
+    ! write(stdout, *) 'Calling python script to generate an hdf5 grid...'
+    ! call execute_command_line('python3 make_simple.py', cmdstat=py_stat, exitstat=exit_stat, cmdmsg=py_message)
+    ! if (py_stat /= 0 .or. exit_stat /= 0) then
+    !   write(stdout, *) py_message
+    !   error stop 'The python grid generation script failed for some reason...'
+    ! end if
+    ! write(stdout, *) 'Done'
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.true., &
+                    initial_condition_file='simple.h5', &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    grid = grid_factory(input)
+    call test_grid_bounds(grid)
+  end subroutine test_init_from_h5
 
   subroutine test_grid_bounds(grid)
 
@@ -116,41 +226,4 @@ contains
     @assertEqual([2, 4, 2, ni_cells + 1, nj_cells + 1], ubound(grid%cell_node_xy))
 
   end subroutine test_grid_bounds
-
-  @test
-  subroutine test_init_from_h5()
-    class(grid_t), allocatable :: grid
-    type(input_t) :: input
-    integer(ik) :: py_unit, py_stat, exit_stat
-    character(len=200) :: py_message = ""
-
-    ! open(newunit=py_unit, file='make_simple.py', status='replace')
-    ! write(py_unit, '(a)')          'import numpy as np'
-    ! write(py_unit, '(a)')          'import h5py'
-    ! write(py_unit, '(2(a,f0.5),a,i0,a)') 'x = np.linspace(', xmin, ', ', xmax, ', ', ni_nodes, ', dtype=np.float32)'
-    ! write(py_unit, '(2(a,f0.5),a,i0,a)') 'y = np.linspace(', xmin, ', ', xmax, ', ', nj_nodes, ', dtype=np.float32)'
-    ! write(py_unit, '(a)')          'xx, yy = np.meshgrid(x, y)'
-    ! write(py_unit, '(a)')          'with h5py.File("simple.h5", mode="w") as h5:'
-    ! write(py_unit, '(a)')          '    h5.create_dataset("/x",data=xx.T)'
-    ! write(py_unit, '(a)')          '    h5.create_dataset("/y",data=yy.T)'
-    ! close(py_unit)
-
-    ! write(stdout, *) 'Calling python script to generate an hdf5 grid...'
-    ! call execute_command_line('python3 make_simple.py', cmdstat=py_stat, exitstat=exit_stat, cmdmsg=py_message)
-    ! if (py_stat /= 0 .or. exit_stat /= 0) then
-    !   write(stdout, *) py_message
-    !   error stop 'The python grid generation script failed for some reason...'
-    ! end if
-    ! write(stdout, *) 'Done'
-
-    input = input_t(reconstruction_type='piecewise_linear', &
-                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-                    read_init_cond_from_file=.true., &
-                    initial_condition_file='simple.h5', &
-                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
-
-    grid = grid_factory(input)
-    call test_grid_bounds(grid)
-  end subroutine test_init_from_h5
-
 end module test_grid

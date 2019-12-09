@@ -303,14 +303,12 @@ contains
     !< and structure of arrays rather than an array of structures
 
     class(regular_2d_grid_t), intent(inout) :: self
-    class(quad_cell_t), allocatable :: quad
+    type(quad_cell_t) :: quad
 
     integer(ik) :: i, j
 
     do j = self%jlo_bc_cell, self%jhi_bc_cell
       do i = self%ilo_bc_cell, self%ihi_bc_cell
-
-        allocate(quad_cell_t :: quad)
 
         associate(x=>self%node_x, y=>self%node_y)
           call quad%initialize(x_coords=[x(i, j), x(i + 1, j), x(i + 1, j + 1), x(i, j + 1)], &
@@ -319,12 +317,10 @@ contains
         end associate
 
         self%cell_volume(i, j) = quad%volume
-        ! self%cell_centroid_xy(i, j, :) = quad%centroid
-        ! self%cell_edge_lengths(i, j, :) = quad%edge_lengths
-        ! self%cell_edge_midpoints(i, j, :, :) = quad%edge_midpoints
-        ! self%cell_edge_norm_vectors(i, j, :, :) = quad%edge_norm_vectors
-
-        deallocate(quad)
+        self%cell_centroid_xy(:, i, j) = quad%centroid
+        self%cell_edge_lengths(:, i, j) = quad%edge_lengths
+        self%cell_node_xy(:, :, :, i, j) = quad%get_cell_node_xy_set()
+        self%cell_edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
 
       end do
     end do
@@ -527,25 +523,139 @@ contains
   end function
 
   pure function get_midpoint_vectors(self, cell_ij, edge) result(vectors)
-    ! // TODO: implement this
     !< Public interface to get_midpoint_vectors
     class(regular_2d_grid_t), intent(in) :: self
     integer(ik), dimension(2), intent(in) :: cell_ij
-    character(len=*), intent(in) :: edge ! 'bottom', or 'top'
-    real(rk), dimension(2, 2, 2) :: vectors !< ((x,y), (head,tail), (vector1, vector2))
+    character(len=*), intent(in) :: edge ! 'bottom', 'top', 'left', 'right'
+    real(rk), dimension(2, 2, 2) :: vectors !< ((x,y), (tail,head), (vector_1:vector_2))
+
+    integer(ik) :: i, j
+    real(rk), dimension(2) :: tail
+
+    i = cell_ij(1)
+    j = cell_ij(2)
+    ! Corner/midpoint index convention         Cell Indexing convention
+    ! --------------------------------         ------------------------
+    !
+    !   C----M----C----M----C
+    !   |         |         |                             E3
+    !   O    x    O    x    O                      N4-----M3----N3
+    !   |         |         |                      |            |
+    !   C----M----C----M----C                  E4  M4     C     M2  E2
+    !   |         |         |                      |            |
+    !   O    x    O    x    O                      N1----M1----N2
+    !   |         |         |                            E1
+    !   C----M----C----M----C
+    !
+    ! For left/right midpoints, the edge vectors go left then right.
+    ! The neighboring cells are above (i,j) and below (i,j-1)
+    ! For quad cells, N - corner, M - midpoint, E - edge
+
+    ! self%cell_node_xy indexing convention
+    !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
+    !< e.g. 1 - all corners, 2 - all midpoints
 
     vectors = 0.0_rk
+
+    select case(trim(edge))
+    case('left')
+      ! Left edge of cell (i,j)
+      !  |         C2(N4)     |
+      !  |         |          |
+      !  |         M4         |
+      !  | (i-1,j) |  (i,j)   |
+      !  |         C1(N1)     |
+      tail = self%cell_node_xy(:, 4, 2, i, j)
+      vectors = reshape([tail, &                            ! (x,y) tail, vector 1 (M4)
+                         self%cell_node_xy(:, 1, 1, i, j), &    ! (x,y) head, vector 1 (N1)
+                         tail, &                            ! (x,y) tail, vector 2 (M4)
+                         self%cell_node_xy(:, 4, 1, i, j) &     ! (x,y) head, vector 2 (N4)
+                         ], shape=[2, 2, 2])
+    case('bottom')
+      ! Bottom edge of cell (i,j)
+      !       |          |
+      !       |  (i,j)   |
+      !  (N1) C1---M1---C2 (N2)
+      !       | (i,j-1)  |
+      !       |          |
+      tail = self%cell_node_xy(:, 1, 2, i, j)
+      vectors = reshape([tail, &                            ! (x,y) tail, vector 1 (M1)
+                         self%cell_node_xy(:, 1, 1, i, j), &    ! (x,y) head, vector 1 (N1)
+                         tail, &                            ! (x,y) tail, vector 2 (M1)
+                         self%cell_node_xy(:, 2, 1, i, j) &     ! (x,y) head, vector 2 (N2)
+                         ], shape=[2, 2, 2])
+    case default
+      error stop "Invalid location for midpoint edge vector request"
+    end select
+
   end function
 
   pure function get_corner_vectors(self, cell_ij, corner) result(vectors)
-    ! // TODO: implement this
     !< Public interface to get_corner_vectors
     class(regular_2d_grid_t), intent(in) :: self
     integer(ik), dimension(2), intent(in) :: cell_ij
     character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
-    real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (head,tail), (vector1:vector4))
+    real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (tail,head), (vector1:vector4))
+
+    integer(ik) :: i, j
+    real(rk), dimension(2) :: tail
+
+    i = cell_ij(1)
+    j = cell_ij(2)
+
+    ! Corner/midpoint index convention         Cell Indexing convention
+    ! --------------------------------         ------------------------
+    !
+    !   C----M----C----M----C
+    !   |         |         |                             E3
+    !   O    x    O    x    O                      N4-----M3----N3
+    !   |         |         |                      |            |
+    !   C----M----C----M----C                  E4  M4     C     M2  E2
+    !   |         |         |                      |            |
+    !   O    x    O    x    O                      N1----M1----N2
+    !   |         |         |                            E1
+    !   C----M----C----M----C
+    !
+    ! For left/right midpoints, the edge vectors go left then right.
+    ! The neighboring cells are above (i,j) and below (i,j-1)
+    ! For quad cells, N - corner, M - midpoint, E - edge
+
+    ! Corner vector set
+    !           C3
+    !           |
+    !  (i-1,j)  |  (i,j)
+    !           |
+    ! C4-------C0--------C2
+    !           |
+    ! (i-1,j-1) |  (i,j-1)
+    !           |
+    !          C1
+
+    ! self%cell_node_xy indexing convention
+    !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
+    !< e.g. 1 - all corners, 2 - all midpoints
 
     vectors = 0.0_rk
+
+    tail = self%cell_node_xy(:, 1, 1, i, j)
+    select case(trim(corner))
+    case('lower-left')
+      vectors = reshape([tail, &                            ! (x,y) tail, vector 1
+                         self%cell_node_xy(:, 1, 1, i, j - 1), &  ! (x,y) head, vector 1
+                         tail, &                            ! (x,y) tail, vector 2
+                         self%cell_node_xy(:, 2, 1, i, j), &    ! (x,y) head, vector 2
+                         tail, &                            ! (x,y) tail, vector 3
+                         self%cell_node_xy(:, 4, 1, i, j), &    ! (x,y) head, vector 3
+                         tail, &                            ! (x,y) tail, vector 4
+                         self%cell_node_xy(:, 1, 1, i - 1, j) &   ! (x,y) head, vector 4
+                         ], shape=[2, 2, 4])
+      ! case ('lower-right')
+      ! case ('upper-right')
+      ! case ('upper-left')
+    case default
+      error stop "Invalid location for midpoint edge vector request"
+    end select
+
   end function
 
 end module mod_regular_2d_grid
