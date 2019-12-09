@@ -1,0 +1,2 @@
+*.pf linguist-language=Fortran
+*.f90 linguist-language=Fortran
