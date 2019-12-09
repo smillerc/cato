@@ -22,20 +22,23 @@ module mod_input
     integer(ik) :: ni_nodes = 0
     integer(ik) :: nj_nodes = 0
 
-    ! boundary
+    ! initial conditions
+    character(:), allocatable :: initial_condition_file
+    logical :: read_init_cond_from_file = .false.
+    real(rk) :: init_x_velocity = 0.0_rk
+    real(rk) :: init_y_velocity = 0.0_rk
+    real(rk) :: init_density = 0.0_rk
+    real(rk) :: init_pressure = 0.0_rk
+
+    ! boundary conditions
     character(:), allocatable ::  plus_x_bc
     character(:), allocatable :: minus_x_bc
 
     character(:), allocatable ::  plus_y_bc
     character(:), allocatable :: minus_y_bc
 
-    ! character(:), allocatable ::  plus_z_bc
-    ! character(:), allocatable :: minus_z_bc
-
     ! io
     character(:), allocatable :: contour_io_format
-    character(:), allocatable :: initial_condition_file
-    logical :: read_init_cond_from_file = .false.
 
     ! timing
     real(rk) :: max_time = 1.0_rk
