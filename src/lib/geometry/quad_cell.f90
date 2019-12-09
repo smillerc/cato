@@ -2,12 +2,11 @@ module mod_quad_cell
   !< Summary: Define the quadrilateral cell/control volume object
 
   use iso_fortran_env, only: ik => int32, rk => real64
-  use mod_vector_2d, only: vector_2d_t, operator(.unitnorm.)
-
+  use mod_vector, only: vector_t, operator(.unitnorm.), operator(.dot.), operator(.cross.)
   implicit none
 
   private
-  public :: quad_cell_t, quad_cell_edge_vector_mapping_t
+  public :: quad_cell_t
   !<  Numbering convention for a 2D quadrilateral cell
   !<
   !<                     F3
@@ -30,55 +29,20 @@ module mod_quad_cell
     real(rk), dimension(2) :: centroid = [0.0_rk, 0.0_rk]  !< centroid x,y coords
     real(rk) :: volume = 0.0_rk !< volume, aka area in 2d
 
-    real(rk), dimension(4, 2, 2) :: edge_norm_vectors = 0.0_rk !< normal vectors at each face (face_id, x0:x1, y0:y1)
-    real(rk), dimension(4, 2) :: edge_midpoints = 0.0_rk !< midpoint of each edge (face_id, x, y)
-    real(rk), dimension(4) :: edge_lengths = 0.0_rk
+    real(rk), dimension(2, 4) :: edge_norm_vectors = 0.0_rk !< ((x,y), edge); Normal direction vector of each edge
+    real(rk), dimension(2, 4) :: edge_midpoints = 0.0_rk !< ((x,y), edge); Midpoint of each edge
+    real(rk), dimension(4) :: edge_lengths = 0.0_rk !< (edge); Length of each edge
+
   contains
     procedure, public :: initialize
+    procedure, public :: get_cell_node_xy_set
     procedure, private :: calculate_volume
     procedure, private :: calculate_centroid
     procedure, private :: calculate_edge_stats
     procedure, private :: calculate_edge_norm_vectors
   end type quad_cell_t
 
-  integer(ik), parameter :: N1 = 1
-  integer(ik), parameter :: M1 = 2
-  integer(ik), parameter :: N2 = 3
-  integer(ik), parameter :: M2 = 4
-  integer(ik), parameter :: N3 = 5
-  integer(ik), parameter :: M3 = 6
-  integer(ik), parameter :: N4 = 7
-  integer(ik), parameter :: M4 = 8
-
-  type :: quad_cell_edge_vector_mapping_t
-    integer(ik), dimension(4, 3, 3) :: edge_to_loc
-  end type quad_cell_edge_vector_mapping_t
-
-  interface quad_cell_edge_vector_mapping_t
-    module procedure mapping_constructor
-  end interface
-
 contains
-
-  pure function mapping_constructor() result(map)
-    type(quad_cell_edge_vector_mapping_t) :: map
-
-    map%edge_to_loc(1, 1, :) = [N2, N1, N4] ! k=1,1
-    map%edge_to_loc(1, 2, :) = [N2, M1, N1] ! k=1,c
-    map%edge_to_loc(1, 3, :) = [N3, N2, N1] ! k=1,2
-
-    map%edge_to_loc(2, 1, :) = [N3, N2, N1] ! k=2,1
-    map%edge_to_loc(2, 2, :) = [N3, M2, N2] ! k=2,c
-    map%edge_to_loc(2, 3, :) = [N4, N3, N2] ! k=2,2
-
-    map%edge_to_loc(3, 1, :) = [N4, N3, N2] ! k=3,1
-    map%edge_to_loc(3, 2, :) = [N4, M3, N3] ! k=3,c
-    map%edge_to_loc(3, 3, :) = [N1, N4, N3] ! k=3,2
-
-    map%edge_to_loc(4, 1, :) = [N1, N4, N3] ! k=4,1
-    map%edge_to_loc(4, 2, :) = [N1, M4, N4] ! k=4,c
-    map%edge_to_loc(4, 3, :) = [N2, N1, N4] ! k=4,2
-  end function
 
   subroutine initialize(self, x_coords, y_coords)
     class(quad_cell_t), intent(inout) :: self
@@ -105,10 +69,10 @@ contains
       self%edge_lengths(3) = sqrt((x(4) - x(3))**2 + (y(4) - y(3))**2)
       self%edge_lengths(4) = sqrt((x(1) - x(4))**2 + (y(1) - y(4))**2)
 
-      self%edge_midpoints(1, :) = [0.5 * (x(2) + x(1)), 0.5 * (y(2) + y(1))]
-      self%edge_midpoints(2, :) = [0.5 * (x(3) + x(2)), 0.5 * (y(3) + y(2))]
-      self%edge_midpoints(3, :) = [0.5 * (x(4) + x(3)), 0.5 * (y(4) + y(3))]
-      self%edge_midpoints(4, :) = [0.5 * (x(1) + x(4)), 0.5 * (y(1) + y(4))]
+      self%edge_midpoints(:, 1) = [0.5 * (x(2) + x(1)), 0.5 * (y(2) + y(1))]
+      self%edge_midpoints(:, 2) = [0.5 * (x(3) + x(2)), 0.5 * (y(3) + y(2))]
+      self%edge_midpoints(:, 3) = [0.5 * (x(4) + x(3)), 0.5 * (y(4) + y(3))]
+      self%edge_midpoints(:, 4) = [0.5 * (x(1) + x(4)), 0.5 * (y(1) + y(4))]
     end associate
 
   end subroutine
@@ -121,6 +85,8 @@ contains
     real(rk), dimension(5) :: x, y
     integer(ik) :: i
 
+    ! Make the x and y arrays wrap around so that the points are
+    ! [1, 2, 3, 4, 1] so as to make the math easy
     x(1:4) = self%x; x(5) = self%x(1)
     y(1:4) = self%y; y(5) = self%y(1)
 
@@ -164,7 +130,7 @@ contains
 
     class(quad_cell_t), intent(inout) :: self
 
-    type(vector_2d_t) :: vec, norm_vec
+    type(vector_t) :: vec, norm_vec
     integer, dimension(4) :: head_idx = [2, 3, 4, 1]
     integer, dimension(4) :: tail_idx = [1, 2, 3, 4]
     integer :: i
@@ -173,26 +139,33 @@ contains
     do i = 1, 4
 
       associate(x_tail=>self%x(tail_idx(i)), &
-                x_mid=>self%edge_midpoints(i, 1), &
+                x_mid=>self%edge_midpoints(1, i), &
+                y_mid=>self%edge_midpoints(2, i), &
                 x_head=>self%x(head_idx(i)), &
                 y_tail=>self%y(tail_idx(i)), &
-                y_mid=>self%edge_midpoints(i, 2), &
                 y_head=>self%y(head_idx(i)), &
                 n=>self%edge_norm_vectors)
 
         dx = x_head - x_mid
         dy = y_head - y_mid
 
-        call vec%initialize(x_coords=[x_mid, x_mid + dy], y_coords=[y_mid, y_mid - dx])
+        vec = vector_t(x=[x_mid, x_mid + dy], y=[y_mid, y_mid - dx])
         norm_vec = .unitnorm.vec
 
-        n(i, 1, :) = [norm_vec%x(1), norm_vec%y(1)]
-        n(i, 2, :) = [norm_vec%x(2), norm_vec%y(2)]
+        n(:, i) = [norm_vec%x, norm_vec%y]
 
       end associate
 
     end do
 
   end subroutine
+
+  pure function get_cell_node_xy_set(self) result(set)
+    class(quad_cell_t), intent(in) :: self
+    real(rk), dimension(2, 4, 2) :: set  !< ((x,y), (point_1:point_4), (corner=1, midpoint=2))
+    set(1, :, 1) = self%x
+    set(2, :, 1) = self%y
+    set(:, :, 2) = self%edge_midpoints
+  end function
 
 end module mod_quad_cell
