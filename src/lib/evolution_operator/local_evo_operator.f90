@@ -174,7 +174,7 @@ contains
     integer(ik) :: midpoint_idx  !< used to select the midpoint in the reconstructed_state
     integer(ik) :: point_idx  !< used to select the edge in the reconstructed_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
-    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
+    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors !< ((x,y), (tail,head), (vector1:vector2))
     !< ((x,y), head/tail, vector_id); set of vectors that define the midpoint
 
     real(rk), dimension(4, 2) :: reconstructed_midpoint_state
@@ -266,7 +266,7 @@ contains
     integer(ik) :: corner_idx  !< used to select the corner in the reconstructed_state
     integer(ik) :: point_idx  !< used to select the point in the reconstructed_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
-    real(rk), dimension(2, 2, 4) :: corner_edge_vectors
+    real(rk), dimension(2, 2, 4) :: corner_edge_vectors !< ((x,y), (tail,head), (vector1:vector4))
     !< ((x,y), head/tail, vector_id); set of vectors that define the corner
 
     real(rk), dimension(4, 4) :: reconstructed_corner_state
@@ -311,7 +311,7 @@ contains
                                          [i - 1, j] &  ! upper left
                                          ], shape=[2, 4])
 
-        corner_edge_vectors = self%grid%get_corner_vectors(cell_ij=[i, j], corner='lowerleft')
+        corner_edge_vectors = self%grid%get_corner_vectors(cell_ij=[i, j], corner='lower-left')
 
         ! reconstructed_state indexing
         !< ((rho, u ,v, p), point, node/midpoint, i, j);

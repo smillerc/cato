@@ -3,6 +3,7 @@ module mod_contour_writer
   use iso_fortran_env, only: ik => int32, rk => real64, real32
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
   use hdf5_interface, only: hdf5_file
+  use mod_input, only: input_t
   use mod_functional, only: operator(.reverse.)
   use mod_globals, only: compiler_flags_str, compiler_version_str, git_hash, git_ref, &
                          git_local_changes, fvleg_2d_version, &
@@ -17,15 +18,31 @@ module mod_contour_writer
     !< Type that manages writing out data to hdf5
     private
     type(hdf5_file) :: hdf5_file
+    character(len=:), allocatable :: format !< xdmf or just plain hdf5
     character(len=:), allocatable :: hdf5_filename
     character(len=:), allocatable :: xdmf_filename
   contains
     procedure, public :: write_contour
     procedure, private :: write_xdmf
     procedure, private :: write_hdf5
+    final :: finalize
   end type
 
 contains
+
+  type(contour_writer_t) function constructor(input) result(writer)
+    class(input_t), intent(in) :: input
+
+    writer%format = input%contour_io_format
+  end function
+
+  subroutine finalize(self)
+    type(contour_writer_t), intent(inout) :: self
+    if(allocated(self%format)) deallocate(self%format)
+    if(allocated(self%hdf5_filename)) deallocate(self%hdf5_filename)
+    if(allocated(self%xdmf_filename)) deallocate(self%xdmf_filename)
+  end subroutine
+
   subroutine write_contour(self, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
     class(finite_volume_scheme_t), intent(in) :: fv_scheme
@@ -37,8 +54,15 @@ contains
     self%hdf5_filename = trim(char_buff)//'.h5'
     self%xdmf_filename = trim(char_buff)//'.xdmf'
 
-    call self%write_hdf5(fv_scheme, time, iteration)
-    call self%write_xdmf(fv_scheme, time, iteration)
+    select case(self%format)
+    case('xdmf')
+      call self%write_hdf5(fv_scheme, time, iteration)
+      call self%write_xdmf(fv_scheme, time, iteration)
+    case('hdf5', 'h5')
+      call self%write_hdf5(fv_scheme, time, iteration)
+    case default
+      error stop "Unsupported I/O contour format"
+    end select
 
   end subroutine
 
