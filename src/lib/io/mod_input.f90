@@ -119,23 +119,24 @@ contains
     call cfg%get("scheme", "slope_limiter", char_buffer, 'sun_ren_09')
     self%slope_limiter = trim(char_buffer)
 
-    ! Grid
-    call cfg%get("grid", "read_from_hdf5", self%read_from_hdf5, .false.)
-    call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
-    self%grid_type = trim(char_buffer)
-
-    call cfg%get("grid", "ni_nodes", self%ni_nodes)
-    call cfg%get("grid", "xmin", self%xmin)
-    call cfg%get("grid", "xmax", self%xmax)
-
-    call cfg%get("grid", "nj_nodes", self%nj_nodes)
-    call cfg%get("grid", "ymin", self%ymin)
-    call cfg%get("grid", "ymax", self%ymax)
-
     ! Initial Conditions
     call cfg%get("initial_conditions", "read_from_file", self%read_init_cond_from_file, .true.)
     call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
     self%initial_condition_file = trim(char_buffer)
+
+    ! Grid
+    call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
+    self%grid_type = trim(char_buffer)
+
+    if(.not. self%read_init_cond_from_file) then
+      call cfg%get("grid", "ni_nodes", self%ni_nodes)
+      call cfg%get("grid", "xmin", self%xmin)
+      call cfg%get("grid", "xmax", self%xmax)
+
+      call cfg%get("grid", "nj_nodes", self%nj_nodes)
+      call cfg%get("grid", "ymin", self%ymin)
+      call cfg%get("grid", "ymax", self%ymax)
+    end if
 
     ! Boundary conditions
     call cfg%get("boundary_conditions", "plus_x", char_buffer, 'periodic')

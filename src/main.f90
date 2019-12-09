@@ -40,6 +40,8 @@ program fvleg
   call input%read_from_ini(input_filename)
   call fv%initialize(input)
 
+  contour_writer = contour_writer_t(input=input)
+
   delta_t = input%initial_delta_t
   do while(time < input%max_time)
     write(*, '(2(a, 1x, g0.4))') 'Time:', time, ' Delta t:', delta_t

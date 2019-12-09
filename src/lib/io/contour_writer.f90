@@ -28,6 +28,9 @@ module mod_contour_writer
     final :: finalize
   end type
 
+  interface contour_writer_t
+    module procedure :: constructor
+  end interface
 contains
 
   type(contour_writer_t) function constructor(input) result(writer)
@@ -61,6 +64,7 @@ contains
     case('hdf5', 'h5')
       call self%write_hdf5(fv_scheme, time, iteration)
     case default
+      print *, 'Contour format:', self%format
       error stop "Unsupported I/O contour format"
     end select
 
