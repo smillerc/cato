@@ -39,7 +39,7 @@ module mod_regular_2d_grid
     ! k=4,2 -> [N2, N1, N4]
   contains
     procedure, public :: initialize
-    procedure, private :: initialize_from_file
+    procedure, private :: initialize_from_hdf5
     procedure, private :: initialize_from_ini
     procedure, private :: populate_element_specifications
     ! procedure, public :: get_ihi
@@ -93,7 +93,7 @@ contains
     self%jlo_bc_cell = 0
 
     if(input%read_init_cond_from_file) then
-      call self%initialize_from_file(input)
+      call self%initialize_from_hdf5(input)
     else
       call self%initialize_from_ini(input)
     end if
@@ -129,7 +129,7 @@ contains
     call self%populate_element_specifications()
   end subroutine
 
-  subroutine initialize_from_file(self, input)
+  subroutine initialize_from_hdf5(self, input)
     !< Initialize the grid from an .hdf5 file. This allows flexibility on the shape
     !< and contents of the grid (structured, but flexible quadrilateral cell shapes)
     !< Note: Initial grid files MUST include the ghost layer

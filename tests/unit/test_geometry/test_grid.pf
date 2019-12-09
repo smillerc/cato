@@ -35,19 +35,19 @@ contains
 
     grid = grid_factory(input)
 
-    grid_corner_vectors = grid%get_corner_vectors(cell_ij=[1,1], corner='lower-left')
-    print*
-    print*, 'grid_corner_vectors', grid_corner_vectors
-    print*
+    grid_corner_vectors = grid%get_corner_vectors(cell_ij=[1, 1], corner='lower-left')
+    print *
+    print *, 'grid_corner_vectors', grid_corner_vectors
+    print *
     actual_corner_vectors = reshape([[-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 1
                                      [-2.0_rk, -4.0_rk], & ! (x,y) head, vector 1
                                      [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 2
                                      [-1.0_rk, -2.0_rk], &  ! (x,y) head, vector 2
                                      [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 3
-                                     [-2.0_rk,  0.0_rk], &  ! (x,y) head, vector 3
+                                     [-2.0_rk, 0.0_rk], &  ! (x,y) head, vector 3
                                      [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 4
-                                     [-3.0_rk,  -2.0_rk] &  ! (x,y) head, vector 4
-                                   ], shape=[2, 2, 4])
+                                     [-3.0_rk, -2.0_rk] &  ! (x,y) head, vector 4
+                                     ], shape=[2, 2, 4])
 
     @assertEqual(actual_corner_vectors, grid_corner_vectors)
   end subroutine test_corner_edge_vector_query
@@ -68,12 +68,12 @@ contains
 
     grid = grid_factory(input)
 
-    grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1,1], edge='bottom')
+    grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='bottom')
     actual_midpoint_vectors = reshape([[-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 1
-                                     [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
-                                     [-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 2
-                                     [-1.0_rk, -2.0_rk] &  ! (x,y) head, vector 2
-                                   ], shape=[2, 2, 2])
+                                       [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
+                                       [-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 2
+                                       [-1.0_rk, -2.0_rk] &  ! (x,y) head, vector 2
+                                       ], shape=[2, 2, 2])
 
     @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
   end subroutine test_leftright_midpoint_edge_vector_query
@@ -94,12 +94,12 @@ contains
 
     grid = grid_factory(input)
 
-    grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1,1], edge='left')
+    grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='left')
     actual_midpoint_vectors = reshape([[-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 1
-                                      [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
-                                      [-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 2
-                                      [-2.0_rk,  0.0_rk] &  ! (x,y) head, vector 2
-                                   ], shape=[2, 2, 2])
+                                       [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
+                                       [-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 2
+                                       [-2.0_rk, 0.0_rk] &  ! (x,y) head, vector 2
+                                       ], shape=[2, 2, 2])
 
     @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
   end subroutine test_downup_midpoint_edge_vector_query

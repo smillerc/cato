@@ -26,7 +26,7 @@ contains
     class(quad_cell_t), allocatable :: cell
     real(rk), dimension(4) :: x = [0.0_rk, 1.0_rk, 1.0_rk, 0.0_rk]
     real(rk), dimension(4) :: y = [0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
-    real(rk), dimension(2,4,2) :: cell_node_xy !< ((x,y), (point_1:point_4), (corner=1, midpoint=2))
+    real(rk), dimension(2, 4, 2) :: cell_node_xy !< ((x,y), (point_1:point_4), (corner=1, midpoint=2))
 
     allocate(quad_cell_t :: cell)
     call cell%initialize(x_coords=x, y_coords=y)
@@ -46,18 +46,18 @@ contains
     ! Normal vectors (should have length 1 too)
     ! Note: the midpoint of the edge should be the tail of the norm vector
     ! The following asserts test the location of the tail (midpoint of face), and tail of length 1 away
-    @assertEqual([ 0.0_rk, -1.0_rk], cell%edge_norm_vectors(:, 1))
-    @assertEqual([ 1.0_rk,  0.0_rk], cell%edge_norm_vectors(:, 2))
-    @assertEqual([ 0.0_rk,  1.0_rk], cell%edge_norm_vectors(:, 3))
-    @assertEqual([-1.0_rk,  0.0_rk], cell%edge_norm_vectors(:, 4))
+    @assertEqual([0.0_rk, -1.0_rk], cell%edge_norm_vectors(:, 1))
+    @assertEqual([1.0_rk, 0.0_rk], cell%edge_norm_vectors(:, 2))
+    @assertEqual([0.0_rk, 1.0_rk], cell%edge_norm_vectors(:, 3))
+    @assertEqual([-1.0_rk, 0.0_rk], cell%edge_norm_vectors(:, 4))
 
     ! Cell node/midoint set
     !< ((x,y), (point_1:point_4), (corner=1, midpoint=2))
-    cell_node_xy(1,:,1) = [0.0_rk, 1.0_rk, 1.0_rk, 0.0_rk]
-    cell_node_xy(2,:,1) = [0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
+    cell_node_xy(1, :, 1) = [0.0_rk, 1.0_rk, 1.0_rk, 0.0_rk]
+    cell_node_xy(2, :, 1) = [0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
 
-    cell_node_xy(1,:,2) = [0.5_rk, 1.0_rk, 0.5_rk, 0.0_rk]
-    cell_node_xy(2,:,2) = [0.0_rk, 0.5_rk, 1.0_rk, 0.5_rk]
+    cell_node_xy(1, :, 2) = [0.5_rk, 1.0_rk, 0.5_rk, 0.0_rk]
+    cell_node_xy(2, :, 2) = [0.0_rk, 0.5_rk, 1.0_rk, 0.5_rk]
 
     @assertEqual(cell_node_xy, cell%get_cell_node_xy_set())
 
