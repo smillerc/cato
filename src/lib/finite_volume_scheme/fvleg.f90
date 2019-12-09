@@ -13,6 +13,8 @@ module mod_fvleg
   use mod_grid_factory, only: grid_factory
   use mod_bc_factory, only: bc_factory
   use mod_grid, only: grid_t
+  use hdf5_interface, only: hdf5_file
+
   ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
 
   implicit none
@@ -30,7 +32,8 @@ module mod_fvleg
     procedure, public :: t => time_derivative
     procedure, private :: integrate_fluxes
     procedure, private :: duplicate
-
+    procedure, private :: initialize_from_hdf5
+    procedure, private :: initialize_from_ini
     procedure, pass(lhs), public :: add => add_fvleg
     procedure, pass(lhs), public :: multiply => multiply_fvleg
     procedure, pass(lhs), public :: assign => assign_fvleg
@@ -103,6 +106,55 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%leftright_midpoints_reference_state"
       ! ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
     end associate
+
+    if(input%read_init_cond_from_file) then
+      call self%initialize_from_hdf5(input)
+    else
+      call self%initialize_from_ini(input)
+    end if
+  end subroutine
+
+  subroutine initialize_from_hdf5(self, input)
+    !< Initialize from an .hdf5 file. The conserved variables are already allocated appropriately from
+    !< from the grid class, but this will just initialize them to the values found in the hdf5 file
+    class(fvleg_t), intent(inout) :: self
+    class(input_t), intent(in) :: input
+    type(hdf5_file) :: h5
+
+    real(rk), dimension(:, :), allocatable :: density
+    real(rk), dimension(:, :), allocatable :: x_velocity
+    real(rk), dimension(:, :), allocatable :: y_velocity
+    real(rk), dimension(:, :), allocatable :: pressure
+
+    integer(ik) :: i, j
+    call h5%initialize(filename=input%initial_condition_file, status='old', action='r')
+    call h5%get('/density', density)
+    call h5%get('/x_velocity', x_velocity)
+    call h5%get('/y_velocity', y_velocity)
+    call h5%get('/pressure', pressure)
+    call h5%finalize()
+
+    associate(imin=>self%grid%ilo_bc_cell, imax=>self%grid%ihi_bc_cell, &
+              jmin=>self%grid%jlo_bc_cell, jmax=>self%grid%jhi_bc_cell)
+
+      self%conserved_vars(1, imin:imax, jmin:jmax) = density    ! (1:imax,1:jmax)
+      self%conserved_vars(2, imin:imax, jmin:jmax) = x_velocity ! (1:imax,1:jmax)
+      self%conserved_vars(3, imin:imax, jmin:jmax) = y_velocity ! (1:imax,1:jmax)
+      self%conserved_vars(4, imin:imax, jmin:jmax) = pressure   ! (1:imax,1:jmax)
+    end associate
+
+  end subroutine
+
+  subroutine initialize_from_ini(self, input)
+    !< Initialize from an .ini file. The conserved variables are already allocated appropriately from
+    !< from the grid class, but this will just initialize them to the values found in the .ini file
+    class(fvleg_t), intent(inout) :: self
+    class(input_t), intent(in) :: input
+
+    self%conserved_vars(1, :, :) = input%init_density
+    self%conserved_vars(2, :, :) = input%init_x_velocity
+    self%conserved_vars(3, :, :) = input%init_y_velocity
+    self%conserved_vars(4, :, :) = input%init_pressure
 
   end subroutine
 

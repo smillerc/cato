@@ -12,21 +12,69 @@ module test_fvleg
   integer(ik), parameter :: nj_nodes = 3
   integer(ik), parameter :: ni_cells = ni_nodes - 1
   integer(ik), parameter :: nj_cells = nj_nodes - 1
+  real(rk), parameter :: xmin = -2.0_rk
+  real(rk), parameter :: xmax = 2.0_rk
+  real(rk), parameter :: ymin = -2.0_rk
+  real(rk), parameter :: ymax = 2.0_rk
   integer(ik) :: alloc_stat
+
+  real(rk), parameter :: init_density = 1.0_rk
+  real(rk), parameter :: init_x_velocity = -2.0_rk
+  real(rk), parameter :: init_y_velocity = 3.0_rk
+  real(rk), parameter :: init_pressure = 4.0_rk
 
 contains
 
   @test
-  subroutine test_fvleg_dimensions()
+  subroutine test_from_hdf5()
+    class(input_t), allocatable :: input
+    type(fvleg_t) :: fvleg
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    slope_limiter='sun_ren_09', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.true., &
+                    initial_condition_file='simple.h5', &
+                    plus_x_bc='periodic', plus_y_bc='periodic', &
+                    minus_x_bc='periodic', minus_y_bc='periodic', &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    call fvleg%initialize(input)
+    @assertEqual(init_density, fvleg%conserved_vars(1, :, :))
+    @assertEqual(init_x_velocity, fvleg%conserved_vars(2, :, :))
+    @assertEqual(init_y_velocity, fvleg%conserved_vars(3, :, :))
+    @assertEqual(init_pressure, fvleg%conserved_vars(4, :, :))
+    call test_fvleg_dimensions(fvleg)
+  end subroutine
+
+  @test
+  subroutine test_from_ini()
     class(input_t), allocatable :: input
     type(fvleg_t) :: fvleg
 
     allocate(input_t :: input)
-    call input%initialize(ni=ni_nodes, nj=nj_nodes, &
-                          xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    slope_limiter='sun_ren_09', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    plus_x_bc='periodic', plus_y_bc='periodic', &
+                    minus_x_bc='periodic', minus_y_bc='periodic', &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, &
+                    init_density=init_density, &
+                    init_x_velocity=init_x_velocity, &
+                    init_y_velocity=init_y_velocity, &
+                    init_pressure=init_pressure)
 
     call fvleg%initialize(input)
-    fvleg%conserved_vars = 1.0_rk
+    @assertEqual(init_density, fvleg%conserved_vars(1, :, :))
+    @assertEqual(init_x_velocity, fvleg%conserved_vars(2, :, :))
+    @assertEqual(init_y_velocity, fvleg%conserved_vars(3, :, :))
+    @assertEqual(init_pressure, fvleg%conserved_vars(4, :, :))
+    call test_fvleg_dimensions(fvleg)
+  end subroutine
+
+  subroutine test_fvleg_dimensions(fvleg)
+    type(fvleg_t), intent(in) :: fvleg
 
     ! Check shape and bounds
     ! Cell-valued quantities (the +2 is to accound for boundary cells)
