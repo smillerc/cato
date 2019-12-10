@@ -1,6 +1,6 @@
 module test_fvleg
   use iso_fortran_env, only: ik => int32, rk => real64
-  use mod_fvleg, only: fvleg_t, new_fvleg
+  use mod_fvleg
   use mod_input, only: input_t
   use mod_regular_2d_grid, only: regular_2d_grid_t
   use mod_grid, only: grid_t
@@ -25,53 +25,55 @@ module test_fvleg
 
 contains
 
-  @test
-  subroutine test_from_hdf5()
-    class(input_t), allocatable :: input
-    type(fvleg_t) :: fvleg
+  ! @test
+  ! subroutine test_from_hdf5()
+  !   class(input_t), allocatable :: input
+  !   type(fvleg_t) :: fvleg
 
-    input = input_t(reconstruction_type='piecewise_linear', &
-                    slope_limiter='sun_ren_09', &
-                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-                    read_init_cond_from_file=.true., &
-                    initial_condition_file='simple.h5', &
-                    plus_x_bc='periodic', plus_y_bc='periodic', &
-                    minus_x_bc='periodic', minus_y_bc='periodic', &
-                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+  !   input = input_t(reconstruction_type='piecewise_linear', &
+  !                   slope_limiter='sun_ren_09', &
+  !                   ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+  !                   read_init_cond_from_file=.true., &
+  !                   initial_condition_file='simple.h5', &
+  !                   time_integration_strategy='rk2', &
+  !                   plus_x_bc='periodic', plus_y_bc='periodic', &
+  !                   minus_x_bc='periodic', minus_y_bc='periodic', &
+  !                   xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
-    call fvleg%initialize(input)
-    @assertEqual(init_density, fvleg%conserved_vars(1, :, :))
-    @assertEqual(init_x_velocity, fvleg%conserved_vars(2, :, :))
-    @assertEqual(init_y_velocity, fvleg%conserved_vars(3, :, :))
-    @assertEqual(init_pressure, fvleg%conserved_vars(4, :, :))
-    call test_fvleg_dimensions(fvleg)
-  end subroutine
+  !   call fvleg%initialize(input)
+  !   @assertEqual(init_density, fvleg%conserved_vars(1, :, :))
+  !   @assertEqual(init_x_velocity, fvleg%conserved_vars(2, :, :))
+  !   @assertEqual(init_y_velocity, fvleg%conserved_vars(3, :, :))
+  !   @assertEqual(init_pressure, fvleg%conserved_vars(4, :, :))
+  !   call test_fvleg_dimensions(fvleg)
+  ! end subroutine
 
-  @test
-  subroutine test_from_ini()
-    class(input_t), allocatable :: input
-    type(fvleg_t) :: fvleg
+  ! @test
+  ! subroutine test_from_ini()
+  !   class(input_t), allocatable :: input
+  !   type(fvleg_t) :: fvleg
 
-    allocate(input_t :: input)
-    input = input_t(reconstruction_type='piecewise_linear', &
-                    slope_limiter='sun_ren_09', &
-                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-                    read_init_cond_from_file=.false., &
-                    plus_x_bc='periodic', plus_y_bc='periodic', &
-                    minus_x_bc='periodic', minus_y_bc='periodic', &
-                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, &
-                    init_density=init_density, &
-                    init_x_velocity=init_x_velocity, &
-                    init_y_velocity=init_y_velocity, &
-                    init_pressure=init_pressure)
+  !   allocate(input_t :: input)
+  !   input = input_t(reconstruction_type='piecewise_linear', &
+  !                   slope_limiter='sun_ren_09', &
+  !                   ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+  !                   read_init_cond_from_file=.false., &
+  !                   time_integration_strategy='rk2', &
+  !                   plus_x_bc='periodic', plus_y_bc='periodic', &
+  !                   minus_x_bc='periodic', minus_y_bc='periodic', &
+  !                   xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, &
+  !                   init_density=init_density, &
+  !                   init_x_velocity=init_x_velocity, &
+  !                   init_y_velocity=init_y_velocity, &
+  !                   init_pressure=init_pressure)
 
-    call fvleg%initialize(input)
-    @assertEqual(init_density, fvleg%conserved_vars(1, :, :))
-    @assertEqual(init_x_velocity, fvleg%conserved_vars(2, :, :))
-    @assertEqual(init_y_velocity, fvleg%conserved_vars(3, :, :))
-    @assertEqual(init_pressure, fvleg%conserved_vars(4, :, :))
-    call test_fvleg_dimensions(fvleg)
-  end subroutine
+  !   call fvleg%initialize(input)
+  !   @assertEqual(init_density, fvleg%conserved_vars(1, :, :))
+  !   @assertEqual(init_x_velocity, fvleg%conserved_vars(2, :, :))
+  !   @assertEqual(init_y_velocity, fvleg%conserved_vars(3, :, :))
+  !   @assertEqual(init_pressure, fvleg%conserved_vars(4, :, :))
+  !   call test_fvleg_dimensions(fvleg)
+  ! end subroutine
 
   subroutine test_fvleg_dimensions(fvleg)
     type(fvleg_t), intent(in) :: fvleg
@@ -115,32 +117,46 @@ contains
 
   end subroutine test_fvleg_dimensions
 
-  ! @test
-  ! subroutine test_fvleg_operators()
+  @test
+  subroutine test_fvleg_operators()
 
-  ! class(input_t), allocatable :: input
-  ! type(fvleg_t) :: fvleg_a, fvleg_b, fvleg_c
-  ! real(rk), dimension(:, :, :), allocatable :: conserved_vars
+    class(input_t), allocatable :: input
+    type(fvleg_t) :: fvleg_a, fvleg_b
+    ! class(fvleg_t), allocatable :: fvleg_b
+    real(rk), dimension(:,:,:), allocatable :: conserved_vars
 
-  ! allocate(input_t :: input)
+    allocate(input_t :: input)
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    slope_limiter='sun_ren_09', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    time_integration_strategy='rk2', &
+                    plus_x_bc='periodic', plus_y_bc='periodic', &
+                    minus_x_bc='periodic', minus_y_bc='periodic', &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, &
+                    init_density=init_density, &
+                    init_x_velocity=init_x_velocity, &
+                    init_y_velocity=init_y_velocity, &
+                    init_pressure=init_pressure)
 
-  ! call input%initialize(ni=ni_nodes, nj=nj_nodes, &
-  !                       xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+    call fvleg_a%initialize(input)
+    print*, 'fvleg_a%initiated', fvleg_a%initiated
+    call fvleg_b%initialize(input)
+    print*, 'fvleg_b%initiated', fvleg_b%initiated
+    ! print*, shape(fvleg_b%grid%node_x)
+    ! fvleg_b%conserved_vars = fvleg_b%conserved_vars * 2.0_rk
 
-  ! call fvleg_a%initialize(input)
-  ! fvleg_a%conserved_vars = 1.0_rk
+    ! ! Make a dummy U vector to play with
+    allocate(conserved_vars, mold=fvleg_a%conserved_vars)
+    ! conserved_vars = fvleg_a%conserved_vars * 2
+    ! allocate(fvleg_b, source=fvleg_a)
+    ! call fvleg_b%initialize(input)
+    fvleg_b = fvleg_a * 2.0_rk
+    ! @assertEqual(conserved_vars, fvleg_b%conserved_vars)
+    ! fvleg_c = fvleg_a + fvleg_b
+    ! ! Check the + operator
+    ! @assertEqual(3.0_rk, fvleg_c%conserved_vars)
 
-  ! call fvleg_b%initialize(input)
-  ! fvleg_b%conserved_vars = 2.0_rk
-
-  ! ! Make a dummy U vector to play with
-  ! allocate(conserved_vars, mold=fvleg_a%conserved_vars)
-  ! conserved_vars = 4.0_rk
-
-  ! fvleg_c = fvleg_a + fvleg_b
-  ! Check the + operator
-  ! @assertEqual(3.0_rk, fvleg_c%conserved_vars)
-
-  ! end subroutine
+  end subroutine
 
 end module test_fvleg

@@ -14,6 +14,7 @@ module mod_fvleg
   use mod_bc_factory, only: bc_factory
   use mod_grid, only: grid_t
   use hdf5_interface, only: hdf5_file
+  use mod_time_integrator_factory, only: time_integrator_factory
 
   ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
 
@@ -35,6 +36,7 @@ module mod_fvleg
     procedure, private :: initialize_from_hdf5
     procedure, private :: initialize_from_ini
     procedure, pass(lhs), public :: add => add_fvleg
+    procedure, pass(lhs), public :: subtract => subtract_fvleg
     procedure, pass(lhs), public :: multiply => multiply_fvleg
     procedure, pass(lhs), public :: assign => assign_fvleg
     final :: finalize
@@ -57,6 +59,8 @@ contains
     self%title = input%title
     self%grid = grid_factory(input)
 
+    self%time_integrator = time_integrator_factory(input)
+
     ! Set boundary conditions
     self%bc_plus_x = bc_factory(bc_type=input%plus_x_bc, location='+x')
     self%bc_plus_y = bc_factory(bc_type=input%plus_y_bc, location='+y')
@@ -68,7 +72,10 @@ contains
 
       allocate(self%conserved_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
       ! ((rho,u,v,p),i,j) Conserved variables for each cell
-      if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%conserved_vars"
+      if(alloc_status /= 0) then
+        write(*, *) "Allocation status: ", alloc_status
+        error stop "Unable to allocate fvleg_t%conserved_vars"
+      end if
 
       allocate(self%reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
       ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
@@ -112,6 +119,8 @@ contains
     else
       call self%initialize_from_ini(input)
     end if
+
+    self%initiated = .true.
   end subroutine
 
   subroutine initialize_from_hdf5(self, input)
@@ -352,93 +361,150 @@ contains
 
   end function integrate_fluxes
 
+  function subtract_fvleg(lhs, rhs) result(difference)
+    !< Implementation of the (-) operator for the fvleg type
+    class(fvleg_t), intent(in) :: lhs
+    class(integrand_t), intent(in) :: rhs
+
+    class(integrand_t), allocatable :: difference
+    type(fvleg_t), allocatable :: local_difference
+
+    print *, 'Calling subtract_fvleg'
+    select type(rhs)
+    class is(fvleg_t)
+      local_difference = lhs%duplicate()
+      local_difference%conserved_vars = lhs%conserved_vars - rhs%conserved_vars
+    class default
+      error stop 'fvleg_t%subtract_fvleg: unsupported rhs class'
+    end select
+
+    call move_alloc(local_difference, difference)
+  end function subtract_fvleg
+
   function add_fvleg(lhs, rhs) result(sum)
-    !< Implementation of the operator(+) for the fvleg type
+    !< Implementation of the (+) operator for the fvleg type
     class(fvleg_t), intent(in) :: lhs
     class(integrand_t), intent(in) :: rhs
 
     class(integrand_t), allocatable :: sum
     type(fvleg_t), allocatable :: local_sum
 
-    local_sum = lhs%duplicate()
-
+    print *, 'Calling add_fvleg'
+    select type(rhs)
+    class is(fvleg_t)
+      local_sum = lhs%duplicate()
+      local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
+    class default
+      error stop 'fvleg_t%add_fvleg: unsupported rhs class'
+    end select
     call move_alloc(local_sum, sum)
   end function add_fvleg
 
-  function multiply_fvleg(lhs, rhs) result(operator_result)
+  function multiply_fvleg(lhs, rhs) result(product)
+    !< Implementation of the (*) operator for the fvleg type
     class(fvleg_t), intent(in) :: lhs
-    class(integrand_t), allocatable :: operator_result
     real(rk), intent(in) :: rhs
+    class(integrand_t), allocatable :: product
+    type(fvleg_t), allocatable :: local_product
+    print *, 'Calling multiply_fvleg'
+    local_product = lhs%duplicate()
+    local_product%conserved_vars = lhs%conserved_vars * rhs
+
+    call move_alloc(local_product, product)
+
   end function multiply_fvleg
 
   subroutine assign_fvleg(lhs, rhs)
+    !< Implementation of the (=) operator for the fvleg type. e.g. lhs = rhs
     class(fvleg_t), intent(inout) :: lhs
     class(integrand_t), intent(in) :: rhs
 
+    print *, 'Calling assign_fvleg'
     select type(rhs)
     class is(fvleg_t)
-      lhs%grid = rhs%grid
-      lhs%reconstruction_operator = rhs%reconstruction_operator
-      lhs%conserved_vars = rhs%conserved_vars
-      lhs%evolved_corner_state = rhs%evolved_corner_state
-      lhs%corner_reference_state = rhs%corner_reference_state
-      lhs%evolved_downup_midpoints_state = rhs%evolved_downup_midpoints_state
-      lhs%evolved_leftright_midpoints_state = rhs%evolved_leftright_midpoints_state
-      lhs%downup_midpoints_reference_state = rhs%downup_midpoints_reference_state
-      lhs%leftright_midpoints_reference_state = rhs%leftright_midpoints_reference_state
-      lhs%reconstructed_state = rhs%reconstructed_state
-    class default
-      error stop 'assign_fvleg: unsupported class'
-    end select
 
+      ! print*, allocated(rhs)
+      print *, '0'
+      lhs = rhs%duplicate()
+      print *, 'lhs%initiated? ', lhs%initiated
+      print *, 'rhs%initiated? ', rhs%initiated
+      print *, rhs%grid%ihi_bc_cell, shape(rhs%grid%node_x)
+      print *, lhs%grid%ihi_bc_cell, shape(lhs%grid%node_x)
+      allocate(lhs%grid, mold=rhs%grid)
+      ! lhs%grid = rhs%grid
+      ! print*, '1'
+      ! lhs%time_integrator = rhs%time_integrator
+      ! print*, '2'
+      ! lhs%reconstruction_operator = rhs%reconstruction_operator
+      ! print*, '3'
+      ! lhs%conserved_vars = rhs%conserved_vars
+      ! print*, '4'
+      ! lhs%evolved_corner_state = rhs%evolved_corner_state
+      ! print*, '5'
+      ! lhs%corner_reference_state = rhs%corner_reference_state
+      ! print*, '6'
+      ! lhs%evolved_downup_midpoints_state = rhs%evolved_downup_midpoints_state
+      ! print*, '7'
+      ! lhs%evolved_leftright_midpoints_state = rhs%evolved_leftright_midpoints_state
+      ! print*, '8'
+      ! lhs%downup_midpoints_reference_state = rhs%downup_midpoints_reference_state
+      ! print*, '9'
+      ! lhs%leftright_midpoints_reference_state = rhs%leftright_midpoints_reference_state
+      ! print*, '10'
+      ! lhs%reconstructed_state = rhs%reconstructed_state
+      ! print*, '11'
+    class default
+      error stop 'fvleg_t%assign_fvleg: unsupported class'
+    end select
   end subroutine assign_fvleg
 
-  function duplicate(self) result(new_fvleg)
+  function duplicate(self) result(duplicate_fvleg)
+    !< Duplicate the fvleg_t type
     class(fvleg_t), intent(in) :: self
-    type(fvleg_t), allocatable :: new_fvleg
+    type(fvleg_t) :: duplicate_fvleg
 
     integer(ik) :: alloc_status
 
-    allocate(new_fvleg, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg"
+    print *, 'calling fvleg_t%duplicate'
+    ! allocate(duplicate_fvleg, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg"
 
-    new_fvleg%grid = self%grid
-    new_fvleg%evolution_operator = self%evolution_operator
-    new_fvleg%reconstruction_operator = self%reconstruction_operator
+    duplicate_fvleg%grid = self%grid
+    duplicate_fvleg%evolution_operator = self%evolution_operator
+    duplicate_fvleg%reconstruction_operator = self%reconstruction_operator
+    duplicate_fvleg%time_integrator = self%time_integrator
 
-    allocate(new_fvleg%conserved_vars, mold=self%conserved_vars, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg%conserved_vars"
-    new_fvleg%conserved_vars = self%conserved_vars
-    print *, 'dup', shape(new_fvleg%conserved_vars)
+    allocate(duplicate_fvleg%conserved_vars, mold=self%conserved_vars, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%conserved_vars"
+    duplicate_fvleg%conserved_vars = self%conserved_vars
 
-    allocate(new_fvleg%evolved_corner_state, mold=self%evolved_corner_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg%evolved_corner_state"
-    new_fvleg%evolved_corner_state = 0.0_rk
+    allocate(duplicate_fvleg%evolved_corner_state, mold=self%evolved_corner_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%evolved_corner_state"
+    duplicate_fvleg%evolved_corner_state = 0.0_rk
 
-    allocate(new_fvleg%corner_reference_state, mold=self%corner_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg%corner_reference_state"
-    new_fvleg%corner_reference_state = 0.0_rk
+    allocate(duplicate_fvleg%corner_reference_state, mold=self%corner_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%corner_reference_state"
+    duplicate_fvleg%corner_reference_state = 0.0_rk
 
-    allocate(new_fvleg%evolved_downup_midpoints_state, mold=self%evolved_downup_midpoints_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg%evolved_downup_midpoints_state"
-    new_fvleg%evolved_downup_midpoints_state = 0.0_rk
+    allocate(duplicate_fvleg%evolved_downup_midpoints_state, mold=self%evolved_downup_midpoints_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%evolved_downup_midpoints_state"
+    duplicate_fvleg%evolved_downup_midpoints_state = 0.0_rk
 
-    allocate(new_fvleg%evolved_leftright_midpoints_state, mold=self%evolved_leftright_midpoints_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg%evolved_leftright_midpoints_state"
-    new_fvleg%evolved_leftright_midpoints_state = 0.0_rk
+    allocate(duplicate_fvleg%evolved_leftright_midpoints_state, mold=self%evolved_leftright_midpoints_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%evolved_leftright_midpoints_state"
+    duplicate_fvleg%evolved_leftright_midpoints_state = 0.0_rk
 
-    allocate(new_fvleg%downup_midpoints_reference_state, mold=self%downup_midpoints_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg%downup_midpoints_reference_state"
-    new_fvleg%downup_midpoints_reference_state = 0.0_rk
+    allocate(duplicate_fvleg%downup_midpoints_reference_state, mold=self%downup_midpoints_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%downup_midpoints_reference_state"
+    duplicate_fvleg%downup_midpoints_reference_state = 0.0_rk
 
-    allocate(new_fvleg%leftright_midpoints_reference_state, mold=self%leftright_midpoints_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg%leftright_midpoints_reference_state"
-    new_fvleg%leftright_midpoints_reference_state = 0.0_rk
+    allocate(duplicate_fvleg%leftright_midpoints_reference_state, mold=self%leftright_midpoints_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%leftright_midpoints_reference_state"
+    duplicate_fvleg%leftright_midpoints_reference_state = 0.0_rk
 
-    allocate(new_fvleg%reconstructed_state, mold=self%reconstructed_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate new_fvleg%reconstructed_state"
-    new_fvleg%reconstructed_state = 0.0_rk
-
+    allocate(duplicate_fvleg%reconstructed_state, mold=self%reconstructed_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%reconstructed_state"
+    duplicate_fvleg%reconstructed_state = 0.0_rk
   end function
 
 end module mod_fvleg

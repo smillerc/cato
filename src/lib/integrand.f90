@@ -7,8 +7,8 @@ module mod_integrand
   private
 
   type, abstract, public, extends(surrogate) :: integrand_t
-    private
     class(strategy), allocatable :: time_integrator
+    logical :: initiated = .false.
   contains
     procedure, non_overridable :: integrate   ! Time integrator
     procedure, non_overridable :: set_time_integrator
@@ -16,11 +16,13 @@ module mod_integrand
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
 
     procedure(symmetric_operator), deferred :: add
+    procedure(symmetric_operator), deferred :: subtract
     procedure(asymmetric_operator), deferred :: multiply
     procedure(symmetric_assignment), deferred :: assign
 
     ! Map operators to corresponding procedures
     generic :: operator(+) => add
+    generic :: operator(-) => subtract
     generic :: operator(*) => multiply
     generic :: assignment(=) => assign
   end type
