@@ -148,8 +148,6 @@ contains
     call h5%get('/y', y)
     call h5%finalize()
 
-    print *, lbound(x)
-    print *, ubound(x)
     ! High node/cell indices
     self%ihi_node = ubound(x, dim=1) - 2
     self%jhi_node = ubound(y, dim=2) - 2
@@ -171,7 +169,6 @@ contains
     associate(imin=>self%ilo_bc_node, imax=>self%ihi_bc_node, &
               jmin=>self%jlo_bc_node, jmax=>self%jhi_bc_node)
 
-      print *, imin, imax, jmin, jmax
       ! error stop
       allocate(self%node_x(imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_x from .ini input file"
