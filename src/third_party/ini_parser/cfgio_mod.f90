@@ -22,7 +22,7 @@ module cfgio_mod
 
   type cfg_sect_t
     integer(int32) :: npar = 0
-    character(len=:), allocatable :: section
+    character(len=MXNSTR) :: section
     type(dict_t) :: p(MXNPAR)
   contains
     procedure :: has_key => sect_has_key
@@ -205,6 +205,7 @@ contains
     logical found
     isect = find_isect(cfg, section, found)
     if(.not. found) then
+      ! allocate(character(len=len(trim(adjustl(section)))) :: cfg%s(isect)%section)
       cfg%s(isect)%section = trim(adjustl(section))
       cfg%nsect = cfg%nsect + 1
     endif
@@ -743,6 +744,7 @@ contains
       id = index(str, ']')
       if(id == 0) call errexit('Wrong section title')
       cfg%nsect = cfg%nsect + 1
+      ! allocate(character(len=len(trim(adjustl(str(2:id - 1))))) :: cfg%s(cfg%nsect)%section)
       cfg%s(cfg%nsect)%section = trim(adjustl(str(2:id - 1)))
       !print*,"Section::",cfg%s(cfg%nsect)%section
       return
@@ -762,7 +764,10 @@ contains
     integer(int32) :: isect, ipar
     isect = cfg%nsect
     ! parameters without section titles go to the defaults section
-    if(isect == 0) cfg%s(isect)%section = defaults
+    if(isect == 0) then
+      ! allocate(character(len=len(defaults)) :: cfg%s(isect)%section)
+      cfg%s(isect)%section = defaults
+    end if
     cfg%s(isect)%npar = cfg%s(cfg%nsect)%npar + 1
     ipar = cfg%s(isect)%npar
     cfg%s(isect)%p(ipar)%key = key
@@ -808,7 +813,7 @@ contains
   subroutine errexit(msg)
     character(len=*), intent(in) :: msg
     write(stderr, *) trim(msg)
-    stop
+    error stop "Unable to find key/section in the .ini file"
   end subroutine errexit
 
   ! parameter key=val parse
