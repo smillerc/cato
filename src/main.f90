@@ -45,8 +45,8 @@ program fvleg
   delta_t = input%initial_delta_t
   do while(time < input%max_time)
     write(*, '(2(a, 1x, g0.4))') 'Time:', time, ' Delta t:', delta_t
-    ! U = U
-    ! call fv%integrate(delta_t)
+
+    call fv%integrate(delta_t)
 
     if(time >= next_output_time) then
       call contour_writer%write_contour(fv, time, iteration)
