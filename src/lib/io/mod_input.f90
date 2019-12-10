@@ -10,46 +10,45 @@ module mod_input
 
   type :: input_t
     ! general
-    character(:), allocatable :: title
+    character(:), allocatable :: title  !< Name of the simulation
 
     ! grid
-    logical :: read_from_hdf5 = .false.
-    character(:), allocatable :: grid_type
-    real(rk) :: xmin = 0.0_rk
-    real(rk) :: xmax = 0.0_rk
-    real(rk) :: ymin = 0.0_rk
-    real(rk) :: ymax = 0.0_rk
-    integer(ik) :: ni_nodes = 0
-    integer(ik) :: nj_nodes = 0
+    character(:), allocatable :: grid_type  !< Structure/layout of the grid, e.g. 'regular_2d'
+    real(rk) :: xmin = 0.0_rk   !< Minimum extent of the grid in x (ignored for .h5 initial grids)
+    real(rk) :: xmax = 0.0_rk   !< Maximum extent of the grid in x (ignored for .h5 initial grids)
+    real(rk) :: ymin = 0.0_rk   !< Minimum extent of the grid in y (ignored for .h5 initial grids)
+    real(rk) :: ymax = 0.0_rk   !< Maximum extent of the grid in y (ignored for .h5 initial grids)
+    integer(ik) :: ni_nodes = 0 !< # of i nodes (not including ghost) (ignored for .h5 initial grids)
+    integer(ik) :: nj_nodes = 0 !< # of j nodes (not including ghost) (ignored for .h5 initial grids)
 
     ! initial conditions
     character(:), allocatable :: initial_condition_file
     logical :: read_init_cond_from_file = .false.
-    real(rk) :: init_x_velocity = 0.0_rk
-    real(rk) :: init_y_velocity = 0.0_rk
-    real(rk) :: init_density = 0.0_rk
-    real(rk) :: init_pressure = 0.0_rk
+    real(rk) :: init_x_velocity = 0.0_rk !< Initial condition for the x velocity field (useful only for testing)
+    real(rk) :: init_y_velocity = 0.0_rk !< Initial condition for the y velocity field (useful only for testing)
+    real(rk) :: init_density = 0.0_rk    !< Initial condition for the density field (useful only for testing)
+    real(rk) :: init_pressure = 0.0_rk   !< Initial condition for the pressure field (useful only for testing)
 
     ! boundary conditions
-    character(:), allocatable ::  plus_x_bc
-    character(:), allocatable :: minus_x_bc
-
-    character(:), allocatable ::  plus_y_bc
-    character(:), allocatable :: minus_y_bc
+    character(:), allocatable ::  plus_x_bc  !< Boundary condition at +x
+    character(:), allocatable :: minus_x_bc  !< Boundary condition at -x
+    character(:), allocatable ::  plus_y_bc  !< Boundary condition at +y
+    character(:), allocatable :: minus_y_bc  !< Boundary condition at -y
 
     ! io
-    character(:), allocatable :: contour_io_format
+    character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
 
     ! timing
     real(rk) :: max_time = 1.0_rk
     real(rk) :: initial_delta_t = 0.0_rk
     real(rk) :: contour_interval_dt = 0.5_rk
+    character(:), allocatable :: time_integration_strategy !< How is time integration handled? e.g. 'rk2', 'rk4', etc.
 
     ! physics
-    real(rk) :: polytropic_index = 5.0_rk / 3.0_rk
+    real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
     ! finite volume scheme specifics
-    character(:), allocatable :: reconstruction_type
+    character(:), allocatable :: reconstruction_type !< How are the cells being reconstructed
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: slope_limiter
 
@@ -108,7 +107,8 @@ contains
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "initial_delta_t", self%initial_delta_t)
-    call cfg%get("time", "contour_interval_dt", self%contour_interval_dt)
+    call cfg%get("time", "integration_strategy", char_buffer)
+    self%time_integration_strategy = trim(char_buffer)
 
     ! Physics
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
@@ -152,6 +152,8 @@ contains
     ! Input/Output
     call cfg%get("io", "format", char_buffer, 'xdmf')
     self%contour_io_format = trim(char_buffer)
+
+    call cfg%get("io", "contour_interval_dt", self%contour_interval_dt, 0.1_rk)
 
   end subroutine read_from_ini
 
