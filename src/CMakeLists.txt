@@ -51,6 +51,7 @@ add_library(
   lib/integrand.f90
   lib/integrators/strategy.f90
   lib/integrators/surrogate.f90
+  lib/integrators/time_integrator_factory.f90
   lib/integrators/runge_kutta_2nd_order.f90)
 
 # target_compile_options(fvleg PUBLIC ${Coarray_COMPILE_OPTIONS})
