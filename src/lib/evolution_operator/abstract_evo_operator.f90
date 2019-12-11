@@ -56,12 +56,12 @@ module mod_abstract_evo_operator
     !   integer(ik), intent(in) :: edge !< Cell edge index
     !   character(len=3), intent(in) :: loc !< where is this evolution taking place? Needs to be one of the following ['k,1','k,c','k,2']
     ! end function evolve
-    pure subroutine evolve_location(self, conserved_vars, reconstructed_state, reference_state, evolved_state)
+    subroutine evolve_location(self, conserved_vars, reconstructed_state, reference_state, evolved_state)
       import :: abstract_evo_operator_t
       import :: rk, ik
       class(abstract_evo_operator_t), intent(in) :: self
-      real(rk), dimension(:, :, :), intent(in) :: conserved_vars
-      real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
+      real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
+      real(rk), dimension(:, :, :, 0:, 0:), intent(in) :: reconstructed_state
       !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
       real(rk), dimension(:, :, :), intent(in) :: reference_state
       !< ((rho,u,v,p), i, j); Reference state (tilde) at each location

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.8)
 
 project(
   fvleg_2d
@@ -10,11 +10,14 @@ set(fvleg_2d_VERSION_MAJOR 0)
 set(fvleg_2d_VERSION_MINOR 1)
 set(fvleg_2d_PATCH_VERSION 0)
 
-set(CMAKE_VERBOSE_MAKEFILE "Off")
+set(CMAKE_VERBOSE_MAKEFILE "On")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 cmake_policy(SET CMP0074 NEW)
+cmake_policy(SET CMP0069 NEW) # Link-time optimization
+include(CheckIPOSupported)
+check_ipo_supported()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -30,20 +33,27 @@ find_package(
   COMPONENTS Fortran_HL
   REQUIRED)
 
-find_package(PFUNIT REQUIRED)
-enable_testing()
+# find_package(PFUNIT REQUIRED) enable_testing()
 
 message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
 message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
 message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
 
-# find_package(OpenMP) find_package(OpenCL REQUIRED)
+# find_package(OpenMP) # find_package(OpenCL REQUIRED)
 
 # if build type not specified, default to release
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 message(STATUS "CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE}")
+
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
+if(CMAKE_BUILD_TYPE STREQUAL Debug)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
+  message(STATUS "Debug mode, so IPO is set to OFF")
+endif(CMAKE_BUILD_TYPE STREQUAL Debug)
+message(STATUS "CMAKE_INTERPROCEDURAL_OPTIMIZATION: "
+               ${CMAKE_INTERPROCEDURAL_OPTIMIZATION})
 
 # compiler flags for gfortran
 if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
@@ -65,14 +75,19 @@ endif()
 
 # compiler flags for ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
+  # list( APPEND CMAKE_Fortran_FLAGS "-fpp -std18 -fp-model precise -fp-model
+  # except -check bounds -diag-disable 5268 -diag-disable 8770 -check
+  # noarg_temp_created" )
   list(
     APPEND
       CMAKE_Fortran_FLAGS
-      "-fpp -parallel -stand f18 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770"
+      "-fpp -std18 -check bounds -diag-disable 5268 -diag-disable 8770 -check noarg_temp_created"
   )
-  set(CMAKE_Fortran_FLAGS_DEBUG
-      " -O0 -g -traceback -warn all -check all -debug all -coarray=single")
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O2  -coarray")
+
+  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -debug all -traceback -fpe-all=0"
+  )# -coarray=singl
+  # e
+  set(CMAKE_Fortran_FLAGS_RELEASE " -O2 -parallel") # -coarray
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
@@ -105,4 +120,4 @@ include_directories(${CMAKE_BINARY_DIR}/generated)
 
 # add_subdirectory(src/third_party)
 add_subdirectory(src)
-add_subdirectory(tests/unit)
+# add_subdirectory(tests/unit)

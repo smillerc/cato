@@ -59,9 +59,9 @@ contains
       call ptr%initialize(input=self%input, grid=grid)
 
     case default
-      if(this_image() == 1) then
-        error stop "Error in reconstruction_factory_t, unrecognizable reconstruction type"
-      end if
+      ! if(this_image() == 1) then
+      error stop "Error in reconstruction_factory_t, unrecognizable reconstruction type"
+      ! end if
     end select
 
   end function create_reconstruction

@@ -9,7 +9,7 @@ module mod_2nd_order_runge_kutta
   private
   public :: runge_kutta_2nd
 
-  type, extends(strategy), public :: runge_kutta_2nd
+  type, extends(strategy) :: runge_kutta_2nd
     !< 2nd-order Runge-Kutta time integration
   contains
     procedure, nopass :: integrate ! integration procedure

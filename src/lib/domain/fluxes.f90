@@ -38,7 +38,7 @@ module mod_flux_tensor
 
 contains
 
-  type(flux_tensor_t) pure function constructor(primitive_variables) result(flux_tensor)
+  type(flux_tensor_t) function constructor(primitive_variables) result(flux_tensor)
     !< Implementation of the flux tensor (H) construction. This requires the primitive variables
     real(rk), dimension(4), intent(in) :: primitive_variables !< [rho, u, v, p]
 
@@ -48,6 +48,7 @@ contains
               u=>primitive_variables(2), v=>primitive_variables(3), &
               p=>primitive_variables(4), gamma=>eos%get_gamma())
 
+      print*, 'H:', p, rho, gamma
       internal_energy = (p / rho) / (gamma - 1)
       total_energy = rho * (internal_energy + 0.5_rk * (u**2 + v**2))
     end associate

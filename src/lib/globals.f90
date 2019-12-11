@@ -25,19 +25,19 @@ contains
 
   subroutine print_version_stats()
     call set_global_options()
-    if(this_image() == 1) then
-      write(output_unit, '(a,a)')
-      write(output_unit, '(a,a)') "Version: ", fvleg_2d_version
-      write(output_unit, '(a,a)') "Build Type: ", build_type
-      write(output_unit, '(a,a)') "Compile OS: ", compile_os
-      write(output_unit, '(a,a)') "Compiler Flags: ", compiler_flags_str
-      write(output_unit, '(a,a)') "Compiler Version: ", compiler_version_str
-      write(output_unit, '(a,a)') "Git Hash: ", git_hash
-      write(output_unit, '(a,a)') "Git Ref: ", git_ref
-      write(output_unit, '(a,a)') "Commited Changes (Clean/Dirty): ", git_local_changes
-      write(output_unit, '(a,a)') "Compile Host: ", compile_host
-      write(output_unit, '(a,a)')
-    end if
+    ! if(this_image() == 1) then
+    write(output_unit, '(a,a)')
+    write(output_unit, '(a,a)') "Version: ", fvleg_2d_version
+    write(output_unit, '(a,a)') "Build Type: ", build_type
+    write(output_unit, '(a,a)') "Compile OS: ", compile_os
+    write(output_unit, '(a,a)') "Compiler Flags: ", compiler_flags_str
+    write(output_unit, '(a,a)') "Compiler Version: ", compiler_version_str
+    write(output_unit, '(a,a)') "Git Hash: ", git_hash
+    write(output_unit, '(a,a)') "Git Ref: ", git_ref
+    write(output_unit, '(a,a)') "Commited Changes (Clean/Dirty): ", git_local_changes
+    write(output_unit, '(a,a)') "Compile Host: ", compile_host
+    write(output_unit, '(a,a)')
+    ! end if
   end subroutine
 
 end module mod_globals

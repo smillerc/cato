@@ -15,15 +15,16 @@ module mod_integrand
     procedure, non_overridable :: get_time_integrator
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
 
-    procedure(symmetric_operator), deferred :: add
-    procedure(symmetric_operator), deferred :: subtract
-    procedure(asymmetric_operator), deferred :: multiply
+    procedure(symmetric_operator), deferred :: type_plus_type
+    procedure(symmetric_operator), deferred :: type_minus_type
+    procedure(asymmetric_operator_rhs), pass(rhs), deferred :: real_mul_type
+    procedure(asymmetric_operator_lhs), pass(lhs), deferred :: type_mul_real
     procedure(symmetric_assignment), deferred :: assign
 
     ! Map operators to corresponding procedures
-    generic :: operator(+) => add
-    generic :: operator(-) => subtract
-    generic :: operator(*) => multiply
+    generic :: operator(+) => type_plus_type
+    generic :: operator(-) => type_minus_type
+    generic :: operator(*) => real_mul_type, type_mul_real
     generic :: assignment(=) => assign
   end type
 
@@ -40,13 +41,21 @@ module mod_integrand
       class(integrand_t), allocatable :: operator_result
     end function symmetric_operator
 
-    function asymmetric_operator(lhs, rhs) result(operator_result)
+    function asymmetric_operator_lhs(lhs, rhs) result(operator_result)
       import :: integrand_t
       import :: rk
+      real(rk), intent(in) :: rhs
       class(integrand_t), intent(in) :: lhs
       class(integrand_t), allocatable :: operator_result
-      real(rk), intent(in) :: rhs
-    end function asymmetric_operator
+    end function asymmetric_operator_lhs
+
+    function asymmetric_operator_rhs(lhs, rhs) result(operator_result)
+      import :: integrand_t
+      import :: rk
+      real(rk), intent(in) :: lhs
+      class(integrand_t), intent(in) :: rhs
+      class(integrand_t), allocatable :: operator_result
+    end function asymmetric_operator_rhs
 
     subroutine symmetric_assignment(lhs, rhs)
       import :: integrand_t

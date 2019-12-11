@@ -118,45 +118,89 @@ contains
   end subroutine test_fvleg_dimensions
 
   @test
-  subroutine test_fvleg_operators()
+  subroutine test_operators()
 
-    class(input_t), allocatable :: input
-    type(fvleg_t) :: fvleg_a, fvleg_b
-    ! class(fvleg_t), allocatable :: fvleg_b
-    real(rk), dimension(:,:,:), allocatable :: conserved_vars
+    type(input_t) :: input
+    type(fvleg_t) :: fvleg_a, fvleg_b, fvleg_c
+    real(rk), dimension(:, :, :), allocatable :: conserved_vars
 
-    allocate(input_t :: input)
-    input = input_t(reconstruction_type='piecewise_linear', &
-                    slope_limiter='sun_ren_09', &
-                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-                    read_init_cond_from_file=.false., &
-                    time_integration_strategy='rk2', &
-                    plus_x_bc='periodic', plus_y_bc='periodic', &
-                    minus_x_bc='periodic', minus_y_bc='periodic', &
-                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, &
-                    init_density=init_density, &
-                    init_x_velocity=init_x_velocity, &
-                    init_y_velocity=init_y_velocity, &
-                    init_pressure=init_pressure)
+    integer(ik) :: ini
+    character(:), allocatable :: ini_filename
+
+    write(*, *) "Running test for test_grid.test_operators()"
+
+    ini_filename = 'test_fvleg_test_operators.ini'
+
+    open(newunit=ini, file=ini_filename, status='replace')
+    write(ini, *) "[general]"
+    write(ini, *) "title='simple ini input'"
+    write(ini, *) "[time]"
+    write(ini, *) "max_time = 0.2"
+    write(ini, *) "integration_strategy='rk2'"
+    write(ini, *) "contour_interval_dt = 0.1"
+    write(ini, *) "initial_delta_t = 1e-2"
+    write(ini, *) "[grid]"
+    write(ini, *) "xmin=", xmin
+    write(ini, *) "xmax=", xmax
+    write(ini, *) "ni_nodes=", ni_nodes
+    write(ini, *) "nj_nodes=", nj_nodes
+    write(ini, *) "ymin=", ymin
+    write(ini, *) "ymax=", ymax
+    write(ini, *) "[physics]"
+    write(ini, *) "polytropic_index=1.6"
+    write(ini, *) "[initial_conditions]"
+    write(ini, *) "read_from_file = false"
+    ! write(ini, *) "initial_condition_file = 'double_shear.h5'"
+    write(ini, *) "init_density=", init_density
+    write(ini, *) "init_x_velocity=", init_x_velocity
+    write(ini, *) "init_y_velocity=", init_y_velocity
+    write(ini, *) "init_pressure=", init_pressure
+    write(ini, *) "[boundary_conditions]"
+    write(ini, *) "plus_x = 'periodic'"
+    write(ini, *) "minus_x = 'periodic'"
+    write(ini, *) "plus_y = 'periodic'"
+    write(ini, *) "minus_y = 'periodic'"
+    write(ini, *) "[scheme]"
+    write(ini, *) "reconstruction_type = 'piecewise_linear'"
+    write(ini, *) "slope_limiter = 'sun_ren_09'"
+    write(ini, *) "[io]"
+    write(ini, *) "contour_format = 'xdmf'"
+    close(ini)
+
+    call input%read_from_ini(ini_filename)
 
     call fvleg_a%initialize(input)
-    print*, 'fvleg_a%initiated', fvleg_a%initiated
     call fvleg_b%initialize(input)
-    print*, 'fvleg_b%initiated', fvleg_b%initiated
-    ! print*, shape(fvleg_b%grid%node_x)
-    ! fvleg_b%conserved_vars = fvleg_b%conserved_vars * 2.0_rk
+    ! call fvleg_c%initialize(input)
 
     ! ! Make a dummy U vector to play with
     allocate(conserved_vars, mold=fvleg_a%conserved_vars)
-    ! conserved_vars = fvleg_a%conserved_vars * 2
-    ! allocate(fvleg_b, source=fvleg_a)
-    ! call fvleg_b%initialize(input)
-    fvleg_b = fvleg_a * 2.0_rk
-    ! @assertEqual(conserved_vars, fvleg_b%conserved_vars)
-    ! fvleg_c = fvleg_a + fvleg_b
-    ! ! Check the + operator
-    ! @assertEqual(3.0_rk, fvleg_c%conserved_vars)
 
-  end subroutine
+    ! fvleg_t * real
+    conserved_vars = fvleg_a%conserved_vars * 2.0_rk
+    fvleg_b = fvleg_a * 2.0_rk
+    @assertEqual(conserved_vars, fvleg_b%conserved_vars)
+
+    ! real * fvleg_t
+    conserved_vars = fvleg_a%conserved_vars * 2.0_rk
+    fvleg_b = 2.0_rk * fvleg_a
+    @assertEqual(conserved_vars, fvleg_b%conserved_vars)
+
+    ! ! (-) operator
+    ! fvleg_b = fvleg_a - 3.0_rk
+    ! conserved_vars = fvleg_a%conserved_vars - 3.0_rk
+    ! @assertEqual(conserved_vars, fvleg_b%conserved_vars)
+
+    ! ! (+) operator
+    ! fvleg_b = fvleg_a + 4.0_rk
+    ! conserved_vars = fvleg_a%conserved_vars - 4.0_rk
+    ! @assertEqual(conserved_vars, fvleg_b%conserved_vars)
+
+    ! (=) and (+) between same types
+    fvleg_c = fvleg_a + fvleg_b
+    conserved_vars = fvleg_a%conserved_vars + fvleg_b%conserved_vars
+    @assertEqual(conserved_vars, fvleg_c%conserved_vars)
+
+  end subroutine test_operators
 
 end module test_fvleg

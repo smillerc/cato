@@ -16,6 +16,8 @@ module mod_abstract_reconstruction
     class(grid_t), pointer :: grid
     integer(ik), public :: order = 0  !< Reconstruction order
     character(:), allocatable, public :: name  !< Name of the reconstruction scheme
+    real(rk), dimension(:,:,:,:), allocatable :: cell_gradient 
+    !< ((d/dx, d/dy), (rho, u ,v, p), i, j); Gradient of each cell's conserved quantities
     ! integer(ik), dimension(2), public :: current_cell_ij  !< Current selected i,j indices
     ! logical, public :: cell_is_selected = .false.  !< Has the cell been selected yet
     ! real(rk), dimension(4), public :: cell_average = 0.0_rk !< average values of the cell conserved variables
@@ -38,26 +40,26 @@ module mod_abstract_reconstruction
       class(grid_t), intent(in), target :: grid
     end subroutine
 
-    pure function reconstruct_point(self, conserved_vars, xy, cell_ij) result(U_bar)
+    function reconstruct_point(self, conserved_vars, xy, cell_ij) result(U_bar)
       !< Reconstruct the value of the conserved variables (U) at location (x,y) based on the
       !> cell average and gradient (if higher order)
       import :: abstract_reconstruction_t
       import :: ik, rk
 
       class(abstract_reconstruction_t), intent(in) :: self
-      real(rk), dimension(:, :, :), intent(in) :: conserved_vars
+      real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
       real(rk), dimension(2), intent(in) :: xy !< (x,y) position to reconstruct
       integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
       real(rk), dimension(4) :: U_bar  !< U_bar = reconstructed [rho, u, v, p]
     end function reconstruct_point
 
-    pure subroutine reconstruct_domain(self, conserved_vars, reconstructed_domain)
+    subroutine reconstruct_domain(self, conserved_vars, reconstructed_domain)
       import :: abstract_reconstruction_t
       import :: rk
 
-      class(abstract_reconstruction_t), intent(in) :: self
-      real(rk), dimension(:, :, :), intent(in) :: conserved_vars
-      real(rk), dimension(:, :, :, :, :), intent(out) :: reconstructed_domain
+      class(abstract_reconstruction_t), intent(inout) :: self
+      real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
+      real(rk), dimension(:, :, :, 0:, 0:), intent(out) :: reconstructed_domain
       !< ((rho, u ,v, p), point, node/midpoint, i, j);
       !< The node/midpoint dimension just selects which set of points,
       !< e.g. 1 - all corners, 2 - all midpoints

@@ -17,15 +17,14 @@ contains
     class(input_t), intent(in) :: input
     class(grid_t), allocatable :: grid
 
-    select case(input%grid_type)
+    select case(trim(input%grid_type))
 
     case('2d_regular')
       allocate(regular_2d_grid_t :: grid)
       call grid%initialize(input)
 
     case default
-      allocate(regular_2d_grid_t :: grid)
-      call grid%initialize(input)
+      error stop 'Unsupported grid type in grid_factory'
     end select
 
   end function grid_factory

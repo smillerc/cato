@@ -46,6 +46,7 @@ contains
   end function
 
   type(vector_t) pure function constructor_from_2d(x, y) result(vec)
+    ! //TODO: fix this so no temp array copy warning issued
     !< Constructor from a set of (x,y) pairs
     real(rk), intent(in), dimension(2) :: x !< (x1,x2)
     real(rk), intent(in), dimension(2) :: y !< (y1,y2)

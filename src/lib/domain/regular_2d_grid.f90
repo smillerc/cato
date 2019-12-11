@@ -334,26 +334,40 @@ contains
     integer(ik) :: alloc_status
 
     print *, 'Finalizing regular_2d_grid_t'
-    if(allocated(self%cell_volume)) deallocate(self%cell_volume, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volume"
+    if(allocated(self%cell_volume)) then
+      deallocate(self%cell_volume, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volume"
+    end if
 
-    if(allocated(self%node_x)) deallocate(self%node_x, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%node_x"
+    if(allocated(self%node_x)) then
+      deallocate(self%node_x, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%node_x"
+    end if
 
-    if(allocated(self%node_y)) deallocate(self%node_y, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%node_y"
+    if(allocated(self%node_y)) then
+      deallocate(self%node_y, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%node_y"
+    end if
 
-    if(allocated(self%cell_centroid_xy)) deallocate(self%cell_centroid_xy, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_centroid_xy"
+    if(allocated(self%cell_centroid_xy)) then
+      deallocate(self%cell_centroid_xy, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_centroid_xy"
+    end if
 
-    if(allocated(self%cell_edge_lengths)) deallocate(self%cell_edge_lengths, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_lengths"
+    if(allocated(self%cell_edge_lengths)) then
+      deallocate(self%cell_edge_lengths, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_lengths"
+    end if
 
-    if(allocated(self%cell_node_xy)) deallocate(self%cell_node_xy, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_node_xy"
+    if(allocated(self%cell_node_xy)) then
+      deallocate(self%cell_node_xy, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_node_xy"
+    end if
 
-    if(allocated(self%cell_edge_norm_vectors)) deallocate(self%cell_edge_norm_vectors, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_norm_vectors"
+    if(allocated(self%cell_edge_norm_vectors)) then
+      deallocate(self%cell_edge_norm_vectors, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_norm_vectors"
+    end if
 
   end subroutine finalize
 

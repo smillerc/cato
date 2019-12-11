@@ -13,7 +13,7 @@ module mod_input
     character(:), allocatable :: title  !< Name of the simulation
 
     ! grid
-    character(:), allocatable :: grid_type  !< Structure/layout of the grid, e.g. 'regular_2d'
+    character(len=32) :: grid_type = '2d_regular'  !< Structure/layout of the grid, e.g. '2d_regular'
     real(rk) :: xmin = 0.0_rk   !< Minimum extent of the grid in x (ignored for .h5 initial grids)
     real(rk) :: xmax = 0.0_rk   !< Maximum extent of the grid in x (ignored for .h5 initial grids)
     real(rk) :: ymin = 0.0_rk   !< Minimum extent of the grid in y (ignored for .h5 initial grids)
@@ -30,10 +30,10 @@ module mod_input
     real(rk) :: init_pressure = 0.0_rk   !< Initial condition for the pressure field (useful only for testing)
 
     ! boundary conditions
-    character(:), allocatable ::  plus_x_bc  !< Boundary condition at +x
-    character(:), allocatable :: minus_x_bc  !< Boundary condition at -x
-    character(:), allocatable ::  plus_y_bc  !< Boundary condition at +y
-    character(:), allocatable :: minus_y_bc  !< Boundary condition at -y
+    character(len=32) ::  plus_x_bc = 'periodic' !< Boundary condition at +x
+    character(len=32) :: minus_x_bc = 'periodic' !< Boundary condition at -x
+    character(len=32) ::  plus_y_bc = 'periodic' !< Boundary condition at +y
+    character(len=32) :: minus_y_bc = 'periodic' !< Boundary condition at -y
 
     ! io
     character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
@@ -91,9 +91,9 @@ contains
 
     file_exists = .false.
 
-    if(this_image() == 1) then
-      write(output_unit, '(a)') 'Reading input file: '//trim(filename)
-    end if
+    ! if(this_image() == 1) then
+    write(output_unit, '(a)') 'Reading input file: '//trim(filename)
+    ! end if
 
     inquire(file=filename, EXIST=file_exists)
     if(.not. file_exists) error stop "Input .ini file not found"
@@ -113,6 +113,9 @@ contains
     ! Physics
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
 
+    ! Scheme
+    call cfg%get("scheme", "tau", self%tau)
+    
     call cfg%get("scheme", "reconstruction_type", char_buffer, 'piecewise_linear')
     self%reconstruction_type = trim(char_buffer)
 
@@ -121,8 +124,16 @@ contains
 
     ! Initial Conditions
     call cfg%get("initial_conditions", "read_from_file", self%read_init_cond_from_file, .true.)
-    call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
-    self%initial_condition_file = trim(char_buffer)
+    if(self%read_init_cond_from_file) then
+      call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
+      self%initial_condition_file = trim(char_buffer)
+
+    end if
+
+    call cfg%get("initial_conditions", "init_density", self%init_density, 0.0_rk)
+    call cfg%get("initial_conditions", "init_x_velocity", self%init_x_velocity, 0.0_rk)
+    call cfg%get("initial_conditions", "init_y_velocity", self%init_y_velocity, 0.0_rk)
+    call cfg%get("initial_conditions", "init_pressure", self%init_pressure, 0.0_rk)
 
     ! Grid
     call cfg%get("grid", "grid_type", char_buffer, '2d_regular')

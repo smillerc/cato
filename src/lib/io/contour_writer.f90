@@ -77,74 +77,74 @@ contains
     real(rk), intent(in) :: time
     character(50) :: char_buff
 
-    sync all
-    if(this_image() == 1) then
+    ! sync all
+    ! if(this_image() == 1) then
 
-      call self%hdf5_file%initialize(filename=self%hdf5_filename, &
-                                     status='new', action='w', comp_lvl=6)
+    call self%hdf5_file%initialize(filename=self%hdf5_filename, &
+                                   status='new', action='w', comp_lvl=6)
 
-      ! Header info
-      call self%hdf5_file%add('/title', fv_scheme%title)
+    ! Header info
+    call self%hdf5_file%add('/title', fv_scheme%title)
 
-      call self%hdf5_file%add('/iteration', iteration)
-      call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
-      call self%hdf5_file%writeattr('/iteration', 'units', 'dimensionless')
+    call self%hdf5_file%add('/iteration', iteration)
+    call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
+    call self%hdf5_file%writeattr('/iteration', 'units', 'dimensionless')
 
-      call self%hdf5_file%add('/time', real(time, real32))
-      call self%hdf5_file%writeattr('/time', 'description', 'Simulation Time')
-      call self%hdf5_file%writeattr('/time', 'units', 'seconds')
+    call self%hdf5_file%add('/time', real(time, real32))
+    call self%hdf5_file%writeattr('/time', 'description', 'Simulation Time')
+    call self%hdf5_file%writeattr('/time', 'units', 'seconds')
 
-      call self%hdf5_file%add('/delta_t', fv_scheme%delta_t)
-      call self%hdf5_file%writeattr('/delta_t', 'description', 'Simulation Timestep')
-      call self%hdf5_file%writeattr('/delta_t', 'units', 'seconds')
+    call self%hdf5_file%add('/delta_t', fv_scheme%delta_t)
+    call self%hdf5_file%writeattr('/delta_t', 'description', 'Simulation Timestep')
+    call self%hdf5_file%writeattr('/delta_t', 'units', 'seconds')
 
-      ! Version info
-      if(.not. globals_set) call set_global_options()
-      call self%hdf5_file%writeattr('/', 'compiler_flags', compiler_flags_str)
-      call self%hdf5_file%writeattr('/', 'compiler_version', compiler_version_str)
-      call self%hdf5_file%writeattr('/', 'git_hast', git_hash)
-      call self%hdf5_file%writeattr('/', 'git_ref', git_ref)
-      call self%hdf5_file%writeattr('/', 'git_changes', git_local_changes)
-      call self%hdf5_file%writeattr('/', 'version', fvleg_2d_version)
-      call self%hdf5_file%writeattr('/', 'compile_hostname', compile_host)
-      call self%hdf5_file%writeattr('/', 'compile_os', compile_os)
-      call self%hdf5_file%writeattr('/', 'build_type', build_type)
+    ! Version info
+    if(.not. globals_set) call set_global_options()
+    call self%hdf5_file%writeattr('/', 'compiler_flags', compiler_flags_str)
+    call self%hdf5_file%writeattr('/', 'compiler_version', compiler_version_str)
+    call self%hdf5_file%writeattr('/', 'git_hast', git_hash)
+    call self%hdf5_file%writeattr('/', 'git_ref', git_ref)
+    call self%hdf5_file%writeattr('/', 'git_changes', git_local_changes)
+    call self%hdf5_file%writeattr('/', 'version', fvleg_2d_version)
+    call self%hdf5_file%writeattr('/', 'compile_hostname', compile_host)
+    call self%hdf5_file%writeattr('/', 'compile_os', compile_os)
+    call self%hdf5_file%writeattr('/', 'build_type', build_type)
 
-      ! Grid
-      call self%hdf5_file%add('/x', real(fv_scheme%grid%node_x, real32))
-      call self%hdf5_file%writeattr('/x', 'description', 'X Coordinate')
-      call self%hdf5_file%writeattr('/x', 'units', 'cm')
+    ! Grid
+    call self%hdf5_file%add('/x', real(fv_scheme%grid%node_x, real32))
+    call self%hdf5_file%writeattr('/x', 'description', 'X Coordinate')
+    call self%hdf5_file%writeattr('/x', 'units', 'cm')
 
-      call self%hdf5_file%add('/y', real(fv_scheme%grid%node_y, real32))
-      call self%hdf5_file%writeattr('/y', 'description', 'Y Coordinate')
-      call self%hdf5_file%writeattr('/y', 'units', 'cm')
+    call self%hdf5_file%add('/y', real(fv_scheme%grid%node_y, real32))
+    call self%hdf5_file%writeattr('/y', 'description', 'Y Coordinate')
+    call self%hdf5_file%writeattr('/y', 'units', 'cm')
 
-      call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume, real32))
-      call self%hdf5_file%writeattr('/volume', 'description', 'Cell Volume')
-      call self%hdf5_file%writeattr('/volume', 'units', 'cc')
+    call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume, real32))
+    call self%hdf5_file%writeattr('/volume', 'description', 'Cell Volume')
+    call self%hdf5_file%writeattr('/volume', 'units', 'cc')
 
-      ! Conserved Variables
-      call self%hdf5_file%add('/density', real(fv_scheme%conserved_vars(1, :, :), real32))
-      call self%hdf5_file%writeattr('/density', 'description', 'Cell Density')
-      call self%hdf5_file%writeattr('/density', 'units', 'g/cc')
+    ! Conserved Variables
+    call self%hdf5_file%add('/density', real(fv_scheme%conserved_vars(1, :, :), real32))
+    call self%hdf5_file%writeattr('/density', 'description', 'Cell Density')
+    call self%hdf5_file%writeattr('/density', 'units', 'g/cc')
 
-      call self%hdf5_file%add('/x_velocity', real(fv_scheme%conserved_vars(2, :, :), real32))
-      call self%hdf5_file%writeattr('/x_velocity', 'description', 'Cell X Velocity')
-      call self%hdf5_file%writeattr('/x_velocity', 'units', 'cm/s')
+    call self%hdf5_file%add('/x_velocity', real(fv_scheme%conserved_vars(2, :, :), real32))
+    call self%hdf5_file%writeattr('/x_velocity', 'description', 'Cell X Velocity')
+    call self%hdf5_file%writeattr('/x_velocity', 'units', 'cm/s')
 
-      call self%hdf5_file%add('/y_velocity', real(fv_scheme%conserved_vars(3, :, :), real32))
-      call self%hdf5_file%writeattr('/y_velocity', 'description', 'Cell Y Velocity')
-      call self%hdf5_file%writeattr('/y_velocity', 'units', 'cm/s')
+    call self%hdf5_file%add('/y_velocity', real(fv_scheme%conserved_vars(3, :, :), real32))
+    call self%hdf5_file%writeattr('/y_velocity', 'description', 'Cell Y Velocity')
+    call self%hdf5_file%writeattr('/y_velocity', 'units', 'cm/s')
 
-      call self%hdf5_file%add('/pressure', real(fv_scheme%conserved_vars(4, :, :), real32))
-      call self%hdf5_file%writeattr('/pressure', 'description', 'Cell Pressure')
-      call self%hdf5_file%writeattr('/pressure', 'units', 'barye')
+    call self%hdf5_file%add('/pressure', real(fv_scheme%conserved_vars(4, :, :), real32))
+    call self%hdf5_file%writeattr('/pressure', 'description', 'Cell Pressure')
+    call self%hdf5_file%writeattr('/pressure', 'units', 'barye')
 
-      ! Source Terms (if any)
+    ! Source Terms (if any)
 
-      ! Inputs
-      call self%hdf5_file%finalize()
-    end if
+    ! Inputs
+    call self%hdf5_file%finalize()
+    ! end if
   end subroutine
 
   subroutine write_xdmf(self, fv_scheme, time, iteration)

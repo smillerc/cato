@@ -11,10 +11,12 @@ module mod_second_order_reconstruction
   public :: second_order_reconstruction_t
 
   type, extends(abstract_reconstruction_t) :: second_order_reconstruction_t
+    
   contains
     procedure, public :: initialize => init_second_order
     procedure, public :: reconstruct_domain
     procedure, public :: reconstruct_point
+    ! procedure, public :: apply_bc_to_cell_gradient
     procedure, private :: estimate_gradients
     procedure, private :: estimate_single_gradient
     final :: finalize
@@ -24,24 +26,55 @@ contains
 
   subroutine init_second_order(self, input, grid)
     !< Construct the second_order_reconstruction_t type
+
     class(second_order_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid
+    integer(ik) :: alloc_status
 
     self%order = 2
     self%name = 'piecewise_linear_reconstruction'
     call self%set_slope_limiter(name=input%slope_limiter)
     self%grid => grid
+
+    associate(imin=>self%grid%ilo_bc_cell, imax=>self%grid%ihi_bc_cell, &
+              jmin=>self%grid%jlo_bc_cell, jmax=>self%grid%jhi_bc_cell)
+
+      allocate(self%cell_gradient(2, 4, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) then
+        error stop "Unable to allocate second_order_reconstruction_t%cell_gradient"
+      end if
+      self%cell_gradient = 0.0_rk
+    end associate
+
   end subroutine init_second_order
 
   subroutine finalize(self)
+    !< Finalize the second_order_reconstruction_t type
+
     type(second_order_reconstruction_t), intent(inout) :: self
+    integer(ik) :: alloc_status
+
     print *, 'Finalizing second_order_reconstruction_t'
+    
     nullify(self%grid)
+
+    if (allocated(self%cell_gradient)) then
+      deallocate(self%cell_gradient, stat=alloc_status)
+      if(alloc_status /= 0) then
+        error stop "Unable to deallocate second_order_reconstruction_t%cell_gradient"
+      end if
+    end if
+
   end subroutine finalize
 
-  pure function reconstruct_point(self, conserved_vars, xy, cell_ij) result(U_bar)
-    !< Reconstruct the value of the conserved variables (U) at location (x,y) based on the
+  ! subroutine apply_bc_to_cell_gradient()
+  ! end subroutine
+
+  function reconstruct_point(self, conserved_vars, xy, cell_ij) result(U_bar)
+    !< Reconstruct the value of the conserved variables (U) at location (x,y)
+    !< withing a cell (i,j)
+
     class(second_order_reconstruction_t), intent(in) :: self
     real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
     real(rk), dimension(2), intent(in) :: xy !< where should U_bar be reconstructed at?
@@ -50,15 +83,19 @@ contains
 
     real(rk), dimension(4) :: cell_ave !< cell average of (rho, u, v, p)
     real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
-    real(rk), dimension(2, 4) :: grad_U !< cell gradient
     integer(ik) :: i, j
     i = cell_ij(1); j = cell_ij(2)
 
-    cell_ave = sum(conserved_vars(:, i - 1:i + 1, j - 1:j + 1)) / 5.0_rk
-    grad_U = self%estimate_gradients(conserved_vars, i, j)
+    ! cell_ave = 0.25_rk*[conserved_vars(:, i - 1, j) + &
+    !                     conserved_vars(:, i + 1, j) + &
+    !                     conserved_vars(:, i, j + 1) + &
+    !                     conserved_vars(:, i, j - 1)]
+    cell_ave = conserved_vars(:, i, j)
+
     centroid_xy = self%grid%get_cell_centroid_xy(i, j)
 
-    associate(dV_dx=>grad_U(1, :), dV_dy=>grad_U(2, :), &
+    associate(dV_dx=>self%cell_gradient(1, :, i, j), &
+              dV_dy=>self%cell_gradient(2, :, i, j), &
               x=>xy(1), y=>xy(2), &
               x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
 
@@ -67,10 +104,10 @@ contains
 
   end function reconstruct_point
 
-  pure subroutine reconstruct_domain(self, conserved_vars, reconstructed_domain)
+  subroutine reconstruct_domain(self, conserved_vars, reconstructed_domain)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
-    class(second_order_reconstruction_t), intent(in) :: self
+    class(second_order_reconstruction_t), intent(inout) :: self
     real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
     real(rk), dimension(:, :, :, 0:, 0:), intent(out) :: reconstructed_domain
 
@@ -84,17 +121,27 @@ contains
     integer(ik) :: i, j  !< cell i,j index
     integer(ik) :: n  !< node index -> i.e. is it a corner (1), or midpoint (2)
     integer(ik) :: p  !< point index -> which point in the grid element (corner 1-4, or midpoint 1-4)
+    integer(ik) :: ilo, ihi, jlo, jhi
 
-    do concurrent(j=self%grid%jlo_cell:self%grid%jhi_cell)
-      do concurrent(i=self%grid%ilo_cell:self%grid%ihi_cell)
+    ! Bounds do not include ghost cells. Ghost cells get their
+    ! reconstructed values and gradients from the boundary conditions
+    ilo = lbound(conserved_vars, dim=2) + 1
+    ihi = ubound(conserved_vars, dim=2) - 1
+    jlo = lbound(conserved_vars, dim=3) + 1
+    jhi = ubound(conserved_vars, dim=3) - 1
 
-        ! The cell average is reused for each cell
-        cell_ave = 0.25_rk*[conserved_vars(:, i - 1, j) + &
-                            conserved_vars(:, i + 1, j) + &
-                            conserved_vars(:, i, j + 1) + &
-                            conserved_vars(:, i, j - 1)]
+    print *, 'Reconstructing the domain from: ', ilo, ihi, jlo, jhi
+    do concurrent(j=jlo:jhi)
+      do concurrent(i=ilo:ihi)
 
-        grad_U = self%estimate_gradients(conserved_vars, i, j)
+        ! ! The cell average is reused for each cell
+        ! cell_ave = 0.25_rk*[conserved_vars(:, i - 1, j) + &
+        !                     conserved_vars(:, i + 1, j) + &
+        !                     conserved_vars(:, i, j + 1) + &
+        !                     conserved_vars(:, i, j - 1)]
+        cell_ave = conserved_vars(:, i, j)
+
+        self%cell_gradient(:, :, i, j) = self%estimate_gradients(conserved_vars, i, j)
         centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
 
         ! First do corners, then to midpoints

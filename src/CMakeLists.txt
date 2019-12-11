@@ -1,40 +1,76 @@
-add_library(global_constants lib/globals.f90 lib/math_constants.f90)
+# add_library(global_constants lib/globals.f90 lib/math_constants.f90)
 
-add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
-                       third_party/ini_parser/string_conv_mod.f90)
+# add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
+# third_party/ini_parser/string_conv_mod.f90)
 
-add_library(finterp third_party/finterp/linear_interpolation_module.f90)
+# add_library(finterp third_party/finterp/linear_interpolation_module.f90)
 
-add_library(functional third_party/functional/mod_functional.f90
-                       third_party/functional/mod_interfaces.f90)
+# add_library(functional third_party/functional/mod_functional.f90
+# third_party/functional/mod_interfaces.f90)
 
-add_library(io lib/io/mod_hdf5.f90 lib/io/mod_input.f90)
+# add_library(io lib/io/mod_hdf5.f90 lib/io/mod_input.f90)
 
-add_library(eos lib/equation_of_state.f90)
+# add_library(eos lib/equation_of_state.f90)
+
+# include_directories(${HDF5_INCLUDE_DIRS}) target_include_directories(io PUBLIC
+# ${HDF5_INCLUDE_DIRS})
+
+# target_link_libraries(io PUBLIC global_constants ini_parser ${HDF5_LIBRARIES}
+# ${HDF5_HL_LIBRARIES}) target_link_libraries(eos PUBLIC io)
+
+# add_library(utilities lib/limiters/slope_limiter.f90)
+
+# add_library( geometry lib/domain/grid_type.f90 lib/domain/regular_2d_grid.f90
+# lib/domain/grid_factory.f90 lib/geometry/vector_2d.f90 lib/geometry/vector.f90
+# lib/geometry/quad_cell.f90 lib/geometry/mach_cone_geometry.f90)
+
+# target_link_libraries(geometry PUBLIC global_constants io eos)
+
+# add_library( fvleg lib/io/contour_writer.f90
+# lib/boundary_conditions/boundary_conditions.f90
+# lib/boundary_conditions/periodic_bc.f90 lib/boundary_conditions/bc_factory.f90
+# lib/domain/fluxes.f90 lib/evolution_operator/abstract_evo_operator.f90
+# lib/evolution_operator/local_evo_operator.f90
+# lib/reconstruction/abstract_reconstruction.f90
+# lib/reconstruction/first_order_reconstruction.f90
+# lib/reconstruction/second_order_reconstruction.f90
+# lib/reconstruction/reconstruction_factory.f90
+# lib/finite_volume_scheme/fv_scheme.f90 lib/finite_volume_scheme/fvleg.f90
+# lib/integrand.f90 lib/integrators/strategy.f90 lib/integrators/surrogate.f90
+# lib/integrators/time_integrator_factory.f90
+# lib/integrators/runge_kutta_2nd_order.f90)
+
+# # target_compile_options(fvleg PUBLIC ${Coarray_COMPILE_OPTIONS})
+# target_link_libraries( fvleg PUBLIC eos global_constants geometry utilities io
+# functional # functional # ${Coarray_LIBRARIES} ${HDF5_LIBRARIES} #
+# ${HDF5_HL_LIBRARIES} )
+
+# add_executable(fvleg_2d.x main.f90) target_link_libraries( fvleg_2d.x fvleg
+
+# # functional ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} ${Coarray_LIBRARIES} )
 
 include_directories(${HDF5_INCLUDE_DIRS})
-target_include_directories(io PUBLIC ${HDF5_INCLUDE_DIRS})
-
-target_link_libraries(io PUBLIC global_constants ini_parser ${HDF5_LIBRARIES}
-                                ${HDF5_HL_LIBRARIES})
-target_link_libraries(eos PUBLIC io)
-
-add_library(utilities lib/limiters/slope_limiter.f90)
 
 add_library(
-  geometry
+  fvleg
+  lib/globals.f90
+  lib/math_constants.f90
+  third_party/ini_parser/cfgio_mod.f90
+  third_party/ini_parser/string_conv_mod.f90
+  third_party/finterp/linear_interpolation_module.f90
+  third_party/functional/mod_functional.f90
+  third_party/functional/mod_interfaces.f90
+  lib/io/mod_hdf5.f90
+  lib/io/mod_input.f90
+  lib/equation_of_state.f90
+  lib/limiters/slope_limiter.f90
   lib/domain/grid_type.f90
   lib/domain/regular_2d_grid.f90
   lib/domain/grid_factory.f90
   lib/geometry/vector_2d.f90
   lib/geometry/vector.f90
+  lib/geometry/mach_cone_geometry.f90
   lib/geometry/quad_cell.f90
-  lib/geometry/mach_cone_geometry.f90)
-
-target_link_libraries(geometry PUBLIC global_constants io eos)
-
-add_library(
-  fvleg
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/periodic_bc.f90
@@ -54,26 +90,14 @@ add_library(
   lib/integrators/time_integrator_factory.f90
   lib/integrators/runge_kutta_2nd_order.f90)
 
-# target_compile_options(fvleg PUBLIC ${Coarray_COMPILE_OPTIONS})
-target_link_libraries(
-  fvleg
-  PUBLIC eos
-         global_constants
-         geometry
-         utilities
-         io
-         functional
-         # functional # ${Coarray_LIBRARIES} ${HDF5_LIBRARIES}
-         # ${HDF5_HL_LIBRARIES}
-)
+set_property(TARGET fvleg PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+set_target_properties(fvleg PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
+
+target_link_libraries(fvleg ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 
 add_executable(fvleg_2d.x main.f90)
-target_link_libraries(
-  fvleg_2d.x fvleg
-
-  # functional ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} ${Coarray_LIBRARIES}
-)
-# target_compile_options(fvleg_2d.x PUBLIC ${Coarray_COMPILE_OPTIONS})
-
-# set_target_properties (fvleg_2d.x PROPERTIES Fortran_MODULE_DIRECTORY
-# ${CMAKE_CURRENT_BINARY_DIR})
+set_property(TARGET fvleg_2d.x PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+set_target_properties(fvleg_2d.x PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
+# message(STATUS "INTERPROCEDURAL_OPTIMIZATION: "
+# ${INTERPROCEDURAL_OPTIMIZATION})
+target_link_libraries(fvleg_2d.x fvleg)

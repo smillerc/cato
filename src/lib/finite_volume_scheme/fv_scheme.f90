@@ -117,10 +117,16 @@ contains
     !< the neighboring cells
     class(finite_volume_scheme_t), intent(inout) :: self
     integer(ik) :: i, j
+    integer(ik) :: ilo, jlo, ihi, jhi
+
+    ilo = self%grid%ilo_cell
+    jlo = self%grid%jlo_cell
+    ihi = self%grid%jhi_cell
+    jhi = self%grid%ihi_cell
 
     ! left/right midpoints -> needs to average cells above and below
-    do j = self%grid%jlo_cell, self%grid%jhi_cell
-      do i = self%grid%ilo_cell, self%grid%ihi_cell
+    do concurrent(j=jlo:jhi)
+      do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%leftright_midpoints_reference_state, U=>self%conserved_vars)
           U_tilde(:, i, j) = 0.5_rk * (U(:, i, j) + U(:, i, j - 1))
         end associate
@@ -128,8 +134,8 @@ contains
     end do
 
     ! up/down midpoints -> needs to average cells right and left
-    do j = self%grid%jlo_cell, self%grid%jhi_cell
-      do i = self%grid%ilo_cell, self%grid%ihi_cell
+    do concurrent(j=jlo:jhi)
+      do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%downup_midpoints_reference_state, U=>self%conserved_vars)
           U_tilde(:, i, j) = 0.5_rk * (U(:, i - 1, j) + U(:, i, j))
         end associate
@@ -137,8 +143,8 @@ contains
     end do
 
     ! Corners
-    do j = self%grid%jlo_cell, self%grid%jhi_cell
-      do i = self%grid%ilo_cell, self%grid%ihi_cell
+    do concurrent(j=jlo:jhi)
+      do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%corner_reference_state, U=>self%conserved_vars)
           U_tilde(:, i, j) = 0.25_rk * (U(:, i, j) + U(:, i - 1, j) + &
                                         U(:, i, j - 1) + U(:, i - 1, j - 1))

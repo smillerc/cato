@@ -19,10 +19,10 @@ module mod_mach_cone_geometry
     !< Type to encapsulate and calculate the geometry of the mach cone for the evolution operators
 
     real(rk), dimension(4, 2) :: theta_ie = 0.0_rk
-    !< ((edge_vector_1:edge_vector_4), (intersection_1:intersection_2)); arc end angle
+    !< ((cell_1:cell_4), (arc_1, arc_2)); arc end angle
 
     real(rk), dimension(4, 2) :: theta_ib = 0.0_rk
-    !< ((edge_vector_1:edge_vector_4), (intersection_1:intersection_2)); arc begin angle
+    !< ((cell_1:cell_4), (arc_1, arc_2)); arc begin angle
 
     real(rk), dimension(2) :: p_prime_xy = 0.0_rk
     !< (x,y); Location of P'
@@ -34,24 +34,24 @@ module mod_mach_cone_geometry
     !< x,y location of P' or the apex of the Mach cone (global, not relative to P0)
 
     integer(ik) :: n_neighbor_cells = 0
-    !< How many cells influence this cone
+    !< How many cells influence this cone (up to 4 for now)
 
-    real(rk) :: radius
+    real(rk) :: radius = 0.0_rk
     !< Radius of the cone
 
-    integer(ik), dimension(2) :: n_intersections = 0
-    !< Number of intersections for each edge vector
+    integer(ik), dimension(4) :: n_arcs = 0
+    !< (cell_1:cell_4); Number of arcs that each cell contributes (0, 1, or 2)
 
     logical, dimension(4) :: p_prime_in_cell = .false.
-    !< is P' inside the control volume?
+    !< (cell_1:cell_4); is P' inside the control volume?
 
     real(rk), dimension(4, 2, 4) :: cell_conserved_vars = 0.0_rk
-    !< ((rho,u,v,p), (intersection_1, intersection_2), cell_1:cell_n)
+    !< ((rho,u,v,p), (arc_1, arc_2), cell_1:cell_n)
 
-    real(rk), dimension(4) :: reference_state
+    real(rk), dimension(4) :: reference_state = 0.0_rk
     !< (rho,u,v,a); Reference state (local cell average of U)
 
-    real(rk) :: tau
+    real(rk) :: tau = 0.0_rk
     !< Time evolution increment
 
     real(rk), dimension(4, 4) :: reconstructed_state = 0.0_rk
@@ -111,7 +111,7 @@ contains
     real(rk), dimension(4), intent(in) :: reference_state  !< (rho, u, v, p)
     !< (rho, u, v, p); reference state of the point P
 
-    real(rk), dimension(4) :: cone_reference_state
+    ! real(rk), dimension(4) :: cone_reference_state
     !< (rho, u, v, a); reference state of the point P
 
     integer(ik) :: n_total_vectors  !< number of edge vectors (should be 2 or 4)
@@ -133,9 +133,9 @@ contains
 
     ! In the cone reference state, index 4 is sound speed rather than pressure
     !< (rho, u, v, a) vs  !< (rho, u, v, p)
-    cone_reference_state = reference_state
+    new_cone%reference_state = reference_state
     ! //TODO: Move speed of sound calculation to the EOS module
-    associate(a=>cone_reference_state(4), rho=>reference_state(1), &
+    associate(a=>new_cone%reference_state(4), rho=>reference_state(1), &
               p=>reference_state(4), gamma=>eos%get_gamma())
       a = sqrt(gamma * p / rho)
       new_cone%radius = a * tau
@@ -156,7 +156,7 @@ contains
 
     ! All the edge vectors take the point P as the origin (or tail) of their vectors
     associate(x=>edge_vectors(1, 1, 1), y=>edge_vectors(2, 1, 1), &
-              u_tilde=>cone_reference_state(2), v_tilde=>cone_reference_state(3))
+              u_tilde=>new_cone%reference_state(2), v_tilde=>new_cone%reference_state(3))
 
       ! This defines P' (x,y) globally, not with respect to P
       new_cone%p_xy = [x, y]
@@ -181,12 +181,12 @@ contains
       ! print*, 'Neighbor cell: ', neighbor_cell
       call calculate_arc_segment(p_prime_vector=p_prime_vector, &
                                  edge_vector_1=edge_vector_1, edge_vector_2=edge_vector_2, &
-                                 reference_state=cone_reference_state, tau=tau, &
-                                 n_intersections=n_intersections, n_arcs=n_arcs, &
+                                 reference_state=new_cone%reference_state, tau=tau, &
+                                 n_arcs=n_arcs, &
                                  theta_ib=theta_ib, theta_ie=theta_ie, &
                                  p_prime_in_cell=p_prime_in_cell)
 
-      new_cone%n_intersections = n_intersections
+      new_cone%n_arcs(neighbor_cell) = n_arcs
       new_cone%theta_ib(neighbor_cell, :) = theta_ib
       new_cone%theta_ie(neighbor_cell, :) = theta_ie
 
@@ -202,7 +202,7 @@ contains
   end function
 
   pure subroutine calculate_arc_segment(p_prime_vector, edge_vector_1, edge_vector_2, reference_state, tau, &
-                                        n_intersections, n_arcs, theta_ib, theta_ie, p_prime_in_cell)
+                                       n_arcs, theta_ib, theta_ie, p_prime_in_cell)
     !< For each neighbor cell, this procedure calculates the angles, number of intersections,
     !< and whether P' is in this cell
     type(vector_t), intent(in) :: p_prime_vector  !< vector pointing to P' from P (this should be shifted to the origin by now)
@@ -210,8 +210,8 @@ contains
     real(rk), dimension(2, 2), intent(in) :: edge_vector_2  !< 2nd edge vector ((x,y), (head,tail))
     real(rk), dimension(4), intent(in) :: reference_state !< (rho,u,v,a)
     real(rk), intent(in) :: tau  !< time increment
-    integer(ik), dimension(2), intent(out) :: n_intersections  !< # of intersections for each edge vector (0, 1, or 2)
-    integer(ik), intent(out) :: n_arcs
+    integer(ik), dimension(2) :: n_intersections !< # of intersections
+    integer(ik), intent(out) :: n_arcs !< # of arcs for each cell (0, 1, or 2)
     real(rk), dimension(2), intent(out) :: theta_ib
     real(rk), dimension(2), intent(out) :: theta_ie
     logical, intent(out) :: p_prime_in_cell

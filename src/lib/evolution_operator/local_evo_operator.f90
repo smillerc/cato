@@ -53,14 +53,15 @@ contains
     nullify(self%reconstruction_operator)
   end subroutine finalize
 
-  pure subroutine evolve_leftright_midpoints(self, conserved_vars, reconstructed_state, &
-                                             reference_state, evolved_state)
+  subroutine evolve_leftright_midpoints(self, conserved_vars, reconstructed_state, &
+                                        reference_state, evolved_state)
+    ! //TODO: make pure
     !< Create Mach cones and evolve the state at all of the left/right midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the left and right.
 
     class(local_evo_operator_t), intent(in) :: self
 
-    real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
+    real(rk), dimension(:, :, :, 0:, 0:), intent(in) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
 
     real(rk), dimension(:, :, :), intent(in) :: reference_state
@@ -69,7 +70,7 @@ contains
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
     !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges
 
-    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
+    real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
@@ -84,6 +85,8 @@ contains
 
     real(rk), dimension(4, 2) :: reconstructed_midpoint_state
     !< ((rho, u, v, p), cell_id); the reconstructed state of the midpoint with respect to each cell
+
+    integer(ik) :: ilo, ihi, jlo, jhi
 
     midpoint_idx = 2
 
@@ -112,8 +115,16 @@ contains
     ! The neighboring cells are above (i,j) and below (i,j-1)
     ! For quad cells, N - corner, M - midpoint, E - edge
 
-    do concurrent(i=1:ubound(evolved_state, dim=2))
-      do concurrent(j=1:ubound(evolved_state, dim=3))
+    ! We only reconstruct the real domain
+    ilo = lbound(conserved_vars, dim=2) + 1
+    ihi = ubound(conserved_vars, dim=2) - 1
+    jlo = lbound(conserved_vars, dim=3) + 1
+    jhi = ubound(conserved_vars, dim=3) - 1
+
+    ! do concurrent(i=ilo:ihi)
+    !   do concurrent(j=jlo:jhi)
+    do i = ilo, ihi
+      do j = jlo, jhi
 
         neighbor_cell_indices = reshape([[i, j], &  ! cell above
                                          [i, j - 1] &  ! cell below
@@ -148,15 +159,17 @@ contains
     end do
   end subroutine evolve_leftright_midpoints
 
-  pure subroutine evolve_downup_midpoints(self, conserved_vars, reconstructed_state, &
-                                          reference_state, evolved_state)
+  subroutine evolve_downup_midpoints(self, conserved_vars, reconstructed_state, &
+                                     reference_state, evolved_state)
+    ! //TODO: make pure
     !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the down and up.
 
     class(local_evo_operator_t), intent(in) :: self
 
-    real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
+    real(rk), dimension(:, :, :, 0:, 0:), intent(in) :: reconstructed_state
+    !< ((rho, u ,v, p), point, node/midpoint, i, j); 
+    !< The reconstructed state of each point P with respect to its parent cell
 
     real(rk), dimension(:, :, :), intent(in) :: reference_state
     !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges
@@ -164,7 +177,7 @@ contains
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
     !< ((rho,u,v,p), i, j); Evolved U at each midpoint on the left/right edges
 
-    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
+    real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
@@ -179,6 +192,8 @@ contains
 
     real(rk), dimension(4, 2) :: reconstructed_midpoint_state
     !< ((rho, u, v, p), cell_id); the reconstructed state of the midpoint with respect to each cell
+
+    integer(ik) :: ilo, ihi, jlo, jhi
 
     midpoint_idx = 2
 
@@ -207,8 +222,15 @@ contains
     ! The neighboring cells are left (i, j) and right (i-1, j)
     ! For quad cells, N - corner, M - midpoint, E - edge
 
-    do concurrent(i=1:ubound(evolved_state, dim=2))
-      do concurrent(j=1:ubound(evolved_state, dim=3))
+    ilo = lbound(conserved_vars, dim=2) + 1
+    ihi = ubound(conserved_vars, dim=2) - 1
+    jlo = lbound(conserved_vars, dim=3) + 1
+    jhi = ubound(conserved_vars, dim=3) - 1
+
+    ! do concurrent(i=ilo:ihi)
+    !   do concurrent(j=jlo:jhi)
+    do i = ilo, ihi
+      do j = jlo, jhi
 
         ! cell ordering is 1) left, 2) right
         neighbor_cell_indices = reshape([[i - 1, j], &  ! cell left
@@ -224,11 +246,16 @@ contains
         ! Cell 2: cell to the right -> midpoint point is on the right (M2) of the parent cell
         point_idx = 2
         reconstructed_midpoint_state(:, 2) = reconstructed_state(:, point_idx, midpoint_idx, i, j)
-
+        write(*,'(a, 2(i0,1x), 4(f0.3, 1x))') 'reference_state(:, i, j) ', i, j, reference_state(:, i, j)
+        write(*,'(a, 2(i0,1x), 4(f0.3, 1x))') 'reconstructed_midpoint_state(:, 1) ', i, j, reconstructed_midpoint_state(:, 1)
+        write(*,'(a, 2(i0,1x), 4(f0.3, 1x))') 'reconstructed_midpoint_state(:, 2) ', i, j, reconstructed_midpoint_state(:, 2)
         mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
                              reconstructed_state=reconstructed_midpoint_state, &
                              reference_state=reference_state(:, i, j), &
                              cell_indices=neighbor_cell_indices)
+        write(*,*) 'theta_ib', mach_cone%theta_ib
+        write(*,*) 'theta_ie', mach_cone%theta_ie
+        ! write(*,'(a, 2(i0,1x), 4(f0.3, 1x))') 'mach_cone%reference_state', i,j, mach_cone%reference_state
 
         ! Set the evolved state at the midpoint
         evolved_state(:, i, j) = [self%get_density(conserved_vars, mach_cone), &    ! rho
@@ -236,18 +263,22 @@ contains
                                   self%get_y_velocity(mach_cone), & ! v
                                   self%get_pressure(mach_cone) &    ! p
                                   ]
+        write(*,'(a, 2(i0,1x), 4(f0.3, 1x))') '  evolved_state(:, i, j) ', i, j, evolved_state(:, i, j)  
+        print*      
       end do
     end do
+    error stop
   end subroutine evolve_downup_midpoints
 
-  pure subroutine evolve_corners(self, conserved_vars, reconstructed_state, &
-                                 reference_state, evolved_state)
+  subroutine evolve_corners(self, conserved_vars, reconstructed_state, &
+                            reference_state, evolved_state)
+    ! //TODO: make pure
     !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the down and up.
 
     class(local_evo_operator_t), intent(in) :: self
 
-    real(rk), dimension(:, :, :, :, :), intent(in) :: reconstructed_state
+    real(rk), dimension(:, :, :, 0:, 0:), intent(in) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
 
     real(rk), dimension(:, :, :), intent(in) :: reference_state
@@ -256,7 +287,7 @@ contains
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
     !< ((rho,u,v,p), i, j); Reconstructed U at each corner
 
-    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
+    real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     ! Locals
     type(mach_cone_geometry_t) :: mach_cone
@@ -271,6 +302,8 @@ contains
 
     real(rk), dimension(4, 4) :: reconstructed_corner_state
     !< ((rho, u, v, p), cell_id); the reconstructed state of the corner with respect to each cell
+
+    integer(ik) :: ilo, ihi, jlo, jhi
 
     corner_idx = 1
 
@@ -301,8 +334,13 @@ contains
     ! The neighboring cells are left (i, j) and right (i-1, j)
     ! For quad cells, N - corner, M - midpoint, E - edge
 
-    do concurrent(i=1:ubound(evolved_state, dim=2))
-      do concurrent(j=1:ubound(evolved_state, dim=3))
+    ilo = lbound(conserved_vars, dim=2) + 1
+    ihi = ubound(conserved_vars, dim=2) - 1
+    jlo = lbound(conserved_vars, dim=3) + 1
+    jhi = ubound(conserved_vars, dim=3) - 1
+
+    do concurrent(i=ilo:ihi)
+      do concurrent(j=jlo:jhi)
 
         ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
         neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
@@ -347,29 +385,31 @@ contains
     end do
   end subroutine evolve_corners
 
-  pure function get_pressure(mach_cone) result(pressure)
+  function get_pressure(mach_cone) result(pressure)
     !< Implementation of p(P) within the local evolution operator (Eq 45 in the text)
 
     class(mach_cone_geometry_t), intent(in) :: mach_cone
     real(rk) :: pressure
-    integer(ik) :: i, cell
+    integer(ik) :: arc, cell
 
     pressure = 0.0_rk
 
     do cell = 1, mach_cone%n_neighbor_cells
-      do i = 1, mach_cone%n_intersections(cell)
+      do arc = 1, mach_cone%n_arcs(cell)
 
-        associate(theta_ie=>mach_cone%theta_ie(cell, i), &
-                  theta_ib=>mach_cone%theta_ib(cell, i), &
-                  u_i=>mach_cone%cell_conserved_vars(2, i, cell), &
-                  v_i=>mach_cone%cell_conserved_vars(3, i, cell), &
-                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
+        associate(theta_ie=>mach_cone%theta_ie(cell, arc), &
+                  theta_ib=>mach_cone%theta_ib(cell, arc), &
+                  u_i=>mach_cone%cell_conserved_vars(2, arc, cell), &
+                  v_i=>mach_cone%cell_conserved_vars(3, arc, cell), &
+                  p_i=>mach_cone%cell_conserved_vars(4, arc, cell), &
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
+          
           pressure = pressure + p_i * (theta_ie - theta_ib) - &
                      rho_tilde * a_tilde * u_i * (sin(theta_ie) - sin(theta_ib)) + &
                      rho_tilde * a_tilde * v_i * (cos(theta_ie) - cos(theta_ib))
+          write(*,'(8(f0.3,1x))') pressure, p_i, theta_ie, theta_ib, rho_tilde, a_tilde, u_i, v_i
         end associate
       end do
     end do
@@ -378,26 +418,27 @@ contains
 
   end function get_pressure
 
-  pure function get_density(self, conserved_vars, mach_cone) result(density)
+  function get_density(self, conserved_vars, mach_cone) result(density)
+    ! //TODO: make pure
     !< Implementation of rho(P) within the local evolution operator (Eq. 42 in the text)
     class(local_evo_operator_t), intent(in) :: self
     class(mach_cone_geometry_t), intent(in) :: mach_cone
-    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
+    real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     real(rk) :: density  !< rho(P)
-    integer(ik) :: i, cell
+    integer(ik) :: arc, cell
     real(rk), dimension(4) :: p_prime_u_bar !< [rho, u, v, p] at P'
 
     density = 0.0_rk
 
     do cell = 1, mach_cone%n_neighbor_cells
-      do i = 1, mach_cone%n_intersections(cell)
+      do arc = 1, mach_cone%n_arcs(cell)
 
-        associate(theta_ie=>mach_cone%theta_ie(cell, i), &
-                  theta_ib=>mach_cone%theta_ib(cell, i), &
-                  u_i=>mach_cone%cell_conserved_vars(2, i, cell), &
-                  v_i=>mach_cone%cell_conserved_vars(3, i, cell), &
-                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
+        associate(theta_ie=>mach_cone%theta_ie(cell, arc), &
+                  theta_ib=>mach_cone%theta_ib(cell, arc), &
+                  u_i=>mach_cone%cell_conserved_vars(2, arc, cell), &
+                  v_i=>mach_cone%cell_conserved_vars(3, arc, cell), &
+                  p_i=>mach_cone%cell_conserved_vars(4, arc, cell), &
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
@@ -427,19 +468,19 @@ contains
 
     class(mach_cone_geometry_t), intent(in) :: mach_cone
     real(rk) :: u !< x velocity at P
-    integer(ik) :: i
+    integer(ik) :: arc
     integer(ik) :: cell  !< cell index within the mach cone
 
     u = 0.0_rk
 
     do cell = 1, mach_cone%n_neighbor_cells
-      do i = 1, mach_cone%n_intersections(cell)
+      do arc = 1, mach_cone%n_arcs(cell)
 
-        associate(theta_ie=>mach_cone%theta_ie(cell, i), &
-                  theta_ib=>mach_cone%theta_ib(cell, i), &
-                  u_i=>mach_cone%cell_conserved_vars(2, i, cell), &
-                  v_i=>mach_cone%cell_conserved_vars(3, i, cell), &
-                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
+        associate(theta_ie=>mach_cone%theta_ie(cell, arc), &
+                  theta_ib=>mach_cone%theta_ib(cell, arc), &
+                  u_i=>mach_cone%cell_conserved_vars(2, arc, cell), &
+                  v_i=>mach_cone%cell_conserved_vars(3, arc, cell), &
+                  p_i=>mach_cone%cell_conserved_vars(4, arc, cell), &
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
@@ -460,19 +501,19 @@ contains
 
     class(mach_cone_geometry_t), intent(in) :: mach_cone
     real(rk) :: v !< y velocity at P
-    integer(ik) :: i
+    integer(ik) :: arc
     integer(ik) :: cell  !< cell index within the mach cone
 
     v = 0.0_rk
 
     do cell = 1, mach_cone%n_neighbor_cells
-      do i = 1, mach_cone%n_intersections(cell)
+      do arc = 1, mach_cone%n_arcs(cell)
 
-        associate(theta_ie=>mach_cone%theta_ie(cell, i), &
-                  theta_ib=>mach_cone%theta_ib(cell, i), &
-                  u_i=>mach_cone%cell_conserved_vars(2, i, cell), &
-                  v_i=>mach_cone%cell_conserved_vars(3, i, cell), &
-                  p_i=>mach_cone%cell_conserved_vars(4, i, cell), &
+        associate(theta_ie=>mach_cone%theta_ie(cell, arc), &
+                  theta_ib=>mach_cone%theta_ib(cell, arc), &
+                  u_i=>mach_cone%cell_conserved_vars(2, arc, cell), &
+                  v_i=>mach_cone%cell_conserved_vars(3, arc, cell), &
+                  p_i=>mach_cone%cell_conserved_vars(4, arc, cell), &
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
