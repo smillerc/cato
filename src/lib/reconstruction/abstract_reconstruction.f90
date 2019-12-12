@@ -13,17 +13,26 @@ module mod_abstract_reconstruction
   public :: abstract_reconstruction_t
 
   type, abstract :: abstract_reconstruction_t
-    class(grid_t), pointer :: grid
+    !< Base class for reconstruction operators
+
+    class(grid_t), pointer :: grid => null()
+    !< Pointer to the grid object, which should be managed by the finite_volume_scheme_t puppeteer class
+
+    real(rk), dimension(:, :, :), pointer :: conserved_vars => null()
+    !< Pointer to the conserved variables for each cell
+
     integer(ik), public :: order = 0  !< Reconstruction order
     character(:), allocatable, public :: name  !< Name of the reconstruction scheme
-    real(rk), dimension(:,:,:,:), allocatable :: cell_gradient 
+
+    real(rk), dimension(:, :, :, :), allocatable :: cell_gradient
     !< ((d/dx, d/dy), (rho, u ,v, p), i, j); Gradient of each cell's conserved quantities
-    ! integer(ik), dimension(2), public :: current_cell_ij  !< Current selected i,j indices
-    ! logical, public :: cell_is_selected = .false.  !< Has the cell been selected yet
-    ! real(rk), dimension(4), public :: cell_average = 0.0_rk !< average values of the cell conserved variables
+
     type(slope_limiter_t), public :: limiter  !< Slope limiter (if any)
   contains
     procedure, public, non_overridable :: set_slope_limiter
+    procedure, public, non_overridable :: set_grid_pointer
+    procedure, public, non_overridable :: set_conserved_vars_pointer
+    procedure, public, non_overridable :: nullify_pointer_members
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct_point), public, deferred :: reconstruct_point
     procedure(reconstruct_domain), public, deferred :: reconstruct_domain
@@ -69,9 +78,34 @@ module mod_abstract_reconstruction
 
 contains
   subroutine set_slope_limiter(self, name)
+    !< Create the class's slope limiter
     class(abstract_reconstruction_t), intent(inout) :: self
     character(len=*) :: name
     self%limiter = slope_limiter_t(name)
   end subroutine set_slope_limiter
+
+  subroutine set_grid_pointer(self, grid)
+    !< Associate the grid with data
+    class(abstract_reconstruction_t), intent(inout) :: self
+    class(grid_t), intent(in), target :: grid
+    self%grid => grid
+  end subroutine set_grid_pointer
+
+  subroutine set_conserved_vars_pointer(self, conserved_vars, lbounds)
+    !< Associate the conserved variables with data. The lbounds argument
+    !< is due to the way in which the conserved vars array is indexed (due to ghost cells).
+    !< This is normaly indexed starting at 0 for the i (2nd) and j (3rd) indices.
+    class(abstract_reconstruction_t), intent(inout) :: self
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
+      intent(in), target :: conserved_vars
+    self%conserved_vars => conserved_vars
+  end subroutine set_conserved_vars_pointer
+
+  subroutine nullify_pointer_members(self)
+    class(abstract_reconstruction_t), intent(inout) :: self
+    nullify(self%grid)
+    nullify(self%conserved_vars)
+  end subroutine nullify_pointer_members
 
 end module mod_abstract_reconstruction
