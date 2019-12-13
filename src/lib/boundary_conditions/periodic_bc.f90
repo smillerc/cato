@@ -7,11 +7,11 @@ module mod_periodic_bc
   implicit none
 
   private
-  public :: periodic_bc_t
+  public :: periodic_bc_t, periodic_bc_constructor
 
   type, extends(boundary_condition_t) :: periodic_bc_t
   contains
-    procedure, public :: initialize => init_periodic_bc
+    ! procedure, public :: initialize => init_periodic_bc
     procedure, public :: apply_conserved_var_bc => apply_periodic_conserved_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_periodic_reconstructed_state_bc
     procedure, public :: apply_cell_gradient_bc => apply_periodic_cell_gradient_bc
@@ -32,14 +32,13 @@ module mod_periodic_bc
 
 contains
 
-  subroutine init_periodic_bc(self, location)
-    class(periodic_bc_t), intent(inout) :: self
-    ! class(input_t), intent(in) :: input
+  function periodic_bc_constructor(location) result(bc)
+    type(periodic_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
-
-    self%name = 'periodic'
-    self%location = location
-  end subroutine init_periodic_bc
+    allocate(bc)
+    bc%name = 'periodic'
+    bc%location = location
+  end function periodic_bc_constructor
 
   subroutine apply_periodic_conserved_var_bc(self, conserved_vars)
     !< Apply periodic boundary conditions to the conserved state vector field
