@@ -1,6 +1,7 @@
 module mod_integrand
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_surrogate, only: surrogate
+  use mod_globals, only: debug_print
   use mod_strategy, only: strategy
 
   implicit none
@@ -83,8 +84,10 @@ contains
   end function
 
   subroutine integrate(model, dt)
-    class(integrand_t) :: model ! integrand_t
+    class(integrand_t), intent(inout) :: model ! integrand_t
     real(rk), intent(in) :: dt ! time step size
+
+    call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, dt)
     else

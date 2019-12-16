@@ -36,7 +36,7 @@ Modules should have the following structure
 module mod_new_type
   !< Summary: What this module does
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic iso_fortran_env, only: ik => int32, rk => real64
   use mod_parent_type, only : parent_type_t
   use mod_input, only : input_t
 

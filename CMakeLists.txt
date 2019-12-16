@@ -10,14 +10,13 @@ set(fvleg_2d_VERSION_MAJOR 0)
 set(fvleg_2d_VERSION_MINOR 1)
 set(fvleg_2d_PATCH_VERSION 0)
 
-set(CMAKE_VERBOSE_MAKEFILE "On")
+set(CMAKE_VERBOSE_MAKEFILE "Off")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 cmake_policy(SET CMP0074 NEW)
-cmake_policy(SET CMP0069 NEW) # Link-time optimization
-include(CheckIPOSupported)
-check_ipo_supported()
+# cmake_policy(SET CMP0069 NEW) # Link-time optimization
+# include(CheckIPOSupported) check_ipo_supported()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -33,7 +32,8 @@ find_package(
   COMPONENTS Fortran_HL
   REQUIRED)
 
-# find_package(PFUNIT REQUIRED) enable_testing()
+find_package(PFUNIT REQUIRED)
+enable_testing()
 
 message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
 message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
@@ -66,8 +66,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -Wall -Wextra -Wpedantic\
  -Wconversion \
  -fimplicit-none -fbacktrace \
- -fcheck=all") # \
-  # -ffpe-trap=zero,overflow,underflow -finit-real=nan")
+ -fcheck=all -ffpe-trap=zero,overflow,underflow -finit-real=nan")
 
   set(CMAKE_Fortran_FLAGS_RELEASE
       "-O2 -floop-parallelize-all -march=native -fcoarray=single")
@@ -118,6 +117,5 @@ include_directories(${CMAKE_BINARY_DIR}/generated)
 # add_library(clfortran src/lib/opencl/mod_clfortran.f90)
 # target_link_libraries(clfortran OpenCL::OpenCL)
 
-# add_subdirectory(src/third_party)
 add_subdirectory(src)
-# add_subdirectory(tests/unit)
+add_subdirectory(tests/unit)

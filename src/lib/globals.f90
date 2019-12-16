@@ -4,7 +4,7 @@ module mod_globals
   implicit none
 
   logical, parameter :: enable_debug_print = .true.
-  logical, parameter :: enable_file_and_line_stats = .true.
+  logical, parameter :: enable_file_and_line_stats = .false.
 
   logical :: globals_set = .false.
   character(:), allocatable :: compiler_flags_str
