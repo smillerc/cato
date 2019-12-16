@@ -1,12 +1,13 @@
 module mod_finite_volume_schemes
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_surrogate, only: surrogate
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
   use mod_grid, only: grid_t
+  use mod_input, only: input_t
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
 
   implicit none
@@ -87,12 +88,20 @@ module mod_finite_volume_schemes
     !< shared by neighboring cells, but each point has its own reconstructed value based on the parent cell's state
 
   contains
+    procedure(initialize), public, deferred :: initialize
     procedure(reconstruct), public, deferred :: reconstruct
     ! procedure(eval_fluxes), public, deferred :: eval_fluxes
     procedure, public :: calculate_reference_state
   end type
 
   abstract interface
+    subroutine initialize(self, input)
+      import :: finite_volume_scheme_t
+      import :: input_t
+      class(input_t), intent(in) :: input
+      class(finite_volume_scheme_t), intent(inout) :: self
+    end subroutine
+
     subroutine reconstruct(self)
       import :: finite_volume_scheme_t
       class(finite_volume_scheme_t), intent(inout) :: self
@@ -119,12 +128,11 @@ contains
     integer(ik) :: i, j
     integer(ik) :: ilo, jlo, ihi, jhi
 
-    ilo = self%grid%ilo_cell
-    jlo = self%grid%jlo_cell
-    ihi = self%grid%jhi_cell
-    jhi = self%grid%ihi_cell
-
     ! left/right midpoints -> needs to average cells above and below
+    ilo = lbound(self%leftright_midpoints_reference_state, dim=2)
+    ihi = ubound(self%leftright_midpoints_reference_state, dim=2)
+    jlo = lbound(self%leftright_midpoints_reference_state, dim=3)
+    jhi = ubound(self%leftright_midpoints_reference_state, dim=3)
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%leftright_midpoints_reference_state, U=>self%conserved_vars)
@@ -134,6 +142,10 @@ contains
     end do
 
     ! up/down midpoints -> needs to average cells right and left
+    ilo = lbound(self%downup_midpoints_reference_state, dim=2)
+    ihi = ubound(self%downup_midpoints_reference_state, dim=2)
+    jlo = lbound(self%downup_midpoints_reference_state, dim=3)
+    jhi = ubound(self%downup_midpoints_reference_state, dim=3)
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%downup_midpoints_reference_state, U=>self%conserved_vars)
@@ -143,6 +155,10 @@ contains
     end do
 
     ! Corners
+    ilo = lbound(self%corner_reference_state, dim=2)
+    ihi = ubound(self%corner_reference_state, dim=2)
+    jlo = lbound(self%corner_reference_state, dim=3)
+    jhi = ubound(self%corner_reference_state, dim=3)
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%corner_reference_state, U=>self%conserved_vars)

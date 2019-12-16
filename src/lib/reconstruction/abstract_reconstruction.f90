@@ -1,6 +1,6 @@
 module mod_abstract_reconstruction
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_regular_2d_grid, only: regular_2d_grid_t
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
@@ -49,26 +49,27 @@ module mod_abstract_reconstruction
       class(grid_t), intent(in), target :: grid
     end subroutine
 
-    function reconstruct_point(self, conserved_vars, xy, cell_ij) result(U_bar)
+    function reconstruct_point(self, xy, cell_ij) result(U_bar)
       !< Reconstruct the value of the conserved variables (U) at location (x,y) based on the
       !> cell average and gradient (if higher order)
       import :: abstract_reconstruction_t
       import :: ik, rk
 
       class(abstract_reconstruction_t), intent(in) :: self
-      real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
+      ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
       real(rk), dimension(2), intent(in) :: xy !< (x,y) position to reconstruct
       integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
       real(rk), dimension(4) :: U_bar  !< U_bar = reconstructed [rho, u, v, p]
     end function reconstruct_point
 
-    subroutine reconstruct_domain(self, conserved_vars, reconstructed_domain)
+    subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
       import :: abstract_reconstruction_t
-      import :: rk
-
+      import :: ik, rk
       class(abstract_reconstruction_t), intent(inout) :: self
-      real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
-      real(rk), dimension(:, :, :, 0:, 0:), intent(out) :: reconstructed_domain
+      ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
+      integer(ik), dimension(5), intent(in) :: lbounds
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                          lbounds(4):, lbounds(5):), intent(out) :: reconstructed_domain
       !< ((rho, u ,v, p), point, node/midpoint, i, j);
       !< The node/midpoint dimension just selects which set of points,
       !< e.g. 1 - all corners, 2 - all midpoints

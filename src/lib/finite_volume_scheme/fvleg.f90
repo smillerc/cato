@@ -1,12 +1,14 @@
 module mod_fvleg
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_globals, only: debug_print
+  use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
   use mod_input, only: input_t
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
-  use mod_reconstruction_factory, only: reconstruction_factory_t
+  use mod_reconstruction_factory, only: reconstruction_factory
   use mod_local_evo_operator, only: local_evo_operator_t
   use mod_second_order_reconstruction, only: second_order_reconstruction_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
@@ -15,6 +17,7 @@ module mod_fvleg
   use mod_bc_factory, only: bc_factory
   use mod_grid, only: grid_t
   use hdf5_interface, only: hdf5_file
+  use mod_boundary_conditions, only: boundary_condition_t
   use mod_time_integrator_factory, only: time_integrator_factory
 
   ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
@@ -47,29 +50,68 @@ module mod_fvleg
   end type
 
   interface new_fvleg
-    module procedure :: initialize
+    module procedure :: constructor
   end interface
 
 contains
+
+  function constructor(input) result(fvleg)
+    class(input_t), intent(in) :: input
+    type(fvleg_t), pointer :: fvleg
+
+    allocate(fvleg)
+    call fvleg%initialize(input)
+
+  end function
 
   subroutine initialize(self, input)
     !< Construct the finite volume local evolution Galerkin (fvleg) scheme
     class(fvleg_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
-    type(reconstruction_factory_t) :: recon_factory
+    class(boundary_condition_t), pointer :: bc => null()
+    class(strategy), pointer :: time_integrator => null()
+    class(abstract_reconstruction_t), pointer :: r_omega => null()
+    type(local_evo_operator_t) :: E0
+
     integer(ik) :: alloc_status
+    alloc_status = 0
+
+    call debug_print('Initializing fvleg_t', __FILE__, __LINE__)
 
     self%title = input%title
-    self%grid = grid_factory(input)
 
-    self%time_integrator = time_integrator_factory(input)
+    self%grid = grid_factory(input)
+    ! print*, 'allocated(grid): ', allocated(grid)
+    ! ! if (allocated(self%grid)) deallocate(self%grid)
+    ! allocate(self%grid, source=grid, stat=alloc_status)
+    ! print*, 'alloc stat', alloc_status
+    ! if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%grid"
+    ! ! nullify(grid)
+
+    time_integrator => time_integrator_factory(input)
+    allocate(self%time_integrator, source=time_integrator, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%time_integrator"
+    nullify(time_integrator)
 
     ! Set boundary conditions
-    self%bc_plus_x = bc_factory(bc_type=input%plus_x_bc, location='+x')
-    self%bc_plus_y = bc_factory(bc_type=input%plus_y_bc, location='+y')
-    self%bc_minus_x = bc_factory(bc_type=input%minus_x_bc, location='-x')
-    self%bc_minus_y = bc_factory(bc_type=input%minus_y_bc, location='-y')
+    bc => bc_factory(bc_type=input%plus_x_bc, location='+x')
+    allocate(self%bc_plus_x, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%bc_plus_x"
+
+    bc => bc_factory(bc_type=input%plus_y_bc, location='+y')
+    allocate(self%bc_plus_y, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%bc_plus_y"
+
+    bc => bc_factory(bc_type=input%minus_x_bc, location='-x')
+    allocate(self%bc_minus_x, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%bc_minus_x"
+
+    bc => bc_factory(bc_type=input%minus_y_bc, location='-y')
+    allocate(self%bc_minus_y, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%bc_minus_y"
+
+    nullify(bc)
 
     associate(imin=>self%grid%ilo_bc_cell, imax=>self%grid%ihi_bc_cell, &
               jmin=>self%grid%jlo_bc_cell, jmax=>self%grid%jhi_bc_cell)
@@ -77,7 +119,6 @@ contains
       allocate(self%conserved_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
       ! ((rho,u,v,p),i,j) Conserved variables for each cell
       if(alloc_status /= 0) then
-        write(*, *) "Allocation status: ", alloc_status
         error stop "Unable to allocate fvleg_t%conserved_vars"
       end if
 
@@ -86,36 +127,61 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%reconstructed_state"
     end associate
 
-    recon_factory = reconstruction_factory_t(input)
-    self%reconstruction_operator = recon_factory%create_reconstruction(grid=self%grid)
-    self%evolution_operator = local_evo_operator_t(input, self%grid, self%reconstruction_operator)
+    r_omega => reconstruction_factory(input=input, grid=self%grid)
+    allocate(self%reconstruction_operator, source=r_omega, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%reconstruction_operator"
+    nullify(r_omega)
 
-    associate(imin=>self%grid%ilo_node, imax=>self%grid%ihi_node, &
-              jmin=>self%grid%jlo_node, jmax=>self%grid%jhi_node)
+    call debug_print('Making an E0 operator', __FILE__, __LINE__)
+    E0 = local_evo_operator_t(input, self%grid, self%reconstruction_operator)
+    allocate(self%evolution_operator, source=E0, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolution_operator"
+    call debug_print('Done', __FILE__, __LINE__)
 
-      allocate(self%evolved_corner_state(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_corner_state"
-      ! ((rho,u,v,p), i, j); Reconstructed U at each corner
+    associate(imin_node=>self%grid%ilo_node, imax_node=>self%grid%ihi_node, &
+              jmin_node=>self%grid%jlo_node, jmax_node=>self%grid%jhi_node, &
+              imin_cell=>self%grid%ilo_node, imax_cell=>self%grid%ihi_node, &
+              jmin_cell=>self%grid%jlo_node, jmax_cell=>self%grid%jhi_node)
 
-      allocate(self%corner_reference_state(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%corner_reference_state"
-      ! ((rho, u ,v, p), i, j); Reference state (tilde) at each corner
+      ! corners
+      if(.not. allocated(self%evolved_corner_state)) then
+        ! ((rho,u,v,p), i, j); Reconstructed U at each corner
+        allocate(self%evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
+        if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_corner_state"
+      end if
 
-      allocate(self%evolved_downup_midpoints_state(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_downup_midpoints_state"
-      ! ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the up/down edges (edges 2 and 4)
+      if(.not. allocated(self%corner_reference_state)) then
+        ! ((rho, u ,v, p), i, j); Reference state (tilde) at each corner
+        allocate(self%corner_reference_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
+        if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%corner_reference_state"
+      endif
 
-      allocate(self%evolved_leftright_midpoints_state(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_leftright_midpoints_state"
-      ! ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
+      ! left/right midpoints
+      if(.not. allocated(self%evolved_leftright_midpoints_state)) then
+        ! ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
+        allocate(self%evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
+        if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_leftright_midpoints_state"
+      end if
 
-      allocate(self%downup_midpoints_reference_state(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%downup_midpoints_reference_state"
-      ! ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the up/down edges (edges 2 and 4)
+      if(.not. allocated(self%leftright_midpoints_reference_state)) then
+        ! ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
+        allocate(self%leftright_midpoints_reference_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
+        if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%leftright_midpoints_reference_state"
+      end if
 
-      allocate(self%leftright_midpoints_reference_state(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%leftright_midpoints_reference_state"
-      ! ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
+      ! down/up midpoints
+      if(.not. allocated(self%evolved_downup_midpoints_state)) then
+        ! ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the down/up edges (edges 2 and 4)
+        allocate(self%evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
+        if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%evolved_downup_midpoints_state"
+      end if
+
+      if(.not. allocated(self%downup_midpoints_reference_state)) then
+        ! ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the down/up edges (edges 2 and 4)
+        allocate(self%downup_midpoints_reference_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
+        if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%downup_midpoints_reference_state"
+      end if
+
     end associate
 
     if(input%read_init_cond_from_file) then
@@ -139,7 +205,7 @@ contains
     real(rk), dimension(:, :), allocatable :: y_velocity
     real(rk), dimension(:, :), allocatable :: pressure
 
-    integer(ik) :: i, j
+    call debug_print('Initializing fvleg_t from hdf5', __FILE__, __LINE__)
     call h5%initialize(filename=input%initial_condition_file, status='old', action='r')
     call h5%get('/density', density)
     call h5%get('/x_velocity', x_velocity)
@@ -147,8 +213,8 @@ contains
     call h5%get('/pressure', pressure)
     call h5%finalize()
 
-    if (minval(pressure) < 0.0_rk) then
-      error stop "Pressure < 0 in initialize_from_hdf5"
+    if(any(near_zero(pressure))) then
+      error stop "Some (or all) of the pressure array is ~0 in fvleg_t%initialize_from_hdf5"
     end if
 
     associate(imin=>self%grid%ilo_bc_cell, imax=>self%grid%ihi_bc_cell, &
@@ -159,9 +225,8 @@ contains
       self%conserved_vars(3, imin:imax, jmin:jmax) = y_velocity ! (1:imax,1:jmax)
       self%conserved_vars(4, imin:imax, jmin:jmax) = pressure   ! (1:imax,1:jmax)
     end associate
-      
-      
-    end subroutine initialize_from_hdf5
+
+  end subroutine initialize_from_hdf5
 
   subroutine initialize_from_ini(self, input)
     !< Initialize from an .ini file. The conserved variables are already allocated appropriately from
@@ -169,6 +234,7 @@ contains
     class(fvleg_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
+    call debug_print('Initializing fvleg_t from .ini', __FILE__, __LINE__)
     write(*, '(a,4(f0.3, 1x))') 'Initializing fvleg_t%conserved_vars to [rho,u,v,p]: ', &
       input%init_density, input%init_x_velocity, input%init_y_velocity, input%init_pressure
     self%conserved_vars(1, :, :) = input%init_density
@@ -185,7 +251,7 @@ contains
 
     alloc_status = 0
 
-    print *, 'Finalizing fvleg_t'
+    call debug_print('Finalizing fvleg_t', __FILE__, __LINE__)
 
     if(allocated(self%evolution_operator)) then
       deallocate(self%evolution_operator, stat=alloc_status)
@@ -249,15 +315,18 @@ contains
     !< This reconstructs the entire grid at all the nodes/midpoints
     class(fvleg_t), intent(inout) :: self
 
-    print *, 'Reconstructing ...'
-    call self%reconstruction_operator%reconstruct_domain(self%conserved_vars, self%reconstructed_state)
+    call debug_print('Reconstructing the domain', __FILE__, __LINE__)
+    call self%reconstruction_operator%set_conserved_vars_pointer(conserved_vars=self%conserved_vars, &
+                                                                 lbounds=lbound(self%conserved_vars))
+    call self%reconstruction_operator%set_grid_pointer(self%grid)
+    call self%reconstruction_operator%reconstruct_domain(reconstructed_domain=self%reconstructed_state, lbounds=lbound(self%reconstructed_state))
   end subroutine reconstruct_fvleg
 
   subroutine apply_conserved_vars_bc(self)
     !< Apply the boundary conditions
     class(fvleg_t), intent(inout) :: self
 
-    print *, 'Applying conserbed var bc ...'
+    call debug_print('Calling apply_conserved_var_bc', __FILE__, __LINE__)
     call self%bc_plus_x%apply_conserved_var_bc(conserved_vars=self%conserved_vars)
     call self%bc_plus_y%apply_conserved_var_bc(conserved_vars=self%conserved_vars)
     call self%bc_minus_x%apply_conserved_var_bc(conserved_vars=self%conserved_vars)
@@ -268,9 +337,9 @@ contains
     !< Apply the boundary conditions
     class(fvleg_t), intent(inout) :: self
 
-    print *, 'Applying bc reconstructed state ...'
-    call self%bc_plus_x%apply_reconstructed_state_bc (reconstructed_state=self%reconstructed_state)
-    call self%bc_plus_y%apply_reconstructed_state_bc (reconstructed_state=self%reconstructed_state)
+    call debug_print('Calling apply_reconstructed_state_bc', __FILE__, __LINE__)
+    call self%bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
+    call self%bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
     call self%bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
     call self%bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
   end subroutine apply_reconstructed_state_bc
@@ -279,15 +348,15 @@ contains
     !< Apply the boundary conditions
     class(fvleg_t), intent(inout) :: self
     class(abstract_reconstruction_t), intent(in) :: r_omega
-      select type(r_omega)
-      class is (second_order_reconstruction_t)
-        print *, 'Applying bc cell gradient state ...'
-        call self%bc_plus_x%apply_cell_gradient_bc (cell_gradient=self%reconstruction_operator%cell_gradient)
-        call self%bc_plus_y%apply_cell_gradient_bc (cell_gradient=self%reconstruction_operator%cell_gradient)
-        call self%bc_minus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
-        call self%bc_minus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
-      end select
-      
+    select type(r_omega)
+    class is(second_order_reconstruction_t)
+      call debug_print('Calling apply_cell_gradient_bc', __FILE__, __LINE__)
+      call self%bc_plus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+      call self%bc_plus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+      call self%bc_minus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+      call self%bc_minus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+    end select
+
   end subroutine apply_cell_gradient_bc
 
   function time_derivative(self) result(dU_dt)
@@ -298,10 +367,12 @@ contains
     type(fvleg_t), allocatable :: local_dU_dt
     ! integer(ik) :: alloc_status
 
-    print *, 'Finding dU/dt...'
-    allocate(fvleg_t :: local_dU_dt)
-    local_dU_dt = self%duplicate()
+    call debug_print('Finding dU/dt', __FILE__, __LINE__)
 
+    ! allocate(fvleg_t :: local_dU_dt)
+    ! local_dU_dt = self%duplicate()
+    allocate(local_dU_dt, source=self)
+    print *, 'local_dU_dt%initiated: ', local_dU_dt%initiated
     call local_dU_dt%calculate_reference_state()
     call local_dU_dt%apply_conserved_vars_bc()
     call local_dU_dt%reconstruct()                    ! reconstruct only the real domain // TODO: make sure init applies ghost conditions at the start?
@@ -319,29 +390,28 @@ contains
   subroutine evolve_domain(self)
     class(fvleg_t), intent(inout) :: self
 
-    print *, 'Evolving the domain...'
+    call debug_print('Evolving the domain', __FILE__, __LINE__)
+
+    ! Set the pointers for the evolution operator (makes the code w/in it easier)
+    call self%evolution_operator%set_grid_pointer(grid_target=self%grid)
+    call self%evolution_operator%set_reconstruction_operator_pointer(operator_target=self%reconstruction_operator)
+    call self%evolution_operator%set_reconstructed_state_pointer(reconstructed_state_target=self%reconstructed_state, &
+                                                                 lbounds=lbound(self%reconstructed_state))
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
-    print *, 'Left/right midpoints...'
-    call self%evolution_operator%evolve_leftright_midpoints(conserved_vars=self%conserved_vars, &
-                                                            reconstructed_state=self%reconstructed_state, &
-                                                            reference_state=self%leftright_midpoints_reference_state, &
+    call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
+    call self%evolution_operator%evolve_leftright_midpoints(reference_state=self%leftright_midpoints_reference_state, &
                                                             evolved_state=self%evolved_leftright_midpoints_state)
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
-    print *, 'Down/up midpoints ..'
-    call self%evolution_operator%evolve_downup_midpoints(conserved_vars=self%conserved_vars, &
-                                                         reconstructed_state=self%reconstructed_state, &
-                                                         reference_state=self%downup_midpoints_reference_state, &
+    call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
+    call self%evolution_operator%evolve_downup_midpoints(reference_state=self%downup_midpoints_reference_state, &
                                                          evolved_state=self%evolved_downup_midpoints_state)
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
-    print *, 'Corner nodes...'
-    call self%evolution_operator%evolve_corners(conserved_vars=self%conserved_vars, &
-                                                reconstructed_state=self%reconstructed_state, &
-                                                reference_state=self%corner_reference_state, &
+    call debug_print('Evolving corner nodes', __FILE__, __LINE__)
+    call self%evolution_operator%evolve_corners(reference_state=self%corner_reference_state, &
                                                 evolved_state=self%evolved_corner_state)
-    print *, 'Done'
   end subroutine
 
   function integrate_fluxes(self) result(rhs)
@@ -351,14 +421,8 @@ contains
     real(rk), dimension(4) :: edge_flux
 
     integer(ik) :: ilo, ihi, jlo, jhi
-    ! real(rk), dimension(size(self%conserved_vars, dim=1), &
-    !                     size(self%conserved_vars, dim=2), &
-    !                     size(self%conserved_vars, dim=3)) :: rhs !< RHS of Eq 3 in the main text
-
     real(rk), dimension(:, :, :), allocatable :: rhs
-
-    ! type(flux_tensor_t) :: H1, H2, H3
-    integer(ik) :: i, j, k
+    integer(ik) :: i, j
 
     ilo = self%grid%ilo_cell
     jlo = self%grid%jlo_cell
@@ -370,13 +434,13 @@ contains
 
     do j = jlo, jhi
       do i = ilo, ihi
-    ! do concurrent(j=self%grid%jlo_cell:self%grid%jhi_cell)
-    !   do concurrent(i=self%grid%ilo_cell:self%grid%ihi_cell)
+        ! do concurrent(j=self%grid%jlo_cell:self%grid%jhi_cell)
+        !   do concurrent(i=self%grid%ilo_cell:self%grid%ihi_cell)
 
         edge_flux = 0.0_rk
-        print*, 'i, j:', i, j
+        print *, 'i, j:', i, j
         ! Edge 1 (bottom)
-        print*, 'bottom'
+        print *, 'bottom'
         associate(E0_R_omega_k1=>self%evolved_corner_state(:, i, j), &
                   E0_R_omega_kc=>self%evolved_leftright_midpoints_state(:, i, j), &
                   E0_R_omega_k2=>self%evolved_corner_state(:, i + 1, j), &
@@ -393,7 +457,7 @@ contains
         end associate
 
         ! Edge 2 (right)
-        print*, 'right'
+        print *, 'right'
         associate(E0_R_omega_k1=>self%evolved_corner_state(:, i + 1, j), &
                   E0_R_omega_kc=>self%evolved_downup_midpoints_state(:, i + 1, j), &
                   E0_R_omega_k2=>self%evolved_corner_state(:, i + 1, j + 1), &
@@ -410,7 +474,7 @@ contains
         end associate
 
         ! Edge 3 (top)
-        print*, 'top'
+        print *, 'top'
         associate(E0_R_omega_k1=>self%evolved_corner_state(:, i + 1, j + 1), &
                   E0_R_omega_kc=>self%evolved_leftright_midpoints_state(:, i, j + 1), &
                   E0_R_omega_k2=>self%evolved_corner_state(:, i, j + 1), &
@@ -427,7 +491,7 @@ contains
         end associate
 
         ! Edge 4 (left)
-        print*, 'left'
+        print *, 'left'
         associate(E0_R_omega_k1=>self%evolved_corner_state(:, i, j + 1), &
                   E0_R_omega_kc=>self%evolved_downup_midpoints_state(:, i, j), &
                   E0_R_omega_k2=>self%evolved_corner_state(:, i, j), &
@@ -513,6 +577,7 @@ contains
     class(integrand_t), allocatable :: product
     class(fvleg_t), allocatable :: local_product
 
+    print *, 'Calling fvleg_t%real_mul_fvleg()'
     allocate(fvleg_t :: local_product)
     local_product = rhs%duplicate()
     local_product%conserved_vars = rhs%conserved_vars * lhs
@@ -523,125 +588,133 @@ contains
   subroutine assign_fvleg(lhs, rhs)
     !< Implementation of the (=) operator for the fvleg type. e.g. lhs = rhs
     class(fvleg_t), intent(inout) :: lhs
-    class(integrand_t), intent(in) :: rhs
+    class(integrand_t), intent(in), pointer :: rhs
     integer(ik) :: alloc_status
 
     alloc_status = 0
-    print *, 'Calling assign_fvleg'
+    call debug_print('Calling assign_fvleg_t', __FILE__, __LINE__)
+
     select type(rhs)
     class is(fvleg_t)
-
-      allocate(lhs%grid, source=rhs%grid, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate lhs%grid from rhs%grid in fvleg_t%assign"
+      ! allocate(lhs, source=rhs)
+      ! lhs = rhs%duplicate()
+      ! ! allocate(regular_2d_grid_t :: lhs%grid)
+      ! allocate(lhs%grid, source=rhs%grid, stat=alloc_status)
+      ! if(alloc_status /= 0) error stop "Unable to allocate lhs%grid from rhs%grid in fvleg_t%assign"
       lhs%grid = rhs%grid
+      ! allocate(lhs%bc_plus_x, source=rhs%bc_plus_x)
+      ! allocate(lhs%bc_plus_y, source=rhs%bc_plus_y)
+      ! allocate(lhs%bc_minus_x, source=rhs%bc_minus_x)
+      ! allocate(lhs%bc_minus_y, source=rhs%bc_minus_y)
 
       lhs%bc_plus_x = rhs%bc_plus_x
       lhs%bc_plus_y = rhs%bc_plus_y
       lhs%bc_minus_x = rhs%bc_minus_x
       lhs%bc_minus_y = rhs%bc_minus_y
 
-      if(.not. allocated(lhs%evolution_operator)) then
-        allocate(lhs%evolution_operator, source=rhs%evolution_operator, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%evolution_operator from rhs%evolution_operator in fvleg_t%assign"
-        end if
-      end if
+      ! if(.not. allocated(lhs%evolution_operator)) then
+      !   allocate(lhs%evolution_operator, source=rhs%evolution_operator, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%evolution_operator from rhs%evolution_operator in fvleg_t%assign"
+      !   end if
+      ! end if
       lhs%evolution_operator = rhs%evolution_operator
 
-      if(.not. allocated(lhs%time_integrator)) then
-        allocate(lhs%time_integrator, source=rhs%time_integrator, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%time_integrator from rhs%time_integrator in fvleg_t%assign"
-        endif
-      end if
+      ! if(.not. allocated(lhs%time_integrator)) then
+      !   allocate(lhs%time_integrator, source=rhs%time_integrator, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%time_integrator from rhs%time_integrator in fvleg_t%assign"
+      !   endif
+      ! end if
       lhs%time_integrator = rhs%time_integrator
 
-      if(.not. allocated(lhs%reconstruction_operator)) then
-        allocate(lhs%reconstruction_operator, source=rhs%reconstruction_operator, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%reconstruction_operator "// &
-            "from rhs%reconstruction_operator in fvleg_t%assign"
-        endif
-      end if
+      ! if(.not. allocated(lhs%reconstruction_operator)) then
+      !   allocate(lhs%reconstruction_operator, source=rhs%reconstruction_operator, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%reconstruction_operator "// &
+      !       "from rhs%reconstruction_operator in fvleg_t%assign"
+      !   endif
+      ! end if
       lhs%reconstruction_operator = rhs%reconstruction_operator
 
-      if(.not. allocated(lhs%conserved_vars)) then
-        allocate(lhs%conserved_vars, mold=rhs%conserved_vars, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%conserved_vars from "// &
-            "rhs%conserved_vars in fvleg_t%assign"
-        endif
-      end if
+      ! if(.not. allocated(lhs%conserved_vars)) then
+      !   allocate(lhs%conserved_vars, mold=rhs%conserved_vars, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%conserved_vars from "// &
+      !       "rhs%conserved_vars in fvleg_t%assign"
+      !   endif
+      ! end if
       lhs%conserved_vars = rhs%conserved_vars
 
-      if(.not. allocated(lhs%evolved_corner_state)) then
-        allocate(lhs%evolved_corner_state, &
-                 mold=rhs%evolved_corner_state, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%evolved_corner_state "// &
-            "from rhs%evolved_corner_state in fvleg_t%assign"
-        endif
-      endif
+      ! if(.not. allocated(lhs%evolved_corner_state)) then
+      !   allocate(lhs%evolved_corner_state, &
+      !            mold=rhs%evolved_corner_state, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%evolved_corner_state "// &
+      !       "from rhs%evolved_corner_state in fvleg_t%assign"
+      !   endif
+      ! endif
       lhs%evolved_corner_state = rhs%evolved_corner_state
 
-      if(.not. allocated(lhs%corner_reference_state)) then
-        allocate(lhs%corner_reference_state, &
-                 mold=rhs%corner_reference_state, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%corner_reference_state "// &
-            "from rhs%corner_reference_state in fvleg_t%assign"
-        endif
-      endif
+      ! if(.not. allocated(lhs%corner_reference_state)) then
+      !   allocate(lhs%corner_reference_state, &
+      !            mold=rhs%corner_reference_state, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%corner_reference_state "// &
+      !       "from rhs%corner_reference_state in fvleg_t%assign"
+      !   endif
+      ! endif
       lhs%corner_reference_state = rhs%corner_reference_state
 
-      if(.not. allocated(lhs%evolved_downup_midpoints_state)) then
-        allocate(lhs%evolved_downup_midpoints_state, &
-                 mold=rhs%evolved_downup_midpoints_state, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%evolved_downup_midpoints_state "// &
-            "from rhs%evolved_downup_midpoints_state in fvleg_t%assign"
-        end if
-      endif
+      ! if(.not. allocated(lhs%evolved_downup_midpoints_state)) then
+      !   allocate(lhs%evolved_downup_midpoints_state, &
+      !            mold=rhs%evolved_downup_midpoints_state, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%evolved_downup_midpoints_state "// &
+      !       "from rhs%evolved_downup_midpoints_state in fvleg_t%assign"
+      !   end if
+      ! endif
       lhs%evolved_downup_midpoints_state = rhs%evolved_downup_midpoints_state
 
-      if(.not. allocated(lhs%evolved_leftright_midpoints_state)) then
-        allocate(lhs%evolved_leftright_midpoints_state, &
-                 mold=rhs%evolved_leftright_midpoints_state, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%evolved_leftright_midpoints_state "// &
-            "from rhs%evolved_leftright_midpoints_state in fvleg_t%assign"
-        end if
-      endif
+      ! if(.not. allocated(lhs%evolved_leftright_midpoints_state)) then
+      !   allocate(lhs%evolved_leftright_midpoints_state, &
+      !            mold=rhs%evolved_leftright_midpoints_state, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%evolved_leftright_midpoints_state "// &
+      !       "from rhs%evolved_leftright_midpoints_state in fvleg_t%assign"
+      !   end if
+      ! endif
       lhs%evolved_leftright_midpoints_state = rhs%evolved_leftright_midpoints_state
 
-      if(.not. allocated(lhs%downup_midpoints_reference_state)) then
-        allocate(lhs%downup_midpoints_reference_state, &
-                 mold=rhs%downup_midpoints_reference_state, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%downup_midpoints_reference_state "// &
-            "from rhs%downup_midpoints_reference_state in fvleg_t%assign"
-        end if
-      endif
+      ! if(.not. allocated(lhs%downup_midpoints_reference_state)) then
+      !   allocate(lhs%downup_midpoints_reference_state, &
+      !            mold=rhs%downup_midpoints_reference_state, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%downup_midpoints_reference_state "// &
+      !       "from rhs%downup_midpoints_reference_state in fvleg_t%assign"
+      !   end if
+      ! endif
       lhs%downup_midpoints_reference_state = rhs%downup_midpoints_reference_state
 
-      if(.not. allocated(lhs%leftright_midpoints_reference_state)) then
-        allocate(lhs%leftright_midpoints_reference_state, &
-                 mold=rhs%leftright_midpoints_reference_state, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%leftright_midpoints_reference_state "// &
-            "from rhs%leftright_midpoints_reference_state in fvleg_t%assign"
-        end if
-      endif
+      ! if(.not. allocated(lhs%leftright_midpoints_reference_state)) then
+      !   allocate(lhs%leftright_midpoints_reference_state, &
+      !            mold=rhs%leftright_midpoints_reference_state, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%leftright_midpoints_reference_state "// &
+      !       "from rhs%leftright_midpoints_reference_state in fvleg_t%assign"
+      !   end if
+      ! endif
       lhs%leftright_midpoints_reference_state = rhs%leftright_midpoints_reference_state
 
-      if(.not. allocated(lhs%reconstructed_state)) then
-        allocate(lhs%reconstructed_state, mold=rhs%reconstructed_state, stat=alloc_status)
-        if(alloc_status /= 0) then
-          error stop "Unable to allocate lhs%reconstructed_state from "// &
-            "rhs%reconstructed_state in fvleg_t%assign"
-        end if
-      endif
+      ! if(.not. allocated(lhs%reconstructed_state)) then
+      !   allocate(lhs%reconstructed_state, mold=rhs%reconstructed_state, stat=alloc_status)
+      !   if(alloc_status /= 0) then
+      !     error stop "Unable to allocate lhs%reconstructed_state from "// &
+      !       "rhs%reconstructed_state in fvleg_t%assign"
+      !   end if
+      ! endif
       lhs%reconstructed_state = rhs%reconstructed_state
+      lhs%initiated = .true.
 
     class default
       error stop 'fvleg_t%assign_fvleg: unsupported class'
@@ -655,18 +728,40 @@ contains
 
     integer(ik) :: alloc_status
 
+    call debug_print('Calling fvleg_t%duplicate()', __FILE__, __LINE__)
     allocate(fvleg_t :: duplicate_fvleg, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg"
 
-    duplicate_fvleg%grid = self%grid
-    duplicate_fvleg%evolution_operator = self%evolution_operator
-    duplicate_fvleg%reconstruction_operator = self%reconstruction_operator
-    duplicate_fvleg%time_integrator = self%time_integrator
+    allocate(duplicate_fvleg%grid, source=self%grid, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%grid"
 
-    duplicate_fvleg%bc_plus_x = self%bc_plus_x
-    duplicate_fvleg%bc_plus_y = self%bc_plus_y
-    duplicate_fvleg%bc_minus_x = self%bc_minus_x
-    duplicate_fvleg%bc_minus_y = self%bc_minus_y
+    allocate(duplicate_fvleg%evolution_operator, mold=self%evolution_operator, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%evolution_operator"
+    duplicate_fvleg%evolution_operator = self%evolution_operator
+
+    allocate(duplicate_fvleg%reconstruction_operator, source=self%reconstruction_operator, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%reconstruction_operator"
+    duplicate_fvleg%reconstruction_operator = self%reconstruction_operator
+
+    allocate(duplicate_fvleg%time_integrator, source=self%time_integrator, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%time_integrator"
+    ! duplicate_fvleg%time_integrator = self%time_integrator
+
+    allocate(duplicate_fvleg%bc_plus_x, source=self%bc_plus_x, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%bc_plus_x"
+    ! duplicate_fvleg%bc_plus_x = self%bc_plus_x
+
+    allocate(duplicate_fvleg%bc_plus_y, source=self%bc_plus_y, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%bc_plus_y"
+    ! duplicate_fvleg%bc_plus_y = self%bc_plus_y
+
+    allocate(duplicate_fvleg%bc_minus_x, source=self%bc_minus_x, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%bc_minus_x"
+    ! duplicate_fvleg%bc_minus_x = self%bc_minus_x
+
+    allocate(duplicate_fvleg%bc_minus_y, source=self%bc_minus_y, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%bc_minus_y"
+    ! duplicate_fvleg%bc_minus_y = self%bc_minus_y
 
     allocate(duplicate_fvleg%conserved_vars, mold=self%conserved_vars, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%conserved_vars"
@@ -699,6 +794,8 @@ contains
     allocate(duplicate_fvleg%reconstructed_state, mold=self%reconstructed_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate duplicate_fvleg%reconstructed_state"
     duplicate_fvleg%reconstructed_state = 0.0_rk
+
+    duplicate_fvleg%initiated = .true.
 
   end function
 
