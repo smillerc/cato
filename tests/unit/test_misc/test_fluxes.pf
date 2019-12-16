@@ -1,5 +1,5 @@
 module test_fluxes
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_flux_tensor, only: H => flux_tensor_t
   use funit
 

@@ -1,5 +1,5 @@
 module test_slope_limiters
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_slope_limiter, only: slope_limiter_t
 
   use funit

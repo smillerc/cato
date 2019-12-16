@@ -1,5 +1,5 @@
 module test_fvleg
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_fvleg
   use mod_input, only: input_t
   use mod_regular_2d_grid, only: regular_2d_grid_t
@@ -121,67 +121,105 @@ contains
   subroutine test_operators()
 
     type(input_t) :: input
-    type(fvleg_t) :: fvleg_a, fvleg_b, fvleg_c
+    class(fvleg_t), pointer :: fvleg_a, fvleg_b, fvleg_c
     real(rk), dimension(:, :, :), allocatable :: conserved_vars
 
     integer(ik) :: ini
-    character(:), allocatable :: ini_filename
+    character(len=32) :: ini_filename
 
     write(*, *) "Running test for test_grid.test_operators()"
 
     ini_filename = 'test_fvleg_test_operators.ini'
 
-    open(newunit=ini, file=ini_filename, status='replace')
+    open(newunit=ini, file=trim(ini_filename), status='replace')
+
     write(ini, *) "[general]"
-    write(ini, *) "title='simple ini input'"
+    write(ini, *) "title='basic'"
     write(ini, *) "[time]"
     write(ini, *) "max_time = 0.2"
     write(ini, *) "integration_strategy='rk2'"
     write(ini, *) "contour_interval_dt = 0.1"
     write(ini, *) "initial_delta_t = 1e-2"
     write(ini, *) "[grid]"
-    write(ini, *) "xmin=", xmin
-    write(ini, *) "xmax=", xmax
-    write(ini, *) "ni_nodes=", ni_nodes
-    write(ini, *) "nj_nodes=", nj_nodes
-    write(ini, *) "ymin=", ymin
-    write(ini, *) "ymax=", ymax
-    write(ini, *) "[physics]"
-    write(ini, *) "polytropic_index=1.6"
+    write(ini, *) "grid_type = '2d_regular'"
+    write(ini, *) "ni_nodes=5"
+    write(ini, *) "xmin=-5"
+    write(ini, *) "xmax=5"
+    write(ini, *) "nj_nodes=10"
+    write(ini, *) "ymin=-5"
+    write(ini, *) "ymax=10"
     write(ini, *) "[initial_conditions]"
-    write(ini, *) "read_from_file = false"
-    ! write(ini, *) "initial_condition_file = 'double_shear.h5'"
-    write(ini, *) "init_density=", init_density
-    write(ini, *) "init_x_velocity=", init_x_velocity
-    write(ini, *) "init_y_velocity=", init_y_velocity
-    write(ini, *) "init_pressure=", init_pressure
+    write(ini, *) "read_from_file = False"
+    write(ini, *) "init_density=1"
+    write(ini, *) "init_x_velocity=-2"
+    write(ini, *) "init_y_velocity=3"
+    write(ini, *) "init_pressure=4"
     write(ini, *) "[boundary_conditions]"
     write(ini, *) "plus_x = 'periodic'"
     write(ini, *) "minus_x = 'periodic'"
     write(ini, *) "plus_y = 'periodic'"
     write(ini, *) "minus_y = 'periodic'"
     write(ini, *) "[scheme]"
+    write(ini, *) "tau=1e-2"
     write(ini, *) "reconstruction_type = 'piecewise_linear'"
     write(ini, *) "slope_limiter = 'sun_ren_09'"
+    write(ini, *) "[physics]"
+    write(ini, *) "polytropic_index = 1.6666666667"
     write(ini, *) "[io]"
     write(ini, *) "contour_format = 'xdmf'"
+
+    ! write(ini, *) "[general]"
+    ! write(ini, *) "title='simple ini input'"
+    ! write(ini, *) "[time]"
+    ! write(ini, *) "max_time = 0.2"
+    ! write(ini, *) "integration_strategy='rk2'"
+    ! write(ini, *) "contour_interval_dt = 0.1"
+    ! write(ini, *) "initial_delta_t = 1e-2"
+    ! write(ini, *) "[grid]"
+    ! write(ini, *) "xmin=", xmin
+    ! write(ini, *) "xmax=", xmax
+    ! write(ini, *) "ni_nodes=", ni_nodes
+    ! write(ini, *) "nj_nodes=", nj_nodes
+    ! write(ini, *) "ymin=", ymin
+    ! write(ini, *) "ymax=", ymax
+    ! write(ini, *) "[physics]"
+    ! write(ini, *) "polytropic_index=1.6"
+    ! write(ini, *) "[initial_conditions]"
+    ! write(ini, *) "read_from_file = false"
+    ! ! write(ini, *) "initial_condition_file = 'double_shear.h5'"
+    ! write(ini, *) "init_density=", init_density
+    ! write(ini, *) "init_x_velocity=", init_x_velocity
+    ! write(ini, *) "init_y_velocity=", init_y_velocity
+    ! write(ini, *) "init_pressure=", init_pressure
+    ! write(ini, *) "[boundary_conditions]"
+    ! write(ini, *) "plus_x = 'periodic'"
+    ! write(ini, *) "minus_x = 'periodic'"
+    ! write(ini, *) "plus_y = 'periodic'"
+    ! write(ini, *) "minus_y = 'periodic'"
+    ! write(ini, *) "[scheme]"
+    ! write(ini, *) "tau = '1e-2'"
+    ! write(ini, *) "reconstruction_type = 'piecewise_linear'"
+    ! write(ini, *) "slope_limiter = 'sun_ren_09'"
+    ! write(ini, *) "[io]"
+    ! write(ini, *) "contour_format = 'xdmf'"
     close(ini)
 
     call input%read_from_ini(ini_filename)
-
-    call fvleg_a%initialize(input)
-    call fvleg_b%initialize(input)
-    ! call fvleg_c%initialize(input)
+    fvleg_a => new_fvleg(input)
+    fvleg_b => new_fvleg(input)
+    fvleg_c => new_fvleg(input)
 
     ! ! Make a dummy U vector to play with
     allocate(conserved_vars, mold=fvleg_a%conserved_vars)
 
     ! fvleg_t * real
+    print *, 'Testing fvleg_t * real'
     conserved_vars = fvleg_a%conserved_vars * 2.0_rk
     fvleg_b = fvleg_a * 2.0_rk
     @assertEqual(conserved_vars, fvleg_b%conserved_vars)
 
     ! real * fvleg_t
+    print *, 'real * Testing fvleg_t'
     conserved_vars = fvleg_a%conserved_vars * 2.0_rk
     fvleg_b = 2.0_rk * fvleg_a
     @assertEqual(conserved_vars, fvleg_b%conserved_vars)
@@ -197,6 +235,7 @@ contains
     ! @assertEqual(conserved_vars, fvleg_b%conserved_vars)
 
     ! (=) and (+) between same types
+    print *, 'Testing fvleg_t + fvleg_t'
     fvleg_c = fvleg_a + fvleg_b
     conserved_vars = fvleg_a%conserved_vars + fvleg_b%conserved_vars
     @assertEqual(conserved_vars, fvleg_c%conserved_vars)

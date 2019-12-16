@@ -1,5 +1,5 @@
 module test_grid
-  use iso_fortran_env, only: ik => int32, rk => real64, stdout => output_unit
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, stdout => output_unit
   use mod_regular_2d_grid, only: regular_2d_grid_t
   use mod_grid, only: grid_t
   use mod_grid_factory, only: grid_factory
@@ -140,6 +140,7 @@ contains
     write(ini, *) "plus_y = 'periodic'"
     write(ini, *) "minus_y = 'periodic'"
     write(ini, *) "[scheme]"
+    write(ini, *) "tau = '1e-2'"
     write(ini, *) "reconstruction_type = 'piecewise_linear'"
     write(ini, *) "slope_limiter = 'sun_ren_09'"
     write(ini, *) "[io]"

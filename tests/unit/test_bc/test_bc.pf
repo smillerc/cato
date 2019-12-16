@@ -1,5 +1,5 @@
 module test_bc
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
   use mod_bc_factory, only: bc_factory
   use mod_boundary_conditions, only: boundary_condition_t
@@ -19,10 +19,10 @@ contains
 
   @test
   subroutine test_bc_factory()
-    class(boundary_condition_t), allocatable :: bc_plus_x
-    class(boundary_condition_t), allocatable :: bc_plus_y
-    class(boundary_condition_t), allocatable :: bc_minus_x
-    class(boundary_condition_t), allocatable :: bc_minus_y
+    class(boundary_condition_t), pointer :: bc_plus_x
+    class(boundary_condition_t), pointer :: bc_plus_y
+    class(boundary_condition_t), pointer :: bc_minus_x
+    class(boundary_condition_t), pointer :: bc_minus_y
 
     type(input_t) :: input
     class(grid_t), allocatable :: grid
@@ -50,10 +50,10 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
     end associate
 
-    bc_plus_x = bc_factory(bc_type='periodic', location='+x')
-    bc_plus_y = bc_factory(bc_type='periodic', location='+y')
-    bc_minus_x = bc_factory(bc_type='periodic', location='-x')
-    bc_minus_y = bc_factory(bc_type='periodic', location='-y')
+    bc_plus_x => bc_factory(bc_type='periodic', location='+x')
+    bc_plus_y => bc_factory(bc_type='periodic', location='+y')
+    bc_minus_x => bc_factory(bc_type='periodic', location='-x')
+    bc_minus_y => bc_factory(bc_type='periodic', location='-y')
 
     @assertEqual('+x', bc_plus_x%location)
     @assertEqual('+y', bc_plus_y%location)
@@ -114,10 +114,15 @@ contains
       reconstructed_domain(:, :, :, right, top) = 3.0_rk         ! "3" cells in cartoon
     end associate
 
-    call bc_plus_x%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
-    call bc_plus_y%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
-    call bc_minus_x%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
-    call bc_minus_y%apply_bc(conserved_vars=U, reconstructed_state=reconstructed_domain)
+    call bc_plus_x%apply_conserved_var_bc(conserved_vars=U)
+    call bc_plus_y%apply_conserved_var_bc(conserved_vars=U)
+    call bc_minus_x%apply_conserved_var_bc(conserved_vars=U)
+    call bc_minus_y%apply_conserved_var_bc(conserved_vars=U)
+
+    call bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain)
+    call bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain)
+    call bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain)
+    call bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain)
 
     associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
               bottom=>grid%jlo_cell, top=>grid%jhi_cell, &
@@ -140,6 +145,12 @@ contains
       @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], U(1, right_ghost, :))
       @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], reconstructed_domain(1, 1, 1, right_ghost, :))
     end associate
+
+    nullify(bc_plus_x)
+    nullify(bc_plus_y)
+    nullify(bc_minus_x)
+    nullify(bc_minus_y)
+
   end subroutine
 
 end module test_bc

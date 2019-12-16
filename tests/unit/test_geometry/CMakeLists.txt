@@ -4,6 +4,8 @@ add_pfunit_ctest(vector_tests TEST_SOURCES test_vector.pf LINK_LIBRARIES
 add_pfunit_ctest(mach_cone_tests TEST_SOURCES test_mach_cone_geometry.pf
                  LINK_LIBRARIES geometry)
 
+add_pfunit_ctest(cone_tests TEST_SOURCES test_cone.pf LINK_LIBRARIES geometry)
+
 add_pfunit_ctest(quad_element_tests TEST_SOURCES test_quad_cell.pf
                  LINK_LIBRARIES geometry)
 
