@@ -1,5 +1,5 @@
 module mod_flux_tensor
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_vector, only: vector_t
   use mod_eos, only: eos
 
@@ -48,7 +48,7 @@ contains
               u=>primitive_variables(2), v=>primitive_variables(3), &
               p=>primitive_variables(4), gamma=>eos%get_gamma())
 
-      print*, 'H:', p, rho, gamma
+      print *, 'H:', p, rho, gamma
       internal_energy = (p / rho) / (gamma - 1)
       total_energy = rho * (internal_energy + 0.5_rk * (u**2 + v**2))
     end associate

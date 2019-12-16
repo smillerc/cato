@@ -1,6 +1,6 @@
 module mod_grid
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
 
   implicit none

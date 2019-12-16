@@ -1,5 +1,5 @@
 module mod_regular_2d_grid
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_grid, only: grid_t
   use mod_quad_cell, only: quad_cell_t
   use mod_input, only: input_t
@@ -8,7 +8,7 @@ module mod_regular_2d_grid
   implicit none
 
   private
-  public :: regular_2d_grid_t
+  public :: regular_2d_grid_t, new_regular_2d_grid
 
   type, extends(grid_t) :: regular_2d_grid_t
     !< Summary: The regular_2d_grid_t type holds all of the geometry info relevant to the grid.
@@ -71,7 +71,17 @@ module mod_regular_2d_grid
 
   end type regular_2d_grid_t
 
+  interface new_regular_2d_grid
+    module procedure :: constructor
+  end interface
 contains
+
+  function constructor(input) result(grid)
+    type(regular_2d_grid_t), allocatable :: grid
+    class(input_t), intent(in) :: input
+    allocate(grid)
+    call grid%initialize(input)
+  end function
 
   subroutine initialize(self, input)
     !< Implementation of the grid initialization process for a regular 2d grid
@@ -371,104 +381,6 @@ contains
 
   end subroutine finalize
 
-  ! pure function get_ihi(self) result(ihi)
-  !   !< Public interface to get ihi
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik) :: ihi
-  !   ihi = self%ihi
-  ! end function
-
-  ! pure function get_ilo(self) result(ilo)
-  !   !< Public interface to get ilo
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik) :: ilo
-  !   ilo = self%ilo
-  ! end function
-
-  ! pure function get_ni(self) result(ni)
-  !   !< Public interface to get ni
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik) :: ni
-  !   ni = self%ni
-  ! end function
-
-  ! pure function get_nj(self) result(nj)
-  !   !< Public interface to get nj
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik) :: nj
-  !   nj = self%nj
-  ! end function
-
-  ! pure function get_jlo(self) result(jlo)
-  !   !< Public interface to get jlo
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik) :: jlo
-  !   jlo = self%jlo
-  ! end function
-
-  ! pure function get_jhi(self) result(jhi)
-  !   !< Public interface to get jhi
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik) :: jhi
-  !   jhi = self%jhi
-  ! end function
-
-  ! pure function get_xmin(self) result(xmin)
-  !   !< Public interface to get xmin
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   real(rk) :: xmin
-  !   xmin = self%xmin
-  ! end function
-
-  ! pure function get_xmax(self) result(xmax)
-  !   !< Public interface to get xmax
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   real(rk) :: xmax
-  !   xmax = self%xmax
-  ! end function
-
-  ! pure function get_ymin(self) result(ymin)
-  !   !< Public interface to get ymin
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   real(rk) :: ymin
-  !   ymin = self%ymin
-  ! end function
-
-  ! pure function get_ymax(self) result(ymax)
-  !   !< Public interface to get ymax
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   real(rk) :: ymax
-  !   ymax = self%ymax
-  ! end function
-
-  ! pure function get_dx(self) result(dx)
-  !   !< Public interface to get ymax
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   real(rk) :: dx
-  !   dx = self%dx
-  ! end function
-
-  ! pure function get_dy(self) result(dy)
-  !   !< Public interface to get ymax
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   real(rk) :: dy
-  !   dy = self%dy
-  ! end function
-
-  ! pure function get_x_length(self) result(x_length)
-  !   !< Public interface to get x_length
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   real(rk) :: x_length
-  !   x_length = self%x_length
-  ! end function
-
-  ! pure function get_y_length(self) result(y_length)
-  !   !< Public interface to get y_length
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   real(rk) :: y_length
-  !   y_length = self%y_length
-  ! end function
-
   pure function get_x(self, i, j) result(x)
     !< Public interface to get x
     class(regular_2d_grid_t), intent(in) :: self
@@ -508,22 +420,6 @@ contains
     real(rk) :: cell_edge_lengths
     cell_edge_lengths = self%cell_edge_lengths(f, i, j)
   end function
-
-  ! pure function get_cell_node_xy(self, i, j, n, xy) result(cell_node_xy)
-  !   !< Public interface to get cell_edge_midpoints
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik), intent(in) :: i, j, n, xy
-  !   real(rk) :: cell_node_xy
-  !   cell_node_xy = self%cell_node_xy(i, j, n, xy)
-  ! end function
-
-  ! pure function get_node_xy_pair(self, i, j, n_id) result(xy_pair)
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik), intent(in) :: i, j, n_id
-  !   real(rk), dimension(2) :: xy_pair
-
-  !   xy_pair = self
-  ! end function
 
   pure function get_cell_edge_norm_vectors(self, i, j, f, xy) result(cell_edge_norm_vectors)
     !< Public interface to get cell_edge_norm_vectors
@@ -577,10 +473,10 @@ contains
       !  | (i-1,j) |  (i,j)   |
       !  |         C1(N1)     |
       tail = self%cell_node_xy(:, 4, 2, i, j)
-      vectors = reshape([tail, &                            ! (x,y) tail, vector 1 (M4)
-                         self%cell_node_xy(:, 1, 1, i, j), &    ! (x,y) head, vector 1 (N1)
-                         tail, &                            ! (x,y) tail, vector 2 (M4)
-                         self%cell_node_xy(:, 4, 1, i, j) &     ! (x,y) head, vector 2 (N4)
+      vectors = reshape([tail, &                             ! (x,y) tail, vector 1 (M4)
+                         self%cell_node_xy(:, 1, 1, i, j), & ! (x,y) head, vector 1 (N1)
+                         tail, &                             ! (x,y) tail, vector 2 (M4)
+                         self%cell_node_xy(:, 4, 1, i, j) &  ! (x,y) head, vector 2 (N4)
                          ], shape=[2, 2, 2])
     case('bottom')
       ! Bottom edge of cell (i,j)
