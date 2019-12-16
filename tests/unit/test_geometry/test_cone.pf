@@ -1,0 +1,64 @@
+module test_cone
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_cone
+  use funit
+
+  implicit none
+
+contains
+
+  @test
+  subroutine test_intersection_points()
+
+    real(rk), dimension(2,2) :: line_xy !< ((x,y), (point_1, point_2))
+    real(rk), dimension(2) :: circle_xy !< (x,y)
+    real(rk) :: circle_radius
+    real(rk), dimension(2,2) :: intersection_xy !< ((x,y), (point_1, point_2))
+    logical, dimension(2) :: valid_intersection !< (point_1, point_2)
+
+    circle_xy = [1.0_rk, 1.0_rk]
+    circle_radius = 2.0_rk
+
+    ! No intersections
+    line_xy(:,1) = [1.0_rk, 0.0_rk]
+    line_xy(:,2) = [1.0_rk, 2.0_rk]
+    call vector_circle_intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
+    @assertEqual([1.0_rk,-1.0_rk], intersection_xy(:,1))
+    @assertEqual([1.0_rk,3.0_rk], intersection_xy(:,2))
+    @assertEqual([.false., .false.], valid_intersection)
+
+    ! Exactly 2 intersections on the circle
+    line_xy(:,1) = [1.0_rk,-1.0_rk]
+    line_xy(:,2) = [1.0_rk, 3.0_rk]
+    call vector_circle_intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
+    @assertEqual([1.0_rk,-1.0_rk], intersection_xy(:,1))
+    @assertEqual([1.0_rk,3.0_rk], intersection_xy(:,2))
+    @assertEqual([.true., .true.], valid_intersection)
+
+
+    ! Exactly 1 intersections on the circle
+    line_xy(:,1) = [0.0_rk,0.0_rk]
+    line_xy(:,2) = [1.0_rk, 3.0_rk]
+    call vector_circle_intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
+    @assertEqual([1.0_rk,3.0_rk], intersection_xy(:,2))
+    @assertEqual([-0.2_rk,-0.6_rk], intersection_xy(:,1), 1e-10)
+    @assertEqual([.false., .true.], valid_intersection)
+
+    ! Only 1 intersection
+    line_xy(:,1) = [ 0.0_rk, 1.0_rk]
+    line_xy(:,2) = [ 4.0_rk, 1.0_rk]
+    call vector_circle_intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
+    @assertEqual([-1.0_rk,1.0_rk], intersection_xy(:,1))
+    @assertEqual([ 3.0_rk,1.0_rk], intersection_xy(:,2))
+    @assertEqual([.false., .true.], valid_intersection)
+
+    ! 2 intersections
+    line_xy(:,1) = [-2.0_rk, 1.0_rk]
+    line_xy(:,2) = [ 4.0_rk, 1.0_rk]
+    call vector_circle_intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
+    @assertEqual([-1.0_rk,1.0_rk], intersection_xy(:,1))
+    @assertEqual([ 3.0_rk,1.0_rk], intersection_xy(:,2))
+    @assertEqual([.true., .true.], valid_intersection)
+
+  end subroutine
+end module test_cone
