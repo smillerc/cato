@@ -1,7 +1,7 @@
 module mod_quad_cell
   !< Summary: Define the quadrilateral cell/control volume object
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_vector, only: vector_t, operator(.unitnorm.), operator(.dot.), operator(.cross.)
   implicit none
 

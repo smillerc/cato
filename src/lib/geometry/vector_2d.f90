@@ -1,5 +1,5 @@
 module mod_vector_2d
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
 
   implicit none
 

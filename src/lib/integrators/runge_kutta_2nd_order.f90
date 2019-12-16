@@ -1,6 +1,7 @@
 module mod_2nd_order_runge_kutta
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_globals, only: debug_print
   use mod_surrogate, only: surrogate
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
@@ -23,12 +24,11 @@ contains
     real(rk), intent(in) :: dt
     class(integrand_t), allocatable :: self_half !< function evaluation at interval t+dt/2
 
-    print *, "dt....", dt
+    call debug_print('Running runge_kutta_2nd%integrate()', __FILE__, __LINE__)
     select type(self)
     class is(integrand_t)
       allocate(self_half, source=self)
       self_half = self - self%t() * dt
-      print *, 'done,...'
       self = self * 0.5_rk + (self_half - (self%t() * dt)) * 0.5_rk
     class default
       error stop 'Error in runge_kutta_2nd%integrate - unsupported class'

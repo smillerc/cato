@@ -1,6 +1,6 @@
 module mod_contour_writer
 
-  use iso_fortran_env, only: ik => int32, rk => real64, real32
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, real32
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
   use hdf5_interface, only: hdf5_file
   use mod_input, only: input_t
