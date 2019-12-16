@@ -1,6 +1,6 @@
 module mod_input
 
-  use iso_fortran_env, only: ik => int32, rk => real64, output_unit
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, output_unit
   use cfgio_mod, only: cfg_t, parse_cfg
 
   implicit none
@@ -48,7 +48,7 @@ module mod_input
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
     ! finite volume scheme specifics
-    character(:), allocatable :: reconstruction_type !< How are the cells being reconstructed
+    character(len=32) :: reconstruction_type !< How are the cells being reconstructed
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: slope_limiter
 
@@ -115,7 +115,7 @@ contains
 
     ! Scheme
     call cfg%get("scheme", "tau", self%tau)
-    
+
     call cfg%get("scheme", "reconstruction_type", char_buffer, 'piecewise_linear')
     self%reconstruction_type = trim(char_buffer)
 
