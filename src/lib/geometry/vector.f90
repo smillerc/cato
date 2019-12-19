@@ -42,7 +42,7 @@ contains
 
     vec%x = x
     vec%y = y
-    vec%length = norm2([vec%x, vec%y])
+    vec%length = sqrt(vec%x**2 + vec%y**2)
   end function
 
   type(vector_t) pure function constructor_from_2d(x, y) result(vec)
@@ -53,7 +53,7 @@ contains
 
     vec%x = x(2) - x(1)
     vec%y = y(2) - y(1)
-    vec%length = norm2([vec%x, vec%y])
+    vec%length = sqrt(vec%x**2 + vec%y**2)
   end function
 
   subroutine write_vector(self, unit, iotype, v_list, iostat, iomsg)

@@ -42,13 +42,15 @@ module mod_input
     real(rk) :: max_time = 1.0_rk
     real(rk) :: initial_delta_t = 0.0_rk
     real(rk) :: contour_interval_dt = 0.5_rk
+    integer(ik) :: max_iterations = huge(1)
     character(:), allocatable :: time_integration_strategy !< How is time integration handled? e.g. 'rk2', 'rk4', etc.
 
     ! physics
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
     ! finite volume scheme specifics
-    character(len=32) :: reconstruction_type !< How are the cells being reconstructed
+    character(len=32) :: evolution_operator_type = 'fvleg'        !< How are the cells being reconstructed
+    character(len=32) :: reconstruction_type = 'piecewise_linear' !< How are the cells being reconstructed
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: slope_limiter
 
@@ -108,6 +110,7 @@ contains
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "initial_delta_t", self%initial_delta_t)
     call cfg%get("time", "integration_strategy", char_buffer)
+    call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
     self%time_integration_strategy = trim(char_buffer)
 
     ! Physics

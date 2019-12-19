@@ -22,7 +22,7 @@ module cfgio_mod
 
   type cfg_sect_t
     integer(int32) :: npar = 0
-    character(len=MXNSTR) :: section
+    character(len=MXNSTR) :: section = ''
     type(dict_t) :: p(MXNPAR)
   contains
     procedure :: has_key => sect_has_key

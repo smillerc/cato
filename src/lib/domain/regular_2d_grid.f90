@@ -4,6 +4,7 @@ module mod_regular_2d_grid
   use mod_quad_cell, only: quad_cell_t
   use mod_input, only: input_t
   use hdf5_interface, only: hdf5_file
+  use mod_globals, only: debug_print
 
   implicit none
 
@@ -61,12 +62,11 @@ module mod_regular_2d_grid
     procedure, public :: get_cell_volumes
     procedure, public :: get_cell_centroid_xy
     procedure, public :: get_cell_edge_lengths
-    ! procedure, public :: get_cell_node_xy
     procedure, public :: get_cell_edge_norm_vectors
     procedure, public :: get_midpoint_vectors
     procedure, public :: get_corner_vectors
     procedure, public :: finalize
-
+    procedure, public :: copy
     final :: force_finalization
 
   end type regular_2d_grid_t
@@ -77,7 +77,7 @@ module mod_regular_2d_grid
 contains
 
   function constructor(input) result(grid)
-    type(regular_2d_grid_t), allocatable :: grid
+    type(regular_2d_grid_t), pointer :: grid
     class(input_t), intent(in) :: input
     allocate(grid)
     call grid%initialize(input)
@@ -137,6 +137,66 @@ contains
     end associate
 
     call self%populate_element_specifications()
+  end subroutine
+
+  subroutine copy(out_grid, in_grid)
+    class(grid_t), intent(in) :: in_grid
+    class(regular_2d_grid_t), intent(inout) :: out_grid
+
+    call debug_print('Calling regular_2d_grid_t%copy()', __FILE__, __LINE__)
+
+    out_grid%ilo_bc_node = in_grid%ilo_bc_node
+    out_grid%jlo_bc_node = in_grid%jlo_bc_node
+    out_grid%ihi_bc_node = in_grid%ihi_bc_node
+    out_grid%jhi_bc_node = in_grid%jhi_bc_node
+    out_grid%ilo_node = in_grid%ilo_node
+    out_grid%jlo_node = in_grid%jlo_node
+    out_grid%ihi_node = in_grid%ihi_node
+    out_grid%jhi_node = in_grid%jhi_node
+    out_grid%ni_node = in_grid%ni_node
+    out_grid%nj_node = in_grid%nj_node
+    out_grid%ilo_bc_cell = in_grid%ilo_bc_cell
+    out_grid%jlo_bc_cell = in_grid%jlo_bc_cell
+    out_grid%ihi_bc_cell = in_grid%ihi_bc_cell
+    out_grid%jhi_bc_cell = in_grid%jhi_bc_cell
+    out_grid%ilo_cell = in_grid%ilo_cell
+    out_grid%jlo_cell = in_grid%jlo_cell
+    out_grid%ihi_cell = in_grid%ihi_cell
+    out_grid%jhi_cell = in_grid%jhi_cell
+    out_grid%ni_cell = in_grid%ni_cell
+    out_grid%nj_cell = in_grid%nj_cell
+    out_grid%xmin = in_grid%xmin
+    out_grid%xmax = in_grid%xmax
+    out_grid%min_dx = in_grid%min_dx
+    out_grid%max_dx = in_grid%max_dx
+    out_grid%ymin = in_grid%ymin
+    out_grid%ymax = in_grid%ymax
+    out_grid%min_dy = in_grid%min_dy
+    out_grid%max_dy = in_grid%max_dy
+    out_grid%x_length = in_grid%x_length
+    out_grid%y_length = in_grid%y_length
+
+    if(allocated(out_grid%node_x)) deallocate(out_grid%node_x)
+    allocate(out_grid%node_x, source=in_grid%node_x)
+
+    if(allocated(out_grid%node_y)) deallocate(out_grid%node_y)
+    allocate(out_grid%node_y, source=in_grid%node_y)
+
+    if(allocated(out_grid%cell_volume)) deallocate(out_grid%cell_volume)
+    allocate(out_grid%cell_volume, source=in_grid%cell_volume)
+
+    if(allocated(out_grid%cell_centroid_xy)) deallocate(out_grid%cell_centroid_xy)
+    allocate(out_grid%cell_centroid_xy, source=in_grid%cell_centroid_xy)
+
+    if(allocated(out_grid%cell_edge_lengths)) deallocate(out_grid%cell_edge_lengths)
+    allocate(out_grid%cell_edge_lengths, source=in_grid%cell_edge_lengths)
+
+    if(allocated(out_grid%cell_node_xy)) deallocate(out_grid%cell_node_xy)
+    allocate(out_grid%cell_node_xy, source=in_grid%cell_node_xy)
+
+    if(allocated(out_grid%cell_edge_norm_vectors)) deallocate(out_grid%cell_edge_norm_vectors)
+    allocate(out_grid%cell_edge_norm_vectors, source=in_grid%cell_edge_norm_vectors)
+
   end subroutine
 
   subroutine initialize_from_hdf5(self, input)
@@ -343,7 +403,7 @@ contains
     class(regular_2d_grid_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    print *, 'Finalizing regular_2d_grid_t'
+    call debug_print('Calling regular_2d_grid_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%cell_volume)) then
       deallocate(self%cell_volume, stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volume"
@@ -509,6 +569,8 @@ contains
 
     i = cell_ij(1)
     j = cell_ij(2)
+    vectors = 0.0_rk
+    tail = 0.0_rk
 
     ! Corner/midpoint index convention         Cell Indexing convention
     ! --------------------------------         ------------------------
@@ -542,20 +604,34 @@ contains
     !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints
 
-    vectors = 0.0_rk
-
     tail = self%cell_node_xy(:, 1, 1, i, j)
     select case(trim(corner))
     case('lower-left')
-      vectors = reshape([tail, &                            ! (x,y) tail, vector 1
-                         self%cell_node_xy(:, 1, 1, i, j - 1), &  ! (x,y) head, vector 1
-                         tail, &                            ! (x,y) tail, vector 2
-                         self%cell_node_xy(:, 2, 1, i, j), &    ! (x,y) head, vector 2
-                         tail, &                            ! (x,y) tail, vector 3
-                         self%cell_node_xy(:, 4, 1, i, j), &    ! (x,y) head, vector 3
-                         tail, &                            ! (x,y) tail, vector 4
-                         self%cell_node_xy(:, 1, 1, i - 1, j) &   ! (x,y) head, vector 4
-                         ], shape=[2, 2, 4])
+      ! vectors = reshape([tail, &                            ! (x,y) tail, vector 1
+      !                    self%cell_node_xy(:, 1, 1, i, j - 1), &  ! (x,y) head, vector 1
+      !                    tail, &                            ! (x,y) tail, vector 2
+      !                    self%cell_node_xy(:, 2, 1, i, j), &    ! (x,y) head, vector 2
+      !                    tail, &                            ! (x,y) tail, vector 3
+      !                    self%cell_node_xy(:, 4, 1, i, j), &    ! (x,y) head, vector 3
+      !                    tail, &                            ! (x,y) tail, vector 4
+      !                    self%cell_node_xy(:, 1, 1, i - 1, j) &   ! (x,y) head, vector 4
+      !                    ], shape=[2, 2, 4])
+      vectors(:, 1, 1) = tail
+      vectors(:, 2, 1) = self%cell_node_xy(:, 1, 1, i, j - 1)  ! vector 1
+
+      vectors(:, 1, 2) = tail
+      vectors(:, 2, 2) = self%cell_node_xy(:, 2, 1, i, j)      ! vector 3
+
+      vectors(:, 1, 3) = tail
+      vectors(:, 2, 3) = self%cell_node_xy(:, 4, 1, i, j)      ! vector 3
+
+      vectors(:, 1, 4) = tail
+      vectors(:, 2, 4) = self%cell_node_xy(:, 1, 1, i - 1, j)  ! vector 4
+      ! = reshape([
+      !                  , &    ! (x,y) head, vector 2
+      !                  , &    ! (x,y) head, vector 3
+      !                   &   ! (x,y) head, vector 4
+      !                  ], shape=[2, 2, 4])
       ! case ('lower-right')
       ! case ('upper-right')
       ! case ('upper-left')

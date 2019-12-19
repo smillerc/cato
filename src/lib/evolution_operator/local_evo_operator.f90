@@ -1,11 +1,14 @@
 module mod_local_evo_operator
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_globals, only: debug_print
+
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: near_zero, equal
   use math_constants, only: pi
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_input, only: input_t
-  use mod_mach_cone_geometry, only: mach_cone_geometry_t, new_cone
+  ! use mod_mach_cone_geometry, only: mach_cone_geometry_t, new_cone
+  use mod_cone, only: cone_t, new_cone
   use mod_grid, only: grid_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
@@ -20,6 +23,7 @@ module mod_local_evo_operator
   type, extends(abstract_evo_operator_t) :: local_evo_operator_t
     !< Local Evolution Operator (E0)
   contains
+    procedure, public :: initialize
     procedure, private :: get_density
     procedure, private, nopass :: get_pressure
     procedure, private, nopass :: get_x_velocity
@@ -27,42 +31,81 @@ module mod_local_evo_operator
     procedure, public :: evolve_leftright_midpoints
     procedure, public :: evolve_downup_midpoints
     procedure, public :: evolve_corners
+    procedure, public :: copy
     final :: finalize
   end type local_evo_operator_t
 
-  interface local_evo_operator_t
-    module procedure :: constructor
-  end interface
+  ! interface local_evo_operator_t
+  !   module procedure :: constructor
+  ! end interface
 contains
 
-  type(local_evo_operator_t) function constructor(input, grid, reconstruction_operator) result(operator)
+  ! type(local_evo_operator_t) function constructor(input) result(operator)
+  !   !< Constructor for the FVLEG operator
+  !   class(input_t), intent(in) :: input
+
+  !   operator%name = "FVLEG"
+  !   call operator%set_tau(input%tau)
+  ! end function constructor
+
+  subroutine initialize(self, input, grid_target, recon_operator_target, reconstructed_state_target, lbounds)
     !< Constructor for the FVLEG operator
+    class(local_evo_operator_t), intent(inout) :: self
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in), target :: grid
-    class(abstract_reconstruction_t), intent(in), target :: reconstruction_operator
 
-    ! print*, 'a'
-    operator%name = "FVLEG"
-    ! print*, 'a'
-    ! allocate(operator%grid, source=grid)
+    class(grid_t), intent(in), target :: grid_target
+    class(abstract_reconstruction_t), intent(in), target :: recon_operator_target
+    integer(ik), dimension(5), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                        lbounds(4):, lbounds(5):), intent(in), target :: reconstructed_state_target
 
-    ! print*, 'a'
-    ! allocate(operator%reconstruction_operator, source=reconstruction_operator)
-    ! print*, 'a'
-    call operator%set_tau(input%tau)
-    ! print*, 'a'
-  end function constructor
+    self%name = "FVLEG"
+    call self%set_tau(input%tau)
+    self%grid => grid_target
+    self%reconstructed_state => reconstructed_state_target
+    self%reconstruction_operator => recon_operator_target
+
+    ! call self%set_grid_pointer()
+    ! call self%set_reconstructed_state_pointer()
+    ! call self%set_reconstruction_operator_pointer()
+  end subroutine
 
   subroutine finalize(self)
     !< Cleanup the operator type
     type(local_evo_operator_t), intent(inout) :: self
-    nullify(self%grid)
-    ! nullify(self%conserved_vars)
-    ! nullify(self%reference_state)
-    nullify(self%reconstruction_operator)
+
+    call debug_print('Calling local_evo_operator_t%finalize()', __FILE__, __LINE__)
+
+    if(allocated(self%name)) deallocate(self%name)
+    if(associated(self%grid)) nullify(self%grid)
+    if(associated(self%reconstructed_state)) nullify(self%reconstructed_state)
+    if(associated(self%reconstruction_operator)) nullify(self%reconstruction_operator)
   end subroutine finalize
 
-  subroutine evolve_leftright_midpoints(self, reference_state, evolved_state)
+  subroutine copy(out_evo, in_evo)
+    class(abstract_evo_operator_t), intent(in) :: in_evo
+    class(local_evo_operator_t), intent(inout) :: out_evo
+
+    call debug_print('Calling local_evo_operator_t%copy()', __FILE__, __LINE__)
+
+    if(associated(out_evo%grid)) nullify(out_evo%grid)
+    ! allocate(out_evo%grid, source=in_evo%grid)
+    out_evo%grid => in_evo%grid
+
+    if(associated(out_evo%reconstructed_state)) nullify(out_evo%reconstructed_state)
+    ! allocate(out_evo%reconstructed_state, source=in_evo%reconstructed_state)
+    out_evo%reconstructed_state => in_evo%reconstructed_state
+
+    if(associated(out_evo%reconstruction_operator)) nullify(out_evo%reconstruction_operator)
+    ! allocate(out_evo%reconstruction_operator, source=in_evo%reconstruction_operator)
+    out_evo%reconstruction_operator => in_evo%reconstruction_operator
+
+    if(allocated(out_evo%name)) deallocate(out_evo%name)
+    allocate(out_evo%name, source=in_evo%name)
+
+  end subroutine
+
+  pure subroutine evolve_leftright_midpoints(self, reference_state, evolved_state)
     ! subroutine evolve_leftright_midpoints(self, conserved_vars, reconstructed_state, &
     !                                       reference_state, evolved_state)
     ! //TODO: make pure
@@ -83,7 +126,7 @@ contains
     ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     ! Locals
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
     integer(ik) :: i, j
@@ -131,10 +174,10 @@ contains
     jlo = lbound(reference_state, dim=3) ! in the j-direction, # left/right midpoints = # nodes
     jhi = ubound(reference_state, dim=3) ! in the j-direction, # left/right midpoints = # nodes
 
-    ! do concurrent(i=ilo:ihi)
-    !   do concurrent(j=jlo:jhi)
-    do i = ilo, ihi
-      do j = jlo, jhi
+    do concurrent(i=ilo:ihi)
+      do concurrent(j=jlo:jhi)
+        ! do i = ilo, ihi
+        !   do j = jlo, jhi
 
         neighbor_cell_indices = reshape([[i, j], &  ! cell above
                                          [i, j - 1] &  ! cell below
@@ -153,12 +196,12 @@ contains
         ! Cell 2: cell below the midpoint -> midpoint is on the top (M3) of the parent cell
         point_idx = 3
         reconstructed_midpoint_state(:, 2) = self%reconstructed_state(:, point_idx, midpoint_idx, i, j - 1)
-        write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') 'reference_state(:, i, j) ', i, j, reference_state(:, i, j)
+        ! write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') 'reference_state(:, i, j) ', i, j, reference_state(:, i, j)
         mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
                              reconstructed_state=reconstructed_midpoint_state, &
                              reference_state=reference_state(:, i, j), &
                              cell_indices=neighbor_cell_indices)
-        print *, mach_cone
+        ! print *, mach_cone
 
         ! error stop
         ! Set the evolved state at the midpoint
@@ -171,7 +214,7 @@ contains
     end do
   end subroutine evolve_leftright_midpoints
 
-  subroutine evolve_downup_midpoints(self, reference_state, evolved_state)
+  pure subroutine evolve_downup_midpoints(self, reference_state, evolved_state)
     ! subroutine evolve_downup_midpoints(self, conserved_vars, reconstructed_state, &
     !                                    reference_state, evolved_state)
     ! //TODO: make pure
@@ -193,7 +236,7 @@ contains
     ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     ! Locals
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
     integer(ik) :: i, j
@@ -239,10 +282,10 @@ contains
     jlo = lbound(reference_state, dim=3)  ! in the j-direction, # down/up midpoints = # cells
     jhi = ubound(reference_state, dim=3)  ! in the j-direction, # down/up midpoints = # cells
 
-    ! do concurrent(i=ilo:ihi)
-    !   do concurrent(j=jlo:jhi)
-    do i = ilo, ihi
-      do j = jlo, jhi
+    do concurrent(i=ilo:ihi)
+      do concurrent(j=jlo:jhi)
+        ! do i = ilo, ihi
+        !   do j = jlo, jhi
 
         ! cell ordering is 1) left, 2) right
         neighbor_cell_indices = reshape([[i - 1, j], &  ! cell left
@@ -258,19 +301,19 @@ contains
         ! Cell 2: cell to the right -> midpoint point is on the right (M2) of the parent cell
         point_idx = 2
         reconstructed_midpoint_state(:, 2) = self%reconstructed_state(:, point_idx, midpoint_idx, i, j)
-        write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') 'reference_state(:, i, j) ', i, j, reference_state(:, i, j)
-        write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') 'reconstructed_midpoint_state(:, 1) ', i, j, reconstructed_midpoint_state(:, 1)
-        write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') 'reconstructed_midpoint_state(:, 2) ', i, j, reconstructed_midpoint_state(:, 2)
-        write(*, '(a, 2(f0.3,1x))') 'midpoint_edge_vectors 1: ', midpoint_edge_vectors(:, 1, 1)
-        write(*, '(a, 2(f0.3,1x))') 'midpoint_edge_vectors 1: ', midpoint_edge_vectors(:, 2, 1)
-        write(*, '(a, 2(f0.3,1x))') 'midpoint_edge_vectors 2: ', midpoint_edge_vectors(:, 1, 2)
-        write(*, '(a, 2(f0.3,1x))') 'midpoint_edge_vectors 2: ', midpoint_edge_vectors(:, 2, 2)
+        ! write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') 'reference_state(:, i, j) ', i, j, reference_state(:, i, j)
+        ! write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') 'reconstructed_midpoint_state(:, 1) ', i, j, reconstructed_midpoint_state(:, 1)
+        ! write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') 'reconstructed_midpoint_state(:, 2) ', i, j, reconstructed_midpoint_state(:, 2)
+        ! write(*, '(a, 2(f0.3,1x))') 'midpoint_edge_vectors 1: ', midpoint_edge_vectors(:, 1, 1)
+        ! write(*, '(a, 2(f0.3,1x))') 'midpoint_edge_vectors 1: ', midpoint_edge_vectors(:, 2, 1)
+        ! write(*, '(a, 2(f0.3,1x))') 'midpoint_edge_vectors 2: ', midpoint_edge_vectors(:, 1, 2)
+        ! write(*, '(a, 2(f0.3,1x))') 'midpoint_edge_vectors 2: ', midpoint_edge_vectors(:, 2, 2)
         mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
                              reconstructed_state=reconstructed_midpoint_state, &
                              reference_state=reference_state(:, i, j), &
                              cell_indices=neighbor_cell_indices)
-        write(*, *) 'any(theta_ib==theta_ie)? ', any(equal(mach_cone%theta_ib, mach_cone%theta_ie))
-        write(*, *) mach_cone
+        ! write(*, *) 'any(theta_ib==theta_ie)? ', any(equal(mach_cone%theta_ib, mach_cone%theta_ie))
+        ! write(*, *) mach_cone
         ! error stop
         ! write(*,'(a, 2(i0,1x), 4(f0.3, 1x))') 'mach_cone%reference_state', i,j, mach_cone%reference_state
 
@@ -280,13 +323,13 @@ contains
                                   self%get_y_velocity(mach_cone), & ! v
                                   self%get_pressure(mach_cone) &    ! p
                                   ]
-        write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') '  evolved_state(:, i, j) ', i, j, evolved_state(:, i, j)
-        print *
+        ! write(*, '(a, 2(i0,1x), 4(f0.3, 1x))') '  evolved_state(:, i, j) ', i, j, evolved_state(:, i, j)
+        ! print *
       end do
     end do
   end subroutine evolve_downup_midpoints
 
-  subroutine evolve_corners(self, reference_state, evolved_state)
+  pure subroutine evolve_corners(self, reference_state, evolved_state)
     ! subroutine evolve_corners(self, conserved_vars, reconstructed_state, &
     !                           reference_state, evolved_state)
     ! //TODO: make pure
@@ -307,7 +350,7 @@ contains
     ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     ! Locals
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
     integer(ik) :: i, j
@@ -357,9 +400,10 @@ contains
     jlo = lbound(reference_state, dim=3)
     jhi = ubound(reference_state, dim=3)
 
-    do i = ilo, ihi
-      do j = jlo, jhi
-
+    ! do i = ilo, ihi
+    !   do j = jlo, jhi
+    do concurrent(i=ilo:ihi)
+      do concurrent(j=jlo:jhi)
         ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
         neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
                                          [i, j - 1], &  ! lower right
@@ -403,10 +447,10 @@ contains
     end do
   end subroutine evolve_corners
 
-  function get_pressure(mach_cone) result(pressure)
+  pure function get_pressure(mach_cone) result(pressure)
     !< Implementation of p(P) within the local evolution operator (Eq 45 in the text)
 
-    class(mach_cone_geometry_t), intent(in) :: mach_cone
+    class(cone_t), intent(in) :: mach_cone
     real(rk) :: pressure
     integer(ik) :: arc, cell
 
@@ -423,9 +467,13 @@ contains
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
-          pressure = pressure + p_i * (theta_ie - theta_ib) - &
+          pressure = pressure + p_i * abs(theta_ie - theta_ib) - &
                      rho_tilde * a_tilde * u_i * (sin(theta_ie) - sin(theta_ib)) + &
                      rho_tilde * a_tilde * v_i * (cos(theta_ie) - cos(theta_ib))
+          ! if(near_zero(pressure) .or. pressure < 0.0_rk) then
+          !   write(*, '(8(f0.3,1x))') pressure, theta_ie, theta_ib, p_i, a_tilde, rho_tilde, u_i, v_i
+          !   error stop  "Pressure <= 0 in local_evo_operator_t%get_pressure"
+          ! end if
           ! write(*, '(8(f0.3,1x))') pressure, p_i, theta_ie, theta_ib, rho_tilde, a_tilde, u_i, v_i
         end associate
       end do
@@ -437,17 +485,17 @@ contains
 
   end function get_pressure
 
-  function get_density(self, mach_cone) result(density)
+  pure function get_density(self, mach_cone) result(density)
     ! //TODO: make pure
     !< Implementation of rho(P) within the local evolution operator (Eq. 42 in the text)
     class(local_evo_operator_t), intent(in) :: self
-    class(mach_cone_geometry_t), intent(in) :: mach_cone
+    class(cone_t), intent(in) :: mach_cone
     ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     real(rk) :: density  !< rho(P)
     integer(ik) :: arc, cell
     real(rk), dimension(4) :: p_prime_u_bar !< [rho, u, v, p] at P'
-
+    real(rk) :: a
     density = 0.0_rk
 
     do cell = 1, mach_cone%n_neighbor_cells
@@ -461,18 +509,26 @@ contains
                   rho_tilde=>mach_cone%reference_state(1), &
                   a_tilde=>mach_cone%reference_state(4))
 
-          density = density + (p_i / a_tilde**2) * (theta_ie - theta_ib) - &
+          density = density + (p_i / a_tilde**2) * abs(theta_ie - theta_ib) - &
                     (rho_tilde / a_tilde) * u_i * (sin(theta_ie) - sin(theta_ib)) + &
                     (rho_tilde / a_tilde) * v_i * (cos(theta_ie) - cos(theta_ib))
           if(ieee_is_nan(density)) then
-            write(*, '(8(f0.3,1x))') density, theta_ie, theta_ib, p_i, a_tilde, rho_tilde, u_i, v_i
+
+            ! write(*, '(8(f0.3,1x))') density, theta_ie, theta_ib, p_i, a_tilde, rho_tilde, u_i, v_i
             error stop "NaNs getting generated by local_evo_operator_t%get_density"
           end if
+          ! if(near_zero(density) .or. density < 0.0_rk) then
+          !   write(*, '(8(f0.3,1x))') density, theta_ie, theta_ib, p_i, a_tilde, rho_tilde, u_i, v_i
+          !   error stop  "Density <= 0 in local_evo_operator_t%get_density"
+          ! end if
         end associate
       end do
     end do
 
-    if(near_zero(density) .or. density < 0.0_rk) error stop "Density <= 0 in local_evo_operator_t%get_density"
+    if(near_zero(density) .or. density < 0.0_rk) then
+      a = 0.0_rk
+      error stop "Density <= 0 in local_evo_operator_t%get_density"
+    end if
     density = density / (2.0_rk * pi)
 
     ! Reconstruct at P' to get rho(P') and p(P')
@@ -489,7 +545,7 @@ contains
   pure function get_x_velocity(mach_cone) result(u)
     !< Implementation of u(P) within the local evolution operator (Eq 43 in the text)
 
-    class(mach_cone_geometry_t), intent(in) :: mach_cone
+    class(cone_t), intent(in) :: mach_cone
     real(rk) :: u !< x velocity at P
     integer(ik) :: arc
     integer(ik) :: cell  !< cell index within the mach cone
@@ -508,7 +564,7 @@ contains
                   a_tilde=>mach_cone%reference_state(4))
 
           u = u - (p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) + &
-              u_i * (0.5_rk * (theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib))) - &
+              u_i * (0.5_rk * abs(theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib))) - &
               v_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib))
 
         end associate
@@ -522,7 +578,7 @@ contains
   pure function get_y_velocity(mach_cone) result(v)
     !< Implementation of v(P) within the local evolution operator (Eq 44 in the text)
 
-    class(mach_cone_geometry_t), intent(in) :: mach_cone
+    class(cone_t), intent(in) :: mach_cone
     real(rk) :: v !< y velocity at P
     integer(ik) :: arc
     integer(ik) :: cell  !< cell index within the mach cone
@@ -542,7 +598,7 @@ contains
 
           v = v + (p_i / (rho_tilde * a_tilde)) * (cos(theta_ie) - cos(theta_ib)) + &
               u_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib)) + &
-              v_i * (0.5_rk * (theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib)))
+              v_i * (0.5_rk * abs(theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib)))
         end associate
       end do
     end do

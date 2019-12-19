@@ -57,6 +57,7 @@ contains
     self%hdf5_filename = trim(char_buff)//'.h5'
     self%xdmf_filename = trim(char_buff)//'.xdmf'
 
+    write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
     case('xdmf')
       call self%write_hdf5(fv_scheme, time, iteration)

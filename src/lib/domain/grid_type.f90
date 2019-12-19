@@ -96,6 +96,8 @@ module mod_grid
     procedure(get_4d_data), deferred, public :: get_cell_edge_norm_vectors
     procedure(get_midpoint_vectors), deferred, public :: get_midpoint_vectors
     procedure(get_corner_vectors), deferred, public :: get_corner_vectors
+    procedure(copy_grid), public, deferred :: copy
+    generic :: assignment(=) => copy
   end type grid_t
 
   abstract interface
@@ -104,6 +106,12 @@ module mod_grid
       import :: input_t
       class(grid_t), intent(inout) :: self
       class(input_t), intent(in) :: input
+    end subroutine
+
+    subroutine copy_grid(out_grid, in_grid)
+      import :: grid_t
+      class(grid_t), intent(in) :: in_grid
+      class(grid_t), intent(inout) :: out_grid
     end subroutine
 
     pure function get_2d_data(self, i, j) result(x)

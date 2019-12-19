@@ -14,4 +14,4 @@ cd ../../../build &&\
 make -j &&\
 cd - &&\
 cp ../../../build/bin/fvleg_2d.x . &&\
-./fvleg_2d.x input.ini
+valgrind --leak-check=full --leak-resolution=high --show-reachable=yes --track-origins=yes --log-file="log_mcheck.txt" ./fvleg_2d.x input.ini

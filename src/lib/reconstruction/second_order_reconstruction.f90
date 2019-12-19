@@ -20,27 +20,36 @@ module mod_second_order_reconstruction
     procedure, public :: reconstruct_point
     procedure, private :: estimate_gradients
     procedure, private :: estimate_single_gradient
+    procedure, public :: copy
     final :: finalize
   end type
 
 contains
 
-  subroutine init_second_order(self, input, grid)
+  subroutine init_second_order(self, input, grid_target, conserved_vars_target, lbounds)
     !< Construct the second_order_reconstruction_t type
 
     class(second_order_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in), target :: grid
+    class(grid_t), intent(in), target :: grid_target
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
+      intent(in), target :: conserved_vars_target
+
     integer(ik) :: alloc_status
 
     call debug_print('Initializing second_order_reconstruction_t', __FILE__, __LINE__)
 
     self%order = 2
     self%name = 'piecewise_linear_reconstruction'
+
+    self%conserved_vars => conserved_vars_target
+    self%grid => grid_target
+
     call self%set_slope_limiter(name=input%slope_limiter)
 
-    associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
-              jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
+    associate(imin=>grid_target%ilo_bc_cell, imax=>grid_target%ihi_bc_cell, &
+              jmin=>grid_target%jlo_bc_cell, jmax=>grid_target%jhi_bc_cell)
 
       allocate(self%cell_gradient(2, 4, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) then
@@ -48,7 +57,7 @@ contains
       end if
       self%cell_gradient = 0.0_rk
     end associate
-    call debug_print('Done', __FILE__, __LINE__)
+
   end subroutine init_second_order
 
   subroutine finalize(self)
@@ -56,12 +65,10 @@ contains
     type(second_order_reconstruction_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    print *, 'Finalizing second_order_reconstruction_t'
+    call debug_print('Calling second_order_reconstruction_t%finalize()', __FILE__, __LINE__)
 
-    call self%nullify_pointer_members()
-    ! nullify(self%grid)
-    ! nullify(self%conserved_vars)
-
+    if(associated(self%grid)) nullify(self%grid)
+    if(associated(self%conserved_vars)) nullify(self%conserved_vars)
     if(allocated(self%cell_gradient)) then
       deallocate(self%cell_gradient, stat=alloc_status)
       if(alloc_status /= 0) then
@@ -70,7 +77,30 @@ contains
     end if
   end subroutine finalize
 
-  function reconstruct_point(self, xy, cell_ij) result(U_bar)
+  subroutine copy(out_recon, in_recon)
+    class(abstract_reconstruction_t), intent(in) :: in_recon
+    class(second_order_reconstruction_t), intent(inout) :: out_recon
+
+    call debug_print('Calling second_order_reconstruction_t%copy()', __FILE__, __LINE__)
+
+    if(associated(out_recon%grid)) nullify(out_recon%grid)
+    ! allocate(out_recon%grid, source=in_recon%grid)
+    out_recon%grid => in_recon%grid
+
+    if(associated(out_recon%conserved_vars)) nullify(out_recon%conserved_vars)
+    ! allocate(out_recon%conserved_vars, source=in_recon%conserved_vars)
+    out_recon%conserved_vars => in_recon%conserved_vars
+
+    if(allocated(out_recon%name)) deallocate(out_recon%name)
+    allocate(out_recon%name, source=in_recon%name)
+
+    if(allocated(out_recon%cell_gradient)) deallocate(out_recon%cell_gradient)
+    allocate(out_recon%cell_gradient, source=in_recon%cell_gradient)
+
+    out_recon%limiter = in_recon%limiter
+  end subroutine
+
+  pure function reconstruct_point(self, xy, cell_ij) result(U_bar)
     !< Reconstruct the value of the conserved variables (U) at location (x,y)
     !< withing a cell (i,j)
 
@@ -96,7 +126,7 @@ contains
 
   end function reconstruct_point
 
-  subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
+  pure subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
     class(second_order_reconstruction_t), intent(inout) :: self
@@ -110,7 +140,6 @@ contains
     !< e.g. 1 - all corners, 2 - all midpoints
 
     real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
-    real(rk), dimension(2, 4) :: grad_U !< cell gradient
     integer(ik) :: i, j  !< cell i,j index
     integer(ik) :: n  !< node index -> i.e. is it a corner (1), or midpoint (2)
     integer(ik) :: p  !< point index -> which point in the grid element (corner 1-4, or midpoint 1-4)

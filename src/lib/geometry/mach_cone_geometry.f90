@@ -5,7 +5,7 @@ module mod_mach_cone_geometry
   !< entire purpose of this module is to calculate the quantities \(\theta_{i,b}\)
   !< and \(\theta_{i,e}\)
 
-  use iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi
   use mod_vector, only: vector_t, operator(.unitnorm.), operator(.dot.), operator(.cross.), angle_between
   use mod_eos, only: eos
@@ -55,7 +55,7 @@ module mod_mach_cone_geometry
     !< Time evolution increment
 
     real(rk), dimension(4, 4) :: reconstructed_state = 0.0_rk
-    !< ((rho,u,v,p), (edge_vector_1:edge_vector_4))
+    !< ((rho,u,v,p), (cell_1:cell_4))
 
   contains
     procedure, nopass, private :: calculate_l_parameter
@@ -63,6 +63,8 @@ module mod_mach_cone_geometry
     procedure, nopass, private :: determine_n_intersections
     procedure, nopass, private :: calculate_arc_thetas
     procedure, nopass, private :: determine_if_p_prime_is_in_cell
+    procedure, pass :: write => write_cone
+    generic, public :: write(formatted) => write
   end type
 
   interface mach_cone_geometry_t
@@ -90,7 +92,7 @@ module mod_mach_cone_geometry
 
 contains
 
-  pure function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
+  function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
     !< Constructor for the Mach cone type
 
     type(mach_cone_geometry_t) :: new_cone
@@ -169,6 +171,7 @@ contains
 
     ! Loop through each neighbor cell and determine intersections and angles
     do neighbor_cell = 1, new_cone%n_neighbor_cells
+      print *, 'cell', neighbor_cell
       p_prime_in_cell = .false.
 
       cell_ij = cell_indices(:, neighbor_cell)  ! cell_indices is indexed via ((i,j), cell_1:cell_n)
@@ -196,13 +199,73 @@ contains
 
       new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
       if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
-
+      print *
     end do
 
   end function
 
-  pure subroutine calculate_arc_segment(p_prime_vector, edge_vector_1, edge_vector_2, reference_state, tau, &
-                                       n_arcs, theta_ib, theta_ie, p_prime_in_cell)
+  subroutine write_cone(self, unit, iotype, v_list, iostat, iomsg)
+    !< Implementation of `write(*,*) vector_t`
+
+    class(mach_cone_geometry_t), intent(in) :: self  !< vector class
+    integer, intent(in) :: unit  !< input/output unit
+    character(*), intent(in) :: iotype
+    integer, intent(in)  :: v_list(:)
+    integer, intent(out) :: iostat
+    character(*), intent(inout) :: iomsg
+
+    integer(ik) :: i
+
+    write(unit, '(a)', iostat=iostat) new_line('a')
+    write(unit, '(a)', iostat=iostat) 'Mach Cone Details'//new_line('a')
+    write(unit, '(a)', iostat=iostat) '================='//new_line('a')
+
+    write(unit, '(a, es10.3, a)', iostat=iostat) "Tau: ", self%tau, new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat) "Radius: ", self%radius, new_line('a')
+    write(unit, '(a, 2(f7.3,1x), a)', iostat=iostat) "P (x,y): (", self%p_xy, ")"//new_line('a')
+    write(unit, '(a, 2(f7.3,1x), a)', iostat=iostat) "P'(x,y): (", self%p_prime_xy, ")"//new_line('a')
+
+    write(unit, '(a)', iostat=iostat) new_line('a')
+    write(unit, '(a, f0.3, a)', iostat=iostat) "Reference density:     ", self%reference_state(1), new_line('a')
+    write(unit, '(a, f0.3, a)', iostat=iostat) "Reference x velocity:  ", self%reference_state(2), new_line('a')
+    write(unit, '(a, f0.3, a)', iostat=iostat) "Reference y velocity:  ", self%reference_state(3), new_line('a')
+    write(unit, '(a, f0.3, a)', iostat=iostat) "Reference sound speed: ", self%reference_state(4), new_line('a')
+
+    write(unit, '(a)', iostat=iostat) new_line('a')
+    write(unit, '(a)', iostat=iostat) 'Angles:  Theta_ib [deg]     Theta_ie [deg]'//new_line('a')
+    do i = 1, 4
+      write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat) 'Cell: ', i, ' [ ', self%theta_ib(i, :) * (180.0_rk / pi), &
+        '], [ ', self%theta_ie(i, :) * (180.0_rk / pi), ']'//new_line('a')
+    end do
+
+    write(unit, '(a)', iostat=iostat) new_line('a')
+    write(unit, '(a)', iostat=iostat) 'Cell Conserved Vars state [rho,u,v,p]'//new_line('a')
+    do i = 1, 4
+      write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat) 'Cell: ', i, ' [ ', self%cell_conserved_vars(:,1,i) ,'] (arc 1)' // new_line('a')
+      write(unit, '(a, 4(f6.2, 1x), a)', iostat=iostat) '        [ ', self%cell_conserved_vars(:, 2, i), '] (arc 2)'//new_line('a')
+    end do
+
+    write(unit, '(a)', iostat=iostat) new_line('a')
+    write(unit, '(a)', iostat=iostat) 'Reconstructed state [rho,u,v,p]'//new_line('a')
+    do i = 1, 4
+      write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat) &
+        'Cell: ', i, ' [ ', self%reconstructed_state(:, i), ']'//new_line('a')
+    end do
+
+    write(unit, '(a)', iostat=iostat) new_line('a')
+    write(unit, '(a)', iostat=iostat) "P' in cell?"//new_line('a')
+    do i = 1, 4
+      write(unit, '(a, i0, a, l2, a)', iostat=iostat) 'Cell: ', i, ' [', self%p_prime_in_cell(i), ' ]'//new_line('a')
+    end do
+
+    write(unit, '(a)', iostat=iostat) new_line('a')
+    ! write(unit, '(a, (f0.4))', iostat=iostat) 'Theta_ib', self%theta_ib
+    ! write(unit, '((a,f0.4))', iostat=iostat) 'Theta_ie', self%theta_ie
+    ! write(unit, '((a,f0.4))', iostat=iostat) 'Theta_ie'
+  end subroutine write_cone
+
+  subroutine calculate_arc_segment(p_prime_vector, edge_vector_1, edge_vector_2, reference_state, tau, &
+                                   n_arcs, theta_ib, theta_ie, p_prime_in_cell)
     !< For each neighbor cell, this procedure calculates the angles, number of intersections,
     !< and whether P' is in this cell
     type(vector_t), intent(in) :: p_prime_vector  !< vector pointing to P' from P (this should be shifted to the origin by now)
@@ -231,27 +294,32 @@ contains
     edge_vectors(2) = vector_t(x=[edge_vector_2(1, 1), edge_vector_2(1, 2)], &
                                y=[edge_vector_2(2, 1), edge_vector_2(2, 2)])
 
+    print *, 'vector1: ', edge_vectors(1)
+    print *, 'vector2: ', edge_vectors(2)
+
     do k = 1, 2
       associate(x=>edge_vectors(k)%x, y=>edge_vectors(k)%y, len=>edge_vectors(k)%length)
-        sin_alpha(k) = (y / len)
-        cos_alpha(k) = (x / len)
+        sin_alpha(k) = y / len
+        cos_alpha(k) = x / len
+        print *, 'sin_alpha(k)', k, sin_alpha(k), y, len
+        print *, 'cos_alpha(k)', k, cos_alpha(k), x, len
       end associate
     end do
 
     p_prime_in_cell = determine_if_p_prime_is_in_cell(edge_vectors(1), edge_vectors(2), p_prime_vector)
     b_k = calculate_b(sin_alpha, cos_alpha, reference_state)
-    ! print*, 'b_k', b_k
+    print *, 'b_k', b_k
     l_k = calculate_l_parameter(tau, sin_alpha, cos_alpha, reference_state, b_k)
-    ! print*, 'l_k', l_k
+    print *, 'l_k', l_k
     theta_kl = calculate_theta_kl(sin_alpha, cos_alpha, reference_state, l_k)
-    ! print*, 'theta_kl', theta_kl
+    print *, 'theta_kl', theta_kl
     n_intersections = determine_n_intersections(reference_state, b_k, l_k)
-    ! print*, 'n_intersections',n_intersections
+    print *, 'n_intersections', n_intersections
     call calculate_arc_thetas(theta_kl, n_intersections, p_prime_in_cell, n_arcs, theta_ib, theta_ie)
 
   end subroutine
 
-  pure subroutine calculate_arc_thetas(theta, n_intersections, p_prime_in_cell, n_arcs, theta_ib, theta_ie)
+  subroutine calculate_arc_thetas(theta, n_intersections, p_prime_in_cell, n_arcs, theta_ib, theta_ie)
     !< Implementation of the logic used to find the arc angles theta ib and ie (begin and end)
 
     real(rk), dimension(2, 2), intent(in) :: theta !< this is the theta k,l term in the appendix,
@@ -264,19 +332,22 @@ contains
 
     associate(n1=>n_intersections(1), n2=>n_intersections(2))
 
+      print *, 'n1', n1, 'n2', n2
       if(n1 == 0 .and. n2 == 0 .and. p_prime_in_cell) then
         n_arcs = 1
         theta_ib = 0.0_rk
-        theta_ie = 2 * pi
+        theta_ie = 2.0_rk * pi
 
       else if(n1 == 1 .and. n2 == 1) then
+        print *, theta(2, 2), theta(1, 2)
         n_arcs = 1
         theta_ib = theta(1, 2)
 
+        ! //TODO: look at this carefully, I think it should be > instead of >=
         if(theta(2, 2) >= theta(1, 2)) then
           theta_ie = theta(2, 2)
         else
-          theta_ie = theta(2, 2) + 2 * pi
+          theta_ie = theta(2, 2) + 2.0_rk * pi
         endif
 
       else if(n1 == 2 .and. n2 == 0) then
@@ -286,7 +357,7 @@ contains
         if(theta(1, 1) >= theta(1, 2)) then
           theta_ie = theta(1, 1)
         else
-          theta_ie = theta(1, 1) + 2 * pi
+          theta_ie = theta(1, 1) + 2.0_rk * pi
         endif
 
       else if(n1 == 0 .and. n2 == 2) then
@@ -296,7 +367,7 @@ contains
         if(theta(2, 2) >= theta(2, 1)) then
           theta_ie = theta(2, 2)
         else
-          theta_ie = theta(2, 2) + 2 * pi
+          theta_ie = theta(2, 2) + 2.0_rk * pi
         endif
 
       else if(n1 == 2 .and. n2 == 2) then
@@ -310,14 +381,14 @@ contains
         if(theta(2, 2) >= theta(1, 2)) then
           theta_ie(1) = theta(2, 2)
         else
-          theta_ie(1) = theta(2, 2) + 2 * pi
+          theta_ie(1) = theta(2, 2) + 2.0_rk * pi
         endif
 
         ! 2nd arc
         if(theta(1, 1) >= theta(2, 1)) then
           theta_ie(2) = theta(1, 1)
         else
-          theta_ie(2) = theta(1, 1) + 2 * pi
+          theta_ie(2) = theta(1, 1) + 2.0_rk * pi
         endif
       else
         ! This cell doesn't contribute at all (setting to 0 for the sake of clean-ness)...
@@ -329,7 +400,7 @@ contains
 
   end subroutine calculate_arc_thetas
 
-  pure function calculate_b(sin_alpha, cos_alpha, ref_state) result(b)
+  function calculate_b(sin_alpha, cos_alpha, ref_state) result(b)
     !< Determine if there are real-value solutions to l(k)
     real(rk), dimension(2) :: b
     real(rk), dimension(2), intent(in) :: sin_alpha
@@ -337,13 +408,13 @@ contains
     real(rk), dimension(4), intent(in) :: ref_state  !< (rho, u, v, a)
 
     associate(u_tilde=>ref_state(2), v_tilde=>ref_state(3))
-      b(1) = abs(u_tilde * sin_alpha(1) + v_tilde * cos_alpha(1))
-      b(2) = abs(u_tilde * sin_alpha(2) + v_tilde * cos_alpha(2))
+      b(1) = abs(u_tilde * sin_alpha(1) - v_tilde * cos_alpha(1))
+      b(2) = abs(u_tilde * sin_alpha(2) - v_tilde * cos_alpha(2))
     end associate
 
   end function calculate_b
 
-  pure function calculate_l_parameter(tau, sin_alpha, cos_alpha, ref_state, b) result(l)
+  function calculate_l_parameter(tau, sin_alpha, cos_alpha, ref_state, b) result(l)
     !< Calculate the \( \ell_{k} \)] parameter
 
     real(rk), dimension(2, 2) :: l
@@ -356,9 +427,8 @@ contains
 
     l = 0.0_rk
 
-    do concurrent(k=1:2)
-      associate(a_tilde=>ref_state(4), &
-                u_tilde=>ref_state(2), v_tilde=>ref_state(3))
+    do k = 1, 2
+      associate(a_tilde=>ref_state(4), u_tilde=>ref_state(2), v_tilde=>ref_state(3))
 
         if(b(k) <= a_tilde) then
           l(k, 1) = -tau * (u_tilde * cos_alpha(k) + v_tilde * sin_alpha(k)) - &
@@ -372,7 +442,7 @@ contains
     end do
   end function calculate_l_parameter
 
-  pure function calculate_theta_kl(sin_alpha, cos_alpha, ref_state, l_k) result(theta)
+  function calculate_theta_kl(sin_alpha, cos_alpha, ref_state, l_k) result(theta)
     !< Implementation of the \(\theta_{k,\ell}\) term in the Appendix of the text
 
     real(rk), dimension(2, 2) :: theta
@@ -381,23 +451,23 @@ contains
     real(rk), dimension(4), intent(in) :: ref_state  !< (rho, u, v, a)
     real(rk), dimension(2, 2), intent(in) :: l_k
 
-    real(rk) :: sine_alpha_kl
+    real(rk) :: sine_alpha_kl, cos_alpha_kl
     integer(ik) :: k, l
 
-    do concurrent(k=1:2)
-      do concurrent(l=1:2)
+    do k = 1, 2
+      do l = 1, 2
         associate(a_tilde=>ref_state(4), u_tilde=>ref_state(2), v_tilde=>ref_state(3))
-
-          sine_alpha_kl = v_tilde + l_k(k, l) * sin_alpha(k) / a_tilde
-
-          theta(k, l) = pi + sign(1.0_rk, sine_alpha_kl) * &
-                        (acos((u_tilde + l_k(k, l) * cos_alpha(k)) / a_tilde) - pi)
+          cos_alpha_kl = (u_tilde + l_k(k, l) * cos_alpha(k)) / a_tilde
+          sine_alpha_kl = (v_tilde + l_k(k, l) * sin_alpha(k)) / a_tilde
+          ! print*, 'cos, sin alpha kl', k, l, sine_alpha_kl, cos_alpha_kl
+          theta(k, l) = pi + sign(1.0_rk, sine_alpha_kl) * (acos(cos_alpha_kl) - pi)
+          print *, 'k,l, theta(k,l)', k, l, theta(k, l)
         end associate
       end do
     end do
   end function calculate_theta_kl
 
-  pure function determine_n_intersections(ref_state, b, l) result(n)
+  function determine_n_intersections(ref_state, b, l) result(n)
     !< Summary: Find the number of intersections based on the input parameters
     !< Refer to the appendix for this particular logic
     integer(ik), dimension(2) :: n
@@ -406,10 +476,9 @@ contains
     real(rk), dimension(2, 2), intent(in) :: l
     integer(ik) :: k
 
-    do concurrent(k=1:2)
+    do k = 1, 2
       associate(a_tilde=>ref_state(4))
-        if((b(k) > a_tilde) .or. &
-           ((l(k, 1) <= l(k, 2)) .and. (l(k, 2) < 0.0_rk))) then
+        if((b(k) > a_tilde) .or. ((l(k, 1) <= l(k, 2)) .and. (l(k, 2) < 0.0_rk))) then
           n(k) = 0
         else if((l(k, 2) >= 0.0_rk) .and. (l(k, 1) < 0.0_rk)) then
           n(k) = 1
@@ -421,7 +490,7 @@ contains
 
   end function determine_n_intersections
 
-  logical pure function determine_if_p_prime_is_in_cell(edge_vector_1, edge_vector_2, p_prime_vector) result(in_cell)
+  logical function determine_if_p_prime_is_in_cell(edge_vector_1, edge_vector_2, p_prime_vector) result(in_cell)
     !< Implementation of whether the P' point is inside the current cell/control volume. This
     !< uses the cross product of 2 vectors in 2d, which gives a scalar
     type(vector_t), intent(in) :: p_prime_vector

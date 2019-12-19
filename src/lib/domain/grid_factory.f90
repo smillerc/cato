@@ -23,21 +23,18 @@ contains
     !! Factory function to create a grid object
     ! class(grid_factory), intent(inout) :: self
     class(input_t), intent(in) :: input
-    class(grid_t), allocatable :: grid
+    class(grid_t), pointer :: grid
 
     call debug_print('Creating a grid in grid_factory', __FILE__, __LINE__)
 
     select case(trim(input%grid_type))
     case('2d_regular')
-      grid = new_regular_2d_grid(input)
+      grid => new_regular_2d_grid(input)
       ! call grid%initialize(input)
 
     case default
       error stop 'Unsupported grid type in grid_factory'
     end select
-
-    call debug_print('Done', __FILE__, __LINE__)
-
   end function grid_factory
 
   ! subroutine finalize()

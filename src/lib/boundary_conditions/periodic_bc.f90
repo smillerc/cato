@@ -1,6 +1,7 @@
 module mod_periodic_bc
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_globals, only: debug_print
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
 
@@ -27,6 +28,7 @@ module mod_periodic_bc
     procedure, private, nopass :: apply_plus_y_cell_gradient
     procedure, private, nopass :: apply_minus_x_cell_gradient
     procedure, private, nopass :: apply_minus_y_cell_gradient
+    procedure, public :: copy => copy_periodic_bc
 
   end type periodic_bc_t
 
@@ -39,6 +41,17 @@ contains
     bc%name = 'periodic'
     bc%location = location
   end function periodic_bc_constructor
+
+  subroutine copy_periodic_bc(out_bc, in_bc)
+    class(boundary_condition_t), intent(in) :: in_bc
+    class(periodic_bc_t), intent(inout) :: out_bc
+
+    call debug_print('Calling boundary_condition_t%copy_periodic_bc()', __FILE__, __LINE__)
+    ! if (allocated(out_bc%name)) deallocate(out_bc%name)
+    ! allocate(out_bc%name, source=in_bc%name)
+    out_bc%name = in_bc%name
+    out_bc%location = in_bc%location
+  end subroutine
 
   subroutine apply_periodic_conserved_var_bc(self, conserved_vars)
     !< Apply periodic boundary conditions to the conserved state vector field

@@ -20,10 +20,12 @@ module mod_globals
 contains
 
   subroutine set_global_options()
-    globals_set = .true.
-    include 'version.h'
-    compiler_flags_str = compiler_options()
-    compiler_version_str = compiler_version()
+    if(.not. globals_set) then
+      globals_set = .true.
+      include 'version.h'
+      compiler_flags_str = compiler_options()
+      compiler_version_str = compiler_version()
+    end if
   end subroutine set_global_options
 
   subroutine print_version_stats()

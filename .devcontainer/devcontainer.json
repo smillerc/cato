@@ -24,5 +24,11 @@
 	// Add the IDs of extensions you want installed when the container is created in the array
 	// below. Note that some extensions may not work in Alpine Linux due to glibc dependencies
 	// in native code inside the extension. See https://aka.ms/vscode-remote/linux for details.
-	"extensions": []
+	"extensions": [
+		"ms-vscode.cmake-tools",
+		"twxs.cmake",
+		"hansec.fortran-ls",
+		"eamodio.gitlens",
+		"gimly81.fortran"
+	]
 }

@@ -32,8 +32,8 @@ find_package(
   COMPONENTS Fortran_HL
   REQUIRED)
 
-find_package(PFUNIT REQUIRED)
-enable_testing()
+# find_package(PFUNIT REQUIRED)
+# enable_testing()
 
 message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
 message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
@@ -66,7 +66,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -Wall -Wextra -Wpedantic\
  -Wconversion \
  -fimplicit-none -fbacktrace \
- -fcheck=all -ffpe-trap=zero,overflow,underflow -finit-real=nan")
+ -fcheck=all")# -ffpe-trap=zero,overflow,underflow -finit-real=nan")
 
   set(CMAKE_Fortran_FLAGS_RELEASE
       "-O2 -floop-parallelize-all -march=native -fcoarray=single")
@@ -118,4 +118,4 @@ include_directories(${CMAKE_BINARY_DIR}/generated)
 # target_link_libraries(clfortran OpenCL::OpenCL)
 
 add_subdirectory(src)
-add_subdirectory(tests/unit)
+# add_subdirectory(tests/unit)

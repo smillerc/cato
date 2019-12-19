@@ -1,4 +1,4 @@
-add_library(globals lib/globals.f90 lib/math_constants.f90
+add_library(globals lib/hermetic.f90 lib/globals.f90 lib/math_constants.f90
                     lib/floating_point_utilities.f90)
 
 add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
@@ -44,6 +44,7 @@ add_library(
   lib/domain/fluxes.f90
   lib/evolution_operator/abstract_evo_operator.f90
   lib/evolution_operator/local_evo_operator.f90
+  lib/evolution_operator/evo_operator_factory.f90
   lib/reconstruction/abstract_reconstruction.f90
   lib/reconstruction/first_order_reconstruction.f90
   lib/reconstruction/second_order_reconstruction.f90

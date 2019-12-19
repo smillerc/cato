@@ -10,20 +10,14 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/fvleg_2d.x",
             "args": [
-                "basic.ini"
+                "input.ini"
             ],
-            "miDebuggerPath": "/Users/smil/opt/spack/opt/spack/darwin-mojave-x86_64/clang-11.0.0-apple/gdb-8.3-br2e22d55kawvns4aynfoomffdkdsfrz/bin/gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/tests/integrated/basic_input",
+            "cwd": "${workspaceFolder}/tests/integrated/double_shear",
             "environment": [],
             "externalConsole": true,
             // "preLaunchTask": "/usr/local/bin/gfortran-9"
         },
-        {
-            "name": "Intel Debug Attach",
-            "type": "cppvsdbg",
-            "request": "attach",
-            "processId": "${command:pickProcess}"
-        }
     ]
 }

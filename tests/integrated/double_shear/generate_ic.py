@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath("../../../scripts"))
 from generate_initial_grids import make_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
-double_shear = make_uniform_grid(n_nodes=(51, 51), xrange=(-1, 1), yrange=(-1, 1))
+double_shear = make_uniform_grid(n_nodes=(101, 101), xrange=(-1, 1), yrange=(-1, 1))
 
 # Set the initial conditions
 double_shear["rho"] = double_shear["rho"] * 1.4

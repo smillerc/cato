@@ -1,0 +1,2723 @@
+==61829== Memcheck, a memory error detector
+==61829== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==61829== Using Valgrind-3.15.0 and LibVEX; rerun with -h for copyright info
+==61829== Command: ./fvleg_2d.x input.ini
+==61829== Parent PID: 61761
+==61829==
+==61829== WARNING: valgrind ignores shmget(shmflg) SHM_HUGETLB
+==61829==
+==61829== HEAP SUMMARY:
+==61829==     in use at exit: 125,594,058 bytes in 482 blocks
+==61829==   total heap usage: 566,630 allocs, 566,148 frees, 248,186,732 bytes allocated
+==61829==
+==61829== 0 bytes in 1 blocks are still reachable in loss record 1 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x50967DB: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 1 bytes in 1 blocks are indirectly lost in loss record 2 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4274E0: __mod_fvleg_MOD_initialize (fvleg.f90:94)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1 bytes in 1 blocks are definitely lost in loss record 3 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52EBF2E: strdup (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x78562B6: ???
+==61829==    by 0x77C9383: ???
+==61829==    by 0x554507B: mca_base_framework_components_register (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x5545415: mca_base_framework_register (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x5545473: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x5188CA4: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 3 bytes in 1 blocks are still reachable in loss record 4 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x530139: __mod_input_MOD_read_from_ini (mod_input.f90:114)
+==61829==    by 0x404287: MAIN__ (main.f90:43)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 4 bytes in 1 blocks are still reachable in loss record 5 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x5096818: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 4 bytes in 1 blocks are still reachable in loss record 6 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5311E0: __mod_input_MOD_read_from_ini (mod_input.f90:168)
+==61829==    by 0x404287: MAIN__ (main.f90:43)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 4 bytes in 1 blocks are still reachable in loss record 7 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40C76F: __mod_contour_writer_MOD_constructor (contour_writer.f90:39)
+==61829==    by 0x404459: MAIN__ (main.f90:47)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5 bytes in 1 blocks are still reachable in loss record 8 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x532344: __mod_globals_MOD_set_global_options (version.h:4)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5 bytes in 1 blocks are still reachable in loss record 9 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5323FC: __mod_globals_MOD_set_global_options (version.h:5)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5 bytes in 1 blocks are still reachable in loss record 10 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x53263C: __mod_globals_MOD_set_global_options (version.h:8)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5 bytes in 1 blocks are indirectly lost in loss record 11 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x46B58B: __mod_local_evo_operator_MOD_copy (local_evo_operator.f90:104)
+==61829==    by 0x40E9C3: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:821)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 8 bytes in 1 blocks are still reachable in loss record 12 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5096840: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 8 bytes in 1 blocks are still reachable in loss record 13 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x5096876: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 8 bytes in 2 blocks are definitely lost in loss record 14 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5319A9: __mod_hermetic_MOD_set_temp (hermetic.f90:34)
+==61829==    by 0x42071C: __mod_fvleg_MOD_time_derivative (fvleg.f90:534)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 8 bytes in 2 blocks are definitely lost in loss record 15 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5319A9: __mod_hermetic_MOD_set_temp (hermetic.f90:34)
+==61829==    by 0x42071C: __mod_fvleg_MOD_time_derivative (fvleg.f90:534)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 8 bytes in 2 blocks are definitely lost in loss record 16 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5319A9: __mod_hermetic_MOD_set_temp (hermetic.f90:34)
+==61829==    by 0x419A8B: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:701)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 9 bytes in 1 blocks are definitely lost in loss record 17 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5545F5E: opal_argv_join (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x77756E3: ???
+==61829==    by 0x7775E94: ???
+==61829==    by 0x811A011: ???
+==61829==    by 0x811A289: ???
+==61829==    by 0x51755B2: ompi_osc_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50FBE22: ompi_win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x51455B9: PMPI_Win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50968F2: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 1 blocks are still reachable in loss record 18 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5304E5: __mod_input_MOD_read_from_ini (mod_input.f90:126)
+==61829==    by 0x404287: MAIN__ (main.f90:43)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 1 blocks are indirectly lost in loss record 19 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43C042: __mod_second_order_reconstruction_MOD_copy (second_order_reconstruction.f90:101)
+==61829==    by 0x40EACF: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:838)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 2 blocks are indirectly lost in loss record 20 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4620B4: __mod_local_evo_operator_MOD___copy_mod_local_evo_operator_Local_evo_operator_t (local_evo_operator.f90:610)
+==61829==    by 0x40DE31: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 2 blocks are indirectly lost in loss record 21 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4620B4: __mod_local_evo_operator_MOD___copy_mod_local_evo_operator_Local_evo_operator_t (local_evo_operator.f90:610)
+==61829==    by 0x40DE31: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 2 blocks are indirectly lost in loss record 22 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4620B4: __mod_local_evo_operator_MOD___copy_mod_local_evo_operator_Local_evo_operator_t (local_evo_operator.f90:610)
+==61829==    by 0x40DE31: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 2 blocks are indirectly lost in loss record 23 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4620B4: __mod_local_evo_operator_MOD___copy_mod_local_evo_operator_Local_evo_operator_t (local_evo_operator.f90:610)
+==61829==    by 0x40DE31: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 2 blocks are indirectly lost in loss record 24 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4620B4: __mod_local_evo_operator_MOD___copy_mod_local_evo_operator_Local_evo_operator_t (local_evo_operator.f90:610)
+==61829==    by 0x40DE31: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 2 blocks are indirectly lost in loss record 25 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4620B4: __mod_local_evo_operator_MOD___copy_mod_local_evo_operator_Local_evo_operator_t (local_evo_operator.f90:610)
+==61829==    by 0x40DE31: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10 bytes in 2 blocks are indirectly lost in loss record 26 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4620B4: __mod_local_evo_operator_MOD___copy_mod_local_evo_operator_Local_evo_operator_t (local_evo_operator.f90:610)
+==61829==    by 0x40DE31: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 12 bytes in 1 blocks are still reachable in loss record 27 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5324B4: __mod_globals_MOD_set_global_options (version.h:6)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 13 bytes in 2 blocks are still reachable in loss record 28 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52EBF2E: strdup (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x561F3E7: event_config_avoid_method (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x555D00A: opal_event_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x555CD7A: ??? (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x551CFAF: opal_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x54BDD70: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 15 bytes in 1 blocks are still reachable in loss record 29 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x530736: __mod_input_MOD_read_from_ini (mod_input.f90:132)
+==61829==    by 0x404287: MAIN__ (main.f90:43)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 15 bytes in 1 blocks are still reachable in loss record 30 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40BF72: __mod_contour_writer_MOD_write_contour (contour_writer.f90:57)
+==61829==    by 0x404A96: MAIN__ (main.f90:64)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 15 bytes in 1 blocks are still reachable in loss record 31 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52DBA1: __hdf5_interface_MOD_hdf_initialize (mod_hdf5.f90:106)
+==61829==    by 0x40854F: __mod_contour_writer_MOD_write_hdf5 (contour_writer.f90:85)
+==61829==    by 0x40C401: __mod_contour_writer_MOD_write_contour (contour_writer.f90:63)
+==61829==    by 0x404A96: MAIN__ (main.f90:64)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 16 bytes in 1 blocks are still reachable in loss record 32 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x5096897: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 16 bytes in 1 blocks are definitely lost in loss record 33 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x7775618: ???
+==61829==    by 0x7775E94: ???
+==61829==    by 0x811A011: ???
+==61829==    by 0x811A289: ???
+==61829==    by 0x51755B2: ompi_osc_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50FBE22: ompi_win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x51455B9: PMPI_Win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50968F2: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 16 bytes in 1 blocks are definitely lost in loss record 34 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x7775628: ???
+==61829==    by 0x7775E94: ???
+==61829==    by 0x811A011: ???
+==61829==    by 0x811A289: ???
+==61829==    by 0x51755B2: ompi_osc_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50FBE22: ompi_win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x51455B9: PMPI_Win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50968F2: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 17 bytes in 1 blocks are still reachable in loss record 35 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x53227F: __mod_globals_MOD_set_global_options (version.h:3)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 17 bytes in 1 blocks are still reachable in loss record 36 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40C150: __mod_contour_writer_MOD_write_contour (contour_writer.f90:58)
+==61829==    by 0x404A96: MAIN__ (main.f90:64)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 19 bytes in 1 blocks are definitely lost in loss record 37 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52EBF2E: strdup (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x7C387B8: ???
+==61829==    by 0x400FD59: call_init.part.0 (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x400FE60: _dl_init (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4013DBD: dl_open_worker (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x401363D: _dl_open (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4C5A39B: dlopen_doit (in /usr/lib64/libdl-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x5398962: _dl_catch_error (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x4C5AB08: _dlerror_run (in /usr/lib64/libdl-2.30.so)
+==61829==
+==61829== 19 bytes in 1 blocks are definitely lost in loss record 38 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52EBF2E: strdup (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x7C1A7B8: ???
+==61829==    by 0x400FD59: call_init.part.0 (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x400FE60: _dl_init (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4013DBD: dl_open_worker (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x401363D: _dl_open (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4C5A39B: dlopen_doit (in /usr/lib64/libdl-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x5398962: _dl_catch_error (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x4C5AB08: _dlerror_run (in /usr/lib64/libdl-2.30.so)
+==61829==
+==61829== 20 bytes in 2 blocks are indirectly lost in loss record 39 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x430870: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 20 bytes in 2 blocks are indirectly lost in loss record 40 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x430870: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 20 bytes in 2 blocks are indirectly lost in loss record 41 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x430870: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 20 bytes in 2 blocks are indirectly lost in loss record 42 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x430870: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 20 bytes in 2 blocks are indirectly lost in loss record 43 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x430870: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 20 bytes in 2 blocks are indirectly lost in loss record 44 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x430870: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 20 bytes in 2 blocks are indirectly lost in loss record 45 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x430870: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 22 bytes in 1 blocks are still reachable in loss record 46 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x53256D: __mod_globals_MOD_set_global_options (version.h:7)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 23 bytes in 1 blocks are definitely lost in loss record 47 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x78B1EBB: ???
+==61829==    by 0x7827B57: ???
+==61829==    by 0x77DECEE: ???
+==61829==    by 0x77DF58A: ???
+==61829==    by 0x77C07D7: ???
+==61829==    by 0x553AFAC: mca_base_framework_components_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x517704E: ??? (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x5188CA4: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==
+==61829== 24 bytes in 1 blocks are still reachable in loss record 48 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x5096856: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 26 bytes in 1 blocks are still reachable in loss record 49 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52FE75: __mod_input_MOD_read_from_ini (mod_input.f90:107)
+==61829==    by 0x404287: MAIN__ (main.f90:43)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 26 bytes in 1 blocks are indirectly lost in loss record 50 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x427180: __mod_fvleg_MOD_initialize (fvleg.f90:86)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 29 bytes in 1 blocks are still reachable in loss record 51 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52EBF2E: strdup (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x555173D: ??? (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x5178766: ompi_pml_v_output_open (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x51782F9: ??? (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x553AFAC: mca_base_framework_components_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x517704E: ??? (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x5188CA4: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 30 bytes in 1 blocks are definitely lost in loss record 52 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x7C1053B: ???
+==61829==    by 0x400FD59: call_init.part.0 (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x400FE60: _dl_init (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4013DBD: dl_open_worker (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x401363D: _dl_open (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4C5A39B: dlopen_doit (in /usr/lib64/libdl-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x5398962: _dl_catch_error (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x4C5AB08: _dlerror_run (in /usr/lib64/libdl-2.30.so)
+==61829==    by 0x4C5A429: dlopen@@GLIBC_2.2.5 (in /usr/lib64/libdl-2.30.so)
+==61829==
+==61829== 30 bytes in 1 blocks are definitely lost in loss record 53 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x7BF253B: ???
+==61829==    by 0x400FD59: call_init.part.0 (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x400FE60: _dl_init (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4013DBD: dl_open_worker (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x401363D: _dl_open (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4C5A39B: dlopen_doit (in /usr/lib64/libdl-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x5398962: _dl_catch_error (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x4C5AB08: _dlerror_run (in /usr/lib64/libdl-2.30.so)
+==61829==    by 0x4C5A429: dlopen@@GLIBC_2.2.5 (in /usr/lib64/libdl-2.30.so)
+==61829==
+==61829== 30 bytes in 6 blocks are definitely lost in loss record 54 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52EBF2E: strdup (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x780D6CC: ???
+==61829==    by 0x780EE54: ???
+==61829==    by 0x780EF7A: ???
+==61829==    by 0x780F44B: ???
+==61829==    by 0x780D554: ???
+==61829==    by 0x780853A: ???
+==61829==    by 0x400FD59: call_init.part.0 (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x400FE60: _dl_init (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4013DBD: dl_open_worker (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==
+==61829== 30 bytes in 6 blocks are definitely lost in loss record 55 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x52EBF2E: strdup (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x78A56CC: ???
+==61829==    by 0x78A6E54: ???
+==61829==    by 0x78A6F7A: ???
+==61829==    by 0x78A744B: ???
+==61829==    by 0x78A5554: ???
+==61829==    by 0x78A053A: ???
+==61829==    by 0x400FD59: call_init.part.0 (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x400FE60: _dl_init (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4013DBD: dl_open_worker (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==
+==61829== 31 bytes in 1 blocks are indirectly lost in loss record 56 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43A5E6: __mod_second_order_reconstruction_MOD_copy (second_order_reconstruction.f90:96)
+==61829==    by 0x40EACF: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:838)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 32 bytes in 1 blocks are still reachable in loss record 57 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x561F2CE: event_get_supported_methods (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x555CF48: opal_event_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x555CD7A: ??? (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x551CFAF: opal_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x54BDD70: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 34 bytes in 1 blocks are indirectly lost in loss record 58 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x427693: __mod_fvleg_MOD_initialize (fvleg.f90:100)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 34 bytes in 1 blocks are indirectly lost in loss record 59 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x427862: __mod_fvleg_MOD_initialize (fvleg.f90:105)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 34 bytes in 1 blocks are indirectly lost in loss record 60 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x427A31: __mod_fvleg_MOD_initialize (fvleg.f90:110)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 34 bytes in 1 blocks are indirectly lost in loss record 61 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x427C00: __mod_fvleg_MOD_initialize (fvleg.f90:115)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 40 bytes in 1 blocks are still reachable in loss record 62 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x56584C6: ??? (in /usr/lib64/libevent_pthreads-2.1.so.6.0.2)
+==61829==    by 0x5621C86: event_global_setup_locks_ (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x565869F: evthread_use_pthreads (in /usr/lib64/libevent_pthreads-2.1.so.6.0.2)
+==61829==    by 0x555CD94: ??? (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x551CFAF: opal_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x54BDD70: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 40 bytes in 1 blocks are still reachable in loss record 63 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x56584C6: ??? (in /usr/lib64/libevent_pthreads-2.1.so.6.0.2)
+==61829==    by 0x562B147: evsig_global_setup_locks_ (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x5621C99: event_global_setup_locks_ (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x565869F: evthread_use_pthreads (in /usr/lib64/libevent_pthreads-2.1.so.6.0.2)
+==61829==    by 0x555CD94: ??? (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x551CFAF: opal_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x54BDD70: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==
+==61829== 40 bytes in 1 blocks are still reachable in loss record 64 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x56584C6: ??? (in /usr/lib64/libevent_pthreads-2.1.so.6.0.2)
+==61829==    by 0x5627777: evutil_secure_rng_global_setup_locks_ (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x5621CAF: event_global_setup_locks_ (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x565869F: evthread_use_pthreads (in /usr/lib64/libevent_pthreads-2.1.so.6.0.2)
+==61829==    by 0x555CD94: ??? (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x551CFAF: opal_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x54BDD70: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==
+==61829== 40 bytes in 1 blocks are still reachable in loss record 65 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5321A3: __mod_globals_MOD_set_global_options (version.h:2)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 44 bytes in 1 blocks are still reachable in loss record 66 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5327F4: __mod_globals_MOD_set_global_options (globals.f90:27)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 48 bytes in 2 blocks are still reachable in loss record 67 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x561F3D7: event_config_avoid_method (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x555D00A: opal_event_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x555CD7A: ??? (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x551CFAF: opal_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x54BDD70: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 48 bytes in 1 blocks are indirectly lost in loss record 68 of 289
+==61829==    at 0x4838748: malloc (vg_replace_malloc.c:308)
+==61829==    by 0x483AD63: realloc (vg_replace_malloc.c:836)
+==61829==    by 0x514B149: mca_bml_base_btl_array_reserve (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x7775875: ???
+==61829==    by 0x7775EA5: ???
+==61829==    by 0x811A011: ???
+==61829==    by 0x811A289: ???
+==61829==    by 0x51755B2: ompi_osc_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50FBE22: ompi_win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x51455B9: PMPI_Win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50968F2: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 48 bytes in 1 blocks are indirectly lost in loss record 69 of 289
+==61829==    at 0x4838748: malloc (vg_replace_malloc.c:308)
+==61829==    by 0x483AD63: realloc (vg_replace_malloc.c:836)
+==61829==    by 0x514B149: mca_bml_base_btl_array_reserve (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x7775883: ???
+==61829==    by 0x7775EA5: ???
+==61829==    by 0x811A011: ???
+==61829==    by 0x811A289: ???
+==61829==    by 0x51755B2: ompi_osc_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50FBE22: ompi_win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x51455B9: PMPI_Win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50968F2: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 48 bytes in 1 blocks are indirectly lost in loss record 70 of 289
+==61829==    at 0x4838748: malloc (vg_replace_malloc.c:308)
+==61829==    by 0x483AD63: realloc (vg_replace_malloc.c:836)
+==61829==    by 0x514B149: mca_bml_base_btl_array_reserve (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x7775894: ???
+==61829==    by 0x7775EA5: ???
+==61829==    by 0x811A011: ???
+==61829==    by 0x811A289: ???
+==61829==    by 0x51755B2: ompi_osc_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50FBE22: ompi_win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x51455B9: PMPI_Win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50968F2: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 71 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 72 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 73 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B36E: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 74 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 75 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 76 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 77 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 78 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 52 bytes in 2 blocks are definitely lost in loss record 79 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DC47: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41757E: __mod_fvleg_MOD_add_fvleg (fvleg.f90:925)
+==61829==    by 0x42B785: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 56 bytes in 1 blocks are still reachable in loss record 80 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x561D936: event_config_new (in /usr/lib64/libevent-2.1.so.6.0.2)
+==61829==    by 0x555CF70: opal_event_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x555CD7A: ??? (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x55454E8: mca_base_framework_open (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x551CFAF: opal_init (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x54BDD70: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 62 bytes in 2 blocks are indirectly lost in loss record 81 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4306CC: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 62 bytes in 2 blocks are indirectly lost in loss record 82 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4306CC: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 62 bytes in 2 blocks are indirectly lost in loss record 83 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4306CC: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 62 bytes in 2 blocks are indirectly lost in loss record 84 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4306CC: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 62 bytes in 2 blocks are indirectly lost in loss record 85 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4306CC: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 62 bytes in 2 blocks are indirectly lost in loss record 86 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4306CC: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 62 bytes in 2 blocks are indirectly lost in loss record 87 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4306CC: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 64 bytes in 1 blocks are indirectly lost in loss record 88 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x55C3D0F: hwloc_bitmap_alloc (in /usr/lib64/libhwloc.so.15.0.3)
+==61829==    by 0x5487F89: orte_ess_base_proc_binding (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5D70F05: ???
+==61829==    by 0x54BDF4B: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 89 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF08: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 90 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF91: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 91 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E01A: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 92 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E0A3: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 93 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF08: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 94 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF91: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 95 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E01A: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 96 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E0A3: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 97 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF08: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 98 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF91: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 99 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E01A: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 100 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E0A3: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 101 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF08: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 102 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF91: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 103 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E01A: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 104 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E0A3: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 105 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF08: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 106 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF91: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 107 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E01A: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 108 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E0A3: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 109 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF08: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 110 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF91: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 111 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E01A: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 112 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E0A3: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 113 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF08: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 114 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DF91: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 115 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E01A: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 68 bytes in 2 blocks are definitely lost in loss record 116 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E0A3: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 88 (24 direct, 64 indirect) bytes in 1 blocks are definitely lost in loss record 117 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x55C3CEF: hwloc_bitmap_alloc (in /usr/lib64/libhwloc.so.15.0.3)
+==61829==    by 0x5487F89: orte_ess_base_proc_binding (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5D70F05: ???
+==61829==    by 0x54BDF4B: orte_init (in /usr/lib64/openmpi/lib/libopen-rte.so.40.20.2)
+==61829==    by 0x5188872: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 224 bytes in 1 blocks are indirectly lost in loss record 118 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x428B9F: __mod_fvleg_MOD_initialize (fvleg.f90:144)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 328 bytes in 1 blocks are indirectly lost in loss record 119 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x428742: __mod_fvleg_MOD_initialize (fvleg.f90:135)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 376 (232 direct, 144 indirect) bytes in 1 blocks are definitely lost in loss record 120 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x777580B: ???
+==61829==    by 0x7775EA5: ???
+==61829==    by 0x811A011: ???
+==61829==    by 0x811A289: ???
+==61829==    by 0x51755B2: ompi_osc_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50FBE22: ompi_win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x51455B9: PMPI_Win_create (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x50968F2: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 385 bytes in 1 blocks are still reachable in loss record 121 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5326F4: __mod_globals_MOD_set_global_options (globals.f90:26)
+==61829==    by 0x531B32: __mod_globals_MOD_print_version_stats (globals.f90:32)
+==61829==    by 0x40417C: MAIN__ (main.f90:37)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 458 (448 direct, 10 indirect) bytes in 2 blocks are definitely lost in loss record 122 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DDF6: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 458 (448 direct, 10 indirect) bytes in 2 blocks are definitely lost in loss record 123 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DDF6: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 458 (448 direct, 10 indirect) bytes in 2 blocks are definitely lost in loss record 124 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DDF6: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 512 bytes in 1 blocks are definitely lost in loss record 125 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x780E861: ???
+==61829==    by 0x780EE54: ???
+==61829==    by 0x780EF7A: ???
+==61829==    by 0x780F44B: ???
+==61829==    by 0x780D554: ???
+==61829==    by 0x780853A: ???
+==61829==    by 0x400FD59: call_init.part.0 (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x400FE60: _dl_init (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4013DBD: dl_open_worker (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x401363D: _dl_open (in /usr/lib64/ld-2.30.so)
+==61829==
+==61829== 512 bytes in 1 blocks are definitely lost in loss record 126 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x78A6861: ???
+==61829==    by 0x78A6E54: ???
+==61829==    by 0x78A6F7A: ???
+==61829==    by 0x78A744B: ???
+==61829==    by 0x78A5554: ???
+==61829==    by 0x78A053A: ???
+==61829==    by 0x400FD59: call_init.part.0 (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x400FE60: _dl_init (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x4013DBD: dl_open_worker (in /usr/lib64/ld-2.30.so)
+==61829==    by 0x53988C8: _dl_catch_exception (in /usr/lib64/libc-2.30.so)
+==61829==    by 0x401363D: _dl_open (in /usr/lib64/ld-2.30.so)
+==61829==
+==61829== 656 bytes in 2 blocks are indirectly lost in loss record 127 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DCCC: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 656 bytes in 2 blocks are indirectly lost in loss record 128 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DCCC: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 944 bytes in 1 blocks are indirectly lost in loss record 129 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x42732C: __mod_fvleg_MOD_initialize (fvleg.f90:89)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,736 bytes in 1 blocks are definitely lost in loss record 130 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x7AA2B2E: ???
+==61829==    by 0x7A1CCCE: ???
+==61829==    by 0x79EC6C5: ???
+==61829==    by 0x555AF08: mca_btl_base_select (in /usr/lib64/openmpi/lib/libopen-pal.so.40.20.2)
+==61829==    by 0x77774C7: ???
+==61829==    by 0x514B3DA: mca_bml_base_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5188C84: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 1,736 bytes in 1 blocks are definitely lost in loss record 131 of 289
+==61829==    at 0x483AB1A: calloc (vg_replace_malloc.c:762)
+==61829==    by 0x79A1B2E: ???
+==61829==    by 0x791BCCE: ???
+==61829==    by 0x78F27C0: ???
+==61829==    by 0x516F0B3: ompi_mtl_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x7780E4D: ???
+==61829==    by 0x5177713: mca_pml_base_select (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5188CF9: ompi_mpi_init (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5128A3A: PMPI_Init_thread (in /usr/lib64/openmpi/lib/libmpi.so.40.20.2)
+==61829==    by 0x5096751: _gfortran_caf_init (in /software/opencoarrays/lib64/libcaf_mpi.so.3)
+==61829==    by 0x404B09: main (main.f90:4)
+==61829==
+==61829== 1,888 bytes in 2 blocks are indirectly lost in loss record 132 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DE7F: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,888 bytes in 2 blocks are indirectly lost in loss record 133 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DE7F: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 83,232 bytes in 1 blocks are indirectly lost in loss record 134 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5091DF: __mod_regular_2d_grid_MOD_copy (regular_2d_grid.f90:186)
+==61829==    by 0x40E797: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:795)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 84,872 bytes in 1 blocks are possibly lost in loss record 135 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4826: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 84,872 bytes in 1 blocks are indirectly lost in loss record 136 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4826: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 84,872 bytes in 1 blocks are indirectly lost in loss record 137 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x5078BF: __mod_regular_2d_grid_MOD_copy (regular_2d_grid.f90:180)
+==61829==    by 0x40E797: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:795)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 84,872 bytes in 1 blocks are indirectly lost in loss record 138 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x50854F: __mod_regular_2d_grid_MOD_copy (regular_2d_grid.f90:183)
+==61829==    by 0x40E797: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:795)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 166,464 bytes in 1 blocks are indirectly lost in loss record 139 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x509F1C: __mod_regular_2d_grid_MOD_copy (regular_2d_grid.f90:189)
+==61829==    by 0x40E797: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:795)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 166,464 bytes in 2 blocks are indirectly lost in loss record 140 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4767: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 166,464 bytes in 2 blocks are indirectly lost in loss record 141 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4767: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 166,464 bytes in 2 blocks are indirectly lost in loss record 142 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4767: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 166,464 bytes in 2 blocks are indirectly lost in loss record 143 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4767: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 166,464 bytes in 2 blocks are indirectly lost in loss record 144 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4767: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 166,464 bytes in 2 blocks are indirectly lost in loss record 145 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4767: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 166,464 bytes in 2 blocks are indirectly lost in loss record 146 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4767: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 147 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4826: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 148 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F48E5: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 149 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4826: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 150 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F48E5: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 151 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F48E5: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 152 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4826: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 153 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F48E5: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 154 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4826: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 155 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F48E5: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 156 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4826: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 157 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F48E5: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 158 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4826: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 169,744 bytes in 2 blocks are indirectly lost in loss record 159 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F48E5: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are possibly lost in loss record 160 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are possibly lost in loss record 161 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E38E: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are possibly lost in loss record 162 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E50C: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are possibly lost in loss record 163 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are indirectly lost in loss record 164 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x428FC9: __mod_fvleg_MOD_initialize (fvleg.f90:156)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are indirectly lost in loss record 165 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x429316: __mod_fvleg_MOD_initialize (fvleg.f90:162)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are indirectly lost in loss record 166 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x429666: __mod_fvleg_MOD_initialize (fvleg.f90:169)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are indirectly lost in loss record 167 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4299B6: __mod_fvleg_MOD_initialize (fvleg.f90:175)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are indirectly lost in loss record 168 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x429D0F: __mod_fvleg_MOD_initialize (fvleg.f90:182)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are indirectly lost in loss record 169 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x42A06B: __mod_fvleg_MOD_initialize (fvleg.f90:188)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are definitely lost in loss record 170 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are definitely lost in loss record 171 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E38E: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are definitely lost in loss record 172 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E50C: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 326,432 bytes in 1 blocks are definitely lost in loss record 173 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 1 blocks are possibly lost in loss record 174 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 1 blocks are possibly lost in loss record 175 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 1 blocks are possibly lost in loss record 176 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 1 blocks are indirectly lost in loss record 177 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x427F8E: __mod_fvleg_MOD_initialize (fvleg.f90:122)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 1 blocks are indirectly lost in loss record 178 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x50B184: __mod_regular_2d_grid_MOD_copy (regular_2d_grid.f90:192)
+==61829==    by 0x40E797: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:795)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 2 blocks are indirectly lost in loss record 179 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F49A4: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 2 blocks are indirectly lost in loss record 180 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F49A4: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 2 blocks are indirectly lost in loss record 181 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F49A4: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 2 blocks are indirectly lost in loss record 182 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F49A4: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 2 blocks are indirectly lost in loss record 183 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F49A4: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 2 blocks are indirectly lost in loss record 184 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F49A4: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 2 blocks are indirectly lost in loss record 185 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F49A4: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 1 blocks are definitely lost in loss record 186 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 1 blocks are definitely lost in loss record 187 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 332,928 bytes in 1 blocks are definitely lost in loss record 188 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 189 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E151: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 190 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E210: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 191 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E2CF: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 192 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E38E: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 193 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 194 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E50C: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 195 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E151: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 196 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E210: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 197 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E2CF: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 198 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E38E: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 199 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 200 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E50C: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 201 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E151: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 202 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E210: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 203 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E2CF: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 204 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E38E: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 205 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E50C: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 206 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E151: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 207 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E210: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 208 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E2CF: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 209 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 210 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E50C: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 211 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E151: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 212 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E210: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 213 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E2CF: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 214 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E38E: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 215 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 216 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E151: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 217 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E210: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 218 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E2CF: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 219 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E38E: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 220 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E50C: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 221 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E151: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 222 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E210: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 223 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E2CF: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 224 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E38E: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 225 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E44D: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 652,864 bytes in 2 blocks are definitely lost in loss record 226 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E50C: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 1 blocks are possibly lost in loss record 227 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4BE1: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 1 blocks are indirectly lost in loss record 228 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4BE1: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 1 blocks are indirectly lost in loss record 229 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x50E35C: __mod_regular_2d_grid_MOD_copy (regular_2d_grid.f90:198)
+==61829==    by 0x40E797: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:795)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 1 blocks are indirectly lost in loss record 230 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43AAE3: __mod_second_order_reconstruction_MOD_copy (second_order_reconstruction.f90:99)
+==61829==    by 0x40EACF: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:838)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 231 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 232 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4A63: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 233 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4A63: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 234 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4A63: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 235 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 236 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4A63: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 237 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4A63: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 238 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4A63: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are indirectly lost in loss record 239 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4A63: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are definitely lost in loss record 240 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 665,856 bytes in 2 blocks are definitely lost in loss record 241 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DD68: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 1 blocks are indirectly lost in loss record 242 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x50C4F9: __mod_regular_2d_grid_MOD_copy (regular_2d_grid.f90:195)
+==61829==    by 0x40E797: __mod_fvleg_MOD_assign_fvleg (fvleg.f90:795)
+==61829==    by 0x42B7C7: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 243 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43078E: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 244 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4BE1: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 245 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43078E: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 246 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4BE1: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 247 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43078E: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 248 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4BE1: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 249 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43078E: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 250 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4BE1: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 251 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43078E: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 252 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4BE1: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 253 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43078E: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 254 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x43078E: __mod_second_order_reconstruction_MOD___copy_4DFD099 (second_order_reconstruction.f90:239)
+==61829==    by 0x40DCFB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,331,712 bytes in 2 blocks are indirectly lost in loss record 255 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4BE1: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,332,450 (656 direct, 1,331,794 indirect) bytes in 2 blocks are definitely lost in loss record 256 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DCCC: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,332,450 (656 direct, 1,331,794 indirect) bytes in 2 blocks are definitely lost in loss record 257 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DCCC: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,332,450 (656 direct, 1,331,794 indirect) bytes in 2 blocks are definitely lost in loss record 258 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DCCC: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 1,960,128 (1,144 direct, 1,958,984 indirect) bytes in 1 blocks are definitely lost in loss record 259 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x42A285: __mod_fvleg_MOD_constructor (fvleg.f90:65)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are possibly lost in loss record 260 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are possibly lost in loss record 261 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are possibly lost in loss record 262 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are possibly lost in loss record 263 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are indirectly lost in loss record 264 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4282B8: __mod_fvleg_MOD_initialize (fvleg.f90:128)
+==61829==    by 0x42A42E: __mod_fvleg_MOD_constructor (fvleg.f90:66)
+==61829==    by 0x4042AC: MAIN__ (main.f90:45)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are indirectly lost in loss record 265 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 2 blocks are indirectly lost in loss record 266 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4B22: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 2 blocks are indirectly lost in loss record 267 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4B22: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 2 blocks are indirectly lost in loss record 268 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4B22: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 2 blocks are indirectly lost in loss record 269 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4B22: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 2 blocks are indirectly lost in loss record 270 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4B22: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 2 blocks are indirectly lost in loss record 271 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4B22: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 2 blocks are indirectly lost in loss record 272 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x4F4B22: __mod_regular_2d_grid_MOD___copy_mod_regular_2d_grid_Regular_2d_grid_t (regular_2d_grid.f90:644)
+==61829==    by 0x40DEBA: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are definitely lost in loss record 273 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are definitely lost in loss record 274 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 2,663,424 bytes in 1 blocks are definitely lost in loss record 275 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 3,330,107 (448 direct, 3,329,659 indirect) bytes in 2 blocks are definitely lost in loss record 276 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DDF6: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 3,330,107 (448 direct, 3,329,659 indirect) bytes in 2 blocks are definitely lost in loss record 277 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DDF6: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 4,416,258 (656 direct, 4,415,602 indirect) bytes in 2 blocks are definitely lost in loss record 278 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DCCC: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 4,416,258 (656 direct, 4,415,602 indirect) bytes in 2 blocks are definitely lost in loss record 279 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DCCC: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 4,835,904 (1,888 direct, 4,834,016 indirect) bytes in 2 blocks are definitely lost in loss record 280 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DE7F: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x418927: __mod_fvleg_MOD_subtract_fvleg (fvleg.f90:925)
+==61829==    by 0x42B701: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5,326,848 bytes in 2 blocks are indirectly lost in loss record 281 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5,326,848 bytes in 2 blocks are definitely lost in loss record 282 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5,326,848 bytes in 2 blocks are definitely lost in loss record 283 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40E5CB: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5,416,888 (1,888 direct, 5,415,000 indirect) bytes in 2 blocks are definitely lost in loss record 284 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DE7F: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B618: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5,501,760 (1,888 direct, 5,499,872 indirect) bytes in 2 blocks are definitely lost in loss record 285 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DE7F: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B332: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5,501,760 (1,888 direct, 5,499,872 indirect) bytes in 2 blocks are definitely lost in loss record 286 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DE7F: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x41686D: __mod_fvleg_MOD_fvleg_mul_real (fvleg.f90:753)
+==61829==    by 0x42B6CE: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 5,501,760 (1,888 direct, 5,499,872 indirect) bytes in 2 blocks are definitely lost in loss record 287 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DE7F: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x415BB5: __mod_fvleg_MOD_real_mul_fvleg (fvleg.f90:776)
+==61829==    by 0x42B744: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 6,413,915 (448 direct, 6,413,467 indirect) bytes in 2 blocks are definitely lost in loss record 288 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DDF6: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B686: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:35)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== 10,163,948 (448 direct, 10,163,500 indirect) bytes in 2 blocks are definitely lost in loss record 289 of 289
+==61829==    at 0x483880B: malloc (vg_replace_malloc.c:309)
+==61829==    by 0x40DDF6: __mod_fvleg_MOD___copy_mod_fvleg_Fvleg_t (fvleg.f90:925)
+==61829==    by 0x4206F1: __mod_fvleg_MOD_time_derivative (fvleg.f90:480)
+==61829==    by 0x42B2F6: __mod_2nd_order_runge_kutta_MOD_integrate (runge_kutta_2nd_order.f90:33)
+==61829==    by 0x42AC6E: __mod_integrand_MOD_integrate (integrand.f90:92)
+==61829==    by 0x40497F: MAIN__ (main.f90:58)
+==61829==    by 0x404B2E: main (main.f90:4)
+==61829==
+==61829== LEAK SUMMARY:
+==61829==    definitely lost: 47,113,395 bytes in 236 blocks
+==61829==    indirectly lost: 64,770,725 bytes in 199 blocks
+==61829==      possibly lost: 13,708,936 bytes in 13 blocks
+==61829==    still reachable: 1,002 bytes in 34 blocks
+==61829==         suppressed: 0 bytes in 0 blocks
+==61829==
+==61829== For lists of detected and suppressed errors, rerun with: -s
+==61829== ERROR SUMMARY: 140 errors from 140 contexts (suppressed: 0 from 0)

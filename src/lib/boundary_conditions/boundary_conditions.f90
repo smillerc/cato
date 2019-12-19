@@ -9,13 +9,16 @@ module mod_boundary_conditions
   public :: boundary_condition_t
 
   type, abstract :: boundary_condition_t
-    character(:), allocatable :: name
+    character(len=32) :: name
     character(len=2) :: location  !< Location (+x, -x, +y, or -y)
   contains
     ! procedure(initialize), public, deferred :: initialize
     procedure(apply_conserved_var_bc), public, deferred :: apply_conserved_var_bc
     procedure(apply_reconstructed_state_bc), public, deferred :: apply_reconstructed_state_bc
     procedure(apply_cell_gradient_bc), public, deferred :: apply_cell_gradient_bc
+    procedure(copy_bc), public, deferred :: copy
+    generic :: assignment(=) => copy
+
   end type boundary_condition_t
 
   abstract interface
@@ -26,6 +29,12 @@ module mod_boundary_conditions
     !   ! class(input_t), intent(in) :: input
     !   character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     ! end subroutine initialize
+
+    subroutine copy_bc(out_bc, in_bc)
+      import :: boundary_condition_t
+      class(boundary_condition_t), intent(in) :: in_bc
+      class(boundary_condition_t), intent(inout) :: out_bc
+    end subroutine
 
     subroutine apply_conserved_var_bc(self, conserved_vars)
       import :: boundary_condition_t

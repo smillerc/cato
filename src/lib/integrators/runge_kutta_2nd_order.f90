@@ -25,13 +25,23 @@ contains
     class(integrand_t), allocatable :: self_half !< function evaluation at interval t+dt/2
 
     call debug_print('Running runge_kutta_2nd%integrate()', __FILE__, __LINE__)
+
     select type(self)
     class is(integrand_t)
       allocate(self_half, source=self)
+
+      print *, '1st step'
       self_half = self - self%t() * dt
-      self = self * 0.5_rk + (self_half - (self%t() * dt)) * 0.5_rk
+      print *
+
+      print *, '2nd step'
+      self = 0.5_rk * self + 0.5_rk * (self_half - (self_half%t() * dt))
+      print *
+
+      deallocate(self_half)
     class default
       error stop 'Error in runge_kutta_2nd%integrate - unsupported class'
     end select
+
   end subroutine
 end module mod_2nd_order_runge_kutta

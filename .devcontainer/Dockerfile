@@ -5,7 +5,7 @@ FROM fedora:latest
 RUN dnf groupinstall "Development Tools" -y
 
 RUN dnf install -y \
-    libtool file gfortran g++ gcc m4 gdb \
+    libtool file gfortran g++ gcc m4 gdb valgrind \
     openmpi-devel cmake wget zsh curl git \
     cgnslib-devel zlib vim ack
 

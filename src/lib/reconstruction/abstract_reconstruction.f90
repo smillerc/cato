@@ -36,20 +36,25 @@ module mod_abstract_reconstruction
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct_point), public, deferred :: reconstruct_point
     procedure(reconstruct_domain), public, deferred :: reconstruct_domain
+    procedure(copy_recon), public, deferred :: copy
+    generic :: assignment(=) => copy
   end type abstract_reconstruction_t
 
   abstract interface
-    subroutine initialize(self, input, grid)
+    subroutine initialize(self, input, grid_target, conserved_vars_target, lbounds)
       import :: abstract_reconstruction_t
       import :: input_t
       import :: grid_t
-      import :: rk
+      import :: ik, rk
       class(abstract_reconstruction_t), intent(inout) :: self
       class(input_t), intent(in) :: input
-      class(grid_t), intent(in), target :: grid
+      class(grid_t), intent(in), target :: grid_target
+      integer(ik), dimension(3), intent(in) :: lbounds
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
+        intent(in), target :: conserved_vars_target
     end subroutine
 
-    function reconstruct_point(self, xy, cell_ij) result(U_bar)
+    pure function reconstruct_point(self, xy, cell_ij) result(U_bar)
       !< Reconstruct the value of the conserved variables (U) at location (x,y) based on the
       !> cell average and gradient (if higher order)
       import :: abstract_reconstruction_t
@@ -62,7 +67,7 @@ module mod_abstract_reconstruction
       real(rk), dimension(4) :: U_bar  !< U_bar = reconstructed [rho, u, v, p]
     end function reconstruct_point
 
-    subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
+    pure subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
       import :: abstract_reconstruction_t
       import :: ik, rk
       class(abstract_reconstruction_t), intent(inout) :: self
@@ -75,6 +80,11 @@ module mod_abstract_reconstruction
       !< e.g. 1 - all corners, 2 - all midpoints
     end subroutine reconstruct_domain
 
+    subroutine copy_recon(out_recon, in_recon)
+      import :: abstract_reconstruction_t
+      class(abstract_reconstruction_t), intent(in) :: in_recon
+      class(abstract_reconstruction_t), intent(inout) :: out_recon
+    end subroutine
   end interface
 
 contains

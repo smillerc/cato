@@ -25,6 +25,5 @@ contains
     case default
       error stop 'Error in time_integrator_factory - unsupported time integration scheme'
     end select
-    call debug_print('Done', __FILE__, __LINE__)
   end function time_integrator_factory
 end module mod_time_integrator_factory
