@@ -176,27 +176,32 @@ contains
     out_grid%x_length = in_grid%x_length
     out_grid%y_length = in_grid%y_length
 
-    if(allocated(out_grid%node_x)) deallocate(out_grid%node_x)
-    allocate(out_grid%node_x, source=in_grid%node_x)
+    ! allocate(out_grid%node_x, source=in_grid%node_x)
+    out_grid%node_x = in_grid%node_x
 
-    if(allocated(out_grid%node_y)) deallocate(out_grid%node_y)
-    allocate(out_grid%node_y, source=in_grid%node_y)
+    ! if(allocated(out_grid%node_y)) deallocate(out_grid%node_y)
+    ! allocate(out_grid%node_y, source=in_grid%node_y)
+    out_grid%node_y = in_grid%node_y
 
-    if(allocated(out_grid%cell_volume)) deallocate(out_grid%cell_volume)
-    allocate(out_grid%cell_volume, source=in_grid%cell_volume)
+    ! if(allocated(out_grid%cell_volume)) deallocate(out_grid%cell_volume)
+    ! allocate(out_grid%cell_volume, source=in_grid%cell_volume)
+    out_grid%cell_volume = in_grid%cell_volume
 
-    if(allocated(out_grid%cell_centroid_xy)) deallocate(out_grid%cell_centroid_xy)
-    allocate(out_grid%cell_centroid_xy, source=in_grid%cell_centroid_xy)
+    ! if(allocated(out_grid%cell_centroid_xy)) deallocate(out_grid%cell_centroid_xy)
+    ! allocate(out_grid%cell_centroid_xy, source=in_grid%cell_centroid_xy)
+    out_grid%cell_centroid_xy = in_grid%cell_centroid_xy
 
-    if(allocated(out_grid%cell_edge_lengths)) deallocate(out_grid%cell_edge_lengths)
-    allocate(out_grid%cell_edge_lengths, source=in_grid%cell_edge_lengths)
+    ! if(allocated(out_grid%cell_edge_lengths)) deallocate(out_grid%cell_edge_lengths)
+    ! allocate(out_grid%cell_edge_lengths, source=in_grid%cell_edge_lengths)
+    out_grid%cell_edge_lengths = in_grid%cell_edge_lengths
 
-    if(allocated(out_grid%cell_node_xy)) deallocate(out_grid%cell_node_xy)
-    allocate(out_grid%cell_node_xy, source=in_grid%cell_node_xy)
+    ! if(allocated(out_grid%cell_node_xy)) deallocate(out_grid%cell_node_xy)
+    ! allocate(out_grid%cell_node_xy, source=in_grid%cell_node_xy)
+    out_grid%cell_node_xy = in_grid%cell_node_xy
 
-    if(allocated(out_grid%cell_edge_norm_vectors)) deallocate(out_grid%cell_edge_norm_vectors)
-    allocate(out_grid%cell_edge_norm_vectors, source=in_grid%cell_edge_norm_vectors)
-
+    ! if(allocated(out_grid%cell_edge_norm_vectors)) deallocate(out_grid%cell_edge_norm_vectors)
+    ! allocate(out_grid%cell_edge_norm_vectors, source=in_grid%cell_edge_norm_vectors)
+    out_grid%cell_edge_norm_vectors = in_grid%cell_edge_norm_vectors
   end subroutine
 
   subroutine initialize_from_hdf5(self, input)

@@ -479,57 +479,6 @@ contains
 
     allocate(local_dU_dt, source=self)
 
-    ! if (allocated(local_dU_dt%conserved_vars)) deallocate(local_dU_dt%conserved_vars)
-    ! allocate(local_dU_dt%conserved_vars, source=self%conserved_vars)
-
-    ! if (allocated(local_dU_dt%evolved_corner_state)) deallocate(local_dU_dt%evolved_corner_state)
-    ! allocate(local_dU_dt%evolved_corner_state, source=self%evolved_corner_state)
-
-    ! if (allocated(local_dU_dt%corner_reference_state)) deallocate(local_dU_dt%corner_reference_state)
-    ! allocate(local_dU_dt%corner_reference_state, source=self%corner_reference_state)
-
-    ! if (allocated(local_dU_dt%evolved_downup_midpoints_state)) deallocate(local_dU_dt%evolved_downup_midpoints_state)
-    ! allocate(local_dU_dt%evolved_downup_midpoints_state, source=self%evolved_downup_midpoints_state)
-
-    ! if (allocated(local_dU_dt%evolved_leftright_midpoints_state)) deallocate(local_dU_dt%evolved_leftright_midpoints_state)
-    ! allocate(local_dU_dt%evolved_leftright_midpoints_state, source=self%evolved_leftright_midpoints_state)
-
-    ! ! if (allocated()) deallocate()
-    ! allocate(local_dU_dt%downup_midpoints_reference_state, source=self%downup_midpoints_reference_state)
-
-    ! ! if (allocated()) deallocate()
-    ! allocate(local_dU_dt%leftright_midpoints_reference_state, source=self%leftright_midpoints_reference_state)
-
-    ! ! if (allocated()) deallocate()
-    ! allocate(local_dU_dt%reconstructed_state, source=self%reconstructed_state)
-
-    ! if (allocated(local_dU_dt%title)) deallocate(local_dU_dt%title)
-    ! allocate(character(len=len(self%title)) :: local_dU_dt%title)
-    ! local_dU_dt%title = self%title
-
-    ! ! if (allocated()) deallocate()
-    ! allocate(local_dU_dt%reconstruction_operator, source=self%reconstruction_operator)
-
-    ! ! if (allocated()) deallocate()
-    ! ! allocate(local_dU_dt%evolution_operator, source=self%evolution_operator)
-    ! local_dU_dt%evolution_operator=self%evolution_operator
-
-    ! ! if (allocated(local_dU_dt%grid)) deallocate()
-    ! allocate(local_dU_dt%grid, source=self%grid)
-
-    ! if (allocated(local_dU_dt%bc_plus_x)) deallocate(local_dU_dt%bc_plus_x)
-    ! allocate(local_dU_dt%bc_plus_x , source=self%bc_plus_x )
-    ! ! local_dU_dt%bc_plus_x=self%bc_plus_x
-
-    ! if (allocated(local_dU_dt%bc_plus_y)) deallocate(local_dU_dt%bc_plus_y)
-    ! allocate(local_dU_dt%bc_plus_y , source=self%bc_plus_y )
-
-    ! if (allocated(local_dU_dt%bc_minus_x)) deallocate(local_dU_dt%bc_minus_x)
-    ! allocate(local_dU_dt%bc_minus_x, source=self%bc_minus_x)
-
-    ! if (allocated(local_dU_dt%bc_minus_y)) deallocate(local_dU_dt%bc_minus_y)
-    ! allocate(local_dU_dt%bc_minus_y, source=self%bc_minus_y)
-
     call local_dU_dt%set_temp(calling_function='time_derivative (local_dU_dt)', line=__LINE__)
 
     call local_dU_dt%calculate_reference_state()
@@ -687,8 +636,6 @@ contains
 
     call debug_print('Calling fvleg_t%subtract_fvleg()', __FILE__, __LINE__)
 
-    ! call lhs%guard_temp(calling_function='subtract_fvleg', line=__LINE__)
-
     select type(rhs)
     class is(fvleg_t)
       allocate(local_difference, source=lhs)
@@ -697,9 +644,9 @@ contains
       error stop 'fvleg_t%subtract_fvleg: unsupported rhs class'
     end select
 
-    call local_difference%set_temp(calling_function='subtract_fvleg', line=__LINE__)
+    call local_difference%set_temp(calling_function='subtract_fvleg (local_difference)', line=__LINE__)
+
     call move_alloc(local_difference, difference)
-    ! call lhs%clean_temp(calling_function='subtract_fvleg', line=__LINE__)
   end function subtract_fvleg
 
   function add_fvleg(lhs, rhs) result(sum)
@@ -711,7 +658,6 @@ contains
     type(fvleg_t), allocatable :: local_sum
 
     call debug_print('Calling fvleg_t%add_fvleg()', __FILE__, __LINE__)
-    ! call lhs%guard_temp(calling_function='add_fvleg (lhs)', line=__LINE__)
 
     select type(rhs)
     class is(fvleg_t)
@@ -722,8 +668,8 @@ contains
     end select
 
     call local_sum%set_temp(calling_function='add_fvleg (local_sum)', line=__LINE__)
+
     call move_alloc(local_sum, sum)
-    ! call lhs%clean_temp(calling_function='add_fvleg (lhs)', line=__LINE__)
   end function add_fvleg
 
   function fvleg_mul_real(lhs, rhs) result(product)
@@ -736,10 +682,6 @@ contains
     integer(ik) :: alloc_status
 
     call debug_print('Calling fvleg_t%fvleg_mul_real()', __FILE__, __LINE__)
-    ! call lhs%guard_temp(calling_function='fvleg_mul_real (lhs)', line=__LINE__)
-    ! print*, 'allocated(local_product): ', allocated(local_product)
-    ! print*, 'allocated(lhs): ', lhs%initiated
-    ! print*, 'allocated(lhs%conserved_vars):', allocated(lhs%conserved_vars)
 
     allocate(local_product, source=lhs, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fvleg_t%fvleg_mul_real"
@@ -747,8 +689,8 @@ contains
     local_product%conserved_vars = lhs%conserved_vars * rhs
 
     call local_product%set_temp(calling_function='fvleg_mul_real (local_product)', line=__LINE__)
+
     call move_alloc(local_product, product)
-    ! call lhs%clean_temp(calling_function='fvleg_mul_real (lhs)', line=__LINE__)
   end function fvleg_mul_real
 
   function real_mul_fvleg(lhs, rhs) result(product)
@@ -761,17 +703,15 @@ contains
     integer(ik) :: alloc_status
 
     call debug_print('Calling fvleg_t%real_mul_fvleg()', __FILE__, __LINE__)
-    ! call rhs%guard_temp(calling_function='real_mul_fvleg (rhs)', line=__LINE__)
 
-    ! print *, 'rhs%initiated', rhs%initiated
     allocate(local_product, source=rhs, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fvleg_t%fvleg_mul_real"
 
     local_product%conserved_vars = rhs%conserved_vars * lhs
 
     call local_product%set_temp(calling_function='real_mul_fvleg (local_product)', line=__LINE__)
+
     call move_alloc(local_product, product)
-    ! call rhs%clean_temp(calling_function='real_mul_fvleg (rhs)', line=__LINE__)
   end function real_mul_fvleg
 
   subroutine assign_fvleg(lhs, rhs)
@@ -782,7 +722,7 @@ contains
 
     alloc_status = 0
     call debug_print('Calling assign_fvleg_t', __FILE__, __LINE__)
-    call rhs%guard_temp(calling_function='assign_fvleg (rhs)', line=__LINE__)
+    call rhs%guard_temp(calling_function='assign_fvleg (lhs)', line=__LINE__)
 
     select type(rhs)
     class is(fvleg_t)

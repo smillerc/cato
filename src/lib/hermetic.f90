@@ -30,10 +30,8 @@ contains
     integer, target :: val
     val = 1
 
-    if(.not. associated(self%temporary)) then
-      allocate(self%temporary, source=1)
-      ! self%temporary => val
-    end if
+    if(.not. associated(self%temporary)) allocate(self%temporary)
+    self%temporary = 1
 
     if(enable_debug_print) then
       write(std_out, '(a,l1)') calling_function//' -> set_temp(), associated(self%temporary) = ', associated(self%temporary)
@@ -52,7 +50,9 @@ contains
 
     if(associated(self%temporary)) then
       self%temporary = self%temporary + 1
-      ! write(std_out, '(a,i0)') calling_function // ' -> guard_temp(), self%temporary = ', self%temporary
+      if(enable_debug_print) then
+        write(std_out, *) calling_function//' -> guard_temp(), self%temporary = ', self%temporary
+      end if
     end if
   end subroutine
 
@@ -68,13 +68,17 @@ contains
     if(associated(self%temporary)) then
 
       if(self%temporary > 1) then
+        if(enable_debug_print) then
+          write(std_out, '(a,l1)') calling_function//' -> clean_temp(),  self%temporary = ', self%temporary
+        end if
         self%temporary = self%temporary - 1
+
       end if
 
       if(self%temporary == 1) then
 
         if(enable_debug_print) then
-          write(std_out, '(a)') calling_function//' -> cleaning up!'
+          write(std_out, '(a)') calling_function//' self%temporary = 1 -> cleaning up!'
         end if
 
         call self%force_finalization()
