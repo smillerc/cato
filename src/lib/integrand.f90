@@ -3,6 +3,7 @@ module mod_integrand
   use mod_surrogate, only: surrogate
   use mod_globals, only: debug_print
   use mod_strategy, only: strategy
+  use mod_finite_volume_schemes, only: finite_volume_scheme_t
 
   implicit none
   private
@@ -30,9 +31,13 @@ module mod_integrand
   end type
 
   abstract interface
-    function time_derivative(self) result(dState_dt)
+    function time_derivative(self, finite_volume_scheme) result(dState_dt)
       import :: integrand_t
+      import :: finite_volume_scheme_t
+      import :: rk
       class(integrand_t), intent(in) :: self
+      class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
+      ! real(rk), intent(in) :: dt
       class(integrand_t), allocatable :: dState_dt
     end function time_derivative
 
@@ -83,13 +88,14 @@ contains
     allocate(self_strategy, source=self%time_integrator)
   end function
 
-  subroutine integrate(model, dt)
+  subroutine integrate(model, finite_volume_scheme, dt)
     class(integrand_t), intent(inout) :: model ! integrand_t
+    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     real(rk), intent(in) :: dt ! time step size
 
     call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
-      call model%time_integrator%integrate(model, dt)
+      call model%time_integrator%integrate(model, finite_volume_scheme, dt)
     else
       stop 'integrate: no integration procedure available.'
     end if

@@ -67,12 +67,12 @@ contains
 
   ! end function create_reconstruction
 
-  function reconstruction_factory(input, grid_target, conserved_vars_target, lbounds) result(operator)
+  function reconstruction_factory(input, grid_target) result(operator)
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid_target
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
-      intent(in), target :: conserved_vars_target
+    ! integer(ik), dimension(3), intent(in) :: lbounds
+    ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
+    !   intent(in), target :: conserved_vars_target
 
     class(abstract_reconstruction_t), pointer :: operator
 
@@ -84,8 +84,7 @@ contains
     select case(recon_type)
     case('piecewise_linear')
       allocate(second_order_reconstruction_t :: operator)
-      call operator%initialize(input=input, grid_target=grid_target, &
-                               conserved_vars_target=conserved_vars_target, lbounds=lbounds)
+      call operator%initialize(input=input, grid_target=grid_target)
     case default
       ! if(this_image() == 1) then
       error stop "Error in reconstruction_factory_t, unrecognizable reconstruction type"

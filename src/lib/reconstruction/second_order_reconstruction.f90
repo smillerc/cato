@@ -26,15 +26,15 @@ module mod_second_order_reconstruction
 
 contains
 
-  subroutine init_second_order(self, input, grid_target, conserved_vars_target, lbounds)
+  subroutine init_second_order(self, input, grid_target)
     !< Construct the second_order_reconstruction_t type
 
     class(second_order_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid_target
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
-      intent(in), target :: conserved_vars_target
+    ! integer(ik), dimension(3), intent(in) :: lbounds
+    ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
+    !   intent(in), target :: conserved_vars_target
 
     integer(ik) :: alloc_status
 
@@ -43,7 +43,7 @@ contains
     self%order = 2
     self%name = 'piecewise_linear_reconstruction'
 
-    self%conserved_vars => conserved_vars_target
+    ! self%conserved_vars => conserved_vars_target
     self%grid => grid_target
 
     call self%set_slope_limiter(name=input%slope_limiter)

@@ -5,6 +5,7 @@ module mod_2nd_order_runge_kutta
   use mod_surrogate, only: surrogate
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
+  use mod_finite_volume_schemes, only: finite_volume_scheme_t
 
   implicit none
   private
@@ -18,27 +19,21 @@ module mod_2nd_order_runge_kutta
 
 contains
 
-  subroutine integrate(self, dt)
+  subroutine integrate(U, finite_volume_scheme, dt)
     !< Time integrator implementation
-    class(surrogate), intent(inout) :: self
+    class(surrogate), intent(inout) :: U
+    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     real(rk), intent(in) :: dt
-    class(integrand_t), allocatable :: self_half !< function evaluation at interval t+dt/2
+    class(integrand_t), allocatable :: U_half !< function evaluation at interval t+dt/2
 
     call debug_print('Running runge_kutta_2nd%integrate()', __FILE__, __LINE__)
 
-    select type(self)
+    select type(U)
     class is(integrand_t)
-      allocate(self_half, source=self)
-
-      print *, '1st step'
-      self_half = self - self%t() * dt
-      print *
-
-      print *, '2nd step'
-      self = 0.5_rk * self + 0.5_rk * (self_half - (self_half%t() * dt))
-      print *
-
-      deallocate(self_half)
+      allocate(U_half, source=U)
+      U_half = U - U%t(finite_volume_scheme) * dt
+      U = 0.5_rk * U + 0.5_rk * (U_half - (U_half%t(finite_volume_scheme) * dt))
+      deallocate(U_half)
     class default
       error stop 'Error in runge_kutta_2nd%integrate - unsupported class'
     end select

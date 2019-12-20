@@ -3,6 +3,7 @@ module mod_strategy
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_surrogate, only: surrogate
+  use mod_finite_volume_schemes, only: finite_volume_scheme_t
 
   implicit none
   private
@@ -16,10 +17,12 @@ module mod_strategy
   end type
 
   abstract interface
-    subroutine integrator_interface(self, dt)
+    subroutine integrator_interface(U, finite_volume_scheme, dt)
       import :: surrogate
       import :: rk
-      class(surrogate), intent(inout) :: self
+      import :: finite_volume_scheme_t
+      class(surrogate), intent(inout) :: U
+      class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
       real(rk), intent(in) :: dt !< time step size
     end subroutine
   end interface

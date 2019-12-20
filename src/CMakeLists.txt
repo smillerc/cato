@@ -37,6 +37,7 @@ target_link_libraries(geometry PUBLIC globals io eos)
 
 add_library(
   fvleg
+  lib/finite_volume_scheme/mod_fluid.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/periodic_bc.f90
@@ -50,7 +51,7 @@ add_library(
   lib/reconstruction/second_order_reconstruction.f90
   lib/reconstruction/reconstruction_factory.f90
   lib/finite_volume_scheme/fv_scheme.f90
-  lib/finite_volume_scheme/fvleg.f90
+  # lib/finite_volume_scheme/fvleg.f90
   lib/integrand.f90
   lib/integrators/strategy.f90
   lib/integrators/surrogate.f90

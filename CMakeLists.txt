@@ -32,8 +32,7 @@ find_package(
   COMPONENTS Fortran_HL
   REQUIRED)
 
-# find_package(PFUNIT REQUIRED)
-# enable_testing()
+# find_package(PFUNIT REQUIRED) enable_testing()
 
 message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
 message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
@@ -62,14 +61,15 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
 
   list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
   set(CMAKE_Fortran_FLAGS_DEBUG
-      "-O0 -g -fcoarray=single\
+      "-O0 -g -pg -fcoarray=single\
  -Wall -Wextra -Wpedantic\
  -Wconversion \
  -fimplicit-none -fbacktrace \
- -fcheck=all")# -ffpe-trap=zero,overflow,underflow -finit-real=nan")
+ -fcheck=all") # -ffpe-trap=zero,overflow,underflow -finit-real=nan")
 
   set(CMAKE_Fortran_FLAGS_RELEASE
-      "-O2 -floop-parallelize-all -march=native -fcoarray=single")
+      "-O3 -floop-parallelize-all -ftree-parallelize-loops=6 -march=native -fcoarray=single"
+  )
 endif()
 
 # compiler flags for ifort
