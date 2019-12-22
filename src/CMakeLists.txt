@@ -30,8 +30,7 @@ add_library(
   lib/domain/grid_factory.f90
   lib/geometry/vector_2d.f90
   lib/geometry/vector.f90
-  lib/geometry/quad_cell.f90
-  lib/geometry/mach_cone_geometry.f90)
+  lib/geometry/quad_cell.f90)
 
 target_link_libraries(geometry PUBLIC globals io eos)
 
@@ -51,7 +50,6 @@ add_library(
   lib/reconstruction/second_order_reconstruction.f90
   lib/reconstruction/reconstruction_factory.f90
   lib/finite_volume_scheme/fv_scheme.f90
-  # lib/finite_volume_scheme/fvleg.f90
   lib/integrand.f90
   lib/integrators/strategy.f90
   lib/integrators/surrogate.f90
