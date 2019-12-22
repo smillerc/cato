@@ -2,6 +2,7 @@ module mod_contour_writer
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, real32
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
+  use mod_fluid, only: fluid_t
   use hdf5_interface, only: hdf5_file
   use mod_input, only: input_t
   use mod_functional, only: operator(.reverse.)
@@ -21,6 +22,11 @@ module mod_contour_writer
     character(len=:), allocatable :: format !< xdmf or just plain hdf5
     character(len=:), allocatable :: hdf5_filename
     character(len=:), allocatable :: xdmf_filename
+    logical, private :: plot_64bit = .true.
+    logical, private :: plot_reconstruction_states = .false.
+    logical, private :: plot_reference_states = .false.
+    logical, private :: plot_evolved_states = .false.
+
   contains
     procedure, public :: write_contour
     procedure, private :: write_xdmf
@@ -37,6 +43,11 @@ contains
     class(input_t), intent(in) :: input
 
     writer%format = input%contour_io_format
+
+    ! Turn on debug plotting?
+    writer%plot_reconstruction_states = input%plot_reconstruction_states
+    writer%plot_reference_states = input%plot_reference_states
+    writer%plot_evolved_states = input%plot_evolved_states
   end function
 
   subroutine finalize(self)
@@ -46,8 +57,9 @@ contains
     if(allocated(self%xdmf_filename)) deallocate(self%xdmf_filename)
   end subroutine
 
-  subroutine write_contour(self, fv_scheme, time, iteration)
+  subroutine write_contour(self, fluid, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
+    class(fluid_t), intent(in) :: fluid
     class(finite_volume_scheme_t), intent(in) :: fv_scheme
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
@@ -60,10 +72,10 @@ contains
     write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
     case('xdmf')
-      call self%write_hdf5(fv_scheme, time, iteration)
-      call self%write_xdmf(fv_scheme, time, iteration)
+      call self%write_hdf5(fluid, fv_scheme, time, iteration)
+      call self%write_xdmf(fluid, fv_scheme, time, iteration)
     case('hdf5', 'h5')
-      call self%write_hdf5(fv_scheme, time, iteration)
+      call self%write_hdf5(fluid, fv_scheme, time, iteration)
     case default
       print *, 'Contour format:', self%format
       error stop "Unsupported I/O contour format"
@@ -71,9 +83,10 @@ contains
 
   end subroutine
 
-  subroutine write_hdf5(self, fv_scheme, time, iteration)
+  subroutine write_hdf5(self, fluid, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
     class(finite_volume_scheme_t), intent(in) :: fv_scheme
+    class(fluid_t), intent(in) :: fluid
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     character(50) :: char_buff
@@ -91,7 +104,7 @@ contains
     call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
     call self%hdf5_file%writeattr('/iteration', 'units', 'dimensionless')
 
-    call self%hdf5_file%add('/time', real(time, real32))
+    call self%hdf5_file%add('/time', time)
     call self%hdf5_file%writeattr('/time', 'description', 'Simulation Time')
     call self%hdf5_file%writeattr('/time', 'units', 'seconds')
 
@@ -112,45 +125,101 @@ contains
     call self%hdf5_file%writeattr('/', 'build_type', build_type)
 
     ! Grid
-    call self%hdf5_file%add('/x', real(fv_scheme%grid%node_x, real32))
+    if(self%plot_64bit) then
+      call self%hdf5_file%add('/x', fv_scheme%grid%node_x)
+    else
+      call self%hdf5_file%add('/x', real(fv_scheme%grid%node_x, real32))
+    end if
     call self%hdf5_file%writeattr('/x', 'description', 'X Coordinate')
     call self%hdf5_file%writeattr('/x', 'units', 'cm')
 
-    call self%hdf5_file%add('/y', real(fv_scheme%grid%node_y, real32))
+    if(self%plot_64bit) then
+      call self%hdf5_file%add('/y', fv_scheme%grid%node_y)
+    else
+      call self%hdf5_file%add('/y', real(fv_scheme%grid%node_y, real32))
+    end if
     call self%hdf5_file%writeattr('/y', 'description', 'Y Coordinate')
     call self%hdf5_file%writeattr('/y', 'units', 'cm')
 
-    call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume, real32))
+    if(self%plot_64bit) then
+      call self%hdf5_file%add('/volume', fv_scheme%grid%cell_volume)
+    else
+      call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume, real32))
+    end if
     call self%hdf5_file%writeattr('/volume', 'description', 'Cell Volume')
     call self%hdf5_file%writeattr('/volume', 'units', 'cc')
 
     ! Conserved Variables
-    call self%hdf5_file%add('/density', real(fv_scheme%conserved_vars(1, :, :), real32))
+    if(self%plot_64bit) then
+      call self%hdf5_file%add('/density', fluid%conserved_vars(1, :, :))
+    else
+      call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, :, :), real32))
+    end if
     call self%hdf5_file%writeattr('/density', 'description', 'Cell Density')
     call self%hdf5_file%writeattr('/density', 'units', 'g/cc')
 
-    call self%hdf5_file%add('/x_velocity', real(fv_scheme%conserved_vars(2, :, :), real32))
+    if(self%plot_64bit) then
+      call self%hdf5_file%add('/x_velocity', fluid%conserved_vars(2, :, :))
+    else
+      call self%hdf5_file%add('/x_velocity', real(fluid%conserved_vars(2, :, :), real32))
+    end if
     call self%hdf5_file%writeattr('/x_velocity', 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr('/x_velocity', 'units', 'cm/s')
 
-    call self%hdf5_file%add('/y_velocity', real(fv_scheme%conserved_vars(3, :, :), real32))
+    if(self%plot_64bit) then
+      call self%hdf5_file%add('/y_velocity', fluid%conserved_vars(3, :, :))
+    else
+      call self%hdf5_file%add('/y_velocity', real(fluid%conserved_vars(3, :, :), real32))
+    end if
     call self%hdf5_file%writeattr('/y_velocity', 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr('/y_velocity', 'units', 'cm/s')
 
-    call self%hdf5_file%add('/pressure', real(fv_scheme%conserved_vars(4, :, :), real32))
+    if(self%plot_64bit) then
+      call self%hdf5_file%add('/pressure', fluid%conserved_vars(4, :, :))
+    else
+      call self%hdf5_file%add('/pressure', real(fluid%conserved_vars(4, :, :), real32))
+    end if
     call self%hdf5_file%writeattr('/pressure', 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr('/pressure', 'units', 'barye')
 
     ! Source Terms (if any)
+
+    if(self%plot_evolved_states) then
+      call self%hdf5_file%add('/evolved_corner_state', fv_scheme%evolved_corner_state)
+      call self%hdf5_file%writeattr('/evolved_corner_state', 'indices', '((rho, u, v, p), i, j)')
+
+      call self%hdf5_file%add('/evolved_downup_midpoints_state', fv_scheme%evolved_downup_midpoints_state)
+      call self%hdf5_file%writeattr('/evolved_downup_midpoints_state', 'indices', '((rho, u, v, p), i, j)')
+
+      call self%hdf5_file%add('/evolved_leftright_midpoints_state', fv_scheme%evolved_leftright_midpoints_state)
+      call self%hdf5_file%writeattr('/evolved_leftright_midpoints_state', 'indices', '((rho, u, v, p), i, j)')
+    end if
+
+    if(self%plot_reconstruction_states) then
+      call self%hdf5_file%add('/reconstructed_state', fv_scheme%reconstructed_state)
+      call self%hdf5_file%writeattr('/reconstructed_state', 'indices', '((rho, u ,v, p), point, node/midpoint, i, j)')
+    end if
+
+    if(self%plot_reference_states) then
+      call self%hdf5_file%add('/corner_reference_state', fv_scheme%corner_reference_state)
+      call self%hdf5_file%writeattr('/corner_reference_state', 'indices', '((rho, u, v, p), i, j)')
+
+      call self%hdf5_file%add('/downup_midpoints_reference_state', fv_scheme%downup_midpoints_reference_state)
+      call self%hdf5_file%writeattr('/downup_midpoints_reference_state', 'indices', '((rho, u, v, p), i, j)')
+
+      call self%hdf5_file%add('/leftright_midpoints_reference_state', fv_scheme%leftright_midpoints_reference_state)
+      call self%hdf5_file%writeattr('/leftright_midpoints_reference_state', 'indices', '((rho, u, v, p), i, j)')
+    end if
 
     ! Inputs
     call self%hdf5_file%finalize()
     ! end if
   end subroutine
 
-  subroutine write_xdmf(self, fv_scheme, time, iteration)
+  subroutine write_xdmf(self, fluid, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
     class(finite_volume_scheme_t), intent(in) :: fv_scheme
+    class(fluid_t), intent(in) :: fluid
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     integer(ik) :: xdmf_unit
@@ -159,7 +228,7 @@ contains
 
     open(newunit=xdmf_unit, file=self%xdmf_filename, status='replace')
 
-    write(char_buff, '(2(i0,1x))') .reverse.shape(fv_scheme%conserved_vars(1, :, :))
+    write(char_buff, '(2(i0,1x))') .reverse.shape(fluid%conserved_vars(1, :, :))
     cell_shape = trim(char_buff)
 
     write(char_buff, '(2(i0,1x))') .reverse.shape(fv_scheme%grid%node_x)
