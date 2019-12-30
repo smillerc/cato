@@ -162,6 +162,10 @@ contains
       ! print *
     end do
 
+    if(count(new_cone%n_arcs >= 2) > 1) then
+      error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
+    end if
+
   end function
 
   subroutine write_cone(self, unit, iotype, v_list, iostat, iomsg)
@@ -184,6 +188,7 @@ contains
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Radius: ", self%radius, new_line('a')
     write(unit, '(a, 2(f7.3,1x), a)', iostat=iostat, iomsg=iomsg) "P (x,y): (", self%p_xy, ")"//new_line('a')
     write(unit, '(a, 2(f7.3,1x), a)', iostat=iostat, iomsg=iomsg) "P'(x,y): (", self%p_prime_xy, ")"//new_line('a')
+    write(unit, '(a, 2(i7,1x), a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij, ")"//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference density:     ", self%reference_state(1), new_line('a')
@@ -202,6 +207,14 @@ contains
     end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [rad]     Theta_ie [rad]'//new_line('a')
+    do i = 1, 4
+      write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
+        'Cell: ', i, ' [ ', self%theta_ib(i, :), &
+        '], [ ', self%theta_ie(i, :), ']'//new_line('a')
+    end do
+
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Conserved Vars state [rho,u,v,p]'//new_line('a')
     do i = 1, 4
       write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
@@ -210,12 +223,12 @@ contains
         '        [ ', self%cell_conserved_vars(:, 2, i), '] (arc 2)'//new_line('a')
     end do
 
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Reconstructed state [rho,u,v,p]'//new_line('a')
-    do i = 1, 4
-      write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', self%reconstructed_state(:, i), ']'//new_line('a')
-    end do
+    ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+    ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Reconstructed state [rho,u,v,p]'//new_line('a')
+    ! do i = 1, 4
+    !   write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
+    !     'Cell: ', i, ' [ ', self%reconstructed_state(:, i), ']'//new_line('a')
+    ! end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) "P' in cell?"//new_line('a')
@@ -367,7 +380,7 @@ contains
         theta_ie(1) = thetas(2, 2)
         if(thetas(2, 2) < thetas(1, 2)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
 
-      else if(n1 == 2 .and. n1 == 2) then
+      else if(n1 == 2 .and. n2 == 2) then
         n_arcs = 2
         theta_ib(1) = thetas(1, 1)
         theta_ie(1) = thetas(2, 1)
