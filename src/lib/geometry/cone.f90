@@ -166,6 +166,11 @@ contains
       error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
     end if
 
+    if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
+      print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
+      write(*, *) new_cone
+      error stop "Cone arcs do not add up to 2pi"
+    end if
   end function
 
   subroutine write_cone(self, unit, iotype, v_list, iostat, iomsg)
@@ -201,18 +206,20 @@ contains
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [deg]     Theta_ie [deg]'//new_line('a')
     do i = 1, 4
-      write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', self%theta_ib(i, :) * (180.0_rk / pi), &
-        '], [ ', self%theta_ie(i, :) * (180.0_rk / pi), ']'//new_line('a')
+      write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
+        'Cell: ', i, ' [ ', rad2deg(self%theta_ib(i, :)), &
+  '], [ ', rad2deg(self%theta_ie(i, :)), '], delta theta = ', rad2deg(self%theta_ie(i, :) - self%theta_ib(i, :)), ' '//new_line('a')
     end do
+    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'sum(arc delta theta) = ', rad2deg(sum(self%theta_ie - self%theta_ib)), ' '//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [rad]     Theta_ie [rad]'//new_line('a')
     do i = 1, 4
-      write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
+      write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
         'Cell: ', i, ' [ ', self%theta_ib(i, :), &
-        '], [ ', self%theta_ie(i, :), ']'//new_line('a')
+        '], [ ', self%theta_ie(i, :), '], delta theta = ', self%theta_ie(i, :) - self%theta_ib(i, :), ' '//new_line('a')
     end do
+    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'sum(arc delta theta) = ', sum(self%theta_ie - self%theta_ib), ' '//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Conserved Vars state [rho,u,v,p]'//new_line('a')
@@ -345,17 +352,14 @@ contains
     associate(theta_ib=>theta_start_end(1, :), theta_ie=>theta_start_end(2, :), &
               n1=>n_intersections(1), n2=>n_intersections(2))
 
-      ! print*, 'n1', n1, 'n2', n2, 'origin_in_cell', origin_in_cell
-      ! print*, 'theta_ib', rad2deg(theta_ib)
-      ! print*, 'theta_ie', rad2deg(theta_ie)
       if(origin_in_cell) then
-        if(n1 == 0 .and. n1 == 0) then
+        if(n1 == 0 .and. n2 == 0) then
           n_arcs = 1
           theta_ib(1) = 0.0_rk
           theta_ie(1) = 2.0_rk * pi
         end if
       else ! origin not in cell
-        if(n1 == 0 .and. n1 == 0) then
+        if(n1 == 0 .and. n2 == 0) then
           n_arcs = 0
           theta_ib = 0.0_rk
           theta_ie = 0.0_rk
@@ -368,7 +372,7 @@ contains
         theta_ie(1) = thetas(2, 2)
         if(thetas(2, 2) < thetas(2, 1)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
 
-      else if(n1 == 2 .and. n1 == 0) then
+      else if(n1 == 2 .and. n2 == 0) then
         n_arcs = 1
         theta_ib(1) = thetas(1, 2)
         theta_ie(1) = thetas(1, 1)
@@ -381,14 +385,43 @@ contains
         if(thetas(2, 2) < thetas(1, 2)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
 
       else if(n1 == 2 .and. n2 == 2) then
+        ! print*, rad2deg(thetas(:,1))
+        ! print*, rad2deg(thetas(:,2))
         n_arcs = 2
-        theta_ib(1) = thetas(1, 1)
-        theta_ie(1) = thetas(2, 1)
-        if(thetas(2, 1) < thetas(1, 1)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
 
-        theta_ib(2) = thetas(2, 2)
-        theta_ie(2) = thetas(1, 2)
-        if(thetas(1, 2) < thetas(2, 2)) theta_ie(2) = theta_ie(2) + 2.0_rk * pi
+        theta_ib(1) = thetas(2, 1)
+        theta_ie(1) = thetas(1, 1)
+
+        if(theta_ie(1) < theta_ib(1)) then
+          if(theta_ie(1) < 0.0_rk) then
+            theta_ie(1) = theta_ie(1) + 2 * pi
+          end if
+        end if
+
+        ! if(theta_ie(1) < theta_ib(1)) then
+        !   print*, 'a'
+        !   if(theta_ie(1) < 0.0_rk) then
+        !     theta_ib(1) = theta_ie(1)
+        !     theta_ie(1) = theta_ie(1) + 2*pi
+        !   end if
+        ! end if
+
+        ! if(thetas(2, 1) < thetas(1, 1)) then
+        !   ! if(thetas(2, 1) < 0.0_rk .or. thetas(1, 1) < 0.0_rk) then
+        !     theta_ib(1) = thetas(2, 1)
+        !     theta_ie(1) = thetas(1, 1)
+        !   ! end if
+        ! end if
+
+        theta_ib(2) = thetas(1, 2)
+        theta_ie(2) = thetas(2, 2)
+
+        if(theta_ie(2) < theta_ib(2)) then
+          if(theta_ie(2) < 0.0_rk) then
+            theta_ie(2) = theta_ie(2) + 2 * pi
+          end if
+        end if
+
       end if ! if there are intersections
 
     end associate
@@ -509,7 +542,12 @@ contains
     angle = atan2(y=intersection_xy(2) - circle_origin_xy(2), &
                   x=intersection_xy(1) - circle_origin_xy(1))
 
-    if(angle < 0.0_rk) angle = angle + 2.0_rk * pi
+    ! if(angle < 0.0_rk) angle = angle + 2.0_rk * pi
   end function
 
+  subroutine set_arc_segments(theta_ib, theta_ie)
+    !< Sometimes, especially with cells that contain 2 arcs
+    real(rk), dimension(4, 2), intent(inout) :: theta_ib
+    real(rk), dimension(4, 2), intent(inout) :: theta_ie
+  end subroutine
 end module mod_cone
