@@ -157,6 +157,7 @@ contains
 
       ! If all the arcs already add up to 2pi, then skip the remaining neighbor cells
       ! if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
+      ! //TODO: test the above statement in unit testing
       new_cone%n_arcs(neighbor_cell) = n_arcs
       new_cone%theta_ib(neighbor_cell, :) = theta_ib_ie(1, :)
       new_cone%theta_ie(neighbor_cell, :) = theta_ib_ie(2, :)
