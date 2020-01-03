@@ -22,7 +22,7 @@ module mod_contour_writer
     character(len=:), allocatable :: format !< xdmf or just plain hdf5
     character(len=:), allocatable :: hdf5_filename
     character(len=:), allocatable :: xdmf_filename
-    logical, private :: plot_64bit = .true.
+    logical, private :: plot_64bit = .false.
     logical, private :: plot_reconstruction_states = .false.
     logical, private :: plot_reference_states = .false.
     logical, private :: plot_evolved_states = .false.
@@ -141,14 +141,6 @@ contains
     call self%hdf5_file%writeattr('/y', 'description', 'Y Coordinate')
     call self%hdf5_file%writeattr('/y', 'units', 'cm')
 
-    if(self%plot_64bit) then
-      call self%hdf5_file%add('/volume', fv_scheme%grid%cell_volume)
-    else
-      call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume, real32))
-    end if
-    call self%hdf5_file%writeattr('/volume', 'description', 'Cell Volume')
-    call self%hdf5_file%writeattr('/volume', 'units', 'cc')
-
     ! Conserved Variables
     if(self%plot_64bit) then
       call self%hdf5_file%add('/density', fluid%conserved_vars(1, :, :))
@@ -181,6 +173,15 @@ contains
     end if
     call self%hdf5_file%writeattr('/pressure', 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr('/pressure', 'units', 'barye')
+
+    ! Volume
+    if(self%plot_64bit) then
+      call self%hdf5_file%add('/volume', fv_scheme%grid%cell_volume)
+    else
+      call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume, real32))
+    end if
+    call self%hdf5_file%writeattr('/volume', 'description', 'Cell Volume')
+    call self%hdf5_file%writeattr('/volume', 'units', 'cc')
 
     ! Source Terms (if any)
 
@@ -242,28 +243,35 @@ contains
     write(xdmf_unit, '(a)') '      <Topology NumberOfElements="'//node_shape//'" TopologyType="2DSMesh"/>'
 
     write(xdmf_unit, '(a)') '      <Geometry GeometryType="X_Y">'
-    write(xdmf_unit, '(a)')'        <DataItem Dimensions="'//node_shape//'" Format="HDF" NumberType="Float" Precision="4">' // self%hdf5_filename // ':/x</DataItem>'
-    write(xdmf_unit, '(a)')'        <DataItem Dimensions="'//node_shape//'" Format="HDF" NumberType="Float" Precision="4">' // self%hdf5_filename // ':/y</DataItem>'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//node_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/x</DataItem>'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//node_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/y</DataItem>'
     write(xdmf_unit, '(a)') '      </Geometry>'
 
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Volume [cc]">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape//'" Format="HDF" NumberType="Float" Precision="4">' // self%hdf5_filename // ':/volume</DataItem>'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/volume</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Density [g/cc]">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape//'" Format="HDF" NumberType="Float" Precision="4">' // self%hdf5_filename // ':/density</DataItem>'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/density</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="X Velocity [cm/s]">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape//'" Format="HDF" NumberType="Float" Precision="4">' // self%hdf5_filename // ':/x_velocity</DataItem>'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/x_velocity</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Y Velocity [cm/s]">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape//'" Format="HDF" NumberType="Float" Precision="4">' // self%hdf5_filename // ':/y_velocity</DataItem>'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/y_velocity</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Pressure [barye]">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape//'" Format="HDF" NumberType="Float" Precision="4">' // self%hdf5_filename // ':/pressure</DataItem>'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/pressure</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '    </Grid>'
