@@ -57,7 +57,7 @@ module mod_cone
 
 contains
 
-  type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
+  pure type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
     !< Constructor for the Mach cone type
     real(rk), intent(in) :: tau
     !< time increment, tau -> 0 (very small number)
@@ -135,8 +135,8 @@ contains
                               y=[edge_vectors(2, 1, 1), new_cone%p_prime_xy(2)])
 
     ! Loop through each neighbor cell and determine intersections and angles
+    p_prime_in_cell = .false.
     do neighbor_cell = 1, new_cone%n_neighbor_cells
-      p_prime_in_cell = .false.
 
       cell_ij = cell_indices(:, neighbor_cell)  ! cell_indices is indexed via ((i,j), cell_1:cell_n)
 
@@ -144,11 +144,19 @@ contains
       single_cell_edge_vectors(:, :, 1) = edge_vectors(:, :, edge_vector_ordering(1, neighbor_cell))
       single_cell_edge_vectors(:, :, 2) = edge_vectors(:, :, edge_vector_ordering(2, neighbor_cell))
 
+      ! P' can only be in 1 cell
+      ! if(.not. p_prime_in_cell) then
       p_prime_in_cell = determine_if_p_prime_is_in_cell(single_cell_edge_vectors, p_prime_vector)
+      new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
+      if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
+      ! end if
+
       call get_arc_segments(lines=single_cell_edge_vectors, origin_in_cell=p_prime_in_cell, &
                             circle_xy=new_cone%p_prime_xy, circle_radius=new_cone%radius, &
                             arc_segments=theta_ib_ie, n_arcs=n_arcs)
 
+      ! If all the arcs already add up to 2pi, then skip the remaining neighbor cells
+      ! if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
       new_cone%n_arcs(neighbor_cell) = n_arcs
       new_cone%theta_ib(neighbor_cell, :) = theta_ib_ie(1, :)
       new_cone%theta_ie(neighbor_cell, :) = theta_ib_ie(2, :)
@@ -157,9 +165,8 @@ contains
       new_cone%cell_conserved_vars(:, 1, neighbor_cell) = reconstructed_state(:, neighbor_cell)
       new_cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
 
-      new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
-      if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
-      ! print *
+      ! end if
+
     end do
 
     if(count(new_cone%n_arcs >= 2) > 1) then
@@ -167,8 +174,8 @@ contains
     end if
 
     if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
-      print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
-      write(*, *) new_cone
+      ! print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
+      ! write(*, *) new_cone
       error stop "Cone arcs do not add up to 2pi"
     end if
   end function
@@ -191,8 +198,8 @@ contains
 
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Tau: ", self%tau, new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Radius: ", self%radius, new_line('a')
-    write(unit, '(a, 2(f7.3,1x), a)', iostat=iostat, iomsg=iomsg) "P (x,y): (", self%p_xy, ")"//new_line('a')
-    write(unit, '(a, 2(f7.3,1x), a)', iostat=iostat, iomsg=iomsg) "P'(x,y): (", self%p_prime_xy, ")"//new_line('a')
+    write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) "P (x,y): (", self%p_xy, ")"//new_line('a')
+    write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) "P'(x,y): (", self%p_prime_xy, ")"//new_line('a')
     write(unit, '(a, 2(i7,1x), a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij, ")"//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
@@ -208,9 +215,11 @@ contains
     do i = 1, 4
       write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
         'Cell: ', i, ' [ ', rad2deg(self%theta_ib(i, :)), &
-  '], [ ', rad2deg(self%theta_ie(i, :)), '], delta theta = ', rad2deg(self%theta_ie(i, :) - self%theta_ib(i, :)), ' '//new_line('a')
+        '], [ ', rad2deg(self%theta_ie(i, :)), '], delta theta = ', &
+        rad2deg(self%theta_ie(i, :) - self%theta_ib(i, :)), ' '//new_line('a')
     end do
-    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'sum(arc delta theta) = ', rad2deg(sum(self%theta_ie - self%theta_ib)), ' '//new_line('a')
+    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'sum(arc delta theta) = ', &
+      rad2deg(sum(self%theta_ie - self%theta_ib)), ' '//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [rad]     Theta_ie [rad]'//new_line('a')
@@ -219,7 +228,8 @@ contains
         'Cell: ', i, ' [ ', self%theta_ib(i, :), &
         '], [ ', self%theta_ie(i, :), '], delta theta = ', self%theta_ie(i, :) - self%theta_ib(i, :), ' '//new_line('a')
     end do
-    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'sum(arc delta theta) = ', sum(self%theta_ie - self%theta_ib), ' '//new_line('a')
+    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) &
+      'sum(arc delta theta) = ', sum(self%theta_ie - self%theta_ib), ' '//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Conserved Vars state [rho,u,v,p]'//new_line('a')
@@ -249,7 +259,7 @@ contains
     ! write(unit, '((a,f0.4))', iostat=iostat) 'Theta_ie'
   end subroutine write_cone
 
-  logical function determine_if_p_prime_is_in_cell(edge_vectors, p_prime_vector) result(in_cell)
+  pure logical function determine_if_p_prime_is_in_cell(edge_vectors, p_prime_vector) result(in_cell)
     !< Implementation of whether the P' point is inside the current cell/control volume. This
     !< uses the cross product of 2 vectors in 2d, which gives a scalar
     type(vector_t), intent(in) :: p_prime_vector
@@ -280,7 +290,7 @@ contains
     end if
   end function determine_if_p_prime_is_in_cell
 
-  subroutine get_arc_segments(lines, origin_in_cell, circle_xy, circle_radius, arc_segments, n_arcs)
+  pure subroutine get_arc_segments(lines, origin_in_cell, circle_xy, circle_radius, arc_segments, n_arcs)
     !< Given 2 lines and a circle, find their intersections and starting/ending angles for each arc
 
     ! Input
@@ -333,7 +343,7 @@ contains
     ! print*, 'theta_start_end', rad2deg(arc_segments)
   end subroutine
 
-  subroutine get_theta_start_end(thetas, origin_in_cell, valid_intersections, n_intersections, theta_start_end, n_arcs)
+  pure subroutine get_theta_start_end(thetas, origin_in_cell, valid_intersections, n_intersections, theta_start_end, n_arcs)
     !< Find the starting and ending angle of the arc
 
     ! Input
@@ -427,7 +437,7 @@ contains
     end associate
   end subroutine
 
-  subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections)
+  pure subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections)
     !< Given a arbitrary line from (x1,y1) to (x2,y2) and a circle at (x,y) with a given radius, find
     !< the angle that a the vector from the circle's center to the intersection point(s) has with respect
     !< to the x-axis
@@ -532,7 +542,7 @@ contains
     end if
   end subroutine
 
-  real(rk) pure function intersection_angle_from_x_axis(circle_origin_xy, intersection_xy) result(angle)
+  pure real(rk) function intersection_angle_from_x_axis(circle_origin_xy, intersection_xy) result(angle)
     !< Given the the intersection point and origin of the circle it intersected, determine the
     !< angle with respect to the x axis from 0 to 2pi
 
@@ -545,7 +555,7 @@ contains
     ! if(angle < 0.0_rk) angle = angle + 2.0_rk * pi
   end function
 
-  subroutine set_arc_segments(theta_ib, theta_ie)
+  pure subroutine set_arc_segments(theta_ib, theta_ie)
     !< Sometimes, especially with cells that contain 2 arcs
     real(rk), dimension(4, 2), intent(inout) :: theta_ib
     real(rk), dimension(4, 2), intent(inout) :: theta_ie
