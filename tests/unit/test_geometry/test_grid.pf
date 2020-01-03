@@ -28,7 +28,7 @@ contains
 
     real(rk), dimension(2, 2, 4) :: actual_corner_vectors, grid_corner_vectors
 
-    print*, 'Testing test_corner_edge_vector_query()'
+    print *, 'Testing test_corner_edge_vector_query()'
     input = input_t(reconstruction_type='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
@@ -60,7 +60,7 @@ contains
     real(rk), dimension(2, 2, 2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
     real(rk), dimension(2, 2, 2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
 
-    print*, 'Testing test_leftright_midpoint_edge_vector_query()'
+    print *, 'Testing test_leftright_midpoint_edge_vector_query()'
     input = input_t(reconstruction_type='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
@@ -88,7 +88,7 @@ contains
     real(rk), dimension(2, 2, 2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
     real(rk), dimension(2, 2, 2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
 
-    print*, 'Testing test_downup_midpoint_edge_vector_query()'
+    print *, 'Testing test_downup_midpoint_edge_vector_query()'
     input = input_t(reconstruction_type='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &

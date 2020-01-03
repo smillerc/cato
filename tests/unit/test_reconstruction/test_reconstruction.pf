@@ -20,21 +20,20 @@ module test_reconstruction
 contains
 
   @test
-  subroutine test_recon_factory()
-
+  subroutine test_first_order()
     class(abstract_reconstruction_t), pointer :: reconstruction_operator
 
     type(input_t) :: input
-    class(grid_t), allocatable :: grid
+    class(grid_t), pointer :: grid => null()
     real(rk), dimension(:, :, :), allocatable :: U
     real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
 
-    input = input_t(reconstruction_type='piecewise_linear', &
+    input = input_t(reconstruction_type='cell_average', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
-    grid = grid_factory(input)
+    grid => grid_factory(input)
 
     ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
     associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
@@ -52,7 +51,70 @@ contains
     end associate
 
     input%slope_limiter = 'sun_ren_09'
-    reconstruction_operator => reconstruction_factory(input=input, grid=grid)
+    reconstruction_operator => reconstruction_factory(input=input, grid_target=grid)
+    call reconstruction_operator%set_conserved_vars_pointer(conserved_vars=U, lbounds=lbound(U))
+    call reconstruction_operator%set_grid_pointer(grid=grid)
+
+    @assertEqual(1, reconstruction_operator%order)
+
+    U(1, :, :) = 1.0_rk  ! rho
+    U(2, :, :) = -2.0_rk  ! u
+    U(3, :, :) = 3.0_rk  ! v
+    U(4, :, :) = 4.0_rk  ! p
+    call reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_domain, lbounds=lbound(reconstructed_domain))
+    @assertEqual(1.0_rk, reconstructed_domain(1, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
+    @assertEqual(-2.0_rk, reconstructed_domain(2, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
+    @assertEqual(3.0_rk, reconstructed_domain(3, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
+    @assertEqual(4.0_rk, reconstructed_domain(4, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
+
+    ! U = 2.0_rk
+    ! call reconstruction_operator%reconstruct_domain(conserved_vars=U, reconstructed_domain=reconstructed_domain)
+    ! @assertEqual(2.0_rk, reconstructed_domain)
+
+    ! @assertEqual(2.0_rk, reconstruction_operator%grid%get_cell_volumes(1, 1))
+    ! @assertEqual([ni_cells, nj_cells], shape(reconstruction_operator%grid%cell_volume))
+    ! @assertEqual([4, ni_cells, nj_cells], shape(reconstruction_operator%conserved_vars))
+
+    deallocate(reconstruction_operator)
+    deallocate(grid)
+    deallocate(U)
+    deallocate(reconstructed_domain)
+  end subroutine
+
+  @test
+  subroutine test_second_order()
+
+    class(abstract_reconstruction_t), pointer :: reconstruction_operator
+
+    type(input_t) :: input
+    class(grid_t), pointer :: grid => null()
+    real(rk), dimension(:, :, :), allocatable :: U
+    real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
+
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+
+    grid => grid_factory(input)
+
+    ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
+    associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
+              jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
+
+      allocate(U(4, imin:imax, jmin:jmax), stat=alloc_status)
+      U = 0.0_rk
+      ! ((rho,u,v,p),i,j) Conserved variables for each cell
+      if(alloc_status /= 0) error stop "Unable to allocate U"
+
+      allocate(reconstructed_domain(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
+      reconstructed_domain = 0.0_rk
+      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
+      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+    end associate
+
+    input%slope_limiter = 'sun_ren_09'
+    reconstruction_operator => reconstruction_factory(input=input, grid_target=grid)
     call reconstruction_operator%set_conserved_vars_pointer(conserved_vars=U, lbounds=lbound(U))
     call reconstruction_operator%set_grid_pointer(grid=grid)
 
@@ -80,7 +142,10 @@ contains
     ! @assertEqual([ni_cells, nj_cells], shape(reconstruction_operator%grid%cell_volume))
     ! @assertEqual([4, ni_cells, nj_cells], shape(reconstruction_operator%conserved_vars))
 
-    nullify(reconstruction_operator)
+    deallocate(reconstruction_operator)
+    deallocate(grid)
+    deallocate(U)
+    deallocate(reconstructed_domain)
   end subroutine
 
 end module test_reconstruction
