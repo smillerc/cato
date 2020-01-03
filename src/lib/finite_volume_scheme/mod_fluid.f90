@@ -206,10 +206,11 @@ contains
                     delta_l=>grid%cell_edge_lengths(1, i, j))
 
             ! Eq. 13, for edge 1
+            ! print*, 'bottom'
             edge_flux = edge_flux + &
                         ( &
                         ((H(E0_R_omega_k1) + &
-                          H(E0_R_omega_kc) * 4.0_rk + &
+                          4.0_rk * H(E0_R_omega_kc) + &
                           H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
 
           end associate
@@ -222,10 +223,11 @@ contains
                     delta_l=>grid%cell_edge_lengths(2, i, j))
 
             ! Eq. 13, for edge 2
+            ! print*, 'right'
             edge_flux = edge_flux + &
                         ( &
                         ((H(E0_R_omega_k1) + &
-                          H(E0_R_omega_kc) * 4.0_rk + &
+                          4.0_rk * H(E0_R_omega_kc) + &
                           H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
 
           end associate
@@ -238,10 +240,11 @@ contains
                     delta_l=>grid%cell_edge_lengths(3, i, j))
 
             ! Eq. 13, for edge 3
+            ! print*, 'top'
             edge_flux = edge_flux + &
                         ( &
                         ((H(E0_R_omega_k1) + &
-                          H(E0_R_omega_kc) * 4.0_rk + &
+                          4.0_rk * H(E0_R_omega_kc) + &
                           H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
 
           end associate
@@ -254,10 +257,11 @@ contains
                     delta_l=>grid%cell_edge_lengths(4, i, j))
 
             ! Eq. 13, for edge 4
+            ! print*, 'left'
             edge_flux = edge_flux + &
                         ( &
                         ((H(E0_R_omega_k1) + &
-                          H(E0_R_omega_kc) * 4.0_rk + &
+                          4.0_rk * H(E0_R_omega_kc) + &
                           H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
 
           end associate

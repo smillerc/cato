@@ -14,6 +14,7 @@ module mod_strategy
   contains
 
     procedure(integrator_interface), nopass, deferred :: integrate !< integration procedure interface
+    ! procedure, public :: write_residuals
   end type
 
   abstract interface
@@ -26,5 +27,9 @@ module mod_strategy
       real(rk), intent(in) :: dt !< time step size
     end subroutine
   end interface
-
+contains
+  ! subroutine write_residuals(U_initial, U_final)
+  !   class(surrogate), intent(in) :: U_initial
+  !   class(surrogate), intent(in) :: U_final
+  ! end subroutine
 end module

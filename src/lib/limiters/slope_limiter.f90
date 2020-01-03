@@ -44,8 +44,8 @@ contains
 
   subroutine finalize(self)
     type(slope_limiter_t), intent(inout) :: self
-    nullify(self%limit)
-    deallocate(self%name)
+    if(associated(self%limit)) nullify(self%limit)
+    if(allocated(self%name)) deallocate(self%name)
   end subroutine finalize
 
   pure function sun_ren_09_limit(a, b) result(slope)
@@ -59,11 +59,11 @@ contains
 
     max_ab = max(a * b, 0.0_rk)
 
-    if(max_ab > 0) then
-      slope = max_ab * (a + b) / (a**2 + b**2)
-    else
-      slope = 0.0_rk
-    end if
+    ! if(max_ab > 0) then
+    slope = max_ab * (a + b) / (a**2 + b**2)
+    ! else
+    !   slope = 0.0_rk
+    ! end if
 
   end function sun_ren_09_limit
 

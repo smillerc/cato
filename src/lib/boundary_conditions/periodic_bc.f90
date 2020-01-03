@@ -55,7 +55,7 @@ contains
 
   subroutine apply_periodic_conserved_var_bc(self, conserved_vars)
     !< Apply periodic boundary conditions to the conserved state vector field
-
+    !//TODO: fix lbounds
     class(periodic_bc_t), intent(in) :: self
     real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
     !< ((rho, u ,v, p), i, j); Conserved variables for each cell
