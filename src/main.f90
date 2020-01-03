@@ -8,6 +8,7 @@ program fvleg
   use mod_fluid, only: fluid_t, new_fluid
   use mod_integrand, only: integrand_t
   use mod_grid, only: grid_t
+  use mod_eos, only: eos
   ! use mod_grid_factory, only: grid_factory_t
   implicit none
 
@@ -23,6 +24,7 @@ program fvleg
   type(contour_writer_t) :: contour_writer
   real(rk) :: time = 0.0_rk
   real(rk) :: delta_t
+  real(rk) :: c_sound = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
   integer(ik) :: alloc_status
@@ -48,7 +50,6 @@ program fvleg
   U => new_fluid(input, fv)
 
   contour_writer = contour_writer_t(input=input)
-  delta_t = input%initial_delta_t
 
   print *
   write(*, '(a)') '--------------------------------------------'
@@ -56,23 +57,44 @@ program fvleg
   write(*, '(a)') '--------------------------------------------'
   print *
   do while(time < input%max_time .and. iteration < input%max_iterations)
+
+    associate(rho=>U%conserved_vars(1, :, :), &
+              p=>U%conserved_vars(4, :, :), gamma=>eos%get_gamma())
+      c_sound = maxval(sqrt(gamma * p / rho))
+    end associate
+
+    delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / c_sound
+
     write(*, '(2(a, 1x, es10.3))') 'Time =', time, ' Delta t = ', delta_t
 
+    ! print*, 'minval(U%conserved_vars(1,:,:))', minval(U%conserved_vars(1,:,:)), 'maxval(U%conserved_vars(1,:,:))', maxval(U%conserved_vars(1,:,:))
     call fv%apply_source_terms()
-    call fv%calculate_reference_state(U%conserved_vars, lbound(U%conserved_vars))
+
+    ! First put conserved vars in ghost layers
     call fv%apply_conserved_vars_bc(U%conserved_vars, lbound(U%conserved_vars))
+
+    ! Reference state is a neighbor average (which is why edges needed ghost U vars)
+    call fv%calculate_reference_state(U%conserved_vars, lbound(U%conserved_vars))
+
+    ! Now we can reconstruct the entire domain
     call fv%reconstruct(U%conserved_vars, lbound(U%conserved_vars))
+
+    ! Apply the reconstructed state to the ghost layers
     call fv%apply_reconstructed_state_bc()
     call fv%apply_cell_gradient_bc()
-    call fv%evolve_domain()
 
-    call U%integrate(fv, delta_t)
+    ! Evolve U at each edge
+    call fv%evolve_domain()
 
     if(time >= next_output_time) then
       next_output_time = next_output_time + input%contour_interval_dt
       write(*, '(a, es10.3)') 'Saving Contour, Next Output Time: ', next_output_time
       call contour_writer%write_contour(U, fv, time, iteration)
     end if
+
+    ! Integrate in time
+    call U%integrate(fv, delta_t)
+
     time = time + delta_t
     iteration = iteration + 1
   end do
