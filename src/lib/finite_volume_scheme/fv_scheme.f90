@@ -382,7 +382,7 @@ contains
     !< Apply the boundary conditions
     class(finite_volume_scheme_t), intent(inout) :: self
 
-    if(self%reconstruction_operator%order > 0) then
+    if(self%reconstruction_operator%order > 1) then
       call debug_print('Calling apply_cell_gradient_bc', __FILE__, __LINE__)
       call self%bc_plus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
       call self%bc_plus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
