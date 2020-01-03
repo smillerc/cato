@@ -31,8 +31,8 @@ contains
     select type(U)
     class is(integrand_t)
       allocate(U_half, source=U)
-      U_half = U - U%t(finite_volume_scheme) * dt
-      U = 0.5_rk * U + 0.5_rk * (U_half - (U_half%t(finite_volume_scheme) * dt))
+      U_half = U + U%t(finite_volume_scheme) * dt
+      U = 0.5_rk * U + 0.5_rk * (U_half + (U_half%t(finite_volume_scheme) * dt))
       deallocate(U_half)
     class default
       error stop 'Error in runge_kutta_2nd%integrate - unsupported class'
