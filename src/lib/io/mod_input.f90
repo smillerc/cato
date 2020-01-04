@@ -113,7 +113,7 @@ contains
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     ! call cfg%get("time", "initial_delta_t", self%initial_delta_t)
-    call cfg%get("time", "cfl", self%cfl)
+    call cfg%get("time", "cfl", self%cfl, 0.1_rk)
     call cfg%get("time", "integration_strategy", char_buffer)
     call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
     self%time_integration_strategy = trim(char_buffer)
