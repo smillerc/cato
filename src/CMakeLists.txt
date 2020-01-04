@@ -1,4 +1,3 @@
-include(lib/preprocessor_macros.h)
 add_library(globals lib/hermetic.f90 lib/globals.f90 lib/math_constants.f90
                     lib/floating_point_utilities.f90)
 
