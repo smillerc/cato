@@ -1,3 +1,4 @@
+include(lib/preprocessor_macros.h)
 add_library(globals lib/hermetic.f90 lib/globals.f90 lib/math_constants.f90
                     lib/floating_point_utilities.f90)
 
@@ -39,7 +40,11 @@ add_library(
   lib/finite_volume_scheme/mod_fluid.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
+  lib/boundary_conditions/outflow_bc.f90
   lib/boundary_conditions/periodic_bc.f90
+  lib/boundary_conditions/pressure_input_bc.f90
+  lib/boundary_conditions/reflection_bc.f90
+  lib/boundary_conditions/symmetry_bc.f90
   lib/boundary_conditions/bc_factory.f90
   lib/domain/fluxes.f90
   lib/evolution_operator/abstract_evo_operator.f90
