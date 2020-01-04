@@ -60,7 +60,7 @@ program fvleg
 
     associate(rho=>U%conserved_vars(1, :, :), &
               p=>U%conserved_vars(4, :, :), gamma=>eos%get_gamma())
-      c_sound = maxval(sqrt(gamma * p / rho))
+      c_sound = maxval(sqrt(abs(gamma * p / rho)))
     end associate
 
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / c_sound

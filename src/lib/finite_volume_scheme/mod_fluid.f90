@@ -8,6 +8,7 @@ module mod_fluid
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
+  use mod_surrogate, only: surrogate
   use mod_grid, only: grid_t
   use mod_input, only: input_t
   use hdf5_interface, only: hdf5_file

@@ -132,15 +132,6 @@ contains
     class(abstract_reconstruction_t), pointer :: r_omega => null()
     class(abstract_evo_operator_t), pointer :: E0 => null()
 
-    integer(ik) :: imin_node
-    integer(ik) :: imax_node
-    integer(ik) :: jmin_node
-    integer(ik) :: jmax_node
-    integer(ik) :: imin_cell
-    integer(ik) :: imax_cell
-    integer(ik) :: jmin_cell
-    integer(ik) :: jmax_cell
-
     integer(ik) :: alloc_status
     alloc_status = 0
 
