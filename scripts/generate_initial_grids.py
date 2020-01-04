@@ -27,29 +27,29 @@ def make_uniform_grid(n_nodes, xrange, yrange):
         velocity, p), grid (x,y) points, and the cell center (xc,yc) points
     """
 
-    x = np.linspace(xrange[0], xrange[1], n_nodes[0])
+    x = np.linspace(xrange[0], xrange[1], n_nodes[0], dtype=np.float64)
     ldx = x[1] - x[0]
     rdx = x[-1] - x[-2]
-    x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx])
+    x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)
 
-    y = np.linspace(yrange[0], yrange[1], n_nodes[1])
+    y = np.linspace(yrange[0], yrange[1], n_nodes[1], dtype=np.float64)
     ldy = y[1] - y[0]
     rdy = y[-1] - y[-2]
-    y = np.array([y[0] - ldy] + list(y) + [y[-1] + rdy])
+    y = np.array([y[0] - ldy] + list(y) + [y[-1] + rdy], dtype=np.float64)
 
-    xc = np.zeros(x.shape[0] - 1)
-    yc = np.zeros(y.shape[0] - 1)
+    xc = np.zeros(x.shape[0] - 1, dtype=np.float64)
+    yc = np.zeros(y.shape[0] - 1, dtype=np.float64)
 
     xx, yy = np.meshgrid(x, y)
     xxc, yyc = np.meshgrid(xc, yc)
 
-    rho = np.ones_like(xxc)
-    pressure = np.ones_like(xxc)
-    u = np.ones_like(xxc)
-    v = np.ones_like(xxc)
+    rho = np.ones_like(xxc, dtype=np.float64)
+    pressure = np.ones_like(xxc, dtype=np.float64)
+    u = np.ones_like(xxc, dtype=np.float64)
+    v = np.ones_like(xxc, dtype=np.float64)
 
-    dy = (np.diff(yy[:, 0]) / 2)[0]
-    dx = (np.diff(xx[0, :]) / 2)[0]
+    dy = (np.diff(yy[:, 0], dtype=np.float64) / 2.0)[0]
+    dx = (np.diff(xx[0, :], dtype=np.float64) / 2.0)[0]
     xc = xx[:-1, :-1] + dx
     yc = yy[:-1, :-1] + dy
 
