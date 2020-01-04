@@ -25,7 +25,7 @@ contains
     class(boundary_condition_t), pointer :: bc_minus_y
 
     type(input_t) :: input
-    class(grid_t), allocatable :: grid
+    class(grid_t), pointer :: grid
     real(rk), dimension(:, :, :), allocatable :: U
     real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
 
@@ -34,7 +34,7 @@ contains
                     read_init_cond_from_file=.false., &
                     xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
-    grid = grid_factory(input)
+    grid => grid_factory(input)
 
     ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
     associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
@@ -146,11 +146,13 @@ contains
       @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], reconstructed_domain(1, 1, 1, right_ghost, :))
     end associate
 
-    nullify(bc_plus_x)
-    nullify(bc_plus_y)
-    nullify(bc_minus_x)
-    nullify(bc_minus_y)
-
+    deallocate(bc_plus_x)
+    deallocate(bc_plus_y)
+    deallocate(bc_minus_x)
+    deallocate(bc_minus_y)
+    deallocate(grid)
+    deallocate(U)
+    deallocate(reconstructed_domain)
   end subroutine
 
 end module test_bc

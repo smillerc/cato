@@ -38,19 +38,17 @@ module mod_flux_tensor
 
 contains
 
-  type(flux_tensor_t) function constructor(primitive_variables) result(flux_tensor)
+  type(flux_tensor_t) pure function constructor(primitive_variables) result(flux_tensor)
     !< Implementation of the flux tensor (H) construction. This requires the primitive variables
     real(rk), dimension(4), intent(in) :: primitive_variables !< [rho, u, v, p]
 
-    real(rk) :: total_energy, internal_energy
+    real(rk) :: total_energy
 
     associate(rho=>primitive_variables(1), &
               u=>primitive_variables(2), v=>primitive_variables(3), &
               p=>primitive_variables(4), gamma=>eos%get_gamma())
 
-      ! print *, 'H:', p, rho, gamma
-      internal_energy = (p / rho) / (gamma - 1)
-      total_energy = rho * (internal_energy + 0.5_rk * (u**2 + v**2))
+      total_energy = 0.5_rk * rho * (u**2 + v**2) + (p / (gamma - 1.0_rk))
     end associate
 
     ! The flux tensor is H = Fi + Gj
@@ -59,10 +57,16 @@ contains
               p=>primitive_variables(4), &
               E=>total_energy, H=>flux_tensor%state)
       ! F
-      H(1, :) = [rho * u, rho * u**2 + p, rho * u * v,(E + p) * u]
+      H(1, :) = [rho * u, &
+                 rho * u**2 + p, &
+                 rho * u * v, &
+                 (E + p) * u]
 
       ! G
-      H(2, :) = [rho * v, rho * u * v, rho * v**2 + p,(E + p) * v]
+      H(2, :) = [rho * v, &
+                 rho * u * v, &
+                 rho * v**2 + p, &
+                 (E + p) * v]
     end associate
 
   end function
@@ -125,36 +129,5 @@ contains
     output(3) = dot_product(lhs%state(:, 3), vec)
     output(4) = dot_product(lhs%state(:, 4), vec)
   end function
-
-  ! type(flux_tensor_t) pure function vector_dot_flux(vec, rhs) result(H)
-  !   !< Implementation of the dot product between a flux tensor and a vector, e.g. v . H
-  !   type(vector_t), intent(in) :: vec  !< Right-hand side of the dot product
-  !   type(flux_tensor_t), intent(in) :: rhs  !< left-hand side of the dot product
-  !   ! H%state = dot_product([vec%x, vec%y], rhs%state)
-  ! end function
-
-  ! type(flux_tensor_t) pure function flux_add_flux(lhs, rhs) result(flux_tensor)
-  !   type(flux_tensor_t), intent(in) :: lhs  !< Left-hand side
-  !   type(flux_tensor_t), intent(in) :: rhs  !< Right-hand side
-  !   flux_tensor%state = lhs%state + rhs%state
-  ! end function
-
-  ! type(flux_tensor_t) pure function flux_minus_flux(lhs, rhs) result(flux_tensor)
-  !   type(flux_tensor_t), intent(in) :: lhs  !< Left-hand side
-  !   type(flux_tensor_t), intent(in) :: rhs  !< Right-hand side
-  !   flux_tensor%state = lhs%state - rhs%state
-  ! end function
-
-  ! type(flux_tensor_t) pure function flux_multiply_scalar_rhs(scalar, rhs) result(flux_tensor)
-  !   type(flux_tensor_t), intent(in) :: rhs  !< Right-hand side
-  !   real(rk), intent(in) :: scalar
-  !   flux_tensor%state = rhs%state * scalar
-  ! end function
-
-  ! type(flux_tensor_t) pure function flux_multiply_scalar_lhs(lhs, scalar) result(flux_tensor)
-  !   type(flux_tensor_t), intent(in) :: lhs  !< Left-hand side
-  !   real(rk), intent(in) :: scalar
-  !   flux_tensor%state = lhs%state * scalar
-  ! end function
 
 end module mod_flux_tensor

@@ -1,7 +1,7 @@
 module mod_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use math_constants, only: pi
-  use mod_floating_point_utils, only: near_zero
+  use math_constants, only: pi, rad2deg
+  use mod_floating_point_utils, only: near_zero, equal
   use mod_eos, only: eos
   use mod_vector, only: vector_t, operator(.unitnorm.), operator(.dot.), operator(.cross.), angle_between
 
@@ -57,11 +57,8 @@ module mod_cone
 
 contains
 
-  pure function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
+  pure type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
     !< Constructor for the Mach cone type
-
-    type(cone_t) :: new_cone
-
     real(rk), intent(in) :: tau
     !< time increment, tau -> 0 (very small number)
 
@@ -138,8 +135,8 @@ contains
                               y=[edge_vectors(2, 1, 1), new_cone%p_prime_xy(2)])
 
     ! Loop through each neighbor cell and determine intersections and angles
+    p_prime_in_cell = .false.
     do neighbor_cell = 1, new_cone%n_neighbor_cells
-      p_prime_in_cell = .false.
 
       cell_ij = cell_indices(:, neighbor_cell)  ! cell_indices is indexed via ((i,j), cell_1:cell_n)
 
@@ -147,11 +144,20 @@ contains
       single_cell_edge_vectors(:, :, 1) = edge_vectors(:, :, edge_vector_ordering(1, neighbor_cell))
       single_cell_edge_vectors(:, :, 2) = edge_vectors(:, :, edge_vector_ordering(2, neighbor_cell))
 
+      ! P' can only be in 1 cell
+      ! if(.not. p_prime_in_cell) then
       p_prime_in_cell = determine_if_p_prime_is_in_cell(single_cell_edge_vectors, p_prime_vector)
+      new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
+      if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
+      ! end if
+
       call get_arc_segments(lines=single_cell_edge_vectors, origin_in_cell=p_prime_in_cell, &
                             circle_xy=new_cone%p_prime_xy, circle_radius=new_cone%radius, &
                             arc_segments=theta_ib_ie, n_arcs=n_arcs)
 
+      ! If all the arcs already add up to 2pi, then skip the remaining neighbor cells
+      ! if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
+      ! //TODO: test the above statement in unit testing
       new_cone%n_arcs(neighbor_cell) = n_arcs
       new_cone%theta_ib(neighbor_cell, :) = theta_ib_ie(1, :)
       new_cone%theta_ie(neighbor_cell, :) = theta_ib_ie(2, :)
@@ -160,11 +166,19 @@ contains
       new_cone%cell_conserved_vars(:, 1, neighbor_cell) = reconstructed_state(:, neighbor_cell)
       new_cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
 
-      new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
-      if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
-      ! print *
+      ! end if
+
     end do
 
+    if(count(new_cone%n_arcs >= 2) > 1) then
+      error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
+    end if
+
+    if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
+      ! print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
+      ! write(*, *) new_cone
+      error stop "Cone arcs do not add up to 2pi"
+    end if
   end function
 
   subroutine write_cone(self, unit, iotype, v_list, iostat, iomsg)
@@ -185,8 +199,9 @@ contains
 
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Tau: ", self%tau, new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Radius: ", self%radius, new_line('a')
-    write(unit, '(a, 2(f7.3,1x), a)', iostat=iostat, iomsg=iomsg) "P (x,y): (", self%p_xy, ")"//new_line('a')
-    write(unit, '(a, 2(f7.3,1x), a)', iostat=iostat, iomsg=iomsg) "P'(x,y): (", self%p_prime_xy, ")"//new_line('a')
+    write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) "P (x,y): (", self%p_xy, ")"//new_line('a')
+    write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) "P'(x,y): (", self%p_prime_xy, ")"//new_line('a')
+    write(unit, '(a, 2(i7,1x), a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij, ")"//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference density:     ", self%reference_state(1), new_line('a')
@@ -194,26 +209,44 @@ contains
     write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference y velocity:  ", self%reference_state(3), new_line('a')
     write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference sound speed: ", self%reference_state(4), new_line('a')
 
+    write(unit, '(a)', iostat=iostat) new_line('a')
+    write(unit, '(a, 4(i0, 1x),a)', iostat=iostat) '# of valid arcs in each cell: [', self%n_arcs, ']'
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [deg]     Theta_ie [deg]'//new_line('a')
     do i = 1, 4
-write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat, iomsg=iomsg) 'Cell: ', i, ' [ ', self%theta_ib(i, :) * (180.0_rk / pi), &
-        '], [ ', self%theta_ie(i, :) * (180.0_rk / pi), ']'//new_line('a')
+      write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
+        'Cell: ', i, ' [ ', rad2deg(self%theta_ib(i, :)), &
+        '], [ ', rad2deg(self%theta_ie(i, :)), '], delta theta = ', &
+        rad2deg(self%theta_ie(i, :) - self%theta_ib(i, :)), ' '//new_line('a')
     end do
+    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'sum(arc delta theta) = ', &
+      rad2deg(sum(self%theta_ie - self%theta_ib)), ' '//new_line('a')
+
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [rad]     Theta_ie [rad]'//new_line('a')
+    do i = 1, 4
+      write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
+        'Cell: ', i, ' [ ', self%theta_ib(i, :), &
+        '], [ ', self%theta_ie(i, :), '], delta theta = ', self%theta_ie(i, :) - self%theta_ib(i, :), ' '//new_line('a')
+    end do
+    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) &
+      'sum(arc delta theta) = ', sum(self%theta_ie - self%theta_ib), ' '//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Conserved Vars state [rho,u,v,p]'//new_line('a')
     do i = 1, 4
-      write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) 'Cell: ', i, ' [ ', self%cell_conserved_vars(:,1,i) ,'] (arc 1)' // new_line('a')
-      write(unit, '(a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) '        [ ', self%cell_conserved_vars(:, 2, i), '] (arc 2)'//new_line('a')
+      write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
+        'Cell: ', i, ' [ ', self%cell_conserved_vars(:, 1, i), '] (arc 1)'//new_line('a')
+      write(unit, '(a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
+        '        [ ', self%cell_conserved_vars(:, 2, i), '] (arc 2)'//new_line('a')
     end do
 
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Reconstructed state [rho,u,v,p]'//new_line('a')
-    do i = 1, 4
-      write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', self%reconstructed_state(:, i), ']'//new_line('a')
-    end do
+    ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+    ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Reconstructed state [rho,u,v,p]'//new_line('a')
+    ! do i = 1, 4
+    !   write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
+    !     'Cell: ', i, ' [ ', self%reconstructed_state(:, i), ']'//new_line('a')
+    ! end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) "P' in cell?"//new_line('a')
@@ -227,7 +260,7 @@ write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat, iomsg=iomsg) 'Cell: '
     ! write(unit, '((a,f0.4))', iostat=iostat) 'Theta_ie'
   end subroutine write_cone
 
-  logical pure function determine_if_p_prime_is_in_cell(edge_vectors, p_prime_vector) result(in_cell)
+  pure logical function determine_if_p_prime_is_in_cell(edge_vectors, p_prime_vector) result(in_cell)
     !< Implementation of whether the P' point is inside the current cell/control volume. This
     !< uses the cross product of 2 vectors in 2d, which gives a scalar
     type(vector_t), intent(in) :: p_prime_vector
@@ -261,22 +294,29 @@ write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat, iomsg=iomsg) 'Cell: '
   pure subroutine get_arc_segments(lines, origin_in_cell, circle_xy, circle_radius, arc_segments, n_arcs)
     !< Given 2 lines and a circle, find their intersections and starting/ending angles for each arc
 
+    ! Input
     real(rk), dimension(2, 2, 2), intent(in) :: lines
     !< ((x,y), (tail,head), (line_1:line_2)); set of vectors that define the lines to intersect with the circle
-
     logical, intent(in) :: origin_in_cell  !< is the circle origin in the cell defined by the two lines?
     real(rk), dimension(2), intent(in) :: circle_xy       !< (x,y) origin of the circle
     real(rk), intent(in) :: circle_radius                 !< radius of the circle
+
+    ! Output
     real(rk), dimension(2, 2), intent(out):: arc_segments !< ((start,end), (arc1, arc2))
     integer(ik), intent(out) :: n_arcs !< Number of arcs with a valid start and end angle
 
+    ! Dummy
     integer(ik) :: n_intersections_per_line !< # intersections for a single line
     integer(ik), dimension(2) :: n_intersections !< # intersections for all lines
-    real(rk), dimension(2, 2) :: line
+    real(rk), dimension(2, 2) :: line !< ((x,y), (tail,head)); Single line point locations
     real(rk), dimension(2) :: intersection_angles_per_line !< intersection angles
     real(rk), dimension(2, 2) :: intersection_angles !< intersection angles for all lines
     integer(ik) :: i
+    logical, dimension(2) :: valid_intersections
+    logical, dimension(2, 2) :: total_valid_intersections !< ((intersection 1, intersection 2), (line 1, line 2)); valid intersections for each line
 
+    valid_intersections = .false.
+    total_valid_intersections = .false.
     n_intersections_per_line = 0
     n_intersections = 0
     line = 0.0_rk
@@ -285,97 +325,166 @@ write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat, iomsg=iomsg) 'Cell: '
 
     do i = 1, 2
       line = lines(:, :, i)
+
+      ! For a given line & circle intersection, find the angle with respect to the x-axis for each
+      ! intersection point
       call get_intersection_angles(line_xy=line, circle_xy=circle_xy, circle_radius=circle_radius, &
-                                   arc_angles=intersection_angles_per_line, n_intersections=n_intersections_per_line)
-      intersection_angles(:, i) = intersection_angles_per_line
-      n_intersections(i) = n_intersections_per_line
+                                   arc_angles=intersection_angles_per_line, valid_intersections=valid_intersections)
+      intersection_angles(i, :) = intersection_angles_per_line
+      n_intersections(i) = count(valid_intersections)
+      total_valid_intersections(:, i) = valid_intersections
     end do
+    ! print*, 'total_valid_intersections', total_valid_intersections
+    ! print*, 'intersection_angles', rad2deg(intersection_angles)
+    ! Find arc starting and ending angles
     call get_theta_start_end(thetas=intersection_angles, origin_in_cell=origin_in_cell, &
+                             valid_intersections=total_valid_intersections, &
                              n_intersections=n_intersections, &
                              theta_start_end=arc_segments, n_arcs=n_arcs)
+    ! print*, 'theta_start_end', rad2deg(arc_segments)
   end subroutine
 
-  pure subroutine get_theta_start_end(thetas, origin_in_cell, n_intersections, theta_start_end, n_arcs)
+  pure subroutine get_theta_start_end(thetas, origin_in_cell, valid_intersections, n_intersections, theta_start_end, n_arcs)
+    !< Find the starting and ending angle of the arc
+
+    ! Input
     real(rk), dimension(2, 2), intent(in) :: thetas  !< ((intersection 1, intersection 2), (line 1, line 2))
     logical, intent(in) :: origin_in_cell  !< is the circle center in the cell?
+    logical, dimension(2, 2), intent(in) :: valid_intersections
     integer(ik), dimension(2), intent(in) :: n_intersections
+
+    ! Output
     real(rk), dimension(2, 2), intent(out) :: theta_start_end  !< ((start, end), (arc1, arc2))
     integer(ik), intent(out) :: n_arcs
 
     n_arcs = 0
+    theta_start_end = 0.0_rk
 
     associate(theta_ib=>theta_start_end(1, :), theta_ie=>theta_start_end(2, :), &
               n1=>n_intersections(1), n2=>n_intersections(2))
 
-      ! Default to zero contribution
-      n_arcs = 0
-      theta_ib = 0.0_rk
-      theta_ie = 0.0_rk
+      if(origin_in_cell) then
+        if(n1 == 0 .and. n2 == 0) then
+          n_arcs = 1
+          theta_ib(1) = 0.0_rk
+          theta_ie(1) = 2.0_rk * pi
+        end if
+      else ! origin not in cell
+        if(n1 == 0 .and. n2 == 0) then
+          n_arcs = 0
+          theta_ib = 0.0_rk
+          theta_ie = 0.0_rk
+        end if
+      end if
 
-      if(n1 == 0 .and. n1 == 0 .and. origin_in_cell) then
-        n_arcs = 0
-        theta_ib = 0.0_rk
-        theta_ie = 2.0_rk * pi
-
-      else if(n1 == 0 .and. n2 == 2) then
+      if(n1 == 0 .and. n2 == 2) then
         n_arcs = 1
-        theta_ib = thetas(2, 1)
-        theta_ie = thetas(2, 2)
+        theta_ib(1) = thetas(2, 1)
+        theta_ie(1) = thetas(2, 2)
+        if(thetas(2, 2) < thetas(2, 1)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
+
+      else if(n1 == 2 .and. n2 == 0) then
+        n_arcs = 1
+        theta_ib(1) = thetas(1, 2)
+        theta_ie(1) = thetas(1, 1)
+        if(thetas(1, 1) < thetas(1, 2)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
 
       else if(n1 == 1 .and. n2 == 1) then
         n_arcs = 1
-        theta_ib = thetas(1, 1)
-        theta_ie = thetas(2, 1)
-
-      else if(n1 == 2 .and. n1 == 0) then
-        n_arcs = 1
-        theta_ib = thetas(1, 2)
-        theta_ie = thetas(1, 1)
-
-      else if(n1 == 2 .and. n1 == 2) then
-        n_arcs = 2
         theta_ib(1) = thetas(1, 2)
         theta_ie(1) = thetas(2, 2)
+        if(thetas(2, 2) < thetas(1, 2)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
 
-        theta_ib(2) = thetas(2, 1)
-        theta_ie(2) = thetas(1, 1)
+      else if(n1 == 2 .and. n2 == 2) then
+        ! print*, rad2deg(thetas(:,1))
+        ! print*, rad2deg(thetas(:,2))
+        n_arcs = 2
 
-      end if
+        theta_ib(1) = thetas(2, 1)
+        theta_ie(1) = thetas(1, 1)
+
+        if(theta_ie(1) < theta_ib(1)) then
+          if(theta_ie(1) < 0.0_rk) then
+            theta_ie(1) = theta_ie(1) + 2 * pi
+          end if
+        end if
+
+        ! if(theta_ie(1) < theta_ib(1)) then
+        !   print*, 'a'
+        !   if(theta_ie(1) < 0.0_rk) then
+        !     theta_ib(1) = theta_ie(1)
+        !     theta_ie(1) = theta_ie(1) + 2*pi
+        !   end if
+        ! end if
+
+        ! if(thetas(2, 1) < thetas(1, 1)) then
+        !   ! if(thetas(2, 1) < 0.0_rk .or. thetas(1, 1) < 0.0_rk) then
+        !     theta_ib(1) = thetas(2, 1)
+        !     theta_ie(1) = thetas(1, 1)
+        !   ! end if
+        ! end if
+
+        theta_ib(2) = thetas(1, 2)
+        theta_ie(2) = thetas(2, 2)
+
+        if(theta_ie(2) < theta_ib(2)) then
+          if(theta_ie(2) < 0.0_rk) then
+            theta_ie(2) = theta_ie(2) + 2 * pi
+          end if
+        end if
+
+      end if ! if there are intersections
+
     end associate
   end subroutine
 
-  pure subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, n_intersections)
+  pure subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections)
     !< Given a arbitrary line from (x1,y1) to (x2,y2) and a circle at (x,y) with a given radius, find
     !< the angle that a the vector from the circle's center to the intersection point(s) has with respect
     !< to the x-axis
 
+    ! Input
     real(rk), dimension(2, 2), intent(in) :: line_xy !< ((x,y), (point_1, point_2))
     real(rk), dimension(2), intent(in) :: circle_xy !< (x,y)
     real(rk), intent(in) :: circle_radius
-    integer(ik), intent(out) :: n_intersections
+
+    ! Output
+    logical, dimension(2), intent(out) :: valid_intersections !< (point_1, point_2); .true. or .false.
     real(rk), dimension(2), intent(out):: arc_angles
 
+    ! Dummy
+    integer(ik) :: i
     real(rk), dimension(2, 2) :: intersection_xy !< ((x,y), (point_1, point_2))
-    logical, dimension(2) :: valid_intersection !< (point_1, point_2)
 
     intersection_xy = 0.0_rk
-    valid_intersection = .false.
+    valid_intersections = .false.
 
-    call vector_circle_intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
-    n_intersections = count(valid_intersection)
-    arc_angles = intersection_angle_from_x_axis(circle_xy, intersection_xy)
+    ! Find the intersection (x,y) locations (if any)
+    call find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersections)
+
+    arc_angles = 0.0_rk
+    do i = 1, 2
+      if(valid_intersections(i)) then
+        arc_angles(i) = intersection_angle_from_x_axis(circle_xy, intersection_xy(:, i))
+      end if
+    end do
   end subroutine
 
-  pure subroutine vector_circle_intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
+  pure subroutine find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
     !< Find the intersections between an arbitrary line and circle. There can be 0, 1, or 2 intersections.
 
-    real(rk), dimension(2, 2), intent(in) :: line_xy !< ((x,y), (point_1, point_2))
-    real(rk), dimension(2), intent(in) :: circle_xy !< (x,y)
-    real(rk), intent(in) :: circle_radius
-    real(rk), dimension(2, 2), intent(out) :: intersection_xy !< ((x,y), (point_1, point_2))
-    logical, dimension(2), intent(out) :: valid_intersection !< (point_1, point_2)
+    ! Input
+    real(rk), dimension(2, 2), intent(in) :: line_xy !< ((x,y) (point_1, point_2)); Line location
+    real(rk), dimension(2), intent(in) :: circle_xy !< (x,y); Circle origin
+    real(rk), intent(in) :: circle_radius !< Radius of the circle (duh)
 
+    ! Output
+    real(rk), dimension(2, 2), intent(out) :: intersection_xy !< ((x,y), (point_1, point_2)); Intersection point
+    logical, dimension(2), intent(out) :: valid_intersection !< (point_1, point_2); Is there an intersection or not?
+
+    ! Dummy
     real(rk) :: discriminiant  !< term under the square root in the quadratic formula
+    real(rk) :: sqrt_discriminiant  !< term under the square root in the quadratic formula
     integer(ik) :: i
     real(rk), dimension(2) :: t !< scale factor (should be between 0 and 1) of where the intersection point is along the line
     real(rk) :: a, b, c  !< quadratic formula variables
@@ -396,73 +505,60 @@ write(unit, '(a, i0, 2(a,2(f6.2, 1x)), a)', iostat=iostat, iomsg=iomsg) 'Cell: '
     discriminiant = b**2 - 4 * a * c
 
     if(discriminiant > 0.0_rk) then
+      sqrt_discriminiant = sqrt(discriminiant)
+
       ! This used the alternative quadratic formula better suited for floating point operations
-      if(near_zero(-b + sqrt(discriminiant))) then
-        t(1) = 0.0_rk
+      if(near_zero(-b + sqrt_discriminiant)) then
+        t(1) = 0.0_rk ! t_1 -> 0 when intersection is at the vector start point
       else
-        t(1) = (2 * c) / (-b + sqrt(discriminiant))
+        t(1) = (2 * c) / (-b + sqrt_discriminiant)
       end if
 
-      if(near_zero(-b - sqrt(discriminiant))) then
-        t(2) = 1.0_rk
+      if(near_zero(-b - sqrt_discriminiant)) then
+        t(2) = 1.0_rk  ! t_2 -> 1 when intersection is at the vector end point
       else
-        t(2) = (2 * c) / (-b - sqrt(discriminiant))
+        t(2) = (2 * c) / (-b - sqrt_discriminiant)
       end if
-
     end if
 
     ! The scale factor t must be between 0 and 1, otherwise there is no intersection
     valid_intersection = .false.
-    do i = 1, 2
-      if(t(i) >= 0.0_rk .and. t(i) <= 1.0_rk) then
-        valid_intersection(i) = .true.
-      end if
-    end do
+    if(discriminiant > 0.0_rk) then
+      do i = 1, 2
+        if(t(i) >= 0.0_rk .and. t(i) <= 1.0_rk) then
+          valid_intersection(i) = .true.
+        end if
+      end do
+    end if
 
     intersection_xy = 0.0_rk
-    do i = 1, 2
-      associate(x0=>line_xy(1, 1), x1=>line_xy(1, 2), y0=>line_xy(2, 1), y1=>line_xy(2, 2), &
-                x_t=>intersection_xy(1, i), y_t=>intersection_xy(2, i))
-        x_t = (x1 - x0) * t(i) + x0
-        y_t = (y1 - y0) * t(i) + y0
-      end associate
-    end do
+    if(discriminiant > 0.0_rk) then
+      do i = 1, 2
+        associate(x0=>line_xy(1, 1), x1=>line_xy(1, 2), y0=>line_xy(2, 1), y1=>line_xy(2, 2), &
+                  x_t=>intersection_xy(1, i), y_t=>intersection_xy(2, i))
+          x_t = (x1 - x0) * t(i) + x0
+          y_t = (y1 - y0) * t(i) + y0
+        end associate
+      end do
+    end if
   end subroutine
 
-  pure function intersection_angle_from_x_axis(circle_origin_xy, intersection_xy) result(angles)
+  pure real(rk) function intersection_angle_from_x_axis(circle_origin_xy, intersection_xy) result(angle)
     !< Given the the intersection point and origin of the circle it intersected, determine the
     !< angle with respect to the x axis from 0 to 2pi
 
-    real(rk), dimension(2) :: angles
     real(rk), dimension(2), intent(in) :: circle_origin_xy !< (x,y)
-    real(rk), dimension(2, 2), intent(in) :: intersection_xy !< ((x,y), (point_1, point_2))
+    real(rk), dimension(2), intent(in) :: intersection_xy !< ((x,y)
 
-    integer(ik) :: i
-    real(rk) :: dx1, dy1
-    real(rk) :: dx2, dy2
-    real(rk) :: test
+    angle = atan2(y=intersection_xy(2) - circle_origin_xy(2), &
+                  x=intersection_xy(1) - circle_origin_xy(1))
 
-    test = 0.0_rk
-    angles = 0.0_rk
-    dx1 = 0.0_rk
-    dy1 = 0.0_rk
-    dx2 = 0.0_rk
-    dy2 = 0.0_rk
-
-    dx1 = intersection_xy(1, 1) - circle_origin_xy(1)
-    dy1 = intersection_xy(2, 1) - circle_origin_xy(2)
-
-    dx2 = intersection_xy(1, 2) - circle_origin_xy(1)
-    dy2 = intersection_xy(2, 2) - circle_origin_xy(2)
-
-    angles(1) = atan2(dy1, dx1)
-    angles(2) = atan2(dy2, dx2)
-
-    do i = 1, 2
-      if(angles(i) < 0.0_rk) then
-        angles(i) = angles(i) + 2.0_rk * pi
-      end if
-    end do
+    ! if(angle < 0.0_rk) angle = angle + 2.0_rk * pi
   end function
 
+  pure subroutine set_arc_segments(theta_ib, theta_ie)
+    !< Sometimes, especially with cells that contain 2 arcs
+    real(rk), dimension(4, 2), intent(inout) :: theta_ib
+    real(rk), dimension(4, 2), intent(inout) :: theta_ie
+  end subroutine
 end module mod_cone

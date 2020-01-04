@@ -44,4 +44,8 @@ contains
     eos = constructor(input)
   end subroutine
 
+  ! elemental function density_from_pressure(pressure) result(density)
+  ! end function
+  ! internal_energy = (p / rho) / (gamma - 1)
+  ! total_energy = rho * (internal_energy + 0.5_rk * (u**2 + v**2))
 end module mod_eos

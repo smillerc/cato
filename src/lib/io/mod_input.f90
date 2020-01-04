@@ -37,9 +37,13 @@ module mod_input
 
     ! io
     character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
+    logical :: plot_reconstruction_states = .false.
+    logical :: plot_reference_states = .false.
+    logical :: plot_evolved_states = .false.
 
     ! timing
     real(rk) :: max_time = 1.0_rk
+    real(rk) :: cfl = 0.1_rk ! Courant–Friedrichs–Lewy condition
     real(rk) :: initial_delta_t = 0.0_rk
     real(rk) :: contour_interval_dt = 0.5_rk
     integer(ik) :: max_iterations = huge(1)
@@ -108,7 +112,8 @@ contains
 
     ! Time
     call cfg%get("time", "max_time", self%max_time)
-    call cfg%get("time", "initial_delta_t", self%initial_delta_t)
+    ! call cfg%get("time", "initial_delta_t", self%initial_delta_t)
+    call cfg%get("time", "cfl", self%cfl, 0.1_rk)
     call cfg%get("time", "integration_strategy", char_buffer)
     call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
     self%time_integration_strategy = trim(char_buffer)
@@ -130,7 +135,6 @@ contains
     if(self%read_init_cond_from_file) then
       call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
       self%initial_condition_file = trim(char_buffer)
-
     end if
 
     call cfg%get("initial_conditions", "init_density", self%init_density, 0.0_rk)
@@ -168,6 +172,9 @@ contains
     self%contour_io_format = trim(char_buffer)
 
     call cfg%get("io", "contour_interval_dt", self%contour_interval_dt, 0.1_rk)
+    call cfg%get("io", "plot_reconstruction_states", self%plot_reconstruction_states, .false.)
+    call cfg%get("io", "plot_reference_states", self%plot_reference_states, .false.)
+    call cfg%get("io", "plot_evolved_states", self%plot_evolved_states, .false.)
 
   end subroutine read_from_ini
 

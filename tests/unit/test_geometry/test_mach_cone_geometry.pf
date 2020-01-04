@@ -1,11 +1,11 @@
 module test_mach_cone_geometry
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_mach_cone_geometry
+  use mod_cone
+  use math_constants, only: pi, rad2deg
+  ! use mod_mach_cone_geometry, only: cone_t => mach_cone_geometry_t, new_cone
   use funit
 
   implicit none
-
-  real(rk), parameter :: pi = 4.0_rk * atan(1.0_rk)
 
 contains
 
@@ -27,7 +27,7 @@ contains
   ! For quad cells, N - corner, M - midpoint, E - edge
 
   @test
-  subroutine test_midpoint_leftright_cone_p_prime_below()
+  subroutine test_midpoint_leftright_cone_p_prime_below_no_intersections()
     !< Test the Mach cone, where the apex is a midpoint and P' is below it
 
     !  |          |
@@ -38,7 +38,7 @@ contains
     !  |  cell 2  |
     !  | (i,j-1)  |
 
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     real(rk), dimension(4) :: reference_state = 1.0_rk
@@ -49,10 +49,10 @@ contains
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
-    midpoint_edge_vectors = reshape([[3.0_rk, 4.0_rk], & ! tail, vector 1
-                                     [0.0_rk, 4.0_rk], & ! head, vector 1
-                                     [3.0_rk, 4.0_rk], & ! tail, vector 2
-                                     [6.0_rk, 4.0_rk] & ! head, vector 2
+    midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
+                                     [-1.0_rk, 0.0_rk], & ! head, vector 1
+                                     [0.0_rk, 0.0_rk], & ! tail, vector 2
+                                     [1.0_rk, 0.0_rk] & ! head, vector 2
                                      ], shape=[2, 2, 2])
 
     ! cell ordering is 1) top, 2) bottom
@@ -61,7 +61,8 @@ contains
                                      ], shape=[2, 2])
 
     reference_state = [1.0_rk, 0.0_rk, 4.0_rk, 1.0_rk]
-    midpoint_state = 1.0_rk
+    midpoint_state(:, 1) = 1.0_rk
+    midpoint_state(:, 2) = 2.0_rk
 
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=midpoint_edge_vectors, &
@@ -69,19 +70,86 @@ contains
                          reference_state=reference_state, &
                          cell_indices=neighbor_cell_indices)
 
+    !  print*, mach_cone
+
     ! P' should be in the cell below the midpoint
-    @assertEqual([3.0_rk, 3.96_rk], mach_cone%p_prime_xy)
+    @assertEqual([0.0_rk, -0.04_rk], mach_cone%p_prime_xy)
+    @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([i, j - 1], mach_cone%p_prime_ij)
+
+    ! mach_cone%theta_ib -> ((cell_1:cell_2), (arc_1, arc_2))
+    theta = 0.0_rk
+    @assertEqual(theta, mach_cone%theta_ib)
+
+    ! mach_cone%theta_ie -> ((cell_1:cell_2), (arc_1, arc_2))
+    theta = 0.0_rk
+    theta(2, 1) = 2 * pi ! 1st and 2nd intersections should both be 2pi
+    @assertEqual(theta, mach_cone%theta_ie)
+
+  end subroutine test_midpoint_leftright_cone_p_prime_below_no_intersections
+
+  @test
+  subroutine test_midpoint_leftright_cone_p_prime_below_with_intersections()
+    !< Test the Mach cone, where the apex is a midpoint and P' is below it
+
+    !  |          |
+    !  |  cell 1  |
+    !  |  (i,j)   |
+    !  C1---M----C2
+    !  |  (.) P'  |
+    !  |  cell 2  |
+    !  | (i,j-1)  |
+
+    type(cone_t) :: mach_cone
+    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
+    real(rk), dimension(4, 2) :: midpoint_state
+    real(rk), dimension(4) :: reference_state = 1.0_rk
+    integer(ik), dimension(2, 2) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(4, 2) :: theta
+
+    i = 1
+    j = 1
+    ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+    midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
+                                     [-1.0_rk, 0.0_rk], & ! head, vector 1
+                                     [0.0_rk, 0.0_rk], & ! tail, vector 2
+                                     [1.0_rk, 0.0_rk] & ! head, vector 2
+                                     ], shape=[2, 2, 2])
+
+    ! cell ordering is 1) top, 2) bottom
+    neighbor_cell_indices = reshape([[i, j], &  ! cell above
+                                     [i, j - 1] &  ! cell below
+                                     ], shape=[2, 2])
+
+    reference_state = [1.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
+    midpoint_state(:, 1) = 1.0_rk
+    midpoint_state(:, 2) = 2.0_rk
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=midpoint_edge_vectors, &
+                         reconstructed_state=midpoint_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+
+    ! print*, mach_cone
+
+    ! P' should be in the cell below the midpoint
+    @assertEqual([0.0_rk, -0.01_rk], mach_cone%p_prime_xy)
     @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell)
     @assertEqual([i, j - 1], mach_cone%p_prime_ij)
 
     theta = 0.0_rk
-    @assertEqual(theta, mach_cone%theta_ib)
+    theta(1, 1) = 0.8860771238_rk
+    theta(2, 1) = 2.2555155298_rk
+    @assertEqual(theta, mach_cone%theta_ib, 1e-4_rk)
 
     theta = 0.0_rk
-    theta(2, :) = 2 * pi ! 1st and 2nd intersections should both be 2pi
-    @assertEqual(theta, mach_cone%theta_ie)
+    theta(1, 1) = 2.2555155298_rk
+    theta(2, 1) = 0.8860771238_rk + 2.0_rk * pi
+    @assertEqual(theta, mach_cone%theta_ie, 1e-4_rk)
 
-  end subroutine test_midpoint_leftright_cone_p_prime_below
+  end subroutine test_midpoint_leftright_cone_p_prime_below_with_intersections
 
   @test
   subroutine test_midpoint_leftright_cone_p_prime_above()
@@ -95,21 +163,22 @@ contains
     !  | (i,j-1)  |
     !  |          |
 
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     real(rk), dimension(4) :: reference_state = 1.0_rk
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     integer(ik) :: i, j
     real(rk), dimension(4, 2) :: theta
+    real(rk) :: theta_11, theta_12
 
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
-    midpoint_edge_vectors = reshape([[3.0_rk, 4.0_rk], & ! tail, vector 1
-                                     [0.0_rk, 4.0_rk], & ! head, vector 1
-                                     [3.0_rk, 4.0_rk], & ! tail, vector 2
-                                     [6.0_rk, 4.0_rk] &  ! head, vector 2
+    midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
+                                     [-1.0_rk, 0.0_rk], & ! head, vector 1
+                                     [0.0_rk, 0.0_rk], & ! tail, vector 2
+                                     [1.0_rk, 0.0_rk] & ! head, vector 2
                                      ], shape=[2, 2, 2])
 
     ! cell ordering is 1) top, 2) bottom
@@ -117,8 +186,9 @@ contains
                                      [i, j - 1] &  ! cell below
                                      ], shape=[2, 2])
 
-    reference_state = [1.0_rk, 0.0_rk, -4.0_rk, 1.0_rk]
-    midpoint_state = 1.0_rk
+    reference_state = [1.0_rk, 0.0_rk, -1.0_rk, 1.0_rk]
+    midpoint_state(:, 1) = 1.0_rk
+    midpoint_state(:, 2) = 2.0_rk
 
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=midpoint_edge_vectors, &
@@ -126,31 +196,31 @@ contains
                          reference_state=reference_state, &
                          cell_indices=neighbor_cell_indices)
 
+    ! print*, mach_cone
+
     ! P' should be in the cell below the midpoint
-    @assertEqual([3.0_rk, 4.04_rk], mach_cone%p_prime_xy)
+    @assertEqual([0.0_rk, 0.01_rk], mach_cone%p_prime_xy)
     @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
     @assertEqual([i, j], mach_cone%p_prime_ij)
 
+    ! arc begin angles
     theta = 0.0_rk
-    @assertEqual(theta, mach_cone%theta_ib)
+    theta_11 = -2.2555155298_rk
+    theta_12 = -0.8860771238_rk
+    theta(1, 1) = theta_12 ! cell 1 (above)
+    theta(2, 1) = theta_11 ! cell 2 (below)
+    @assertEqual(theta, mach_cone%theta_ib, 1e-8_rk)
 
+    ! arc end angles
     theta = 0.0_rk
-    theta(1, :) = 2 * pi ! 1st and 2nd intersections should both be 2pi
-    @assertEqual(theta, mach_cone%theta_ie)
-
-    ! print*, 'mach_cone%p_prime_xy', mach_cone%p_prime_xy
-    ! print*, 'mach_cone%p_prime_ij', mach_cone%p_prime_ij
-    ! print*, 'mach_cone%n_neighbor_cells', mach_cone%n_neighbor_cells
-    ! print*, 'mach_cone%n_intersections', mach_cone%n_intersections
-    ! print*, 'mach_cone%theta_ib',  mach_cone%theta_ib
-    ! print*, 'mach_cone%theta_ie', mach_cone%theta_ie
-    ! print*, 'mach_cone%p_prime_in_cell', mach_cone%p_prime_in_cell
-    ! print*, 'mach_cone%radius', mach_cone%radius
+    theta(1, 1) = theta_11 + 2 * pi! cell 1 (above)
+    theta(2, 1) = theta_12 ! cell 2 (below)
+    @assertEqual(theta, mach_cone%theta_ie, 1e-8_rk)
 
   end subroutine test_midpoint_leftright_cone_p_prime_above
 
   @test
-  subroutine test_midpoint_downup_cone_p_prime_right()
+  subroutine test_midpoint_downup_cone_p_prime_right_no_intersections()
     !< Test the Mach cone, where the apex is a midpoint and P' is to the right of it
 
     !  |         C2         |
@@ -161,7 +231,7 @@ contains
     !  |         |          |
     !  |         C1         |
 
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     real(rk), dimension(4) :: reference_state = 1.0_rk
@@ -173,9 +243,9 @@ contains
     j = 1
 
     midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
-                                     [0.0_rk, -3.0_rk], & ! head, vector 1
+                                     [0.0_rk, -1.0_rk], & ! head, vector 1
                                      [0.0_rk, 0.0_rk], & ! tail, vector 2
-                                     [0.0_rk, 3.0_rk] & ! head, vector 2
+                                     [0.0_rk, 1.0_rk] & ! head, vector 2
                                      ], shape=[2, 2, 2])
 
     ! cell ordering is 1) left, 2) right
@@ -192,19 +262,24 @@ contains
                          reference_state=reference_state, &
                          cell_indices=neighbor_cell_indices)
 
+    ! print*, mach_cone
+
     ! P' should be in the cell below the midpoint
     @assertEqual([0.04_rk, 0.0_rk], mach_cone%p_prime_xy)
     @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell)
     @assertEqual([i, j], mach_cone%p_prime_ij)
 
+    ! arc begin angles
     theta = 0.0_rk
-    @assertEqual(theta, mach_cone%theta_ib)
+    @assertEqual(theta, mach_cone%theta_ib, 1e-8_rk)
 
+    ! arc end angles
     theta = 0.0_rk
-    theta(2, :) = 2 * pi ! 1st and 2nd intersections should both be 2pi
-    @assertEqual(theta, mach_cone%theta_ie)
+    theta(1, 1) = 0.0_rk ! cell 1 (left)
+    theta(2, 1) = 2 * pi   ! cell 2 (right)
+    @assertEqual(theta, mach_cone%theta_ie, 1e-8_rk)
 
-  end subroutine test_midpoint_downup_cone_p_prime_right
+  end subroutine test_midpoint_downup_cone_p_prime_right_no_intersections
 
   @test
   subroutine test_midpoint_downup_cone_p_prime_left()
@@ -218,20 +293,21 @@ contains
     !  |         |          |
     !  |         C1         |
 
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     real(rk), dimension(4) :: reference_state = 1.0_rk
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     integer(ik) :: i, j
     real(rk), dimension(4, 2) :: theta
+    real(rk) :: theta_11, theta_12
 
     i = 1
     j = 1
     midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
-                                     [0.0_rk, -3.0_rk], & ! head, vector 1
+                                     [0.0_rk, -1.0_rk], & ! head, vector 1
                                      [0.0_rk, 0.0_rk], & ! tail, vector 2
-                                     [0.0_rk, 3.0_rk] & ! head, vector 2
+                                     [0.0_rk, 1.0_rk] & ! head, vector 2
                                      ], shape=[2, 2, 2])
 
     ! cell ordering is 1) left, 2) right
@@ -239,7 +315,7 @@ contains
                                      [i, j] &   ! cell right
                                      ], shape=[2, 2])
 
-    reference_state = [1.0_rk, 4.0_rk, 0.0_rk, 1.0_rk]
+    reference_state = [1.0_rk, 1.0_rk, 0.0_rk, 1.0_rk]
     midpoint_state = 1.0_rk
 
     mach_cone = new_cone(tau=1.0e-2_rk, &
@@ -248,36 +324,44 @@ contains
                          reference_state=reference_state, &
                          cell_indices=neighbor_cell_indices)
 
+    ! print*, mach_cone
+
     ! P' should be in the cell below the midpoint
-    @assertEqual([-0.04_rk, 0.0_rk], mach_cone%p_prime_xy)
+    @assertEqual([-0.01_rk, 0.0_rk], mach_cone%p_prime_xy)
     @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
     @assertEqual([i - 1, j], mach_cone%p_prime_ij)
 
+    ! arc begin angles
     theta = 0.0_rk
-    @assertEqual(theta, mach_cone%theta_ib)
+    theta_11 = -0.68471920300228284_rk
+    theta_12 = 0.68471920300228284_rk
+    theta(1, 1) = theta_12 ! cell 1 (left)
+    theta(2, 1) = theta_11 ! cell 2 (right)
+    @assertEqual(theta, mach_cone%theta_ib, 1e-8_rk)
 
+    ! arc end angles
     theta = 0.0_rk
-    theta(1, :) = 2 * pi ! 1st and 2nd intersections should both be 2pi
-    @assertEqual(theta, mach_cone%theta_ie)
+    theta(1, 1) = theta_11 + 2 * pi ! cell 1 (left)
+    theta(2, 1) = theta_12 ! cell 2 (right)
+    @assertEqual(theta, mach_cone%theta_ie, 1e-8_rk)
 
   end subroutine test_midpoint_downup_cone_p_prime_left
 
   @test
-  subroutine test_corner_cone_p_prime_upper_right()
-    !< Test at a corner node where P' is in the upper right. The corner is situated
-    !< at the origin with each vector having a length of 3 in the cardinal directions.
+  subroutine test_corner_cone_p_prime_at_corner()
+    !< Test at a corner node where P' is on the corner node itself
 
     !           C3
     !   cell 4  |   cell 3
     ! ij: (1,2) |  ij: (2,2)
-    !           |   (.) P'
+    !           |
     ! C4-------C0--------C2
     !           |
     ! ij: (1,1) |  ij: (2,1)
     !   cell 1  |   cell 2
     !          C1
 
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     real(rk), dimension(4) :: reference_state = 1.0_rk
@@ -289,13 +373,13 @@ contains
     j = 2
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
     corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
-                                   [0.0_rk, -3.0_rk], &  ! (x,y) head, vector 1
+                                   [0.0_rk, -1.0_rk], &  ! (x,y) head, vector 1
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
-                                   [3.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
+                                   [1.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
-                                   [0.0_rk, 3.0_rk], &  ! (x,y) head, vector 3
+                                   [0.0_rk, 1.0_rk], &  ! (x,y) head, vector 3
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
-                                   [-3.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
+                                   [-1.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
                                    ], shape=[2, 2, 4])
 
     ! cell ordering is 1) top, 2) bottom
@@ -305,7 +389,7 @@ contains
                                      [i - 1, j] &  ! upper left
                                      ], shape=[2, 4])
 
-    reference_state = [1.0_rk, -4.0_rk, -4.0_rk, 1.0_rk]
+    reference_state = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
     corner_state = 1.0_rk
 
     mach_cone = new_cone(tau=1.0e-2_rk, &
@@ -314,31 +398,118 @@ contains
                          reference_state=reference_state, &
                          cell_indices=neighbor_cell_indices)
 
-    ! print*, 'mach_cone%p_prime_xy', mach_cone%p_prime_xy
-    ! print*, 'mach_cone%p_prime_ij', mach_cone%p_prime_ij
-    ! print*, 'mach_cone%n_neighbor_cells', mach_cone%n_neighbor_cells
-    ! print*, 'mach_cone%n_intersections', mach_cone%n_intersections
-    ! print*, 'mach_cone%theta_ib',  mach_cone%theta_ib
-    ! print*, 'mach_cone%theta_ie', mach_cone%theta_ie
-    ! print*, 'mach_cone%p_prime_in_cell', mach_cone%p_prime_in_cell
-    ! print*, 'mach_cone%radius', mach_cone%radius
+    ! print*, mach_cone
 
     ! P' should be in the cell below the midpoint
-    @assertEqual([0.04_rk, 0.04_rk], mach_cone%p_prime_xy)
-    @assertEqual([.false., .false., .true., .false.], mach_cone%p_prime_in_cell)
-    @assertEqual([i, j], mach_cone%p_prime_ij)
+    @assertEqual([1, 1, 1, 1], mach_cone%n_arcs)
+    @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy)
+    @assertEqual(.true., mach_cone%p_prime_in_cell)
+    @assertEqual([1, 2], mach_cone%p_prime_ij)
 
     theta = 0.0_rk
+    theta(1, 1) = pi
+    theta(2, 1) = -0.5_rk * pi
+    theta(3, 1) = 0.0_rk
+    theta(4, 1) = 0.5_rk * pi
     @assertEqual(theta, mach_cone%theta_ib)
 
     theta = 0.0_rk
-    theta(3, :) = 2 * pi ! 1st and 2nd intersections in cell #3 should both be 2pi
+    theta(1, 1) = 1.5_rk * pi
+    theta(2, 1) = 0.0_rk
+    theta(3, 1) = 0.5_rk * pi
+    theta(4, 1) = pi
     @assertEqual(theta, mach_cone%theta_ie)
 
-  end subroutine test_corner_cone_p_prime_upper_right
+  end subroutine test_corner_cone_p_prime_at_corner
 
   @test
-  subroutine test_corner_cone_p_prime_lower_right()
+  subroutine test_corner_cone_p_prime_upper_right_2_arcs()
+    !< Test at a corner node where P' is in the upper right. The corner is situated
+    !< at the origin with each vector having a length of 1 in the cardinal directions.
+
+    !           C3
+    !   cell 4  |   cell 3
+    ! ij: (1,2) |  ij: (2,2)
+    !           |   (.) P'
+    ! C4-------C0--------C2
+    !           |
+    ! ij: (1,1) |  ij: (2,1)
+    !   cell 1  |   cell 2
+    !          C1
+
+    type(cone_t) :: mach_cone
+    real(rk), dimension(2, 2, 4) :: corner_edge_vectors
+    real(rk), dimension(4, 4) :: corner_state
+    real(rk), dimension(4) :: reference_state = 1.0_rk
+    integer(ik), dimension(2, 4) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(4, 2) :: theta
+    real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+    real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
+
+    i = 2
+    j = 2
+    ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+    corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
+                                   [0.0_rk, -1.0_rk], &  ! (x,y) head, vector 1
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
+                                   [1.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
+                                   [0.0_rk, 1.0_rk], &  ! (x,y) head, vector 3
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
+                                   [-1.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
+                                   ], shape=[2, 2, 4])
+
+    ! cell ordering is 1) top, 2) bottom
+    neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
+                                     [i, j - 1], &  ! lower right
+                                     [i, j], &  ! upper right
+                                     [i - 1, j] &  ! upper left
+                                     ], shape=[2, 4])
+
+    reference_state = [1.0_rk, -1.0_rk, -1.0_rk, 1.0_rk]
+    corner_state = 1.0_rk
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=corner_edge_vectors, &
+                         reconstructed_state=corner_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+    ! print*, mach_cone
+
+    ! P' should be in the cell below the midpoint
+    ! @assertEqual([0, 1, 2, 1], mach_cone%n_arcs)
+    @assertEqual([0.01_rk, 0.01_rk], mach_cone%p_prime_xy)
+    @assertEqual([.false., .false., .true., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([i, j], mach_cone%p_prime_ij)
+
+    theta_11 = 0.0_rk           ! vector 1, intersection 1 (no intersection)
+    theta_12 = 0.0_rk           ! vector 1, intersection 2 (no intersection)
+    theta_21 = -2.2555155298_rk ! vector 2, intersection 1
+    theta_22 = -0.8860771238_rk ! vector 2, intersection 2
+    theta_31 = -2.4568734506_rk ! vector 3, intersection 1
+    theta_32 = 2.4568734506_rk  ! vector 3, intersection 2
+    theta_41 = 0.0_rk           ! vector 4, intersection 1 (no intersection)
+    theta_42 = 0.0_rk           ! vector 4, intersection 2 (no intersection)
+
+    theta = 0.0_rk
+    theta(1, :) = [0.0_rk, 0.0_rk]     ! no arcs w/in cell 1
+    theta(2, :) = [theta_21, 0.0_rk]   ! 1 arc in cell 2
+    theta(3, :) = [theta_31, theta_22] ! 2 arcs in cell 3
+    theta(4, :) = [theta_32, 0.0_rk]   ! 1 arc in cell 4
+    @assertEqual(theta, mach_cone%theta_ib, 1.0e-8_rk)
+
+    theta = 0.0_rk
+    theta(1, :) = [0.0_rk, 0.0_rk]          ! no arcs w/in cell 1
+    theta(2, :) = [theta_22, 0.0_rk]        ! 1 arc in cell 2
+    theta(3, :) = [theta_21, theta_32]      ! 2 arcs in cell 3
+    theta(4, :) = [theta_31 + 2 * pi, 0.0_rk] ! 1 arc in cell 4
+    @assertEqual(theta, mach_cone%theta_ie, 1.0e-8_rk)
+
+  end subroutine test_corner_cone_p_prime_upper_right_2_arcs
+
+  @test
+  subroutine test_corner_cone_p_prime_lower_right_2_arcs()
     !< Test at a corner node where P' is in the upper right. The corner is situated
     !< at the origin with each vector having a length of 3 in the cardinal directions.
 
@@ -352,13 +523,15 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     real(rk), dimension(4) :: reference_state = 1.0_rk
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
     integer(ik) :: i, j
     real(rk), dimension(4, 2) :: theta
+    real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+    real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
 
     i = 2
     j = 2
@@ -380,7 +553,7 @@ contains
                                      [i - 1, j] &  ! upper left
                                      ], shape=[2, 4])
 
-    reference_state = [1.0_rk, -4.0_rk, 4.0_rk, 1.0_rk] ! (rho, u, v, p)
+    reference_state = [1.0_rk, -1.0_rk, 1.0_rk, 1.0_rk] ! (rho, u, v, p)
     corner_state = 1.0_rk
 
     mach_cone = new_cone(tau=1.0e-2_rk, &
@@ -389,22 +562,126 @@ contains
                          reference_state=reference_state, &
                          cell_indices=neighbor_cell_indices)
 
+    ! print*, mach_cone
+
     ! P' should be in the cell below the midpoint
-    @assertEqual([0.04_rk, -0.04_rk], mach_cone%p_prime_xy)
+    @assertEqual([0.01_rk, -0.01_rk], mach_cone%p_prime_xy)
     @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell)
     @assertEqual([i, j - 1], mach_cone%p_prime_ij)
 
-    theta = 0.0_rk
-    @assertEqual(theta, mach_cone%theta_ib)
+    theta_11 = 2.4568734506_rk  ! vector 1, intersection 1
+    theta_12 = -2.4568734506_rk ! vector 1, intersection 2
+    theta_21 = 2.2555155298_rk ! vector 2, intersection 1
+    theta_22 = 0.8860771238_rk ! vector 2, intersection 2
+    theta_31 = 0.0_rk           ! vector 3, intersection 1 (no intersection)
+    theta_32 = 0.0_rk           ! vector 3, intersection 2 (no intersection)
+    theta_41 = 0.0_rk           ! vector 4, intersection 1 (no intersection)
+    theta_42 = 0.0_rk           ! vector 4, intersection 2 (no intersection)
 
     theta = 0.0_rk
-    theta(2, :) = 2 * pi ! 1st and 2nd intersections in cell #2 should both be 2pi
-    @assertEqual(theta, mach_cone%theta_ie)
+    theta(1, :) = [theta_11, 0.0_rk]   ! 1 arc in cell 1
+    theta(2, :) = [theta_21, theta_12] ! 2 arcs in cell 2
+    theta(3, :) = [theta_22, 0.0_rk]   ! 1 arc in cell 3
+    theta(4, :) = [0.0_rk, 0.0_rk]     ! no arcs w/in cell 4
+    @assertEqual(theta, mach_cone%theta_ib, 1.0e-8_rk)
 
-  end subroutine test_corner_cone_p_prime_lower_right
+    theta = 0.0_rk
+    theta(1, :) = [theta_12 + 2 * pi, 0.0_rk] ! 1 arc in cell 1
+    theta(2, :) = [theta_11, theta_22]      ! 2 arcs in cell 2
+    theta(3, :) = [theta_21, 0.0_rk]        ! 1 arc in cell 3
+    theta(4, :) = [0.0_rk, 0.0_rk]          ! no arcs w/in cell 4
+    @assertEqual(theta, mach_cone%theta_ie, 1.0e-8_rk)
+
+  end subroutine test_corner_cone_p_prime_lower_right_2_arcs
 
   @test
-  subroutine test_corner_cone_p_prime_lower_left()
+  subroutine test_corner_cone_p_prime_lower_right_1_arc_each()
+    !< Test at a corner node where P' is in the upper right. The corner is situated
+    !< at the origin with each vector having a length of 3 in the cardinal directions.
+
+    !           C3
+    !   cell 4  |   cell 3
+    ! ij: (1,2) |  ij: (2,2)
+    !           |
+    ! C4-------C0--------C2
+    !           |  (.) P'
+    ! ij: (1,1) |  ij: (2,1)
+    !   cell 1  |   cell 2
+    !          C1
+
+    type(cone_t) :: mach_cone
+    real(rk), dimension(2, 2, 4) :: corner_edge_vectors
+    real(rk), dimension(4, 4) :: corner_state
+    real(rk), dimension(4) :: reference_state = 1.0_rk
+    integer(ik), dimension(2, 4) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(4, 2) :: theta
+    real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+    real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
+
+    i = 2
+    j = 2
+    ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+    corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
+                                   [0.0_rk, -3.0_rk], &  ! (x,y) head, vector 1
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
+                                   [3.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
+                                   [0.0_rk, 3.0_rk], &  ! (x,y) head, vector 3
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
+                                   [-3.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
+                                   ], shape=[2, 2, 4])
+
+    ! cell ordering is 1) top, 2) bottom
+    neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
+                                     [i, j - 1], &  ! lower right
+                                     [i, j], &  ! upper right
+                                     [i - 1, j] &  ! upper left
+                                     ], shape=[2, 4])
+
+    reference_state = [1.0_rk, -0.5_rk, 0.5_rk, 1.0_rk] ! (rho, u, v, p)
+    corner_state = 1.0_rk
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=corner_edge_vectors, &
+                         reconstructed_state=corner_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+
+    ! print*, mach_cone
+
+    ! P' should be in the cell below the midpoint
+    @assertEqual([0.005_rk, -0.005_rk], mach_cone%p_prime_xy)
+    @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([i, j - 1], mach_cone%p_prime_ij)
+
+    theta_11 = 1.9684957419_rk  ! vector 1, intersection 1 (not valid intersection)
+    theta_12 = -1.9684957419_rk ! vector 1, intersection 2
+    theta_21 = 2.7438932385_rk  ! vector 2, intersection 1 (not valid intersection)
+    theta_22 = 0.3976994151_rk  ! vector 2, intersection 2
+    theta_31 = -1.9684957419_rk ! vector 3, intersection 1 (not valid intersection)
+    theta_32 = 1.9684957419_rk  ! vector 3, intersection 2
+    theta_41 = 0.3976994151_rk  ! vector 4, intersection 1 (not valid intersection)
+    theta_42 = 2.7438932385_rk  ! vector 4, intersection 2
+
+    theta = 0.0_rk
+    theta(1, :) = [theta_42, 0.0_rk] ! 1 arc in cell 1
+    theta(2, :) = [theta_12, 0.0_rk] ! 1 arc in cell 2
+    theta(3, :) = [theta_22, 0.0_rk] ! 1 arc in cell 3
+    theta(4, :) = [theta_32, 0.0_rk] ! 1 arc in cell 4
+    @assertEqual(theta, mach_cone%theta_ib, 1.0e-8_rk)
+
+    theta = 0.0_rk
+    theta(1, :) = [theta_12 + 2 * pi, 0.0_rk] ! 1 arc in cell 1
+    theta(2, :) = [theta_22, 0.0_rk] ! 1 arc in cell 2
+    theta(3, :) = [theta_32, 0.0_rk] ! 1 arc in cell 3
+    theta(4, :) = [theta_42, 0.0_rk] ! 1 arc in cell 4
+    @assertEqual(theta, mach_cone%theta_ie, 1.0e-8_rk)
+
+  end subroutine test_corner_cone_p_prime_lower_right_1_arc_each
+
+  @test
+  subroutine test_corner_cone_p_prime_lower_left_2_arcs()
     !< Test at a corner node where P' is in the upper right. The corner is situated
     !< at the origin with each vector having a length of 3 in the cardinal directions.
 
@@ -418,25 +695,27 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     real(rk), dimension(4) :: reference_state = 1.0_rk
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
     integer(ik) :: i, j
     real(rk), dimension(4, 2) :: theta
+    real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+    real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
 
     i = 2
     j = 2
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
     corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
-                                   [0.0_rk, -3.0_rk], &  ! (x,y) head, vector 1
+                                   [0.0_rk, -1.0_rk], &  ! (x,y) head, vector 1
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
-                                   [3.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
+                                   [1.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
-                                   [0.0_rk, 3.0_rk], &  ! (x,y) head, vector 3
+                                   [0.0_rk, 1.0_rk], &  ! (x,y) head, vector 3
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
-                                   [-3.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
+                                   [-1.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
                                    ], shape=[2, 2, 4])
 
     ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
@@ -446,7 +725,7 @@ contains
                                      [i - 1, j] &  ! upper left
                                      ], shape=[2, 4])
 
-    reference_state = [1.0_rk, 4.0_rk, 4.0_rk, 1.0_rk] ! (rho, u, v, p)
+    reference_state = [1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk] ! (rho, u, v, p)
     corner_state = 1.0_rk
 
     mach_cone = new_cone(tau=1.0e-2_rk, &
@@ -455,22 +734,40 @@ contains
                          reference_state=reference_state, &
                          cell_indices=neighbor_cell_indices)
 
+    ! print*, mach_cone
+
     ! P' should be in the cell below the midpoint
-    @assertEqual([-0.04_rk, -0.04_rk], mach_cone%p_prime_xy)
+    @assertEqual([-0.01_rk, -0.01_rk], mach_cone%p_prime_xy)
     @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
     @assertEqual([i - 1, j - 1], mach_cone%p_prime_ij)
 
-    theta = 0.0_rk
-    @assertEqual(theta, mach_cone%theta_ib)
+    theta_11 = 0.6847192030_rk  ! vector 1, intersection 1 (not valid intersection)
+    theta_12 = -0.6847192030_rk ! vector 1, intersection 2
+    theta_21 = 2.2555155298_rk  ! vector 2, intersection 1 (not valid intersection)
+    theta_22 = 0.8860771238_rk  ! vector 2, intersection 2
+    theta_31 = -0.6847192030_rk ! vector 3, intersection 1 (not valid intersection)
+    theta_32 = 0.6847192030_rk  ! vector 3, intersection 2
+    theta_41 = 0.8860771238_rk  ! vector 4, intersection 1 (not valid intersection)
+    theta_42 = 2.2555155298_rk  ! vector 4, intersection 2
 
     theta = 0.0_rk
-    theta(1, :) = 2 * pi ! 1st and 2nd intersections in cell #1 should both be 2pi
-    @assertEqual(theta, mach_cone%theta_ie)
+    theta(1, :) = [theta_11, theta_42] ! 2 arcs in cell 1
+    theta(2, :) = [theta_12, 0.0_rk] ! 1 arc in cell 2
+    theta(3, :) = [0.0_rk, 0.0_rk] ! 0 arcs in cell 3
+    theta(4, :) = [theta_41, 0.0_rk] ! 1 arc in cell 4
+    @assertEqual(theta, mach_cone%theta_ib, 1.0e-8_rk)
 
-  end subroutine test_corner_cone_p_prime_lower_left
+    theta = 0.0_rk
+    theta(1, :) = [theta_41, theta_12 + 2 * pi] ! 2 arcs in cell 1
+    theta(2, :) = [theta_11, 0.0_rk] ! 1 arc in cell 2
+    theta(3, :) = [0.0_rk, 0.0_rk] ! 0 arcs in cell 3
+    theta(4, :) = [theta_42, 0.0_rk] ! 1 arc in cell 4
+    @assertEqual(theta, mach_cone%theta_ie, 1.0e-8_rk)
+
+  end subroutine test_corner_cone_p_prime_lower_left_2_arcs
 
   @test
-  subroutine test_corner_cone_p_prime_upper_left()
+  subroutine test_corner_cone_p_prime_upper_left_2_arcs()
     !< Test at a corner node where P' is in the upper right. The corner is situated
     !< at the origin with each vector having a length of 3 in the cardinal directions.
 
@@ -484,25 +781,27 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(mach_cone_geometry_t) :: mach_cone
+    type(cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     real(rk), dimension(4) :: reference_state = 1.0_rk
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
     integer(ik) :: i, j
     real(rk), dimension(4, 2) :: theta
+    real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+    real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
 
     i = 2
     j = 2
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
     corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
-                                   [0.0_rk, -3.0_rk], &  ! (x,y) head, vector 1
+                                   [0.0_rk, -1.0_rk], &  ! (x,y) head, vector 1
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
-                                   [3.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
+                                   [1.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
-                                   [0.0_rk, 3.0_rk], &  ! (x,y) head, vector 3
+                                   [0.0_rk, 1.0_rk], &  ! (x,y) head, vector 3
                                    [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
-                                   [-3.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
+                                   [-1.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
                                    ], shape=[2, 2, 4])
 
     ! cell ordering is 1) top, 2) bottom
@@ -512,7 +811,7 @@ contains
                                      [i - 1, j] &  ! upper left
                                      ], shape=[2, 4])
 
-    reference_state = [1.0_rk, 4.0_rk, -4.0_rk, 1.0_rk] ! (rho, u, v, p)
+    reference_state = [1.0_rk, 1.0_rk, -1.0_rk, 1.0_rk] ! (rho, u, v, p)
     corner_state = 1.0_rk
 
     mach_cone = new_cone(tau=1.0e-2_rk, &
@@ -521,95 +820,36 @@ contains
                          reference_state=reference_state, &
                          cell_indices=neighbor_cell_indices)
 
+    ! print*, mach_cone
+
     ! P' should be in the cell below the midpoint
-    @assertEqual([-0.04_rk, 0.04_rk], mach_cone%p_prime_xy)
+    @assertEqual([-0.01_rk, 0.01_rk], mach_cone%p_prime_xy)
     @assertEqual([.false., .false., .false., .true.], mach_cone%p_prime_in_cell)
     @assertEqual([i - 1, j], mach_cone%p_prime_ij)
 
-    theta = 0.0_rk
-    @assertEqual(theta, mach_cone%theta_ib)
+    theta_11 = 0.6847192030_rk  ! vector 1, intersection 1 (not valid intersection)
+    theta_12 = -0.6847192030_rk ! vector 1, intersection 2
+    theta_21 = -2.2555155298_rk ! vector 2, intersection 1 (not valid intersection)
+    theta_22 = -0.8860771238_rk ! vector 2, intersection 2
+    theta_31 = -0.6847192030_rk ! vector 3, intersection 1 (not valid intersection)
+    theta_32 = 0.6847192030_rk  ! vector 3, intersection 2
+    theta_41 = -0.8860771238_rk  ! vector 4, intersection 1 (not valid intersection)
+    theta_42 = -2.2555155298_rk  ! vector 4, intersection 2
 
     theta = 0.0_rk
-    theta(4, :) = 2 * pi ! 1st and 2nd intersections in cell #4 should both be 2pi
-    @assertEqual(theta, mach_cone%theta_ie)
-
-  end subroutine test_corner_cone_p_prime_upper_left
-
-  @test
-  subroutine test_corner_cone_p_prime_at_corner()
-    !< Test at a corner node where P' co-located with the corner node (e.g. u=0,v=0)
-
-    !           C3
-    !   cell 4  |   cell 3
-    ! ij: (1,2) |  ij: (2,2)
-    !           |
-    ! C4-------C0--------C2
-    !           |
-    ! ij: (1,1) |  ij: (2,1)
-    !   cell 1  |   cell 2
-    !          C1
-
-    type(mach_cone_geometry_t) :: mach_cone
-    real(rk), dimension(2, 2, 4) :: corner_edge_vectors
-    real(rk), dimension(4, 4) :: corner_state
-    real(rk), dimension(4) :: reference_state = 1.0_rk
-    integer(ik), dimension(2, 4) :: neighbor_cell_indices
-    integer(ik) :: i, j
-    real(rk), dimension(4, 2) :: theta
-
-    i = 2
-    j = 2
-    ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
-    corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
-                                   [0.0_rk, -3.0_rk], &  ! (x,y) head, vector 1
-                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
-                                   [3.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
-                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
-                                   [0.0_rk, 3.0_rk], &  ! (x,y) head, vector 3
-                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
-                                   [-3.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
-                                   ], shape=[2, 2, 4])
-
-    ! cell ordering is 1) top, 2) bottom
-    neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
-                                     [i, j - 1], &  ! lower right
-                                     [i, j], &  ! upper right
-                                     [i - 1, j] &  ! upper left
-                                     ], shape=[2, 4])
-
-    reference_state = [2.0_rk, 0.0_rk, 0.0_rk, 1.0_rk] ! (rho, u, v, p)
-    corner_state = 1.0_rk
-
-    mach_cone = new_cone(tau=1.0e-10_rk, &
-                         edge_vectors=corner_edge_vectors, &
-                         reconstructed_state=corner_state, &
-                         reference_state=reference_state, &
-                         cell_indices=neighbor_cell_indices)
-
-    ! P' should be in the cell below the midpoint
-    @assertEqual(mach_cone%p_xy, mach_cone%p_prime_xy)
-    @assertEqual(.true., mach_cone%p_prime_in_cell)
-
-    ! In reality, P' is in ALL cells, but this just picks up the first cell ij set of (1,2)
-    @assertEqual([1, 2], mach_cone%p_prime_ij)
-
-    ! For these theta tests, the value depends a lot on tau, which should approach 0. As tau gets
-    ! larger, the angles get less and less close to the intervals of pi, due to how it calculates
-    ! theta_kl and l_k, which ultimately provide theta_ib and theta_ie
-    theta = 0.0_rk
-    theta(1, :) = 0.5_rk * pi
-    theta(2, :) = 1.5_rk * pi
-    theta(3, :) = 0.5_rk * pi
-    theta(4, :) = 0.5_rk * pi
-
-    @assertEqual(theta, mach_cone%theta_ib, 1e-4_rk)
+    theta(1, :) = [theta_42, 0.0_rk]   ! 1 arc in cell 1
+    theta(2, :) = [0.0_rk, 0.0_rk]     ! 0 arcs in cell 2
+    theta(3, :) = [theta_31, 0.0_rk]   ! 1 arc in cell 3
+    theta(4, :) = [theta_41, theta_32] ! 2 arc in cell 4
+    @assertEqual(theta, mach_cone%theta_ib, 1.0e-8_rk)
 
     theta = 0.0_rk
-    theta(1, :) = 1.5_rk * pi
-    theta(2, :) = 2.5_rk * pi
-    theta(3, :) = 0.5_rk * pi
-    theta(4, :) = 0.5_rk * pi
-    @assertEqual(theta, mach_cone%theta_ie, 1e-4_rk)
+    theta(1, :) = [theta_41, 0.0_rk]   ! 1 arc in cell 1
+    theta(2, :) = [0.0_rk, 0.0_rk]     ! 0 arcs in cell 2
+    theta(3, :) = [theta_32, 0.0_rk]   ! 1 arc in cell 3
+    theta(4, :) = [theta_31, theta_42 + 2 * pi] ! 1 arc in cell 4
+    @assertEqual(theta, mach_cone%theta_ie, 1.0e-8_rk)
 
-  end subroutine test_corner_cone_p_prime_at_corner
+  end subroutine test_corner_cone_p_prime_upper_left_2_arcs
+
 end module test_mach_cone_geometry

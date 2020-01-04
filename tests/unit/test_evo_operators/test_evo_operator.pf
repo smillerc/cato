@@ -1,0 +1,140 @@
+module test_evo_operator
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_input, only: input_t
+  use mod_bc_factory, only: bc_factory
+  use mod_boundary_conditions, only: boundary_condition_t
+  use mod_grid_factory, only: grid_factory
+  use mod_grid, only: grid_t
+  use mod_local_evo_operator
+  use mod_cone
+  use math_constants, only: pi, rad2deg
+  use funit
+
+  implicit none
+
+  integer(ik), parameter :: ni_nodes = 5
+  integer(ik), parameter :: nj_nodes = 5
+  integer(ik), parameter :: ni_cells = ni_nodes - 1
+  integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik) :: alloc_status
+
+  real(rk), dimension(2, 2, 4) :: corner_edge_vectors
+  real(rk), dimension(4, 4) :: corner_state = 0.0_rk
+  real(rk), dimension(4) :: reference_state = 0.0_rk
+  integer(ik), dimension(2, 4) :: neighbor_cell_indices
+
+contains
+
+  @before
+  subroutine startup()
+
+    integer(ik) :: i, j
+    !           C3
+    !   cell 4  |   cell 3
+    ! ij: (1,2) |  ij: (2,2)
+    !           |
+    ! C4-------C0--------C2
+    !           |  (.) P'
+    ! ij: (1,1) |  ij: (2,1)
+    !   cell 1  |   cell 2
+    !          C1
+    corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
+                                   [0.0_rk, -1.0_rk], &  ! (x,y) head, vector 1
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
+                                   [1.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
+                                   [0.0_rk, 1.0_rk], &  ! (x,y) head, vector 3
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
+                                   [-1.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
+                                   ], shape=[2, 2, 4])
+
+    i = 2
+    j = 2
+
+    neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
+                                     [i, j - 1], &  ! lower right
+                                     [i, j], &  ! upper right
+                                     [i - 1, j] &  ! upper left
+                                     ], shape=[2, 4])
+  end subroutine
+
+  @after
+  subroutine cleanup()
+    ! Nothing to do, but I need the @after section anyways
+  end subroutine
+
+  @test
+  subroutine test_local_evo_operator_equal_corner_arc_sections()
+
+    type(cone_t) :: mach_cone
+    real(rk) :: density, pressure, x_vel, y_vel
+
+    density = 0.0_rk
+    pressure = 0.0_rk
+    x_vel = 0.0_rk
+    y_vel = 0.0_rk
+
+    reference_state = [1.0_rk, 0.0_rk, 0.0_rk, 4.0_rk] ! (rho, u, v, p)
+
+    ! ((rho,u,v,p), cell)
+    corner_state = 1.0_rk
+    ! corner_state(:, 1) = [1.0_rk, 2.0_rk, 3.0_rk, 4.0_rk]
+    ! corner_state(:, 2) = [1.0_rk, 2.0_rk, 4.0_rk, 4.0_rk]
+    ! corner_state(:, 3) = [1.0_rk, 2.0_rk, 5.0_rk, 4.0_rk]
+    ! corner_state(:, 4) = [1.0_rk, 2.0_rk, 6.0_rk, 4.0_rk]
+
+    mach_cone = new_cone(tau=1.0e-10_rk, &
+                         edge_vectors=corner_edge_vectors, &
+                         reconstructed_state=corner_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+
+    ! print*, mach_cone
+
+    x_vel = get_x_velocity(mach_cone)
+    @assertEqual(1.0_rk, x_vel, 1e-10)
+
+    y_vel = get_y_velocity(mach_cone)
+    @assertEqual(1.0_rk, y_vel, 1e-10)
+
+    pressure = get_pressure(mach_cone)
+    @assertEqual(1.0_rk, pressure, 1e-10)
+  end subroutine
+
+  @test
+  subroutine test_local_evo_operator_corner_no_intersections()
+
+    type(cone_t) :: mach_cone
+    real(rk) :: density, pressure, x_vel, y_vel
+
+    density = 0.0_rk
+    pressure = 0.0_rk
+    x_vel = 0.0_rk
+    y_vel = 0.0_rk
+
+    ! ((rho,u,v,p), cell)
+    corner_state(:, 1) = [1.0_rk, 2.0_rk, 3.0_rk, 4.0_rk]
+    corner_state(:, 2) = [2.0_rk, 3.0_rk, 4.0_rk, 5.0_rk]
+    corner_state(:, 3) = [3.0_rk, 4.0_rk, 5.0_rk, 6.0_rk]
+    corner_state(:, 4) = [4.0_rk, 5.0_rk, 6.0_rk, 7.0_rk]
+
+    reference_state = [1.0_rk, 4.0_rk, 4.0_rk, 4.0_rk] ! (rho, u, v, p)
+    mach_cone = new_cone(tau=1.0e-10_rk, &
+                         edge_vectors=corner_edge_vectors, &
+                         reconstructed_state=corner_state, &
+                         reference_state=reference_state, &
+                         cell_indices=neighbor_cell_indices)
+
+    ! print*, mach_cone
+
+    x_vel = get_x_velocity(mach_cone)
+    @assertEqual(2.0_rk, x_vel, 1e-10)
+
+    y_vel = get_y_velocity(mach_cone)
+    @assertEqual(3.0_rk, y_vel, 1e-10)
+
+    pressure = get_pressure(mach_cone)
+    @assertEqual(4.0_rk, pressure, 1e-10)
+  end subroutine
+
+end module test_evo_operator

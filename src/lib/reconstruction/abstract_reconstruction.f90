@@ -41,7 +41,7 @@ module mod_abstract_reconstruction
   end type abstract_reconstruction_t
 
   abstract interface
-    subroutine initialize(self, input, grid_target, conserved_vars_target, lbounds)
+    subroutine initialize(self, input, grid_target)
       import :: abstract_reconstruction_t
       import :: input_t
       import :: grid_t
@@ -49,9 +49,9 @@ module mod_abstract_reconstruction
       class(abstract_reconstruction_t), intent(inout) :: self
       class(input_t), intent(in) :: input
       class(grid_t), intent(in), target :: grid_target
-      integer(ik), dimension(3), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
-        intent(in), target :: conserved_vars_target
+      ! integer(ik), dimension(3), intent(in) :: lbounds
+      ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
+      !   intent(in), target :: conserved_vars_target
     end subroutine
 
     pure function reconstruct_point(self, xy, cell_ij) result(U_bar)
@@ -99,7 +99,9 @@ contains
     !< Associate the grid with data
     class(abstract_reconstruction_t), intent(inout) :: self
     class(grid_t), intent(in), target :: grid
-    self%grid => grid
+
+    if(.not. associated(self%grid)) self%grid => grid
+
   end subroutine set_grid_pointer
 
   subroutine set_conserved_vars_pointer(self, conserved_vars, lbounds)
@@ -110,7 +112,8 @@ contains
     integer(ik), dimension(3), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
       intent(in), target :: conserved_vars
-    self%conserved_vars => conserved_vars
+
+    if(.not. associated(self%conserved_vars)) self%conserved_vars => conserved_vars
   end subroutine set_conserved_vars_pointer
 
   subroutine nullify_pointer_members(self)

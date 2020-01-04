@@ -1,3 +1,9 @@
+#ifdef __DEBUG__
+#define debug_write write
+#else
+#define debug_write ! write
+#endif
+
 module mod_second_order_reconstruction
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
@@ -26,15 +32,15 @@ module mod_second_order_reconstruction
 
 contains
 
-  subroutine init_second_order(self, input, grid_target, conserved_vars_target, lbounds)
+  subroutine init_second_order(self, input, grid_target)
     !< Construct the second_order_reconstruction_t type
 
     class(second_order_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid_target
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
-      intent(in), target :: conserved_vars_target
+    ! integer(ik), dimension(3), intent(in) :: lbounds
+    ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
+    !   intent(in), target :: conserved_vars_target
 
     integer(ik) :: alloc_status
 
@@ -43,7 +49,7 @@ contains
     self%order = 2
     self%name = 'piecewise_linear_reconstruction'
 
-    self%conserved_vars => conserved_vars_target
+    ! self%conserved_vars => conserved_vars_target
     self%grid => grid_target
 
     call self%set_slope_limiter(name=input%slope_limiter)
@@ -154,85 +160,90 @@ contains
     jlo = lbound(reconstructed_domain, dim=5) + 1
     jhi = ubound(reconstructed_domain, dim=5) - 1
 
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
+#ifdef __DEBUG__
+    do j = jlo, jhi
+      do i = ilo, ihi
+#else
+        do concurrent(j=jlo:jhi)
+          do concurrent(i=ilo:ihi)
+#endif
 
-        self%cell_gradient(:, :, i, j) = self%estimate_gradients(i, j)
-        centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
+            self%cell_gradient(:, :, i, j) = self%estimate_gradients(i, j)
+            centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
 
-        ! First do corners, then to midpoints
-        do concurrent(n=1:nhi)
+            ! First do corners, then to midpoints
+            do concurrent(n=1:nhi)
 
-          ! Loop through each point (N1-N4, and M1-M4)
-          do concurrent(p=1:phi)
+              ! Loop through each point (N1-N4, and M1-M4)
+              do concurrent(p=1:phi)
 
-            associate(U_bar=>reconstructed_domain, &
-                      cell_ave=>self%conserved_vars(:, i, j), &
-                      x=>self%grid%cell_node_xy(1, p, n, i, j), &
-                      y=>self%grid%cell_node_xy(2, p, n, i, j), &
-                      dU_dx=>self%cell_gradient(1, :, i, j), &
-                      dU_dy=>self%cell_gradient(2, :, i, j), &
-                      x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
+                associate(U_bar=>reconstructed_domain, &
+                          cell_ave=>self%conserved_vars(:, i, j), &
+                          x=>self%grid%cell_node_xy(1, p, n, i, j), &
+                          y=>self%grid%cell_node_xy(2, p, n, i, j), &
+                          dU_dx=>self%cell_gradient(1, :, i, j), &
+                          dU_dy=>self%cell_gradient(2, :, i, j), &
+                          x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
 
-              ! reconstructed_state(rho:p, point, node/midpoint, i, j)
-              U_bar(:, p, n, i, j) = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
+                  ! reconstructed_state(rho:p, point, node/midpoint, i, j)
+                  U_bar(:, p, n, i, j) = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
 
-            end associate
+                end associate
 
+              end do
+            end do
           end do
         end do
-      end do
-    end do
 
-  end subroutine reconstruct_domain
+        end subroutine reconstruct_domain
 
-  pure function estimate_gradients(self, i, j) result(gradients)
-    !< Estimate the gradient of the conserved variables in the cell (i,j)
-    class(second_order_reconstruction_t), intent(in) :: self
-    real(rk), dimension(2, 4) :: gradients !< ([x,y], [rho,u,v,p])
-    integer(ik), intent(in) :: i, j
+        pure function estimate_gradients(self, i, j) result(gradients)
+          !< Estimate the gradient of the conserved variables in the cell (i,j)
+          class(second_order_reconstruction_t), intent(in) :: self
+          real(rk), dimension(2, 4) :: gradients !< ([x,y], [rho,u,v,p])
+          integer(ik), intent(in) :: i, j
 
-    ! density
-    gradients(:, 1) = self%estimate_single_gradient(i, j, var_idx=1)
+          ! density
+          gradients(:, 1) = self%estimate_single_gradient(i, j, var_idx=1)
 
-    ! x velocity
-    gradients(:, 2) = self%estimate_single_gradient(i, j, var_idx=2)
+          ! x velocity
+          gradients(:, 2) = self%estimate_single_gradient(i, j, var_idx=2)
 
-    ! y velocity
-    gradients(:, 3) = self%estimate_single_gradient(i, j, var_idx=3)
+          ! y velocity
+          gradients(:, 3) = self%estimate_single_gradient(i, j, var_idx=3)
 
-    ! pressure
-    gradients(:, 4) = self%estimate_single_gradient(i, j, var_idx=4)
+          ! pressure
+          gradients(:, 4) = self%estimate_single_gradient(i, j, var_idx=4)
 
-  end function estimate_gradients
+        end function estimate_gradients
 
-  pure function estimate_single_gradient(self, i, j, var_idx) result(grad_v)
-    !< Find the gradient of a variable (v) within a cell at indices (i,j) based on the neighbor information.
-    !< See Eq. 9 in https://doi.org/10.1016/j.jcp.2006.03.018. The slope limiter is set via the constructor
-    !< of this derived type.
+        pure function estimate_single_gradient(self, i, j, var_idx) result(grad_v)
+          !< Find the gradient of a variable (v) within a cell at indices (i,j) based on the neighbor information.
+          !< See Eq. 9 in https://doi.org/10.1016/j.jcp.2006.03.018. The slope limiter is set via the constructor
+          !< of this derived type.
 
-    class(second_order_reconstruction_t), intent(in) :: self
-    integer(ik), intent(in) :: var_idx !< index of the variable to estimate the gradient
-    integer(ik), intent(in) :: i, j !< cell index
-    real(rk), dimension(2) :: grad_v !< (dV/dx, dV/dy) gradient of the variable
+          class(second_order_reconstruction_t), intent(in) :: self
+          integer(ik), intent(in) :: var_idx !< index of the variable to estimate the gradient
+          integer(ik), intent(in) :: i, j !< cell index
+          real(rk), dimension(2) :: grad_v !< (dV/dx, dV/dy) gradient of the variable
 
-    associate(L=>self%limiter, &
-              U=>self%conserved_vars, v=>var_idx, &
-              volume=>self%grid%get_cell_volumes(i, j), &
-              n1=>self%grid%cell_edge_norm_vectors(:, 1, i, j), &
-              n2=>self%grid%cell_edge_norm_vectors(:, 2, i, j), &
-              n3=>self%grid%cell_edge_norm_vectors(:, 3, i, j), &
-              n4=>self%grid%cell_edge_norm_vectors(:, 4, i, j), &
-              delta_l1=>self%grid%cell_edge_lengths(1, i, j), &
-              delta_l2=>self%grid%cell_edge_lengths(2, i, j), &
-              delta_l3=>self%grid%cell_edge_lengths(3, i, j), &
-              delta_l4=>self%grid%cell_edge_lengths(4, i, j))
+          associate(L=>self%limiter, &
+                    U=>self%conserved_vars, v=>var_idx, &
+                    volume=>self%grid%get_cell_volumes(i, j), &
+                    n1=>self%grid%cell_edge_norm_vectors(:, 1, i, j), &
+                    n2=>self%grid%cell_edge_norm_vectors(:, 2, i, j), &
+                    n3=>self%grid%cell_edge_norm_vectors(:, 3, i, j), &
+                    n4=>self%grid%cell_edge_norm_vectors(:, 4, i, j), &
+                    delta_l1=>self%grid%cell_edge_lengths(1, i, j), &
+                    delta_l2=>self%grid%cell_edge_lengths(2, i, j), &
+                    delta_l3=>self%grid%cell_edge_lengths(3, i, j), &
+                    delta_l4=>self%grid%cell_edge_lengths(4, i, j))
 
-      grad_v = (1._rk / (2.0_rk * volume)) * &
-               (L%limit(U(v, i + 1, j) - U(v, i, j), U(v, i, j) - U(v, i - 1, j)) * (n2 * delta_l2 - n4 * delta_l4) + &
-                L%limit(U(v, i, j + 1) - U(v, i, j), U(v, i, j) - U(v, i, j - 1)) * (n3 * delta_l3 - n1 * delta_l1))
-    end associate
+            grad_v = (1._rk / (2.0_rk * volume)) * &
+                     (L%limit(U(v, i + 1, j) - U(v, i, j), U(v, i, j) - U(v, i - 1, j)) * (n2 * delta_l2 - n4 * delta_l4) + &
+                      L%limit(U(v, i, j + 1) - U(v, i, j), U(v, i, j) - U(v, i, j - 1)) * (n3 * delta_l3 - n1 * delta_l1))
+          end associate
 
-  end function estimate_single_gradient
+        end function estimate_single_gradient
 
-end module mod_second_order_reconstruction
+        end module mod_second_order_reconstruction
