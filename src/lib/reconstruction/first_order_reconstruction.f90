@@ -1,3 +1,9 @@
+#ifdef __DEBUG__
+#define debug_write write
+#else
+#define debug_write ! write
+#endif
+
 module mod_first_order_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
@@ -120,6 +126,17 @@ contains
         do concurrent(n=1:nhi)  ! First do corners, then to midpoints
           do concurrent(p=1:phi)  ! Loop through each point (N1-N4, and M1-M4)
             reconstructed_domain(:, p, n, i, j) = self%conserved_vars(:, i, j)
+
+            if(reconstructed_domain(1, p, n, i, j) < 0) then
+              debug_write (*,'(a, 4(", ", i0), a, 4(es10.3, 1x))') 'Density -> reconstructed_domain(1, p, n, i, j) @ (1', p, n, i, j, ') = ', reconstructed_domain(:, p, n, i, j)
+              error stop "Density <= 0 in first_order_reconstruction_t%reconstruct_domain"
+            end if
+
+            if(reconstructed_domain(4, p, n, i, j) < 0) then
+              debug_write (*,'(a, 4(", ", i0), a, 4(es10.3, 1x))') 'Pressure -> reconstructed_domain(4, p, n, i, j) @ (1', p, n, i, j, ') = ', reconstructed_domain(:, p, n, i, j)
+              error stop "Pressure <= 0 in first_order_reconstruction_t%reconstruct_domain"
+            end if
+
           end do
         end do
       end do

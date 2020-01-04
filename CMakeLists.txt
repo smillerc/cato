@@ -48,10 +48,20 @@ endif()
 message(STATUS "CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE}")
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
+
+# Set some debug options
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
+
+  # This allows for printing/debugging inside pure functions and do concurrent
+  # blocks
+  add_compile_definitions(pure=)
+  add_compile_definitions(__DEBUG__=True)
   message(STATUS "Debug mode, so IPO is set to OFF")
+else()
+
 endif(CMAKE_BUILD_TYPE STREQUAL Debug)
+
 message(STATUS "CMAKE_INTERPROCEDURAL_OPTIMIZATION: "
                ${CMAKE_INTERPROCEDURAL_OPTIMIZATION})
 
@@ -66,7 +76,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -Wall -Wextra -Wpedantic\
  -Wconversion \
  -fimplicit-none -fbacktrace \
- -fcheck=all") # -pg -ffpe-trap=zero,overflow,underflow -finit-real=nan")
+ -fcheck=all -ffpe-trap=zero,overflow,invalid,underflow -finit-real=nan")
 
   set(CMAKE_Fortran_FLAGS_RELEASE
       "-O3 -floop-parallelize-all -ftree-parallelize-loops=6 -march=native -fcoarray=single"
@@ -75,17 +85,14 @@ endif()
 
 # compiler flags for ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
-  # list( APPEND CMAKE_Fortran_FLAGS "-fpp -std18 -fp-model precise -fp-model
-  # except -check bounds -diag-disable 5268 -diag-disable 8770 -check
-  # noarg_temp_created" )
   list(
     APPEND
       CMAKE_Fortran_FLAGS
-      "-fpp -std18 -check bounds -diag-disable 5268 -diag-disable 8770 -check noarg_temp_created"
+      "-fpp -std18 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770 -check noarg_temp_created"
   )
 
-  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -debug all -traceback -fpe-all=0"
-  )# -coarray=singl
+  set(CMAKE_Fortran_FLAGS_DEBUG
+      "-O0 -g -warn all -debug all -traceback -fpe-all=0") # -coarray=singl
   # e
   set(CMAKE_Fortran_FLAGS_RELEASE " -O2 -parallel") # -coarray
 endif()
