@@ -32,8 +32,7 @@ find_package(
   COMPONENTS Fortran_HL
   REQUIRED)
 
-find_package(PFUNIT REQUIRED)
-enable_testing()
+# find_package(PFUNIT REQUIRED) enable_testing()
 
 message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
 message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
@@ -126,4 +125,14 @@ include_directories(${CMAKE_BINARY_DIR}/generated)
 # target_link_libraries(clfortran OpenCL::OpenCL)
 
 add_subdirectory(src)
-add_subdirectory(tests/unit)
+
+if(NOT ENABLE_TESTING)
+  set(ENABLE_TESTING Off)
+endif()
+
+if(ENABLE_TESTING)
+  # find_package(OpenMP)  # Sometimes pFunit need OpenMP, but iris does not
+  find_package(PFUNIT REQUIRED)
+  enable_testing()
+  add_subdirectory(tests/unit)
+endif()
