@@ -21,6 +21,7 @@ target_link_libraries(io PUBLIC globals ini_parser ${HDF5_LIBRARIES}
 target_link_libraries(eos PUBLIC io)
 
 add_library(utilities lib/limiters/slope_limiter.f90)
+target_link_libraries(utilities PUBLIC globals)
 
 add_library(
   geometry
@@ -39,7 +40,7 @@ add_library(
   lib/finite_volume_scheme/mod_fluid.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
-  lib/boundary_conditions/outflow_bc.f90
+  lib/boundary_conditions/zero_gradient_bc.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/reflection_bc.f90
@@ -68,12 +69,19 @@ target_link_libraries(
          geometry
          utilities
          io
+         finterp
          functional # functional # ${Coarray_LIBRARIES} ${HDF5_LIBRARIES} #
          ${HDF5_HL_LIBRARIES})
 
 add_executable(fvleg_2d.x main.f90)
-target_link_libraries(fvleg_2d.x fvleg functional ${HDF5_LIBRARIES}
-                      ${HDF5_HL_LIBRARIES} ${Coarray_LIBRARIES})
+target_link_libraries(
+  fvleg_2d.x
+  fvleg
+  functional
+  finterp
+  ${HDF5_LIBRARIES}
+  ${HDF5_HL_LIBRARIES}
+  ${Coarray_LIBRARIES})
 
 # include_directories(${HDF5_INCLUDE_DIRS})
 

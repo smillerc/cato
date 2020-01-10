@@ -52,3 +52,4 @@ tests/**/fvleg_2d.x
 
 # Python stuff
 *.pyc
+*.avi

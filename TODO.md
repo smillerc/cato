@@ -17,3 +17,8 @@
 - [ ] Add symmetry boundary conditions
 - [ ] Add reflection boundary condition
 - [ ] Make sure initial condidion python scripts are all 64bit floats
+
+
+## Issues
+Density < 0 error caused by pressure in the set of neighboring cells being an order of magnitude higher,
+so the density calculation that used P' reconstruction makes it go negative...
