@@ -403,8 +403,9 @@ contains
     ! P' should be in the cell below the midpoint
     @assertEqual([1, 1, 1, 1], mach_cone%n_arcs)
     @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy)
-    @assertEqual(.true., mach_cone%p_prime_in_cell)
-    @assertEqual([1, 2], mach_cone%p_prime_ij)
+    ! @assertEqual(.true., mach_cone%p_prime_in_cell)
+    @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([1, 1], mach_cone%p_prime_ij)
 
     theta = 0.0_rk
     theta(1, 1) = pi

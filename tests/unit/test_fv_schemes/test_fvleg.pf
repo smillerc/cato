@@ -31,7 +31,7 @@ contains
   !   type(fvleg_t) :: fvleg
 
   !   input = input_t(reconstruction_type='piecewise_linear', &
-  !                   slope_limiter='sun_ren_09', &
+  !                   slope_limiter='upwind', &
   !                   ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
   !                   read_init_cond_from_file=.true., &
   !                   initial_condition_file='simple.h5', &
@@ -55,7 +55,7 @@ contains
 
   !   allocate(input_t :: input)
   !   input = input_t(reconstruction_type='piecewise_linear', &
-  !                   slope_limiter='sun_ren_09', &
+  !                   slope_limiter='upwind', &
   !                   ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
   !                   read_init_cond_from_file=.false., &
   !                   time_integration_strategy='rk2', &
@@ -162,7 +162,7 @@ contains
     write(ini, *) "[scheme]"
     write(ini, *) "tau=1e-2"
     write(ini, *) "reconstruction_type = 'piecewise_linear'"
-    write(ini, *) "slope_limiter = 'sun_ren_09'"
+    write(ini, *) "slope_limiter = 'upwind'"
     write(ini, *) "[physics]"
     write(ini, *) "polytropic_index = 1.6666666667"
     write(ini, *) "[io]"
@@ -199,7 +199,7 @@ contains
     ! write(ini, *) "[scheme]"
     ! write(ini, *) "tau = '1e-2'"
     ! write(ini, *) "reconstruction_type = 'piecewise_linear'"
-    ! write(ini, *) "slope_limiter = 'sun_ren_09'"
+    ! write(ini, *) "slope_limiter = 'upwind'"
     ! write(ini, *) "[io]"
     ! write(ini, *) "contour_format = 'xdmf'"
     close(ini)

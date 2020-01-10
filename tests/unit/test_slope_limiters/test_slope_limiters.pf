@@ -12,12 +12,12 @@ contains
 
     type(slope_limiter_t) :: limiter
 
-    limiter = slope_limiter_t(name='sun_ren_09')
+    limiter = slope_limiter_t(name='upwind')
 
     @assertEqual(2.0_rk, limiter%limit(a=2.0_rk, b=2.0_rk))
 
     limiter = slope_limiter_t(name='unknown')
-    @assertEqual('sun_ren_09', limiter%name)
+    @assertEqual('upwind', limiter%name)
   end subroutine test_basic
 
 end module test_slope_limiters

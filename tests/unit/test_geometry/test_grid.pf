@@ -145,7 +145,7 @@ contains
     write(ini, *) "[scheme]"
     write(ini, *) "tau = '1e-2'"
     write(ini, *) "reconstruction_type = 'piecewise_linear'"
-    write(ini, *) "slope_limiter = 'sun_ren_09'"
+    write(ini, *) "slope_limiter = 'upwind'"
     write(ini, *) "[io]"
     write(ini, *) "contour_format = 'xdmf'"
     close(ini)
