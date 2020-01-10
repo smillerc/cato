@@ -48,8 +48,8 @@ def make_uniform_grid(n_nodes, xrange, yrange):
     u = np.ones_like(xxc, dtype=np.float64)
     v = np.ones_like(xxc, dtype=np.float64)
 
-    dy = (np.diff(yy[:, 0], dtype=np.float64) / 2.0)[0]
-    dx = (np.diff(xx[0, :], dtype=np.float64) / 2.0)[0]
+    dy = (np.diff(yy[:, 0]) / 2.0)[0]
+    dx = (np.diff(xx[0, :]) / 2.0)[0]
     xc = xx[:-1, :-1] + dx
     yc = yy[:-1, :-1] + dy
 

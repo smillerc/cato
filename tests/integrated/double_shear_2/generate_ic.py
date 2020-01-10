@@ -10,11 +10,15 @@ sys.path.append(os.path.abspath("../../../scripts"))
 from generate_initial_grids import make_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
-double_shear = make_uniform_grid(n_nodes=(320, 320), xrange=(-1, 1), yrange=(-1, 1))
+double_shear = make_uniform_grid(
+    n_nodes=(256, 256), xrange=(0, 2 * np.pi), yrange=(0, 2 * np.pi)
+)
 
 # Set the initial conditions
-double_shear["rho"] = double_shear["rho"] * 1.4
-double_shear["p"] = double_shear["p"] * 4
+rho_0 = np.pi / 15
+delta = 1
+double_shear["rho"] = double_shear["rho"] * rho_0
+double_shear["p"] = double_shear["p"] * 4.0
 
 x = double_shear["xc"]
 y = double_shear["yc"]
@@ -22,13 +26,13 @@ y = double_shear["yc"]
 # The u and v arrays depend on the location w/in the grid.
 # Since they're cell-centered quantities, they need the location
 # of the cell center (xc, yc)
-double_shear["v"] = np.sin(np.pi * (x + 1.5))
+double_shear["v"] = delta * np.sin(x)
 for i in range(y.shape[0]):
     for j in range(y.shape[1]):
-        if y[i, j] < 0:
-            double_shear["u"][i, j] = np.tanh(15 * (0.5 + y[i, j]))
+        if y[i, j] <= np.pi:
+            double_shear["u"][i, j] = np.tanh((y[i, j] - np.pi / 2) / rho_0)
         else:
-            double_shear["u"][i, j] = np.tanh(15 * (0.5 - y[i, j]))
+            double_shear["u"][i, j] = np.tanh((1.5 * np.pi - y[i, j]) / rho_0)
 
 bc_dict = {"+x": "periodic", "+y": "periodic", "-x": "periodic", "-y": "periodic"}
 

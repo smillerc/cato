@@ -50,6 +50,6 @@ tests/**/fvleg_2d.x
 # VS code settings
 .vscode/settings.json
 
-# Python stuff
+*.pvsm
 *.pyc
 *.avi

@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath("../../../scripts"))
 from generate_initial_grids import make_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
-domain = make_uniform_grid(n_nodes=(200, 200), xrange=(-1, 1), yrange=(-1, 1))
+domain = make_uniform_grid(n_nodes=(120, 120), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
 
 # Set the initial conditions
 domain["rho"] = domain["rho"] * 1.0
@@ -23,7 +23,7 @@ y = domain["yc"]
 
 # Make pressure a centered gaussian with surrounding pressure of 1.0
 # domain["p"] = np.exp(-(x**2 + y**2)) * 1.0e6 + 1e6# 1 atm
-domain["p"] = 150 * np.exp(-((x ** 2) / 0.01 + (y ** 2) / 0.01)) + p0
+domain["p"] = 2 * np.exp(-((x ** 2) / 0.01 + (y ** 2) / 0.01)) + p0
 
 # Zero velocity everywhere
 domain["u"] = domain["u"] * 0.0
