@@ -99,6 +99,9 @@ program fvleg
     iteration = iteration + 1
   end do
 
+  ! Write the final step
+  call contour_writer%write_contour(U, fv, time, iteration)
+
   deallocate(fv)
   deallocate(U)
 end program
