@@ -1,5 +1,6 @@
 module mod_slope_limiter
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_floating_point_utils, only: equal
 
   implicit none
 
@@ -33,11 +34,13 @@ contains
     limiter%name = trim(name)
 
     select case(trim(name))
-    case('sun_ren_09')
-      limiter%limit => sun_ren_09_limit
+    case('upwind')
+      limiter%limit => upwind_limit
+    case('minmod')
+      limiter%limit => minmod_limit
     case default
-      limiter%limit => sun_ren_09_limit
-      limiter%name = 'sun_ren_09'
+      limiter%limit => upwind_limit
+      limiter%name = 'upwind'
     end select
 
   end function
@@ -48,23 +51,41 @@ contains
     if(allocated(self%name)) deallocate(self%name)
   end subroutine finalize
 
-  pure function sun_ren_09_limit(a, b) result(slope)
+  pure function upwind_limit(a, b) result(slope)
     !< Slope limiter based on Equation 10 in DOI: 10.1016/j.jcp.2009.04.001
     !< Finds the equation of $$L(a,b) = \frac{max(ab,0)(a+b)}{a^2+b^2}$$
 
     real(rk) :: slope
     real(rk), intent(in) :: a, b
 
-    real(rk) :: max_ab
+    real(rk) :: denom
 
-    max_ab = max(a * b, 0.0_rk)
+    denom = a**2 + b**2
 
-    ! if(max_ab > 0) then
-    slope = max_ab * (a + b) / (a**2 + b**2)
-    ! else
-    !   slope = 0.0_rk
-    ! end if
+    if(denom > 0.0_rk) then
+      slope = (max(a * b, 0.0_rk) * (a + b)) / denom
+    else
+      slope = 0.0_rk
+    end if
 
-  end function sun_ren_09_limit
+  end function upwind_limit
+
+  pure function minmod_limit(a, b) result(slope)
+    real(rk) :: slope
+    real(rk), intent(in) :: a, b
+
+    if(a * b > 0.0_rk) then
+      if(abs(a) < abs(b)) then
+        slope = a
+      else if(abs(b) < abs(a)) then
+        slope = b
+      else if(equal(abs(a), abs(b))) then
+        slope = a
+      end if
+    else
+      slope = 0.0_rk
+    end if
+
+  end function
 
 end module mod_slope_limiter
