@@ -40,6 +40,8 @@ module mod_input
     logical :: plot_reconstruction_states = .false.
     logical :: plot_reference_states = .false.
     logical :: plot_evolved_states = .false.
+    logical :: plot_64bit = .false.
+    logical :: plot_ghost_cells = .false.
 
     ! timing
     real(rk) :: max_time = 1.0_rk
@@ -77,7 +79,7 @@ contains
     self%ymin = ymin
     self%ymax = ymax
     self%reconstruction_type = 'piecewise_linear'
-    self%slope_limiter = 'sun_ren_09'
+    self%slope_limiter = 'upwind'
 
     self%plus_x_bc = 'periodic'
     self%minus_x_bc = 'periodic'
@@ -127,7 +129,7 @@ contains
     call cfg%get("scheme", "reconstruction_type", char_buffer, 'piecewise_linear')
     self%reconstruction_type = trim(char_buffer)
 
-    call cfg%get("scheme", "slope_limiter", char_buffer, 'sun_ren_09')
+    call cfg%get("scheme", "slope_limiter", char_buffer, 'upwind')
     self%slope_limiter = trim(char_buffer)
 
     ! Initial Conditions
@@ -175,6 +177,8 @@ contains
     call cfg%get("io", "plot_reconstruction_states", self%plot_reconstruction_states, .false.)
     call cfg%get("io", "plot_reference_states", self%plot_reference_states, .false.)
     call cfg%get("io", "plot_evolved_states", self%plot_evolved_states, .false.)
+    call cfg%get("io", "plot_ghost_cells", self%plot_ghost_cells, .false.)
+    call cfg%get("io", "plot_64bit", self%plot_64bit, .false.)
 
   end subroutine read_from_ini
 
