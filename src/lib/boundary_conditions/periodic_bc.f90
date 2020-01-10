@@ -11,6 +11,7 @@ module mod_periodic_bc
   public :: periodic_bc_t, periodic_bc_constructor
 
   type, extends(boundary_condition_t) :: periodic_bc_t
+    logical :: do_corners = .false.
   contains
     ! procedure, public :: initialize => init_periodic_bc
     procedure, public :: apply_conserved_var_bc => apply_periodic_conserved_var_bc
@@ -22,12 +23,24 @@ module mod_periodic_bc
 
 contains
 
-  function periodic_bc_constructor(location) result(bc)
+  function periodic_bc_constructor(location, input) result(bc)
     type(periodic_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
+    class(input_t), intent(in) :: input
+
     allocate(bc)
     bc%name = 'periodic'
     bc%location = location
+
+    if(trim(input%plus_x_bc) == 'periodic' .and. &
+       trim(input%minus_x_bc) == 'periodic' .and. &
+       trim(input%plus_y_bc) == 'periodic' .and. &
+       trim(input%minus_bc) == 'periodic') then
+
+      bc%do_corners = .true
+    end if
+
+    bc%do_corners = input
   end function periodic_bc_constructor
 
   subroutine copy_periodic_bc(out_bc, in_bc)
@@ -44,7 +57,7 @@ contains
   subroutine apply_periodic_conserved_var_bc(self, conserved_vars)
     !< Apply periodic boundary conditions to the conserved state vector field
     !//TODO: fix lbounds
-    class(periodic_bc_t), intent(in) :: self
+    class(periodic_bc_t), intent(inout) :: self
     real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
     !< ((rho, u ,v, p), i, j); Conserved variables for each cell
 
@@ -68,21 +81,45 @@ contains
 
     select case(self%location)
     case('+x')
-      conserved_vars(:, right_ghost, top_ghost) = conserved_vars(:, left, bottom)
-      conserved_vars(:, right_ghost, bottom_ghost) = conserved_vars(:, left, top)
-      conserved_vars(:, right_ghost, bottom:top) = conserved_vars(:, left, bottom:top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_conserved_var_bc() +x', __FILE__, __LINE__)
+      if(self%do_corners) then
+        conserved_vars(:, right_ghost, top_ghost) = conserved_vars(:, left, bottom)
+        conserved_vars(:, right_ghost, bottom_ghost) = conserved_vars(:, left, top)
+        conserved_vars(:, right_ghost, bottom:top) = conserved_vars(:, left, bottom:top)
+      else
+        conserved_vars(:, right_ghost, :) = conserved_vars(:, left, :)
+      end if
+
     case('-x')
-      conserved_vars(:, left_ghost, top_ghost) = conserved_vars(:, right, bottom)
-      conserved_vars(:, left_ghost, bottom_ghost) = conserved_vars(:, right, top)
-      conserved_vars(:, left_ghost, bottom:top) = conserved_vars(:, right, bottom:top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_conserved_var_bc() -x', __FILE__, __LINE__)
+      if(self%do_corners) then
+        conserved_vars(:, left_ghost, top_ghost) = conserved_vars(:, right, bottom)
+        conserved_vars(:, left_ghost, bottom_ghost) = conserved_vars(:, right, top)
+        conserved_vars(:, left_ghost, bottom:top) = conserved_vars(:, right, bottom:top)
+      else
+        conserved_vars(:, left_ghost, :) = conserved_vars(:, right, :)
+      end if
+
     case('+y')
-      conserved_vars(:, left_ghost, top_ghost) = conserved_vars(:, right, bottom)
-      conserved_vars(:, right_ghost, top_ghost) = conserved_vars(:, left, bottom)
-      conserved_vars(:, left:right, top_ghost) = conserved_vars(:, left:right, bottom)
+      call debug_print('Calling periodic_bc_t%apply_periodic_conserved_var_bc() +y', __FILE__, __LINE__)
+      if(self%do_corners) then
+        conserved_vars(:, left_ghost, top_ghost) = conserved_vars(:, right, bottom)
+        conserved_vars(:, right_ghost, top_ghost) = conserved_vars(:, left, bottom)
+        conserved_vars(:, left:right, top_ghost) = conserved_vars(:, left:right, bottom)
+      else
+        conserved_vars(:, :, top_ghost) = conserved_vars(:, :, bottom)
+      end if
+
     case('-y')
-      conserved_vars(:, left_ghost, bottom_ghost) = conserved_vars(:, right, top)
-      conserved_vars(:, right_ghost, bottom_ghost) = conserved_vars(:, left, top)
-      conserved_vars(:, left:right, bottom_ghost) = conserved_vars(:, left:right, top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_conserved_var_bc() -y', __FILE__, __LINE__)
+      if(self%do_corners) then
+        conserved_vars(:, left_ghost, bottom_ghost) = conserved_vars(:, right, top)
+        conserved_vars(:, right_ghost, bottom_ghost) = conserved_vars(:, left, top)
+        conserved_vars(:, left:right, bottom_ghost) = conserved_vars(:, left:right, top)
+      else
+        conserved_vars(:, :, bottom_ghost) = conserved_vars(:, :, top)
+      end if
+
     case default
       error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_cell_gradient_bc()"
     end select
@@ -116,21 +153,42 @@ contains
 
     select case(self%location)
     case('+x')
-      reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-      reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-      reconstructed_state(:, :, :, right_ghost, bottom:top) = reconstructed_state(:, :, :, left, bottom:top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_reconstructed_state_bc() +x', __FILE__, __LINE__)
+      if(self%do_corners) then
+        reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
+        reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
+        reconstructed_state(:, :, :, right_ghost, bottom:top) = reconstructed_state(:, :, :, left, bottom:top)
+      else
+        reconstructed_state(:, :, :, right_ghost, :) = reconstructed_state(:, :, :, left, :)
+      end if
+
     case('-x')
-      reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-      reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-      reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_reconstructed_state_bc() -x', __FILE__, __LINE__)
+      if(self%do_corners) then
+        reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
+        reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
+        reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
+      else
+        reconstructed_state(:, :, :, left_ghost, :) = reconstructed_state(:, :, :, right, :)
+      end if
     case('+y')
-      reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-      reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-      reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
+      call debug_print('Calling periodic_bc_t%apply_periodic_reconstructed_state_bc() +y', __FILE__, __LINE__)
+      if(self%do_corners) then
+        reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
+        reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
+        reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
+      else
+        reconstructed_state(:, :, :, :, top_ghost) = reconstructed_state(:, :, :, :, bottom)
+      end if
     case('-y')
-      reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-      reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-      reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_reconstructed_state_bc() -y', __FILE__, __LINE__)
+      if(self%do_corners) then
+        reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
+        reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
+        reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
+      else
+        reconstructed_state(:, :, :, :, bottom_ghost) = reconstructed_state(:, :, :, :, top)
+      end if
     case default
       error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_reconstructed_state_bc()"
     end select
@@ -164,21 +222,45 @@ contains
 
     select case(self%location)
     case('+x')
-      cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
-      cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
-      cell_gradient(:, :, right_ghost, bottom:top) = cell_gradient(:, :, left, bottom:top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_cell_gradient_bc() +x', __FILE__, __LINE__)
+      if(self%do_corners) then
+        cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
+        cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
+        cell_gradient(:, :, right_ghost, bottom:top) = cell_gradient(:, :, left, bottom:top)
+      else
+        cell_gradient(:, :, right_ghost, :) = cell_gradient(:, :, left, :)
+      end if
+
     case('-x')
-      cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
-      cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
-      cell_gradient(:, :, left_ghost, bottom:top) = cell_gradient(:, :, right, bottom:top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_cell_gradient_bc() -x', __FILE__, __LINE__)
+      if(self%do_corners) then
+        cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
+        cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
+        cell_gradient(:, :, left_ghost, bottom:top) = cell_gradient(:, :, right, bottom:top)
+      else
+        cell_gradient(:, :, left_ghost, :) = cell_gradient(:, :, right, :)
+      end if
+
     case('+y')
-      cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
-      cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
-      cell_gradient(:, :, left:right, top_ghost) = cell_gradient(:, :, left:right, bottom)
+      call debug_print('Calling periodic_bc_t%apply_periodic_cell_gradient_bc() +y', __FILE__, __LINE__)
+      if(self%do_corners) then
+        cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
+        cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
+        cell_gradient(:, :, left:right, top_ghost) = cell_gradient(:, :, left:right, bottom)
+      else
+        cell_gradient(:, :, :, top_ghost) = cell_gradient(:, :, :, bottom)
+      end if
+
     case('-y')
-      cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
-      cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
-      cell_gradient(:, :, left:right, bottom_ghost) = cell_gradient(:, :, left:right, top)
+      call debug_print('Calling periodic_bc_t%apply_periodic_cell_gradient_bc() -y', __FILE__, __LINE__)
+      if(self%do_corners) then
+        cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
+        cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
+        cell_gradient(:, :, left:right, bottom_ghost) = cell_gradient(:, :, left:right, top)
+      else
+        cell_gradient(:, :, :, bottom_ghost) = cell_gradient(:, :, :, top)
+      end if
+
     case default
       error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_cell_gradient_bc()"
     end select
