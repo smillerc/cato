@@ -67,6 +67,7 @@ module mod_regular_2d_grid
     procedure, public :: get_corner_vectors
     procedure, public :: finalize
     procedure, public :: copy
+    procedure, public :: print_grid_stats
     final :: force_finalization
 
   end type regular_2d_grid_t
@@ -137,6 +138,8 @@ contains
     end associate
 
     call self%populate_element_specifications()
+
+    call self%print_grid_stats()
   end subroutine
 
   subroutine copy(out_grid, in_grid)
@@ -202,6 +205,31 @@ contains
     ! if(allocated(out_grid%cell_edge_norm_vectors)) deallocate(out_grid%cell_edge_norm_vectors)
     ! allocate(out_grid%cell_edge_norm_vectors, source=in_grid%cell_edge_norm_vectors)
     out_grid%cell_edge_norm_vectors = in_grid%cell_edge_norm_vectors
+  end subroutine
+
+  subroutine print_grid_stats(self)
+    class(regular_2d_grid_t), intent(inout) :: self
+
+    write(*, '(a)') "Grid stats:"
+    write(*, '(a)') "===================="
+    write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_node, ' -> ', self%ihi_node
+    write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_node, ' -> ', self%jhi_node
+    write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_cell, ' -> ', self%ihi_cell
+    write(*, '(a, i6, a, i6)') "j cells: ", self%jlo_cell, ' -> ', self%jhi_cell
+    write(*, *)
+    write(*, '(a)') "Ghost Regions"
+    write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_bc_node, ' & ', self%ihi_bc_node
+    write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_bc_node, ' & ', self%jhi_bc_node
+    write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_bc_cell, ' & ', self%ihi_bc_cell
+    write(*, '(a, i6, a, i6)') "j cells: ", self%jlo_bc_cell, ' & ', self%jhi_bc_cell
+    write(*, *)
+    write(*, '(a)') "Totals"
+    write(*, '(a, i0)') "ni_nodes: ", self%ni_node
+    write(*, '(a, i0)') "nj_nodes: ", self%nj_node
+    write(*, '(a, i0)') "ni_cells: ", self%ni_cell
+    write(*, '(a, i0)') "nj_cells: ", self%nj_cell
+    write(*, *)
+
   end subroutine
 
   subroutine initialize_from_hdf5(self, input)
