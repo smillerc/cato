@@ -88,10 +88,12 @@ contains
     end if
 
     write(*, '(a)') 'Initial fluid stats'
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Density: ', minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max U: ', minval(self%conserved_vars(2, :, :)), maxval(self%conserved_vars(2, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max V: ', minval(self%conserved_vars(3, :, :)), maxval(self%conserved_vars(3, :, :))
+    write(*, '(a)') '==================='
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Density:  ', minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max U:        ', minval(self%conserved_vars(2, :, :)), maxval(self%conserved_vars(2, :, :))
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max V:        ', minval(self%conserved_vars(3, :, :)), maxval(self%conserved_vars(3, :, :))
     write(*, '(a, 2(es10.3, 1x))') 'Min/Max Pressure: ', minval(self%conserved_vars(4, :, :)), maxval(self%conserved_vars(4, :, :))
+    write(*, *)
   end subroutine
 
   subroutine initialize_from_hdf5(self, input, finite_volume_scheme)
@@ -196,7 +198,7 @@ contains
               downup_midpoints_state=>finite_volume_scheme%evolved_downup_midpoints_state)
 
       do concurrent(j=jlo:jhi)
-        do concurrent(i=jlo:jhi)
+        do concurrent(i=ilo:ihi)
 
           edge_flux = 0.0_rk
           ! Edge 1 (bottom)
