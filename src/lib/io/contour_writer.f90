@@ -23,9 +23,16 @@ module mod_contour_writer
     character(len=:), allocatable :: hdf5_filename
     character(len=:), allocatable :: xdmf_filename
     logical, private :: plot_64bit = .false.
+    logical, private :: plot_ghost_cells = .false.
     logical, private :: plot_reconstruction_states = .false.
     logical, private :: plot_reference_states = .false.
     logical, private :: plot_evolved_states = .false.
+
+    integer(ik) :: ilo_node, ihi_node
+    integer(ik) :: jlo_node, jhi_node
+
+    integer(ik) :: ilo_cell, ihi_cell
+    integer(ik) :: jlo_cell, jhi_cell
 
   contains
     procedure, public :: write_contour
@@ -48,6 +55,18 @@ contains
     writer%plot_reconstruction_states = input%plot_reconstruction_states
     writer%plot_reference_states = input%plot_reference_states
     writer%plot_evolved_states = input%plot_evolved_states
+    writer%plot_ghost_cells = input%plot_ghost_cells
+    writer%plot_64bit = input%plot_64bit
+
+    write(*, '(a)') "Contour Writer Inputs"
+    write(*, '(a)') "====================="
+    write(*, '(a, l1)') 'plot_reconstruction_states: ', writer%plot_reconstruction_states
+    write(*, '(a, l1)') 'plot_reference_states: ', writer%plot_reference_states
+    write(*, '(a, l1)') 'plot_evolved_states: ', writer%plot_evolved_states
+    write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
+    write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
+    write(*, *)
+
   end function
 
   subroutine finalize(self)
@@ -68,6 +87,29 @@ contains
     write(char_buff, '(a,i0.7)') 'step_', iteration
     self%hdf5_filename = trim(char_buff)//'.h5'
     self%xdmf_filename = trim(char_buff)//'.xdmf'
+
+    if(self%plot_ghost_cells) then
+      self%ilo_cell = fv_scheme%grid%ilo_bc_cell
+      self%ihi_cell = fv_scheme%grid%ihi_bc_cell
+      self%jlo_cell = fv_scheme%grid%jlo_bc_cell
+      self%jhi_cell = fv_scheme%grid%jhi_bc_cell
+
+      self%ilo_node = fv_scheme%grid%ilo_bc_node
+      self%ihi_node = fv_scheme%grid%ihi_bc_node
+      self%jlo_node = fv_scheme%grid%jlo_bc_node
+      self%jhi_node = fv_scheme%grid%jhi_bc_node
+
+    else
+      self%ilo_cell = fv_scheme%grid%ilo_cell
+      self%ihi_cell = fv_scheme%grid%ihi_cell
+      self%jlo_cell = fv_scheme%grid%jlo_cell
+      self%jhi_cell = fv_scheme%grid%jhi_cell
+
+      self%ilo_node = fv_scheme%grid%ilo_node
+      self%ihi_node = fv_scheme%grid%ihi_node
+      self%jlo_node = fv_scheme%grid%jlo_node
+      self%jhi_node = fv_scheme%grid%jhi_node
+    end if
 
     write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
@@ -126,59 +168,59 @@ contains
 
     ! Grid
     if(self%plot_64bit) then
-      call self%hdf5_file%add('/x', fv_scheme%grid%node_x)
+      call self%hdf5_file%add('/x', fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node))
     else
-      call self%hdf5_file%add('/x', real(fv_scheme%grid%node_x, real32))
+      call self%hdf5_file%add('/x', real(fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node), real32))
     end if
     call self%hdf5_file%writeattr('/x', 'description', 'X Coordinate')
     call self%hdf5_file%writeattr('/x', 'units', 'cm')
 
     if(self%plot_64bit) then
-      call self%hdf5_file%add('/y', fv_scheme%grid%node_y)
+      call self%hdf5_file%add('/y', fv_scheme%grid%node_y(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node))
     else
-      call self%hdf5_file%add('/y', real(fv_scheme%grid%node_y, real32))
+      call self%hdf5_file%add('/y', real(fv_scheme%grid%node_y(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node), real32))
     end if
     call self%hdf5_file%writeattr('/y', 'description', 'Y Coordinate')
     call self%hdf5_file%writeattr('/y', 'units', 'cm')
 
     ! Conserved Variables
     if(self%plot_64bit) then
-      call self%hdf5_file%add('/density', fluid%conserved_vars(1, :, :))
+      call self%hdf5_file%add('/density', fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, :, :), real32))
+call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/density', 'description', 'Cell Density')
     call self%hdf5_file%writeattr('/density', 'units', 'g/cc')
 
     if(self%plot_64bit) then
-      call self%hdf5_file%add('/x_velocity', fluid%conserved_vars(2, :, :))
+      call self%hdf5_file%add('/x_velocity', fluid%conserved_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/x_velocity', real(fluid%conserved_vars(2, :, :), real32))
+      call self%hdf5_file%add('/x_velocity', real(fluid%conserved_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/x_velocity', 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr('/x_velocity', 'units', 'cm/s')
 
     if(self%plot_64bit) then
-      call self%hdf5_file%add('/y_velocity', fluid%conserved_vars(3, :, :))
+      call self%hdf5_file%add('/y_velocity', fluid%conserved_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/y_velocity', real(fluid%conserved_vars(3, :, :), real32))
+      call self%hdf5_file%add('/y_velocity', real(fluid%conserved_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/y_velocity', 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr('/y_velocity', 'units', 'cm/s')
 
     if(self%plot_64bit) then
-      call self%hdf5_file%add('/pressure', fluid%conserved_vars(4, :, :))
+      call self%hdf5_file%add('/pressure', fluid%conserved_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/pressure', real(fluid%conserved_vars(4, :, :), real32))
+      call self%hdf5_file%add('/pressure', real(fluid%conserved_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/pressure', 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr('/pressure', 'units', 'barye')
 
     ! Volume
     if(self%plot_64bit) then
-      call self%hdf5_file%add('/volume', fv_scheme%grid%cell_volume)
+      call self%hdf5_file%add('/volume', fv_scheme%grid%cell_volume(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume, real32))
+      call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/volume', 'description', 'Cell Volume')
     call self%hdf5_file%writeattr('/volume', 'units', 'cc')
@@ -197,7 +239,7 @@ contains
     end if
 
     if(self%plot_reconstruction_states) then
-      call self%hdf5_file%add('/reconstructed_state', fv_scheme%reconstructed_state)
+      call self%hdf5_file%add('/reconstructed_state', fv_scheme%reconstructed_state(:,:,:,self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
       call self%hdf5_file%writeattr('/reconstructed_state', 'indices', '((rho, u ,v, p), point, node/midpoint, i, j)')
     end if
 
@@ -229,10 +271,10 @@ contains
 
     open(newunit=xdmf_unit, file=self%xdmf_filename, status='replace')
 
-    write(char_buff, '(2(i0,1x))') .reverse.shape(fluid%conserved_vars(1, :, :))
+    write(char_buff, '(2(i0,1x))') .reverse.shape(fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     cell_shape = trim(char_buff)
 
-    write(char_buff, '(2(i0,1x))') .reverse.shape(fv_scheme%grid%node_x)
+    write(char_buff, '(2(i0,1x))') .reverse.shape(fv_scheme%grid%node_x(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     node_shape = trim(char_buff)
 
     write(xdmf_unit, '(a)') '<?xml version="1.0" ?>'
@@ -248,11 +290,6 @@ contains
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//node_shape// &
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/y</DataItem>'
     write(xdmf_unit, '(a)') '      </Geometry>'
-
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Volume [cc]">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/volume</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Density [g/cc]">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
@@ -272,6 +309,11 @@ contains
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Pressure [barye]">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/pressure</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Volume [cc]">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/volume</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '    </Grid>'
