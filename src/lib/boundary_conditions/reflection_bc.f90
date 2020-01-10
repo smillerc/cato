@@ -17,9 +17,11 @@ module mod_reflection_bc
     procedure, public :: copy => copy_reflection_bc
   end type
 contains
-  function reflection_bc_constructor(location) result(bc)
+  function reflection_bc_constructor(location, input) result(bc)
     type(reflection_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
+    class(input_t), intent(in) :: input
+
     allocate(bc)
     bc%name = 'reflection'
     bc%location = location
@@ -32,7 +34,7 @@ contains
 
   subroutine apply_reflection_conserved_var_bc(self, conserved_vars)
     !< Apply reflection boundary conditions to the conserved state vector field
-    class(reflection_bc_t), intent(in) :: self
+    class(reflection_bc_t), intent(inout) :: self
     real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
     !< ((rho, u ,v, p), i, j); Conserved variables for each cell
 

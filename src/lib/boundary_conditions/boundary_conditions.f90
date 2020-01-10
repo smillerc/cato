@@ -11,8 +11,12 @@ module mod_boundary_conditions
   type, abstract :: boundary_condition_t
     character(len=32) :: name
     character(len=2) :: location  !< Location (+x, -x, +y, or -y)
+    real(rk), private :: time = 0.0_rk ! Solution time (for time dependent bc's)
+    integer(ik) :: priority !< Certain b.c.'s take priority over others in terms of when they are applied (periodic is last)
   contains
     ! procedure(initialize), public, deferred :: initialize
+    procedure, public :: set_time
+    procedure, public :: get_time
     procedure(apply_conserved_var_bc), public, deferred :: apply_conserved_var_bc
     procedure(apply_reconstructed_state_bc), public, deferred :: apply_reconstructed_state_bc
     procedure(apply_cell_gradient_bc), public, deferred :: apply_cell_gradient_bc
@@ -39,7 +43,7 @@ module mod_boundary_conditions
     subroutine apply_conserved_var_bc(self, conserved_vars)
       import :: boundary_condition_t
       import :: rk
-      class(boundary_condition_t), intent(in) :: self
+      class(boundary_condition_t), intent(inout) :: self
       real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
     end subroutine apply_conserved_var_bc
 
@@ -58,5 +62,15 @@ module mod_boundary_conditions
     end subroutine apply_cell_gradient_bc
   end interface
 contains
+  subroutine set_time(self, time)
+    class(boundary_condition_t), intent(inout) :: self
+    real(rk), intent(in) :: time
+    self%time = time
+  end subroutine
 
+  function get_time(self) result(time)
+    class(boundary_condition_t), intent(in) :: self
+    real(rk) :: time
+    time = self%time
+  end function
 end module mod_boundary_conditions
