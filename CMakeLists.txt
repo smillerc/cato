@@ -91,9 +91,8 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   )
 
   set(CMAKE_Fortran_FLAGS_DEBUG
-      "-O0 -g -warn all -debug all -traceback -fpe-all=0") # -coarray=singl
-  # e
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O2 -parallel") # -coarray
+      "-O0 -g -warn all -debug all -traceback -fpe-all=0 -coarray=single")
+  set(CMAKE_Fortran_FLAGS_RELEASE " -O2 -parallel -coarray")
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})

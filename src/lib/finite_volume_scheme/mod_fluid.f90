@@ -1,7 +1,9 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+
   use mod_globals, only: debug_print
+  use mod_parallel
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -24,6 +26,11 @@ module mod_fluid
 
   type, extends(integrand_t) :: fluid_t
     real(rk), dimension(:, :, :), allocatable :: conserved_vars
+    integer(ik) :: lb(2)         !< Lower bounds
+    integer(ik) :: ub(2)         !< Upper bounds
+    integer(ik) :: dims(2)       !< Data dimensions
+    integer(ik) :: neighbors(4)  !< Neighbor images
+    integer(ik) :: edge_size
     ! real(rk) :: timestep
     ! real(rk) :: time
     ! integer(ik) :: iteration
@@ -58,7 +65,7 @@ contains
     class(input_t), intent(in) :: input
     class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     class(strategy), pointer :: time_integrator => null()
-
+    integer(ik) :: edge_size, indices(4)
     integer(ik) :: alloc_status
 
     alloc_status = 0
@@ -67,8 +74,17 @@ contains
     associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, &
               imax=>finite_volume_scheme%grid%ihi_bc_cell, &
               jmin=>finite_volume_scheme%grid%jlo_bc_cell, &
-              jmax=>finite_volume_scheme%grid%jhi_bc_cell)
+              jmax=>finite_volume_scheme%grid%jhi_bc_cell, &
+              ni=>finite_volume_scheme%grid%ni_cell, &
+              nj=>finite_volume_scheme%grid%nj_cell)
 
+      indices = tile_indices([ni, nj])
+      self%lb = indices([1, 3])
+      self%ub = indices([2, 4])
+      self%neighbors = tile_neighbors_2d(periodic=.true.)
+      self%edge_size = max(self%ub(1) - self%lb(1) + 1, &
+                           self%ub(2) - self%lb(2) + 1)
+      call co_max(self%edge_size)
       allocate(self%conserved_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
       ! ((rho,u,v,p),i,j) Conserved variables for each cell
       if(alloc_status /= 0) then

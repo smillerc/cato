@@ -1,6 +1,8 @@
 add_library(globals lib/hermetic.f90 lib/globals.f90 lib/math_constants.f90
                     lib/floating_point_utilities.f90)
 
+add_library(parallel lib/mod_parallel.f90)
+
 add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
                        third_party/ini_parser/string_conv_mod.f90)
 
@@ -65,6 +67,7 @@ add_library(
 target_link_libraries(
   fvleg
   PUBLIC eos
+         parallel
          globals
          geometry
          utilities
@@ -79,6 +82,7 @@ target_link_libraries(
   fvleg
   functional
   finterp
+  parallel
   ${HDF5_LIBRARIES}
   ${HDF5_HL_LIBRARIES}
   ${Coarray_LIBRARIES})

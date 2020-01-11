@@ -50,10 +50,10 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
     end associate
 
-    bc_plus_x => bc_factory(bc_type='periodic', location='+x')
-    bc_plus_y => bc_factory(bc_type='periodic', location='+y')
-    bc_minus_x => bc_factory(bc_type='periodic', location='-x')
-    bc_minus_y => bc_factory(bc_type='periodic', location='-y')
+    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input)
+    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input)
+    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input)
+    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input)
 
     @assertEqual('+x', bc_plus_x%location)
     @assertEqual('+y', bc_plus_y%location)
