@@ -35,12 +35,11 @@ contains
     if(trim(input%plus_x_bc) == 'periodic' .and. &
        trim(input%minus_x_bc) == 'periodic' .and. &
        trim(input%plus_y_bc) == 'periodic' .and. &
-       trim(input%minus_bc) == 'periodic') then
+       trim(input%minus_y_bc) == 'periodic') then
 
-      bc%do_corners = .true
+      bc%do_corners = .true.
     end if
 
-    bc%do_corners = input
   end function periodic_bc_constructor
 
   subroutine copy_periodic_bc(out_bc, in_bc)

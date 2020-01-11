@@ -157,6 +157,7 @@ contains
     jlo = lbound(reference_state, dim=3) ! in the j-direction, # left/right midpoints = # nodes
     jhi = ubound(reference_state, dim=3) ! in the j-direction, # left/right midpoints = # nodes
 
+!&<
 #ifdef __DEBUG__
     do j = jlo, jhi
       do i = ilo, ihi
@@ -165,6 +166,7 @@ contains
           do concurrent(i=ilo:ihi)
 #endif
 
+!&>
             neighbor_cell_indices = reshape([[i, j], &  ! cell above
                                              [i, j - 1] &  ! cell below
                                              ], shape=[2, 2])
@@ -267,7 +269,7 @@ contains
           ihi = ubound(reference_state, dim=2)  ! in the i-direction, # down/up midpoints = # nodes
           jlo = lbound(reference_state, dim=3)  ! in the j-direction, # down/up midpoints = # cells
           jhi = ubound(reference_state, dim=3)  ! in the j-direction, # down/up midpoints = # cells
-
+!&<
 #ifdef __DEBUG__
           do j = jlo, jhi
             do i = ilo, ihi
@@ -275,6 +277,7 @@ contains
               do concurrent(j=jlo:jhi)
                 do concurrent(i=ilo:ihi)
 #endif
+!&>
 
                   ! cell ordering is 1) left, 2) right
                   neighbor_cell_indices = reshape([[i - 1, j], &  ! cell left
@@ -282,7 +285,7 @@ contains
                                                    ], shape=[2, 2])
 
                   midpoint_edge_vectors = self%grid%get_midpoint_vectors(cell_ij=[i, j], edge='left')
-
+                  ! debug_write(*,*) i, j
                   ! Cell 1: cell to the left -> midpoint point is on the left (M4) of the parent cell
                   point_idx = 4
                   reconstructed_midpoint_state(:, 1) = self%reconstructed_state(:, point_idx, midpoint_idx, i - 1, j)
@@ -373,7 +376,7 @@ contains
                 ihi = ubound(reference_state, dim=2)
                 jlo = lbound(reference_state, dim=3)
                 jhi = ubound(reference_state, dim=3)
-
+!&<
 #ifdef __DEBUG__
                 do j = jlo, jhi
                   do i = ilo, ihi
@@ -381,6 +384,7 @@ contains
                     do concurrent(j=jlo:jhi)
                       do concurrent(i=ilo:ihi)
 #endif
+!&>
 
                         ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
                         neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
@@ -510,8 +514,11 @@ contains
                         density = density + rho_p_prime - (pressure_p_prime / a_tilde**2)
                       end associate
 
-                      if(near_zero(density) .or. density < 0.0_rk) then
-                        error stop "Density <= 0 in local_evo_operator_t%get_density"
+                      if(density < 0.0_rk) then
+                        debug_write(*, *) mach_cone
+                        debug_write(*, *) "Density:", density
+                        debug_write(*, *) "p_prime_u_bar [rho,u,v,p]:", p_prime_u_bar
+                        error stop "Density < 0 in local_evo_operator_t%get_density"
                       end if
                     end function get_density
 

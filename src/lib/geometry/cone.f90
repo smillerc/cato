@@ -1,3 +1,9 @@
+#ifdef __DEBUG__
+#define debug_write write
+#else
+#define debug_write ! write
+#endif
+
 module mod_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi, rad2deg
@@ -102,8 +108,8 @@ contains
     new_cone%reference_state = reference_state
     ! //TODO: Move speed of sound calculation to the EOS module
     associate(a=>new_cone%reference_state(4), rho=>reference_state(1), &
-              p=>reference_state(4), gamma=>eos%get_gamma())
-      a = sqrt(gamma * p / rho)
+              p=>reference_state(4))
+      a = eos%calc_sound_speed(pressure=p, density=rho)
       new_cone%radius = a * tau
     end associate
 
@@ -128,15 +134,17 @@ contains
       ! This defines P' (x,y) globally, not with respect to P
       new_cone%p_xy = [x, y]
       new_cone%p_prime_xy = [x - u_tilde * tau, y - v_tilde * tau]
+      ! debug_write(*,*) x, u_tilde, tau, y, v_tilde
     end associate
 
     ! The P' vector points from P (tail), to P' (head)
+    ! debug_write(*,*) "P'", new_cone%p_prime_xy
     p_prime_vector = vector_t(x=[edge_vectors(1, 1, 1), new_cone%p_prime_xy(1)], &
                               y=[edge_vectors(2, 1, 1), new_cone%p_prime_xy(2)])
 
     ! Loop through each neighbor cell and determine intersections and angles
-    p_prime_in_cell = .false.
     do neighbor_cell = 1, new_cone%n_neighbor_cells
+      p_prime_in_cell = .false.
 
       cell_ij = cell_indices(:, neighbor_cell)  ! cell_indices is indexed via ((i,j), cell_1:cell_n)
 
@@ -145,28 +153,25 @@ contains
       single_cell_edge_vectors(:, :, 2) = edge_vectors(:, :, edge_vector_ordering(2, neighbor_cell))
 
       ! P' can only be in 1 cell
-      ! if(.not. p_prime_in_cell) then
       p_prime_in_cell = determine_if_p_prime_is_in_cell(single_cell_edge_vectors, p_prime_vector)
-      new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
-      if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
-      ! end if
+      if(.not. any(new_cone%p_prime_in_cell)) then
+        new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
+        if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
+      end if
 
       call get_arc_segments(lines=single_cell_edge_vectors, origin_in_cell=p_prime_in_cell, &
                             circle_xy=new_cone%p_prime_xy, circle_radius=new_cone%radius, &
                             arc_segments=theta_ib_ie, n_arcs=n_arcs)
 
+      new_cone%cell_conserved_vars(:, 1, neighbor_cell) = reconstructed_state(:, neighbor_cell)
+      new_cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
+
       ! If all the arcs already add up to 2pi, then skip the remaining neighbor cells
-      ! if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
+      if(equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) exit
       ! //TODO: test the above statement in unit testing
       new_cone%n_arcs(neighbor_cell) = n_arcs
       new_cone%theta_ib(neighbor_cell, :) = theta_ib_ie(1, :)
       new_cone%theta_ie(neighbor_cell, :) = theta_ib_ie(2, :)
-
-      ! arc 1 & 2 (if more than one arc)
-      new_cone%cell_conserved_vars(:, 1, neighbor_cell) = reconstructed_state(:, neighbor_cell)
-      new_cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
-
-      ! end if
 
     end do
 
@@ -177,6 +182,7 @@ contains
     if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
       ! print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
       ! write(*, *) new_cone
+      debug_write(*, *) new_cone
       error stop "Cone arcs do not add up to 2pi"
     end if
   end function
@@ -201,6 +207,9 @@ contains
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Radius: ", self%radius, new_line('a')
     write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) "P (x,y): (", self%p_xy, ")"//new_line('a')
     write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) "P'(x,y): (", self%p_prime_xy, ")"//new_line('a')
+    write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) &
+      "P'(x,y) - P(x,y): (", self%p_prime_xy - self%p_xy, ")"//new_line('a')
+
     write(unit, '(a, 2(i7,1x), a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij, ")"//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
@@ -235,9 +244,9 @@ contains
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Conserved Vars state [rho,u,v,p]'//new_line('a')
     do i = 1, 4
-      write(unit, '(a, i0, a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
+      write(unit, '(a, i0, a, 4(es10.3, 1x), a)', iostat=iostat, iomsg=iomsg) &
         'Cell: ', i, ' [ ', self%cell_conserved_vars(:, 1, i), '] (arc 1)'//new_line('a')
-      write(unit, '(a, 4(f6.2, 1x), a)', iostat=iostat, iomsg=iomsg) &
+      write(unit, '(a, 4(es10.3, 1x), a)', iostat=iostat, iomsg=iomsg) &
         '        [ ', self%cell_conserved_vars(:, 2, i), '] (arc 2)'//new_line('a')
     end do
 

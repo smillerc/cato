@@ -187,7 +187,8 @@ contains
     if(self%plot_64bit) then
       call self%hdf5_file%add('/density', fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
+      call self%hdf5_file%add('/density', &
+                              real(fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/density', 'description', 'Cell Density')
     call self%hdf5_file%writeattr('/density', 'units', 'g/cc')
@@ -195,7 +196,8 @@ call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, self%ilo_cell:s
     if(self%plot_64bit) then
       call self%hdf5_file%add('/x_velocity', fluid%conserved_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/x_velocity', real(fluid%conserved_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
+      call self%hdf5_file%add('/x_velocity', &
+                              real(fluid%conserved_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/x_velocity', 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr('/x_velocity', 'units', 'cm/s')
@@ -203,7 +205,8 @@ call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, self%ilo_cell:s
     if(self%plot_64bit) then
       call self%hdf5_file%add('/y_velocity', fluid%conserved_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/y_velocity', real(fluid%conserved_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
+      call self%hdf5_file%add('/y_velocity', &
+                              real(fluid%conserved_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/y_velocity', 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr('/y_velocity', 'units', 'cm/s')
@@ -211,7 +214,8 @@ call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, self%ilo_cell:s
     if(self%plot_64bit) then
       call self%hdf5_file%add('/pressure', fluid%conserved_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/pressure', real(fluid%conserved_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
+      call self%hdf5_file%add('/pressure', &
+                              real(fluid%conserved_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/pressure', 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr('/pressure', 'units', 'barye')
@@ -220,7 +224,8 @@ call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, self%ilo_cell:s
     if(self%plot_64bit) then
       call self%hdf5_file%add('/volume', fv_scheme%grid%cell_volume(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     else
-      call self%hdf5_file%add('/volume', real(fv_scheme%grid%cell_volume(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
+      call self%hdf5_file%add('/volume', &
+                              real(fv_scheme%grid%cell_volume(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     end if
     call self%hdf5_file%writeattr('/volume', 'description', 'Cell Volume')
     call self%hdf5_file%writeattr('/volume', 'units', 'cc')
@@ -239,7 +244,8 @@ call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, self%ilo_cell:s
     end if
 
     if(self%plot_reconstruction_states) then
-      call self%hdf5_file%add('/reconstructed_state', fv_scheme%reconstructed_state(:,:,:,self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+      call self%hdf5_file%add('/reconstructed_state', &
+                              fv_scheme%reconstructed_state(:, :, :, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
       call self%hdf5_file%writeattr('/reconstructed_state', 'indices', '((rho, u ,v, p), point, node/midpoint, i, j)')
     end if
 
@@ -274,7 +280,7 @@ call self%hdf5_file%add('/density', real(fluid%conserved_vars(1, self%ilo_cell:s
     write(char_buff, '(2(i0,1x))') .reverse.shape(fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     cell_shape = trim(char_buff)
 
-    write(char_buff, '(2(i0,1x))') .reverse.shape(fv_scheme%grid%node_x(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+    write(char_buff, '(2(i0,1x))') .reverse.shape(fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node))
     node_shape = trim(char_buff)
 
     write(xdmf_unit, '(a)') '<?xml version="1.0" ?>'

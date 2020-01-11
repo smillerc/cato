@@ -145,25 +145,33 @@ contains
     deallocate(grid)
 
     ! Set boundary conditions
-    bc => bc_factory(bc_type=input%plus_x_bc, location='+x')
+    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input)
     allocate(self%bc_plus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%plus_y_bc, location='+y')
+    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input)
     allocate(self%bc_plus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_y"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_x_bc, location='-x')
+    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input)
     allocate(self%bc_minus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_y_bc, location='-y')
+    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input)
     allocate(self%bc_minus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_y"
     deallocate(bc)
+
+    write(*, '(a)') "Boundary Conditions"
+    write(*, '(a)') "==================="
+    write(*, '(3(a),i0,a)') "+x: ", trim(self%bc_plus_x%name), ' (priority = ', self%bc_plus_x%priority, ')'
+    write(*, '(3(a),i0,a)') "-x: ", trim(self%bc_minus_x%name), ' (priority = ', self%bc_minus_x%priority, ')'
+    write(*, '(3(a),i0,a)') "+y: ", trim(self%bc_plus_y%name), ' (priority = ', self%bc_plus_y%priority, ')'
+    write(*, '(3(a),i0,a)') "-y: ", trim(self%bc_minus_y%name), ' (priority = ', self%bc_minus_y%priority, ')'
+    write(*, *)
 
     associate(imin=>self%grid%ilo_bc_cell, imax=>self%grid%ihi_bc_cell, &
               jmin=>self%grid%jlo_bc_cell, jmax=>self%grid%jhi_bc_cell)
@@ -351,35 +359,102 @@ contains
     integer(ik), dimension(3), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: conserved_vars
 
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
+
     call debug_print('Calling apply_conserved_var_bc', __FILE__, __LINE__)
-    call self%bc_plus_x%apply_conserved_var_bc(conserved_vars=conserved_vars)
-    call self%bc_plus_y%apply_conserved_var_bc(conserved_vars=conserved_vars)
-    call self%bc_minus_x%apply_conserved_var_bc(conserved_vars=conserved_vars)
-    call self%bc_minus_y%apply_conserved_var_bc(conserved_vars=conserved_vars)
+
+    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
+                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+
+    do priority = max_priority_bc, 0, -1
+
+      if(self%bc_plus_x%priority == priority) then
+        call self%bc_plus_x%apply_conserved_var_bc(conserved_vars=conserved_vars)
+      end if
+
+      if(self%bc_plus_y%priority == priority) then
+        call self%bc_plus_y%apply_conserved_var_bc(conserved_vars=conserved_vars)
+      end if
+
+      if(self%bc_minus_x%priority == priority) then
+        call self%bc_minus_x%apply_conserved_var_bc(conserved_vars=conserved_vars)
+      end if
+
+      if(self%bc_minus_y%priority == priority) then
+        call self%bc_minus_y%apply_conserved_var_bc(conserved_vars=conserved_vars)
+      end if
+
+    end do
+
   end subroutine apply_conserved_vars_bc
 
   subroutine apply_reconstructed_state_bc(self)
     !< Apply the boundary conditions
     class(finite_volume_scheme_t), intent(inout) :: self
 
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
+
     call debug_print('Calling apply_reconstructed_state_bc', __FILE__, __LINE__)
-    call self%bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
-    call self%bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
-    call self%bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
-    call self%bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
+
+    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
+                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+
+    do priority = max_priority_bc, 0, -1
+
+      if(self%bc_plus_x%priority == priority) then
+        call self%bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
+      end if
+
+      if(self%bc_plus_y%priority == priority) then
+        call self%bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
+      end if
+
+      if(self%bc_minus_x%priority == priority) then
+        call self%bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
+      end if
+
+      if(self%bc_minus_y%priority == priority) then
+        call self%bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=self%reconstructed_state)
+      end if
+
+    end do
   end subroutine apply_reconstructed_state_bc
 
   subroutine apply_cell_gradient_bc(self)
     !< Apply the boundary conditions
     class(finite_volume_scheme_t), intent(inout) :: self
 
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
+
+    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
+                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+
     if(self%reconstruction_operator%order > 1) then
       call debug_print('Calling apply_cell_gradient_bc', __FILE__, __LINE__)
-      call self%bc_plus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
-      call self%bc_plus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
-      call self%bc_minus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
-      call self%bc_minus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+      do priority = max_priority_bc, 0, -1
+
+        if(self%bc_plus_x%priority == priority) then
+          call self%bc_plus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+        end if
+
+        if(self%bc_plus_y%priority == priority) then
+          call self%bc_plus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+        end if
+
+        if(self%bc_minus_x%priority == priority) then
+          call self%bc_minus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+        end if
+
+        if(self%bc_minus_y%priority == priority) then
+          call self%bc_minus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient)
+        end if
+
+      end do
     end if
+
   end subroutine apply_cell_gradient_bc
 
   subroutine calculate_reference_state(self, conserved_vars, lbounds)
@@ -400,7 +475,9 @@ contains
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%leftright_midpoints_reference_state, U=>conserved_vars)
-          U_tilde(:, i, j) = 0.5_rk * (U(:, i, j) + U(:, i, j - 1))
+          ! U_tilde(:, i, j) = 0.5_rk * (U(:, i, j) + U(:, i, j - 1))
+          U_tilde(:, i, j) = max(U(:, i, j), U(:, i, j - 1))
+          ! debug_write(*,*) U(:, i, j), U(:, i, j - 1)
         end associate
       end do
     end do
@@ -413,7 +490,9 @@ contains
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%downup_midpoints_reference_state, U=>conserved_vars)
-          U_tilde(:, i, j) = 0.5_rk * (U(:, i - 1, j) + U(:, i, j))
+          ! U_tilde(:, i, j) = 0.5_rk * (U(:, i - 1, j) + U(:, i, j))
+          U_tilde(:, i, j) = max(U(:, i - 1, j), U(:, i, j))
+          ! debug_write(*,*) U(:, i - 1, j), U(:, i, j)
         end associate
       end do
     end do
@@ -426,8 +505,12 @@ contains
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
         associate(U_tilde=>self%corner_reference_state, U=>conserved_vars)
-          U_tilde(:, i, j) = 0.25_rk * (U(:, i, j) + U(:, i - 1, j) + &
-                                        U(:, i, j - 1) + U(:, i - 1, j - 1))
+          ! U_tilde(:, i, j) = 0.25_rk * (U(:, i, j) + U(:, i - 1, j) + &
+          !                               U(:, i, j - 1) + U(:, i - 1, j - 1))
+          U_tilde(:, i, j) = max(U(:, i, j), U(:, i - 1, j), &
+                                 U(:, i, j - 1), U(:, i - 1, j - 1))
+
+          ! debug_write(*,*)
         end associate
       end do
     end do

@@ -119,7 +119,10 @@ contains
       boundary_pressure = self%pressure_input
     else
       call self%temporal_pressure_input%evaluate(x=self%get_time(), f=boundary_pressure, istat=interp_stat)
- if(interp_stat /= 0) error stop "Unable to interpolate pressure within pressure_input_bc_t%apply_pressure_input_conserved_var_bc()"
+      if(interp_stat /= 0) then
+        error stop "Unable to interpolate pressure within "// &
+          "pressure_input_bc_t%apply_pressure_input_conserved_var_bc()"
+      end if
     end if
 
     select case(self%location)
@@ -139,7 +142,8 @@ contains
     case('-y')
       ! conserved_vars(:, :, bottom_ghost) = conserved_vars(:, left:right, top)
     case default
-      error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
+      error stop "Unsupported location to apply the bc at in "// &
+        "pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
     end select
 
   end subroutine apply_pressure_input_conserved_var_bc

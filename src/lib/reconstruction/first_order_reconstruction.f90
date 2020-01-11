@@ -128,12 +128,12 @@ contains
             reconstructed_domain(:, p, n, i, j) = self%conserved_vars(:, i, j)
 
             if(reconstructed_domain(1, p, n, i, j) < 0) then
-              debug_write (*,'(a, 4(", ", i0), a, 4(es10.3, 1x))') 'Density -> reconstructed_domain(1, p, n, i, j) @ (1', p, n, i, j, ') = ', reconstructed_domain(:, p, n, i, j)
+     debug_write(*, '(a, 4(", ", i0), a, 4(es10.3, 1x))') 'Density -> @ (1', p, n, i, j, ') = ', reconstructed_domain(:, p, n, i, j)
               error stop "Density <= 0 in first_order_reconstruction_t%reconstruct_domain"
             end if
 
             if(reconstructed_domain(4, p, n, i, j) < 0) then
-              debug_write (*,'(a, 4(", ", i0), a, 4(es10.3, 1x))') 'Pressure -> reconstructed_domain(4, p, n, i, j) @ (1', p, n, i, j, ') = ', reconstructed_domain(:, p, n, i, j)
+    debug_write(*, '(a, 4(", ", i0), a, 4(es10.3, 1x))') 'Pressure -> @ (1', p, n, i, j, ') = ', reconstructed_domain(:, p, n, i, j)
               error stop "Pressure <= 0 in first_order_reconstruction_t%reconstruct_domain"
             end if
 
