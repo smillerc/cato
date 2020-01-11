@@ -65,6 +65,62 @@ def make_uniform_grid(n_nodes, xrange, yrange):
     }
 
 
+def make_1d_in_x_uniform_grid(n_nodes, limits=(0, 1)):
+    """Generate a uniform grid 1d grid in x. This will output a dictionary
+    that contains the appropriate arrays, which include the ghost
+    cell layer.
+
+    Parameters
+    ----------
+    n_nodes : tuple
+        Number of non-ghost nodes in each direction (x,y)
+    xrange : tuple
+        Extent of the domain in x (min,max)
+    yrange : tuple
+        Extent of the domain in y (min,max)
+
+    Returns
+    -------
+    dictionary
+        A dictionary that contains the conserved variables (rho, u velocity, v
+        velocity, p), grid (x,y) points, and the cell center (xc,yc) points
+    """
+
+    x = np.linspace(limits[0], limits[1], n_nodes, dtype=np.float64)
+    ldx = x[1] - x[0]
+    rdx = x[-1] - x[-2]
+    x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)
+
+    y = np.array([-ldx, 0, ldx, ldx * 2], dtype=np.float64) - ldx / 2
+
+    xc = np.zeros(x.shape[0] - 1, dtype=np.float64)
+    yc = np.zeros(y.shape[0] - 1, dtype=np.float64)
+
+    xx, yy = np.meshgrid(x, y)
+    xxc, yyc = np.meshgrid(xc, yc)
+
+    rho = np.ones_like(xxc, dtype=np.float64)
+    pressure = np.ones_like(xxc, dtype=np.float64)
+    u = np.ones_like(xxc, dtype=np.float64)
+    v = np.ones_like(xxc, dtype=np.float64)
+
+    dy = (np.diff(yy[:, 0]) / 2.0)[0]
+    dx = (np.diff(xx[0, :]) / 2.0)[0]
+    xc = xx[:-1, :-1] + dx
+    yc = yy[:-1, :-1] + dy
+
+    return {
+        "x": xx,
+        "y": yy,
+        "rho": rho,
+        "u": u,
+        "v": v,
+        "p": pressure,
+        "xc": xc,
+        "yc": yc,
+    }
+
+
 def write_initial_hdf5(filename, initial_condition_dict, boundary_conditions_dict):
     """ Write the initial conditions to an hdf5 file.
 
