@@ -162,12 +162,18 @@ contains
 
   subroutine force_finalization(self)
     class(fluid_t), intent(inout) :: self
-    deallocate(self%conserved_vars)
+
+    call debug_print('Calling fluid_t%force_finalization()', __FILE__, __LINE__)
+    if(allocated(self%conserved_vars)) deallocate(self%conserved_vars)
+    if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine
 
   subroutine finalize(self)
     type(fluid_t), intent(inout) :: self
-    deallocate(self%conserved_vars)
+
+    call debug_print('Calling fluid_t%finalize()', __FILE__, __LINE__)
+    if(allocated(self%conserved_vars)) deallocate(self%conserved_vars)
+    if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine
 
   function time_derivative(self, finite_volume_scheme) result(d_dt)
@@ -276,6 +282,8 @@ contains
     end associate
 
     call move_alloc(local_d_dt, d_dt)
+    call d_dt%set_temp(calling_function='time_derivative (d_dt)', line=__LINE__)
+
   end function time_derivative
 
   function subtract_fluid(lhs, rhs) result(difference)
@@ -297,6 +305,7 @@ contains
     end select
 
     call move_alloc(local_difference, difference)
+    call difference%set_temp(calling_function='subtract_fluid (difference)', line=__LINE__)
   end function subtract_fluid
 
   function add_fluid(lhs, rhs) result(sum)
@@ -318,6 +327,7 @@ contains
     end select
 
     call move_alloc(local_sum, sum)
+    call sum%set_temp(calling_function='add_fluid(sum)', line=__LINE__)
   end function add_fluid
 
   function fluid_mul_real(lhs, rhs) result(product)
@@ -335,7 +345,9 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid%fluid_mul_real"
 
     local_product%conserved_vars = lhs%conserved_vars * rhs
+
     call move_alloc(local_product, product)
+    call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
   end function fluid_mul_real
 
   function real_mul_fluid(lhs, rhs) result(product)
@@ -354,9 +366,8 @@ contains
 
     local_product%conserved_vars = rhs%conserved_vars * lhs
 
-    call local_product%set_temp(calling_function='real_mul_fluid (local_product)', line=__LINE__)
-
     call move_alloc(local_product, product)
+    call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
   end function real_mul_fluid
 
   subroutine assign_fluid(lhs, rhs)
@@ -371,6 +382,7 @@ contains
     call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
     select type(rhs)
     class is(fluid_t)
+      lhs%time_integrator = rhs%time_integrator
       lhs%conserved_vars = rhs%conserved_vars
     class default
       error stop 'fluid%assign_fluid: unsupported class'
