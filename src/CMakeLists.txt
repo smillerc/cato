@@ -1,5 +1,5 @@
 add_library(globals lib/hermetic.f90 lib/globals.f90 lib/math_constants.f90
-                    lib/floating_point_utilities.f90)
+                    lib/floating_point_utilities.f90 lib/mod_timing.f90)
 
 add_library(parallel lib/mod_parallel.f90)
 
@@ -76,9 +76,9 @@ target_link_libraries(
          functional # functional # ${Coarray_LIBRARIES} ${HDF5_LIBRARIES} #
          ${HDF5_HL_LIBRARIES})
 
-add_executable(fvleg_2d.x main.f90)
+add_executable(cato.x main.f90)
 target_link_libraries(
-  fvleg_2d.x
+  cato.x
   fvleg
   functional
   finterp
@@ -117,8 +117,8 @@ target_link_libraries(
 
 # target_link_libraries(fvleg ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 
-# add_executable(fvleg_2d.x main.f90) set_property(TARGET fvleg_2d.x PROPERTY
-# INTERPROCEDURAL_OPTIMIZATION FALSE) set_target_properties(fvleg_2d.x
+# add_executable(cato.x main.f90) set_property(TARGET cato.x PROPERTY
+# INTERPROCEDURAL_OPTIMIZATION FALSE) set_target_properties(cato.x
 # PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE) # message(STATUS
 # "INTERPROCEDURAL_OPTIMIZATION: " # ${INTERPROCEDURAL_OPTIMIZATION})
-# target_link_libraries(fvleg_2d.x fvleg)
+# target_link_libraries(cato.x fvleg)

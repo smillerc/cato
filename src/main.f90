@@ -4,6 +4,7 @@ program fvleg
   use mod_contour_writer, only: contour_writer_t
   use mod_globals, only: print_version_stats
   use mod_input, only: input_t
+  use mod_timing, only: timer_t
   use mod_finite_volume_schemes, only: finite_volume_scheme_t, make_fv_scheme
   use mod_fluid, only: fluid_t, new_fluid
   use mod_integrand, only: integrand_t
@@ -22,6 +23,7 @@ program fvleg
   ! type(fvleg_t), target :: fv
 
   type(contour_writer_t) :: contour_writer
+  type(timer_t) :: timer
   real(rk) :: time = 0.0_rk
   real(rk) :: delta_t
   real(rk) :: c_sound = 0.0_rk
@@ -31,12 +33,12 @@ program fvleg
 
   ! ascii art for the heck of it :)
   write(output_unit, '(a)')
-  write(output_unit, '(a)') "_______________   ____.____     ___________ ________            ________  ________"
-  write(output_unit, '(a)') "\_   _____/\   \ /   /|    |    \_   _____//  _____/            \_____  \ \______ \"
-  write(output_unit, '(a)') " |    __)   \   Y   / |    |     |    __)_/   \  ___    ______   /  ____/  |    |  \"
-  write(output_unit, '(a)') " |     \     \     /  |    |___  |        \    \_\  \  /_____/  /       \  |    `   \"
-  write(output_unit, '(a)') " \___  /      \___/   |_______ \/_______  /\______  /           \_______ \/_______  /"
-  write(output_unit, '(a)') "     \/                       \/        \/        \/                    \/        \/"
+  write(output_unit, '(a)') "  ______      ___   .___________.  ______  "
+  write(output_unit, '(a)') " /      |    /   \  |           | /  __  \ "
+  write(output_unit, '(a)') "|  ,----'   /  ^  \ `---|  |----`|  |  |  |"
+  write(output_unit, '(a)') "|  |       /  /_\  \    |  |     |  |  |  |"
+  write(output_unit, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
+  write(output_unit, '(a)') " \______|/__/     \__\  |__|      \______/ "
   write(output_unit, '(a)')
 
   call print_version_stats()
@@ -56,6 +58,9 @@ program fvleg
   print *, 'Starting time loop:'
   write(*, '(a)') '--------------------------------------------'
   print *
+
+  call timer%start()
+
   do while(time < input%max_time .and. iteration < input%max_iterations)
 
     associate(rho=>U%conserved_vars(1, :, :), &
@@ -99,9 +104,12 @@ program fvleg
     iteration = iteration + 1
   end do
 
+  call timer%stop()
   ! Write the final step
   call contour_writer%write_contour(U, fv, time, iteration)
 
   deallocate(fv)
   deallocate(U)
+
+  call timer%output_stats()
 end program

@@ -472,48 +472,48 @@ contains
     ihi = ubound(self%leftright_midpoints_reference_state, dim=2)
     jlo = lbound(self%leftright_midpoints_reference_state, dim=3)
     jhi = ubound(self%leftright_midpoints_reference_state, dim=3)
+    ! associate(U_tilde=>self%leftright_midpoints_reference_state, U=>conserved_vars)
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
-        associate(U_tilde=>self%leftright_midpoints_reference_state, U=>conserved_vars)
-          ! U_tilde(:, i, j) = 0.5_rk * (U(:, i, j) + U(:, i, j - 1))
-          U_tilde(:, i, j) = max(U(:, i, j), U(:, i, j - 1))
-          ! debug_write(*,*) U(:, i, j), U(:, i, j - 1)
-        end associate
+        ! self%leftright_midpoints_reference_state(:, i, j) = 0.5_rk * (conserved_vars(:, i, j) + conserved_vars(:, i, j - 1))
+        self%leftright_midpoints_reference_state(:, i, j) = max(conserved_vars(:, i, j), conserved_vars(:, i, j - 1))
+        ! debug_write(*,*) conserved_vars(:, i, j), conserved_vars(:, i, j - 1)
       end do
     end do
+    ! end associate
 
     ! up/down midpoints -> needs to average cells right and left
     ilo = lbound(self%downup_midpoints_reference_state, dim=2)
     ihi = ubound(self%downup_midpoints_reference_state, dim=2)
     jlo = lbound(self%downup_midpoints_reference_state, dim=3)
     jhi = ubound(self%downup_midpoints_reference_state, dim=3)
+    ! associate(U_tilde=>self%downup_midpoints_reference_state, conserved_vars=>conserved_vars)
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
-        associate(U_tilde=>self%downup_midpoints_reference_state, U=>conserved_vars)
-          ! U_tilde(:, i, j) = 0.5_rk * (U(:, i - 1, j) + U(:, i, j))
-          U_tilde(:, i, j) = max(U(:, i - 1, j), U(:, i, j))
-          ! debug_write(*,*) U(:, i - 1, j), U(:, i, j)
-        end associate
+        ! self%downup_midpoints_reference_state(:, i, j) = 0.5_rk * (conserved_vars(:, i - 1, j) + conserved_vars(:, i, j))
+        self%downup_midpoints_reference_state(:, i, j) = max(conserved_vars(:, i - 1, j), conserved_vars(:, i, j))
+        ! debug_write(*,*) conserved_vars(:, i - 1, j), conserved_vars(:, i, j)
       end do
     end do
+    ! end associate
 
     ! Corners
     ilo = lbound(self%corner_reference_state, dim=2)
     ihi = ubound(self%corner_reference_state, dim=2)
     jlo = lbound(self%corner_reference_state, dim=3)
     jhi = ubound(self%corner_reference_state, dim=3)
+    ! associate(U_tilde=>self%corner_reference_state, conserved_vars=>conserved_vars)
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
-        associate(U_tilde=>self%corner_reference_state, U=>conserved_vars)
-          ! U_tilde(:, i, j) = 0.25_rk * (U(:, i, j) + U(:, i - 1, j) + &
-          !                               U(:, i, j - 1) + U(:, i - 1, j - 1))
-          U_tilde(:, i, j) = max(U(:, i, j), U(:, i - 1, j), &
-                                 U(:, i, j - 1), U(:, i - 1, j - 1))
+        ! U_tilde(:, i, j) = 0.25_rk * (conserved_vars(:, i, j) + conserved_vars(:, i - 1, j) + &
+        !                               conserved_vars(:, i, j - 1) + conserved_vars(:, i - 1, j - 1))
+        self%corner_reference_state(:, i, j) = max(conserved_vars(:, i, j), conserved_vars(:, i - 1, j), &
+                                                   conserved_vars(:, i, j - 1), conserved_vars(:, i - 1, j - 1))
 
-          ! debug_write(*,*)
-        end associate
+        ! debug_write(*,*)
       end do
     end do
+    ! end associate
 
   end subroutine calculate_reference_state
 

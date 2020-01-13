@@ -43,9 +43,11 @@ papers/~$method_explanation.pptx
 .ipynb_checkpoints
 
 # test details
-tests/**/fvleg_2d.x
+tests/**/cato.x
+tests/**/*.txt
 *.h5
 *.xdmf
+
 
 # VS code settings
 .vscode/settings.json

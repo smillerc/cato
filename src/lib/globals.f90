@@ -12,7 +12,7 @@ module mod_globals
   character(:), allocatable :: git_hash
   character(:), allocatable :: git_ref
   character(:), allocatable :: git_local_changes
-  character(:), allocatable :: fvleg_2d_version
+  character(:), allocatable :: cato_version
   character(:), allocatable :: compile_host
   character(:), allocatable :: compile_os
   character(:), allocatable :: build_type
@@ -32,7 +32,7 @@ contains
     call set_global_options()
     ! if(this_image() == 1) then
     write(std_out, '(a,a)')
-    write(std_out, '(a,a)') "Version: ", fvleg_2d_version
+    write(std_out, '(a,a)') "Version: ", cato_version
     write(std_out, '(a,a)') "Build Type: ", build_type
     write(std_out, '(a,a)') "Compile OS: ", compile_os
     write(std_out, '(a,a)') "Compiler Flags: ", compiler_flags_str

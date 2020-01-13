@@ -51,7 +51,7 @@ contains
     if(associated(self%temporary)) then
       self%temporary = self%temporary + 1
       if(enable_debug_print) then
-        write(std_out, *) calling_function//' -> guard_temp(), self%temporary = ', self%temporary
+        write(std_out, '(a,i0)') calling_function//' -> guard_temp(), self%temporary = ', self%temporary
       end if
     end if
   end subroutine

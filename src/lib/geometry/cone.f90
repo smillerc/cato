@@ -1,9 +1,3 @@
-#ifdef __DEBUG__
-#define debug_write write
-#else
-#define debug_write ! write
-#endif
-
 module mod_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi, rad2deg
@@ -182,7 +176,7 @@ contains
     if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
       ! print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
       ! write(*, *) new_cone
-      debug_write(*, *) new_cone
+      ! debug_write(*, *) new_cone
       error stop "Cone arcs do not add up to 2pi"
     end if
   end function

@@ -7,7 +7,7 @@ module mod_contour_writer
   use mod_input, only: input_t
   use mod_functional, only: operator(.reverse.)
   use mod_globals, only: compiler_flags_str, compiler_version_str, git_hash, git_ref, &
-                         git_local_changes, fvleg_2d_version, &
+                         git_local_changes, cato_version, &
                          compile_host, compile_os, build_type, set_global_options, globals_set
 
   implicit none
@@ -161,7 +161,7 @@ contains
     call self%hdf5_file%writeattr('/', 'git_hast', git_hash)
     call self%hdf5_file%writeattr('/', 'git_ref', git_ref)
     call self%hdf5_file%writeattr('/', 'git_changes', git_local_changes)
-    call self%hdf5_file%writeattr('/', 'version', fvleg_2d_version)
+    call self%hdf5_file%writeattr('/', 'version', cato_version)
     call self%hdf5_file%writeattr('/', 'compile_hostname', compile_host)
     call self%hdf5_file%writeattr('/', 'compile_os', compile_os)
     call self%hdf5_file%writeattr('/', 'build_type', build_type)

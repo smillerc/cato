@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Methods for generating initial grids for fvleg_2d
+"""Methods for generating initial grids for cato
 in the .h5 format
 """
 import numpy as np

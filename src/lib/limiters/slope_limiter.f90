@@ -9,7 +9,7 @@ module mod_slope_limiter
 
   type :: slope_limiter_t
     character(:), allocatable :: name
-    procedure(limit), pointer, nopass :: limit
+    procedure(limit), pointer, nopass :: limit => null()
   contains
     final :: finalize
   end type

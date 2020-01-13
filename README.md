@@ -1,8 +1,4 @@
-# fvleg_2d
-
-...a better name is coming soon
-
-
+# CATO
 
 ## Build/Install
 Requirements:
