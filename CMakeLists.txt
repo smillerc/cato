@@ -27,14 +27,14 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Packages
+find_package(Coarray REQUIRED)
+set(CMAKE_REQUIRED_FLAGS ${Coarray_COMPILE_OPTIONS})
+set(CMAKE_REQUIRED_LIBRARIES ${Coarray_LIBRARY})
+
 find_package(
   HDF5
   COMPONENTS Fortran_HL
   REQUIRED)
-
-message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
-message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
-message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
 
 # if build type not specified, default to release
 if(NOT CMAKE_BUILD_TYPE)
@@ -42,38 +42,20 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 message(STATUS "CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE}")
 
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
-
-# Set some debug options
-if(CMAKE_BUILD_TYPE STREQUAL Debug)
-  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
-
-  # This allows for printing/debugging inside pure functions and do concurrent
-  # blocks add_compile_definitions(pure=)
-  # add_compile_definitions(__DEBUG__=True)
-  message(STATUS "Debug mode, so IPO is set to OFF")
-else()
-
-endif(CMAKE_BUILD_TYPE STREQUAL Debug)
-
-message(STATUS "CMAKE_INTERPROCEDURAL_OPTIMIZATION: "
-               ${CMAKE_INTERPROCEDURAL_OPTIMIZATION})
-
 # compiler flags for gfortran
 if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
-  find_package(Coarray REQUIRED)
-  # list(APPEND CMAKE_Fortran_FLAGS ${Coarray_COMPILE_OPTIONS})
 
   list(APPEND CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
+  list(APPEND CMAKE_Fortran_FLAGS ${Coarray_COMPILE_OPTIONS})
   set(CMAKE_Fortran_FLAGS_DEBUG
-      "-O0 -g -fcoarray=single\
+      "-O0 -g -fcoarray=lib\
  -Wall -Wextra -Wpedantic\
  -Wconversion \
  -fimplicit-none -fbacktrace \
  -fcheck=all -ffpe-trap=zero,overflow,invalid,underflow -finit-real=nan")
 
   set(CMAKE_Fortran_FLAGS_RELEASE
-      "-O3 -floop-parallelize-all -ftree-parallelize-loops=6 -march=native -fcoarray=single"
+      "-O3 -floop-parallelize-all -ftree-parallelize-loops=6 -march=native -fcoarray=lib"
   )
 endif()
 
@@ -93,6 +75,8 @@ endif()
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
 message(STATUS "CMAKE_REQUIRED_LIBRARIES" ${CMAKE_REQUIRED_LIBRARIES})
 message(STATUS "Coarray_COMPILE_OPTIONS:" ${Coarray_COMPILE_OPTIONS})
+message(STATUS "Coarray_NUMPROC_FLAG:" ${Coarray_NUMPROC_FLAG})
+message(STATUS "Coarray_LIBRARIES:" ${Coarray_LIBRARIES})
 message(STATUS "Compile Flags: " ${CMAKE_Fortran_FLAGS})
 message(STATUS "Compile Flags Debug: " ${CMAKE_Fortran_FLAGS_DEBUG})
 message(STATUS "Compile Flags Release: " ${CMAKE_Fortran_FLAGS_RELEASE})

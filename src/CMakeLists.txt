@@ -2,6 +2,7 @@ add_library(globals lib/hermetic.f90 lib/globals.f90 lib/math_constants.f90
                     lib/floating_point_utilities.f90 lib/mod_timing.f90)
 
 add_library(parallel lib/mod_parallel.f90)
+target_link_libraries(parallel PRIVATE ${Coarray_LIBRARIES})
 
 add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
                        third_party/ini_parser/string_conv_mod.f90)
@@ -67,13 +68,12 @@ add_library(
 target_link_libraries(
   cato
   PUBLIC eos
-         parallel
          globals
          geometry
          utilities
          io
          finterp
-         functional # functional # ${Coarray_LIBRARIES} ${HDF5_LIBRARIES} #
+         functional
          ${HDF5_HL_LIBRARIES})
 
 add_executable(cato.x main.f90)
