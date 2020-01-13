@@ -1,8 +1,8 @@
 #!/bin/bash
 
-rm fvleg_2d.x
+rm cato.x
 cd ../../../build &&\
 make -j &&\
 cd - &&\
-cp ../../../build/bin/fvleg_2d.x . &&\
-./fvleg_2d.x basic.ini
+cp ../../../build/bin/cato.x . &&\
+./cato.x basic.ini

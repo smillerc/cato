@@ -8,7 +8,7 @@
             "name": "Fortran Launch (GDB)",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/bin/fvleg_2d.x",
+            "program": "${workspaceFolder}/build/bin/cato.x",
             "args": [
                 "input.ini"
             ],

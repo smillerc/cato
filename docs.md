@@ -6,7 +6,7 @@ src_dir: ./src
 output_dir: ./doc
 media_dir: ./media
 exclude_dir: ./src/tests
-project_github: https://github.com/smillerc/fvleg_2d
+project_github: https://github.com/smillerc/cato
 github: https://github.com/smillerc
 docmark: <
 display: public

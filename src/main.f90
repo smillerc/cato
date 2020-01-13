@@ -33,12 +33,12 @@ program fvleg
 
   ! ascii art for the heck of it :)
   write(output_unit, '(a)')
-  write(output_unit, '(a)') "_______________   ____.____     ___________ ________            ________  ________"
-  write(output_unit, '(a)') "\_   _____/\   \ /   /|    |    \_   _____//  _____/            \_____  \ \______ \"
-  write(output_unit, '(a)') " |    __)   \   Y   / |    |     |    __)_/   \  ___    ______   /  ____/  |    |  \"
-  write(output_unit, '(a)') " |     \     \     /  |    |___  |        \    \_\  \  /_____/  /       \  |    `   \"
-  write(output_unit, '(a)') " \___  /      \___/   |_______ \/_______  /\______  /           \_______ \/_______  /"
-  write(output_unit, '(a)') "     \/                       \/        \/        \/                    \/        \/"
+  write(output_unit, '(a)') "  ______      ___   .___________.  ______  "
+  write(output_unit, '(a)') " /      |    /   \  |           | /  __  \ "
+  write(output_unit, '(a)') "|  ,----'   /  ^  \ `---|  |----`|  |  |  |"
+  write(output_unit, '(a)') "|  |       /  /_\  \    |  |     |  |  |  |"
+  write(output_unit, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
+  write(output_unit, '(a)') " \______|/__/     \__\  |__|      \______/ "
   write(output_unit, '(a)')
 
   call print_version_stats()

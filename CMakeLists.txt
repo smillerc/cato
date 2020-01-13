@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.8)
 
 project(
-  fvleg_2d
+  CATO
   DESCRIPTION "A modern fortran implementation of the FVLEG scheme"
-  HOMEPAGE_URL "https://github.com/smillerc/fvleg_2d"
+  HOMEPAGE_URL "https://github.com/smillerc/cato"
   LANGUAGES Fortran C)
 
-set(fvleg_2d_VERSION_MAJOR 0)
-set(fvleg_2d_VERSION_MINOR 1)
-set(fvleg_2d_PATCH_VERSION 0)
+set(CATO_VERSION_MAJOR 1)
+set(CATO_VERSION_MINOR 0)
+set(CATO_PATCH_VERSION 0)
 
 set(CMAKE_VERBOSE_MAKEFILE "Off")
 set(CMAKE_CXX_STANDARD 11)
@@ -32,13 +32,9 @@ find_package(
   COMPONENTS Fortran_HL
   REQUIRED)
 
-# find_package(PFUNIT REQUIRED) enable_testing()
-
 message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
 message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
 message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
-
-# find_package(OpenMP) # find_package(OpenCL REQUIRED)
 
 # if build type not specified, default to release
 if(NOT CMAKE_BUILD_TYPE)
@@ -53,8 +49,7 @@ if(CMAKE_BUILD_TYPE STREQUAL Debug)
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
 
   # This allows for printing/debugging inside pure functions and do concurrent
-  # blocks
-  # add_compile_definitions(pure=)
+  # blocks add_compile_definitions(pure=)
   # add_compile_definitions(__DEBUG__=True)
   message(STATUS "Debug mode, so IPO is set to OFF")
 else()
@@ -93,7 +88,8 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g -warn all -debug all -traceback -fpe-all=0") # -coarray=singl
   # e
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -parallel -qopt-report-phase=par -qopt-report:5") # -coarray
+  set(CMAKE_Fortran_FLAGS_RELEASE
+      " -O3 -xHost -parallel -qopt-report-phase=par -qopt-report:5") # -coarray
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
@@ -120,9 +116,6 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/version.h.in"
 
 # Include the newly generated version.h file
 include_directories(${CMAKE_BINARY_DIR}/generated)
-
-# add_library(clfortran src/lib/opencl/mod_clfortran.f90)
-# target_link_libraries(clfortran OpenCL::OpenCL)
 
 add_subdirectory(src)
 
