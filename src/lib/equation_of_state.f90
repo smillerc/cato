@@ -1,3 +1,4 @@
+#undef pure
 module mod_eos
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64

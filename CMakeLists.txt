@@ -54,8 +54,8 @@ if(CMAKE_BUILD_TYPE STREQUAL Debug)
 
   # This allows for printing/debugging inside pure functions and do concurrent
   # blocks
-  add_compile_definitions(pure=)
-  add_compile_definitions(__DEBUG__=True)
+  # add_compile_definitions(pure=)
+  # add_compile_definitions(__DEBUG__=True)
   message(STATUS "Debug mode, so IPO is set to OFF")
 else()
 
@@ -93,7 +93,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g -warn all -debug all -traceback -fpe-all=0") # -coarray=singl
   # e
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O2 -parallel") # -coarray
+  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -parallel -qopt-report-phase=par -qopt-report:5") # -coarray
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})

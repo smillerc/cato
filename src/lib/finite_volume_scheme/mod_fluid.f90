@@ -196,15 +196,15 @@ contains
     ihi = finite_volume_scheme%grid%ihi_cell
     jhi = finite_volume_scheme%grid%jhi_cell
 
-    ! do j = jlo, jhi
-    !   do i = ilo, ihi
     associate(grid=>finite_volume_scheme%grid, &
               corner_state=>finite_volume_scheme%evolved_corner_state, &
               leftright_midpoints_state=>finite_volume_scheme%evolved_leftright_midpoints_state, &
               downup_midpoints_state=>finite_volume_scheme%evolved_downup_midpoints_state)
 
-      do concurrent(j=jlo:jhi)
-        do concurrent(i=ilo:ihi)
+      ! do concurrent(j=jlo:jhi)
+      !   do concurrent(i=ilo:ihi)
+      do j = jlo, jhi
+        do i = ilo, ihi
 
           edge_flux = 0.0_rk
           ! Edge 1 (bottom)
@@ -215,7 +215,6 @@ contains
                     delta_l=>grid%cell_edge_lengths(1, i, j))
 
             ! Eq. 13, for edge 1
-            ! print*, 'bottom'
             edge_flux = edge_flux + &
                         ( &
                         ((H(E0_R_omega_k1) + &
@@ -232,7 +231,6 @@ contains
                     delta_l=>grid%cell_edge_lengths(2, i, j))
 
             ! Eq. 13, for edge 2
-            ! print*, 'right'
             edge_flux = edge_flux + &
                         ( &
                         ((H(E0_R_omega_k1) + &
@@ -249,7 +247,6 @@ contains
                     delta_l=>grid%cell_edge_lengths(3, i, j))
 
             ! Eq. 13, for edge 3
-            ! print*, 'top'
             edge_flux = edge_flux + &
                         ( &
                         ((H(E0_R_omega_k1) + &
@@ -266,7 +263,6 @@ contains
                     delta_l=>grid%cell_edge_lengths(4, i, j))
 
             ! Eq. 13, for edge 4
-            ! print*, 'left'
             edge_flux = edge_flux + &
                         ( &
                         ((H(E0_R_omega_k1) + &
