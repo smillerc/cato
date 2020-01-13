@@ -1,4 +1,4 @@
-program fvleg
+program cato
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, output_unit
   use mod_contour_writer, only: contour_writer_t
@@ -16,11 +16,8 @@ program fvleg
   character(150) :: command_line_arg
   character(50) :: input_filename
   type(input_t) :: input
-  ! class(fvleg_t), pointer  :: fv
   class(finite_volume_scheme_t), pointer :: fv
   class(fluid_t), pointer :: U
-  ! type(fvleg_t) :: fv
-  ! type(fvleg_t), target :: fv
 
   type(contour_writer_t) :: contour_writer
   type(timer_t) :: timer

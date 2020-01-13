@@ -36,7 +36,7 @@ add_library(
 target_link_libraries(geometry PUBLIC globals io eos)
 
 add_library(
-  fvleg
+  cato
   lib/finite_volume_scheme/mod_fluid.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
@@ -61,9 +61,9 @@ add_library(
   lib/integrators/time_integrator_factory.f90
   lib/integrators/runge_kutta_2nd_order.f90)
 
-# target_compile_options(fvleg PUBLIC ${Coarray_COMPILE_OPTIONS})
+# target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(
-  fvleg
+  cato
   PUBLIC eos
          globals
          geometry
@@ -76,7 +76,7 @@ target_link_libraries(
 add_executable(cato.x main.f90)
 target_link_libraries(
   cato.x
-  fvleg
+  cato
   functional
   finterp
   ${HDF5_LIBRARIES}
@@ -85,7 +85,7 @@ target_link_libraries(
 
 # include_directories(${HDF5_INCLUDE_DIRS})
 
-# add_library( fvleg lib/globals.f90 lib/math_constants.f90
+# add_library( cato lib/globals.f90 lib/math_constants.f90
 # third_party/ini_parser/cfgio_mod.f90
 # third_party/ini_parser/string_conv_mod.f90
 # third_party/finterp/linear_interpolation_module.f90
@@ -103,18 +103,18 @@ target_link_libraries(
 # lib/reconstruction/first_order_reconstruction.f90
 # lib/reconstruction/second_order_reconstruction.f90
 # lib/reconstruction/reconstruction_factory.f90
-# lib/finite_volume_scheme/fv_scheme.f90 lib/finite_volume_scheme/fvleg.f90
+# lib/finite_volume_scheme/fv_scheme.f90 lib/finite_volume_scheme/cato.f90
 # lib/integrand.f90 lib/integrators/strategy.f90 lib/integrators/surrogate.f90
 # lib/integrators/time_integrator_factory.f90
 # lib/integrators/runge_kutta_2nd_order.f90)
 
-# set_property(TARGET fvleg PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
-# set_target_properties(fvleg PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
+# set_property(TARGET cato PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+# set_target_properties(cato PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
 
-# target_link_libraries(fvleg ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+# target_link_libraries(cato ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 
 # add_executable(cato.x main.f90) set_property(TARGET cato.x PROPERTY
-# INTERPROCEDURAL_OPTIMIZATION FALSE) set_target_properties(cato.x
-# PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE) # message(STATUS
+# INTERPROCEDURAL_OPTIMIZATION FALSE) set_target_properties(cato.x PROPERTIES
+# INTERPROCEDURAL_OPTIMIZATION FALSE) # message(STATUS
 # "INTERPROCEDURAL_OPTIMIZATION: " # ${INTERPROCEDURAL_OPTIMIZATION})
-# target_link_libraries(cato.x fvleg)
+# target_link_libraries(cato.x cato)
