@@ -97,7 +97,7 @@ contains
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
     else
-      stop 'integrate: no integration procedure available.'
+      error stop 'Error: integrand_t%time_integrator is not allocated'
     end if
   end subroutine
 end module mod_integrand

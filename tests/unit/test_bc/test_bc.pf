@@ -36,7 +36,7 @@ contains
 
     grid => grid_factory(input)
 
-    ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
+    ! These are normally handled by the cato puppeteer, but for now we make them ourselves
     associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
               bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
 

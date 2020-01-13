@@ -55,7 +55,7 @@ module mod_input
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
     ! finite volume scheme specifics
-    character(len=32) :: evolution_operator_type = 'fvleg'        !< How are the cells being reconstructed
+    character(len=32) :: evolution_operator_type = 'cato'        !< How are the cells being reconstructed
     character(len=32) :: reconstruction_type = 'piecewise_linear' !< How are the cells being reconstructed
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: slope_limiter

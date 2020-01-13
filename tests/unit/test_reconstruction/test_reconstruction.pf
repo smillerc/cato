@@ -36,7 +36,7 @@ contains
 
     grid => grid_factory(input)
 
-    ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
+    ! These are normally handled by the cato puppeteer, but for now we make them ourselves
     associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
               jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
 
@@ -106,7 +106,7 @@ contains
 
     grid => grid_factory(input)
 
-    ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
+    ! These are normally handled by the cato puppeteer, but for now we make them ourselves
     associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
               jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
 

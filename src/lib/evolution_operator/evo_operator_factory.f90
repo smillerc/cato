@@ -31,7 +31,7 @@ contains
     call debug_print('Making a "'//trim(evo_type)//'" evolution operator', __FILE__, __LINE__)
 
     select case(trim(evo_type))
-    case('fvleg')
+    case('cato')
       allocate(local_evo_operator_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target, &
                                recon_operator_target=recon_operator_target, &

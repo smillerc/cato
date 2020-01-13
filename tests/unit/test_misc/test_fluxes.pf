@@ -10,7 +10,7 @@ module test_fluxes
 contains
 
   @test
-  subroutine test_fvleg_operators()
+  subroutine test_cato_operators()
 
     real(rk), dimension(4) :: U !< (rho, u, v, p)
     type(H) :: flux_vector_1, flux_vector_2, flux_vector_3

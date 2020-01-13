@@ -123,7 +123,7 @@ contains
   end function
 
   subroutine initialize(self, input)
-    !< Construct the finite volume local evolution Galerkin (fvleg) scheme
+    !< Construct the finite volume local evolution Galerkin (cato) scheme
     class(finite_volume_scheme_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 

@@ -94,7 +94,7 @@ contains
 
     time_integrator => time_integrator_factory(input)
     allocate(self%time_integrator, source=time_integrator, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%time_integrator"
+    if(alloc_status /= 0) error stop "Unable to allocate cato_t%time_integrator"
     deallocate(time_integrator)
 
     if(input%read_init_cond_from_file) then
