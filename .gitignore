@@ -44,8 +44,10 @@ papers/~$method_explanation.pptx
 
 # test details
 tests/**/fvleg_2d.x
+tests/**/*.txt
 *.h5
 *.xdmf
+
 
 # VS code settings
 .vscode/settings.json
