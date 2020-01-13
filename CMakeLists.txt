@@ -89,7 +89,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
       "-O0 -g -warn all -debug all -traceback -fpe-all=0") # -coarray=singl
   # e
   set(CMAKE_Fortran_FLAGS_RELEASE
-      " -O3 -xHost -parallel -qopt-report-phase=par -qopt-report:5") # -coarray
+      " -O3 -xHost -parallel") # -coarray
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
