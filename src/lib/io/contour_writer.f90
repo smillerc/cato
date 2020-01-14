@@ -156,6 +156,7 @@ contains
 
     ! Version info
     if(.not. globals_set) call set_global_options()
+    call self%hdf5_file%add('/')
     call self%hdf5_file%writeattr('/', 'compiler_flags', compiler_flags_str)
     call self%hdf5_file%writeattr('/', 'compiler_version', compiler_version_str)
     call self%hdf5_file%writeattr('/', 'git_hast', git_hash)
