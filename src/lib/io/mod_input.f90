@@ -30,6 +30,9 @@ module mod_input
     real(rk) :: init_pressure = 0.0_rk   !< Initial condition for the pressure field (useful only for testing)
 
     ! boundary conditions
+    character(:), allocatable :: pressure_input_file
+    logical :: apply_constant_bc_pressure = .false.
+    real(rk) :: constant_bc_pressure_value = 0.0_rk
     character(len=32) ::  plus_x_bc = 'periodic' !< Boundary condition at +x
     character(len=32) :: minus_x_bc = 'periodic' !< Boundary condition at -x
     character(len=32) ::  plus_y_bc = 'periodic' !< Boundary condition at +y
@@ -168,6 +171,21 @@ contains
     self%plus_y_bc = trim(char_buffer)
     call cfg%get("boundary_conditions", "minus_y", char_buffer, 'periodic')
     self%minus_y_bc = trim(char_buffer)
+
+    if(self%plus_x_bc == 'pressure_input' .or. &
+       self%minus_x_bc == 'pressure_input' .or. &
+       self%plus_y_bc == 'pressure_input' .or. &
+       self%minus_y_bc == 'pressure_input') then
+
+      call cfg%get("boundary_conditions", "apply_constant_bc_pressure", self%apply_constant_bc_pressure, .false.)
+
+      if(self%apply_constant_bc_pressure) then
+        call cfg%get("boundary_conditions", "constant_bc_pressure_value", self%constant_bc_pressure_value)
+      else
+        call cfg%get("boundary_conditions", "pressure_input_file", char_buffer)
+        self%pressure_input_file = trim(char_buffer)
+      end if
+    end if
 
     ! Input/Output
     call cfg%get("io", "format", char_buffer, 'xdmf')

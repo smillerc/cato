@@ -46,7 +46,7 @@ contains
     class(boundary_condition_t), intent(in) :: in_bc
     class(periodic_bc_t), intent(inout) :: out_bc
 
-    call debug_print('Calling boundary_condition_t%copy_periodic_bc()', __FILE__, __LINE__)
+    call debug_print('Calling periodic_bc_t%copy_periodic_bc()', __FILE__, __LINE__)
     ! if (allocated(out_bc%name)) deallocate(out_bc%name)
     ! allocate(out_bc%name, source=in_bc%name)
     out_bc%name = in_bc%name

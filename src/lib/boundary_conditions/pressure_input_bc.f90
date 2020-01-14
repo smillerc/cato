@@ -11,8 +11,8 @@ module mod_pressure_input_bc
   public :: pressure_input_bc_t, pressure_input_bc_constructor
 
   type, extends(boundary_condition_t) :: pressure_input_bc_t
-    logical :: constant_pressure = .true.
-    real(rk) :: pressure_input = 1.0_rk
+    logical :: constant_pressure = .false.
+    real(rk) :: pressure_input = 0.0_rk
 
     ! Temporal inputs
     type(linear_interp_1d) :: temporal_pressure_input
@@ -34,6 +34,15 @@ contains
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
+
+    bc%constant_pressure = input%apply_constant_bc_pressure
+    if(.not. bc%constant_pressure) then
+      bc%input_filename = trim(input%pressure_input_file)
+      call bc%read_pressure_input()
+    else
+      bc%pressure_input = input%constant_bc_pressure_value
+    end if
+
   end function pressure_input_bc_constructor
 
   subroutine read_pressure_input(self)
@@ -43,21 +52,45 @@ contains
 
     real(rk), dimension(:), allocatable :: time_sec
     real(rk), dimension(:), allocatable :: pressure_barye
+    character(len=300) :: line_buffer
+    logical :: has_header_line
+    logical :: file_exists
     integer(ik) :: input_unit, io_status, interp_status
     integer(ik) :: line, nlines
+
+    file_exists = .false.
+    has_header_line = .false.
+
+    inquire(file=trim(self%input_filename), exist=file_exists)
+
+    if(.not. file_exists) then
+      error stop 'Error in pressure_input_bc_t%read_pressure_input(); pressure input file not found, exiting...'
+    end if
 
     open(newunit=input_unit, file=trim(self%input_filename))
     nlines = 0
     do
-      read(input_unit, *, iostat=io_status)
+      read(input_unit, *, iostat=io_status) line_buffer
+      if(nlines == 0) then
+        line_buffer = adjustl(line_buffer)
+        if(line_buffer(1:1) == '#') has_header_line = .true.
+      end if
+
       if(io_status /= 0) exit
       nlines = nlines + 1
     end do
     close(input_unit)
 
     open(newunit=input_unit, file=trim(self%input_filename))
+    if(has_header_line) then
+      read(input_unit, *, iostat=io_status) ! skip the first line
+      nlines = nlines - 1
+    end if
+
     allocate(time_sec(nlines))
     allocate(pressure_barye(nlines))
+    time_sec = 0.0_rk
+    pressure_barye = 0.0_rk
 
     do line = 1, nlines
       read(input_unit, *, iostat=io_status) time_sec(line), pressure_barye(line)
@@ -76,6 +109,21 @@ contains
   subroutine copy_pressure_input_bc(out_bc, in_bc)
     class(boundary_condition_t), intent(in) :: in_bc
     class(pressure_input_bc_t), intent(inout) :: out_bc
+
+    call debug_print('Calling pressure_input_bc_t%copy_pressure_input_bc()', __FILE__, __LINE__)
+
+    out_bc%name = in_bc%name
+    out_bc%location = in_bc%location
+    select type(in_bc)
+    class is(pressure_input_bc_t)
+      out_bc%constant_pressure = in_bc%constant_pressure
+      out_bc%pressure_input = in_bc%pressure_input
+      out_bc%temporal_pressure_input = in_bc%temporal_pressure_input
+      out_bc%input_filename = in_bc%input_filename
+    class default
+      error stop 'pressure_input_bc_t%copy_pressure_input_bc: unsupported in_bc class'
+    end select
+
   end subroutine
 
   subroutine apply_pressure_input_conserved_var_bc(self, conserved_vars)
@@ -128,19 +176,28 @@ contains
     select case(self%location)
     case('+x')
 
-      conserved_vars(1, right_ghost, :) = eos%calc_density_from_isentropic_press(p_1=conserved_vars(4, right, :), &
-                                                                                 rho_1=conserved_vars(1, right, :), &
-                                                                                 p_2=boundary_pressure)
+      if(boundary_pressure <= 0.0_rk) then
+        ! Default to zero-gradient if the input pressure goes <= 0
+        conserved_vars(1, right_ghost, :) = conserved_vars(1, right, :)
+        conserved_vars(4, right_ghost, :) = conserved_vars(4, right, :)
+        print *, "Applying zero-gradient at +x boundary (input pressure is <= 0)"
+      else
+        print *, "Applying pressure at +x boundary of: ", boundary_pressure
+        conserved_vars(1, right_ghost, :) = eos%calc_density_from_isentropic_press(p_1=conserved_vars(4, right, :), &
+                                                                                   rho_1=conserved_vars(1, right, :), &
+                                                                                   p_2=boundary_pressure)
+        conserved_vars(4, right_ghost, :) = boundary_pressure
+      end if
 
-      conserved_vars(2, right_ghost, :) = 0.0_rk ! or should it be the same as the interior cell?
-      conserved_vars(3, right_ghost, :) = 0.0_rk
-      conserved_vars(4, right_ghost, :) = boundary_pressure
-    case('-x')
-      ! conserved_vars(:, left_ghost, :) = conserved_vars(:, right, bottom)
-    case('+y')
-      ! conserved_vars(:, :, top_ghost) = conserved_vars(:, left:right, bottom)
-    case('-y')
-      ! conserved_vars(:, :, bottom_ghost) = conserved_vars(:, left:right, top)
+      ! Zero-gradient in velocity
+      conserved_vars(2, right_ghost, :) = conserved_vars(2, right, :)
+      conserved_vars(3, right_ghost, :) = conserved_vars(3, right, :)
+      ! case('-x')
+      !   ! conserved_vars(:, left_ghost, :) = conserved_vars(:, right, bottom)
+      ! case('+y')
+      !   ! conserved_vars(:, :, top_ghost) = conserved_vars(:, left:right, bottom)
+      ! case('-y')
+      !   ! conserved_vars(:, :, bottom_ghost) = conserved_vars(:, left:right, top)
     case default
       error stop "Unsupported location to apply the bc at in "// &
         "pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
@@ -155,44 +212,42 @@ contains
     real(rk), dimension(:, :, :, 0:, 0:), intent(inout) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
 
-    ! integer(ik) :: left         !< Min i real cell index
-    ! integer(ik) :: right        !< Max i real cell index
-    ! integer(ik) :: bottom       !< Min j real cell index
-    ! integer(ik) :: top          !< Max j real cell index
-    ! integer(ik) :: left_ghost   !< Min i ghost cell index
-    ! integer(ik) :: right_ghost  !< Max i ghost cell index
-    ! integer(ik) :: bottom_ghost !< Min j ghost cell index
-    ! integer(ik) :: top_ghost    !< Max j ghost cell index
+    integer(ik) :: left         !< Min i real cell index
+    integer(ik) :: right        !< Max i real cell index
+    integer(ik) :: bottom       !< Min j real cell index
+    integer(ik) :: top          !< Max j real cell index
+    integer(ik) :: left_ghost   !< Min i ghost cell index
+    integer(ik) :: right_ghost  !< Max i ghost cell index
+    integer(ik) :: bottom_ghost !< Min j ghost cell index
+    integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    ! left_ghost = lbound(reconstructed_state, dim=4)
-    ! right_ghost = ubound(reconstructed_state, dim=4)
-    ! bottom_ghost = lbound(reconstructed_state, dim=5)
-    ! top_ghost = ubound(reconstructed_state, dim=5)
-    ! left = left_ghost + 1
-    ! right = right_ghost - 1
-    ! bottom = bottom_ghost + 1
-    ! top = top_ghost - 1
+    left_ghost = lbound(reconstructed_state, dim=4)
+    right_ghost = ubound(reconstructed_state, dim=4)
+    bottom_ghost = lbound(reconstructed_state, dim=5)
+    top_ghost = ubound(reconstructed_state, dim=5)
+    left = left_ghost + 1
+    right = right_ghost - 1
+    bottom = bottom_ghost + 1
+    top = top_ghost - 1
 
-    ! select case(self%location)
-    ! case('+x')
-    !   reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-    !   reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-    !   reconstructed_state(:, :, :, right_ghost, bottom:top) = reconstructed_state(:, :, :, left, bottom:top)
-    ! case('-x')
-    !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-    !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-    !   reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
-    ! case('+y')
-    !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-    !   reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-    !   reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
-    ! case('-y')
-    !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-    !   reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-    !   reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
-    ! case default
-    !   error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
-    ! end select
+    select case(self%location)
+    case('+x')
+      reconstructed_state(:, :, :, right_ghost, :) = reconstructed_state(:, :, :, right, :)
+      ! case('-x')
+      !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
+      !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
+      !   reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
+      ! case('+y')
+      !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
+      !   reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
+      !   reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
+      ! case('-y')
+      !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
+      !   reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
+      !   reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
+    case default
+      error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
+    end select
 
   end subroutine apply_pressure_input_reconstructed_state_bc
 
@@ -203,44 +258,42 @@ contains
     real(rk), dimension(:, :, 0:, 0:), intent(inout) :: cell_gradient
     !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
 
-    ! integer(ik) :: left         !< Min i real cell index
-    ! integer(ik) :: right        !< Max i real cell index
-    ! integer(ik) :: bottom       !< Min j real cell index
-    ! integer(ik) :: top          !< Max j real cell index
-    ! integer(ik) :: left_ghost   !< Min i ghost cell index
-    ! integer(ik) :: right_ghost  !< Max i ghost cell index
-    ! integer(ik) :: bottom_ghost !< Min j ghost cell index
-    ! integer(ik) :: top_ghost    !< Max j ghost cell index
+    integer(ik) :: left         !< Min i real cell index
+    integer(ik) :: right        !< Max i real cell index
+    integer(ik) :: bottom       !< Min j real cell index
+    integer(ik) :: top          !< Max j real cell index
+    integer(ik) :: left_ghost   !< Min i ghost cell index
+    integer(ik) :: right_ghost  !< Max i ghost cell index
+    integer(ik) :: bottom_ghost !< Min j ghost cell index
+    integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    ! left_ghost = lbound(cell_gradient, dim=3)
-    ! right_ghost = ubound(cell_gradient, dim=3)
-    ! bottom_ghost = lbound(cell_gradient, dim=4)
-    ! top_ghost = ubound(cell_gradient, dim=4)
-    ! left = left_ghost + 1
-    ! right = right_ghost - 1
-    ! bottom = bottom_ghost + 1
-    ! top = top_ghost - 1
+    left_ghost = lbound(cell_gradient, dim=3)
+    right_ghost = ubound(cell_gradient, dim=3)
+    bottom_ghost = lbound(cell_gradient, dim=4)
+    top_ghost = ubound(cell_gradient, dim=4)
+    left = left_ghost + 1
+    right = right_ghost - 1
+    bottom = bottom_ghost + 1
+    top = top_ghost - 1
 
-    ! select case(self%location)
-    ! case('+x')
-    !   cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
-    !   cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
-    !   cell_gradient(:, :, right_ghost, bottom:top) = cell_gradient(:, :, left, bottom:top)
-    ! case('-x')
-    !   cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
-    !   cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
-    !   cell_gradient(:, :, left_ghost, bottom:top) = cell_gradient(:, :, right, bottom:top)
-    ! case('+y')
-    !   cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
-    !   cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
-    !   cell_gradient(:, :, left:right, top_ghost) = cell_gradient(:, :, left:right, bottom)
-    ! case('-y')
-    !   cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
-    !   cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
-    !   cell_gradient(:, :, left:right, bottom_ghost) = cell_gradient(:, :, left:right, top)
-    ! case default
-    !   error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
-    ! end select
+    select case(self%location)
+    case('+x')
+      cell_gradient(:, :, right_ghost, :) = 0.0_rk
+      ! case('-x')
+      !   cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
+      !   cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
+      !   cell_gradient(:, :, left_ghost, bottom:top) = cell_gradient(:, :, right, bottom:top)
+      ! case('+y')
+      !   cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
+      !   cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
+      !   cell_gradient(:, :, left:right, top_ghost) = cell_gradient(:, :, left:right, bottom)
+      ! case('-y')
+      !   cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
+      !   cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
+      !   cell_gradient(:, :, left:right, bottom_ghost) = cell_gradient(:, :, left:right, top)
+    case default
+      error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
+    end select
 
   end subroutine apply_pressure_input_cell_gradient_bc
 end module mod_pressure_input_bc
