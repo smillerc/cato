@@ -26,7 +26,7 @@ program cato
   real(rk) :: c_sound = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
-  integer(ik) :: alloc_status
+  logical :: file_exists = .false.
 
   ! ascii art for the heck of it :)
   write(output_unit, '(a)')
@@ -42,6 +42,12 @@ program cato
 
   call get_command_argument(1, command_line_arg)
   input_filename = trim(command_line_arg)
+
+  inquire(file=trim(input_filename), exist=file_exists)
+
+  if(.not. file_exists) then
+    error stop 'Error in main(), CATO input (*.ini) file not found, exiting...'
+  end if
 
   call input%read_from_ini(input_filename)
 

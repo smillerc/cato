@@ -241,11 +241,20 @@ contains
 
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
+    logical :: file_exists
 
     real(rk), dimension(:, :), allocatable :: x
     real(rk), dimension(:, :), allocatable :: y
 
     integer(ik) :: i, j
+
+    file_exists = .false.
+    inquire(file=trim(input%initial_condition_file), exist=file_exists)
+
+    if(.not. file_exists) then
+      error stop 'Error in regular_2d_grid_t%initialize_from_hdf5(); initial conditions file not found, exiting...'
+    end if
+
     call h5%initialize(filename=input%initial_condition_file, status='old', action='r')
     call h5%get('/x', x)
     call h5%get('/y', y)
