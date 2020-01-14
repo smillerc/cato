@@ -27,10 +27,15 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Packages
+set(HDF5_USE_STATIC_LIBRARIES ON)
 find_package(
   HDF5
   COMPONENTS Fortran_HL
   REQUIRED)
+
+message(STATUS "HDF5_INCLUDE_DIRS: " ${HDF5_INCLUDE_DIRS})
+message(STATUS "HDF5_LIBRARIES: " ${HDF5_LIBRARIES})
+message(STATUS "HDF5_HL_LIBRARIES: " ${HDF5_HL_LIBRARIES})
 
 message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
 message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
@@ -88,8 +93,8 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g -warn all -debug all -traceback -fpe-all=0") # -coarray=singl
   # e
-  set(CMAKE_Fortran_FLAGS_RELEASE
-      " -O3 -xHost -parallel") # -coarray
+  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -parallel -mtune=generic"
+  )# -coarray
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
