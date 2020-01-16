@@ -37,7 +37,7 @@ contains
 
     bc%constant_pressure = input%apply_constant_bc_pressure
     if(.not. bc%constant_pressure) then
-      bc%input_filename = trim(input%pressure_input_file)
+      bc%input_filename = trim(input%bc_pressure_input_file)
       call bc%read_pressure_input()
     else
       bc%pressure_input = input%constant_bc_pressure_value
@@ -142,7 +142,7 @@ contains
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
     integer(ik) :: interp_stat
-    real(rk) :: boundary_pressure
+    real(rk) :: boundary_pressure, boundary_density
 
     left_ghost = lbound(conserved_vars, dim=2)
     right_ghost = ubound(conserved_vars, dim=2)
@@ -178,20 +178,23 @@ contains
 
       if(boundary_pressure <= 0.0_rk) then
         ! Default to zero-gradient if the input pressure goes <= 0
-        conserved_vars(1, right_ghost, :) = conserved_vars(1, right, :)
-        conserved_vars(4, right_ghost, :) = conserved_vars(4, right, :)
+        conserved_vars(1, right:right_ghost, :) = conserved_vars(1, right:right_ghost, :)
+        conserved_vars(4, right:right_ghost, :) = conserved_vars(4, right:right_ghost, :)
         print *, "Applying zero-gradient at +x boundary (input pressure is <= 0)"
       else
         print *, "Applying pressure at +x boundary of: ", boundary_pressure
-        conserved_vars(1, right_ghost, :) = eos%calc_density_from_isentropic_press(p_1=conserved_vars(4, right, :), &
-                                                                                   rho_1=conserved_vars(1, right, :), &
-                                                                                   p_2=boundary_pressure)
-        conserved_vars(4, right_ghost, :) = boundary_pressure
+        conserved_vars(1, right, :) = eos%calc_density_from_isentropic_press(p_1=conserved_vars(4, right - 1, :), &
+                                                                             rho_1=conserved_vars(1, right - 1, :), &
+                                                                             p_2=boundary_pressure)
+        conserved_vars(1, right_ghost, :) = conserved_vars(1, right, :)
+        conserved_vars(4, right:right_ghost, :) = boundary_pressure
       end if
 
       ! Zero-gradient in velocity
-      conserved_vars(2, right_ghost, :) = conserved_vars(2, right, :)
-      conserved_vars(3, right_ghost, :) = conserved_vars(3, right, :)
+      conserved_vars(2, right, :) = conserved_vars(2, right - 1, :)
+      conserved_vars(3, right, :) = conserved_vars(3, right - 1, :)
+      conserved_vars(2, right_ghost, :) = conserved_vars(2, right - 1, :)
+      conserved_vars(3, right_ghost, :) = conserved_vars(3, right - 1, :)
       ! case('-x')
       !   ! conserved_vars(:, left_ghost, :) = conserved_vars(:, right, bottom)
       ! case('+y')
