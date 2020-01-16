@@ -106,6 +106,9 @@ contains
     real(rk), intent(in) :: rho_1
     real(rk) :: rho_2
 
+    if(P_1 <= 0.0_rk) error stop "P_1 <= 0"
+    if(P_2 <= 0.0_rk) error stop "P_2 <= 0"
+    if(rho_1 <= 0.0_rk) error stop "rho_1 <= 0"
     rho_2 = rho_1 * (P_2 / P_1)**(self%gamma - 1)
   end function
 end module mod_eos
