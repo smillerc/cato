@@ -30,13 +30,23 @@ module mod_input
     real(rk) :: init_pressure = 0.0_rk   !< Initial condition for the pressure field (useful only for testing)
 
     ! boundary conditions
-    character(:), allocatable :: pressure_input_file
+    character(:), allocatable :: bc_pressure_input_file
     logical :: apply_constant_bc_pressure = .false.
     real(rk) :: constant_bc_pressure_value = 0.0_rk
     character(len=32) ::  plus_x_bc = 'periodic' !< Boundary condition at +x
     character(len=32) :: minus_x_bc = 'periodic' !< Boundary condition at -x
     character(len=32) ::  plus_y_bc = 'periodic' !< Boundary condition at +y
     character(len=32) :: minus_y_bc = 'periodic' !< Boundary condition at -y
+
+    ! source inputs (i.e. pressure source injection at a grid location)
+    logical :: enable_source_terms = .false.
+    logical :: apply_constant_source_pressure = .false.
+    character(:), allocatable :: pressure_source_file
+    real(rk) :: constant_source_pressure_value = 0.0_rk
+    integer(ik) :: pressure_source_ilo = 0
+    integer(ik) :: pressure_source_ihi = 0
+    integer(ik) :: pressure_source_jlo = 0
+    integer(ik) :: pressure_source_jhi = 0
 
     ! io
     character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
@@ -182,9 +192,24 @@ contains
       if(self%apply_constant_bc_pressure) then
         call cfg%get("boundary_conditions", "constant_bc_pressure_value", self%constant_bc_pressure_value)
       else
-        call cfg%get("boundary_conditions", "pressure_input_file", char_buffer)
-        self%pressure_input_file = trim(char_buffer)
+        call cfg%get("boundary_conditions", "bc_pressure_input_file", char_buffer)
+        self%bc_pressure_input_file = trim(char_buffer)
       end if
+    end if
+
+    ! Source terms
+    call cfg%get('source_terms', 'enable_source_terms', self%enable_source_terms, .false.)
+
+    if(self%enable_source_terms) then
+      call cfg%get('source_terms', 'apply_constant_source', self%apply_constant_source_pressure, .false.)
+      call cfg%get('source_terms', 'source_file', char_buffer)
+      self%pressure_source_file = trim(char_buffer)
+
+      call cfg%get('source_terms', 'constant_source_value', self%constant_source_pressure_value, 0.0_rk)
+      call cfg%get('source_terms', 'ilo', self%pressure_source_ilo, 0)
+      call cfg%get('source_terms', 'ihi', self%pressure_source_ihi, 0)
+      call cfg%get('source_terms', 'jlo', self%pressure_source_jlo, 0)
+      call cfg%get('source_terms', 'jhi', self%pressure_source_jhi, 0)
     end if
 
     ! Input/Output
