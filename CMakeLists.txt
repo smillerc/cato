@@ -26,8 +26,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# Packages
-set(HDF5_USE_STATIC_LIBRARIES ON)
+# Packages set(HDF5_USE_STATIC_LIBRARIES ON)
 find_package(
   HDF5
   COMPONENTS Fortran_HL
@@ -64,6 +63,11 @@ endif(CMAKE_BUILD_TYPE STREQUAL Debug)
 message(STATUS "CMAKE_INTERPROCEDURAL_OPTIMIZATION: "
                ${CMAKE_INTERPROCEDURAL_OPTIMIZATION})
 
+include(OptimizeForArchitecture)
+optimizeforarchitecture()
+
+message(STATUS "CMAKE_Fortran_COMPILER_VERSION: "
+               ${CMAKE_Fortran_COMPILER_VERSION})
 # compiler flags for gfortran
 if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   find_package(Coarray REQUIRED)
@@ -84,17 +88,26 @@ endif()
 
 # compiler flags for ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
-  list(
-    APPEND
-      CMAKE_Fortran_FLAGS
-      "-fpp -std18 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770 -check noarg_temp_created"
-  )
+  if(CMAKE_Fortran_COMPILER_VERSION VERSION_LESS 19.0.3)
+    list(
+      APPEND
+        CMAKE_Fortran_FLAGS
+        "-fpp -stand f15 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770 -check noarg_temp_created"
+    )
+  else()
+    list(
+      APPEND
+        CMAKE_Fortran_FLAGS
+        "-fpp -stand f18 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770 -check noarg_temp_created"
+    )
+  endif()
 
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g -warn all -debug all -traceback -fpe-all=0") # -coarray=singl
   # e
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -parallel -mtune=generic"
-  )# -coarray
+  set(CMAKE_Fortran_FLAGS_RELEASE
+      " -O3 -xHost -parallel -mtune=${TARGET_ARCHITECTURE}"
+  ) # -coarray
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
