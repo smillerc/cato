@@ -10,11 +10,11 @@ module mod_cone
   type :: cone_t
     !< Type to encapsulate and calculate the geometry of the mach cone for the evolution operators
 
-    real(rk), dimension(4, 2) :: theta_ie = 0.0_rk
-    !< ((cell_1:cell_4), (arc_1, arc_2)); arc end angle
+    real(rk), dimension(2, 4) :: theta_ie = 0.0_rk
+    !< ((arc_1, arc_2), (cell_1:cell_4)); arc end angle
 
-    real(rk), dimension(4, 2) :: theta_ib = 0.0_rk
-    !< ((cell_1:cell_4), (arc_1, arc_2)); arc begin angle
+    real(rk), dimension(2, 4) :: theta_ib = 0.0_rk
+    !< ((arc_1, arc_2), (cell_1:cell_4)); arc begin angle
 
     real(rk), dimension(2) :: p_prime_xy = 0.0_rk
     !< (x,y); Location of P'
@@ -57,7 +57,7 @@ module mod_cone
 
 contains
 
-  pure type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
+  type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
     !< Constructor for the Mach cone type
     real(rk), intent(in) :: tau
     !< time increment, tau -> 0 (very small number)
@@ -82,7 +82,7 @@ contains
 
     type(vector_t) :: p_prime_vector
     logical :: p_prime_in_cell
-    integer(ik) :: n_arcs
+    integer(ik) :: n_arcs, arc
     integer(ik), dimension(2) :: cell_ij
     real(rk), dimension(2, 2) :: theta_ib_ie
 
@@ -103,6 +103,13 @@ contains
     ! //TODO: Move speed of sound calculation to the EOS module
     associate(a=>new_cone%reference_state(4), rho=>reference_state(1), &
               p=>reference_state(4))
+      if(rho < 0.0) then
+        print *, reference_state
+        print *, edge_vectors(:, :, 1)
+        print *, edge_vectors(:, :, 2)
+        ! print*, edge_vectors(:,:,3)
+        ! print*, edge_vectors(:,:,4)
+      end if
       a = eos%calc_sound_speed(pressure=p, density=rho)
       new_cone%radius = a * tau
     end associate
@@ -157,15 +164,17 @@ contains
                             circle_xy=new_cone%p_prime_xy, circle_radius=new_cone%radius, &
                             arc_segments=theta_ib_ie, n_arcs=n_arcs)
 
-      new_cone%cell_conserved_vars(:, 1, neighbor_cell) = reconstructed_state(:, neighbor_cell)
-      new_cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
-
+      if(n_arcs > 0) then
+        do arc = 1, n_arcs
+          new_cone%cell_conserved_vars(:, arc, neighbor_cell) = reconstructed_state(:, neighbor_cell)
+        end do
+      end if
       ! If all the arcs already add up to 2pi, then skip the remaining neighbor cells
       if(equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) exit
       ! //TODO: test the above statement in unit testing
       new_cone%n_arcs(neighbor_cell) = n_arcs
-      new_cone%theta_ib(neighbor_cell, :) = theta_ib_ie(1, :)
-      new_cone%theta_ie(neighbor_cell, :) = theta_ib_ie(2, :)
+      new_cone%theta_ib(:, neighbor_cell) = theta_ib_ie(1, :)
+      new_cone%theta_ie(:, neighbor_cell) = theta_ib_ie(2, :)
 
     end do
 
@@ -175,7 +184,7 @@ contains
 
     if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
       ! print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
-      ! write(*, *) new_cone
+      write(*, *) new_cone
       ! debug_write(*, *) new_cone
       error stop "Cone arcs do not add up to 2pi"
     end if
@@ -218,9 +227,9 @@ contains
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [deg]     Theta_ie [deg]'//new_line('a')
     do i = 1, 4
       write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', rad2deg(self%theta_ib(i, :)), &
-        '], [ ', rad2deg(self%theta_ie(i, :)), '], delta theta = ', &
-        rad2deg(self%theta_ie(i, :) - self%theta_ib(i, :)), ' '//new_line('a')
+        'Cell: ', i, ' [ ', rad2deg(self%theta_ib(:, i)), &
+        '], [ ', rad2deg(self%theta_ie(:, i)), '], delta theta = ', &
+        rad2deg(self%theta_ie(:, i) - self%theta_ib(:, i)), ' '//new_line('a')
     end do
     write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'sum(arc delta theta) = ', &
       rad2deg(sum(self%theta_ie - self%theta_ib)), ' '//new_line('a')
@@ -229,8 +238,8 @@ contains
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [rad]     Theta_ie [rad]'//new_line('a')
     do i = 1, 4
       write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', self%theta_ib(i, :), &
-        '], [ ', self%theta_ie(i, :), '], delta theta = ', self%theta_ie(i, :) - self%theta_ib(i, :), ' '//new_line('a')
+        'Cell: ', i, ' [ ', self%theta_ib(:, i), &
+        '], [ ', self%theta_ie(:, i), '], delta theta = ', self%theta_ie(:, i) - self%theta_ib(:, i), ' '//new_line('a')
     end do
     write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) &
       'sum(arc delta theta) = ', sum(self%theta_ie - self%theta_ib), ' '//new_line('a')

@@ -25,6 +25,7 @@ module mod_local_evo_operator
     procedure, public :: evolve_leftright_midpoints
     procedure, public :: evolve_downup_midpoints
     procedure, public :: evolve_corners
+    procedure, public :: e0_operator
     procedure, public :: copy
     final :: finalize
   end type local_evo_operator_t
@@ -179,11 +180,12 @@ contains
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
-                                  get_x_velocity(mach_cone), & ! u
-                                  get_y_velocity(mach_cone), & ! v
-                                  get_pressure(mach_cone) &    ! p
-                                  ]
+        evolved_state(:, i, j) = self%e0_operator(mach_cone)
+        ! evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
+        !                           get_x_velocity(mach_cone), & ! u
+        !                           get_y_velocity(mach_cone), & ! v
+        !                           get_pressure(mach_cone) &    ! p
+        !                           ]
 
         ! if (i == 50 .and. j == 50) then
         ! print *, mach_cone
@@ -284,11 +286,12 @@ contains
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
-                                  get_x_velocity(mach_cone), & ! u
-                                  get_y_velocity(mach_cone), & ! v
-                                  get_pressure(mach_cone) &    ! p
-                                  ]
+        evolved_state(:, i, j) = self%e0_operator(mach_cone)
+        ! evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
+        !                           get_x_velocity(mach_cone), & ! u
+        !                           get_y_velocity(mach_cone), & ! v
+        !                           get_pressure(mach_cone) &    ! p
+        !                           ]
 
       end do
     end do
@@ -402,14 +405,74 @@ contains
                              cell_indices=neighbor_cell_indices)
 
         ! Set the evolved state at the midpoint
-        evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
-                                  get_x_velocity(mach_cone), & ! u
-                                  get_y_velocity(mach_cone), & ! v
-                                  get_pressure(mach_cone) &    ! p
-                                  ]
+        evolved_state(:, i, j) = self%e0_operator(mach_cone)
+        ! evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
+        !                           get_x_velocity(mach_cone), & ! u
+        !                           get_y_velocity(mach_cone), & ! v
+        !                           get_pressure(mach_cone) &    ! p
+        !                           ]
+
       end do
     end do
   end subroutine evolve_corners
+
+  function e0_operator(self, mach_cone) result(primitive_variables)
+
+    class(local_evo_operator_t), intent(in) :: self
+    class(cone_t), intent(in) :: mach_cone
+    real(rk), dimension(4) :: primitive_variables
+    real(rk), dimension(4) :: p_prime_u_bar !< [rho, u, v, p] at P'
+
+    real(rk) :: cone_density_term, pressure, density, u, v
+
+    primitive_variables = 0.0_rk
+
+    p_prime_u_bar = self%reconstruction_operator%reconstruct_point(xy=mach_cone%p_prime_xy, &
+                                                                   cell_ij=mach_cone%p_prime_ij)
+
+    associate(theta_ie=>mach_cone%theta_ie, &
+              theta_ib=>mach_cone%theta_ib, &
+              rho_p_prime=>p_prime_u_bar(1), &
+              pressure_p_prime=>p_prime_u_bar(4), &
+              u_i=>mach_cone%cell_conserved_vars(2, :, :), &
+              v_i=>mach_cone%cell_conserved_vars(3, :, :), &
+              p_i=>mach_cone%cell_conserved_vars(4, :, :), &
+              rho_tilde=>mach_cone%reference_state(1), &
+              a_tilde=>mach_cone%reference_state(4))
+
+      pressure = sum(p_i * (theta_ie - theta_ib) - &
+                     rho_tilde * a_tilde * u_i * (sin(theta_ie) - sin(theta_ib)) + &
+                     rho_tilde * a_tilde * v_i * (cos(theta_ie) - cos(theta_ib))) / (2.0_rk * pi)
+
+      cone_density_term = sum((p_i / a_tilde**2) * (theta_ie - theta_ib) &
+                              - (rho_tilde / a_tilde) * u_i * (sin(theta_ie) - sin(theta_ib)) &
+                              + (rho_tilde / a_tilde) * v_i * (cos(theta_ie) - cos(theta_ib))) / (2.0_rk * pi)
+
+      density = rho_p_prime - (pressure_p_prime / a_tilde**2) + cone_density_term
+      if(density < 0.0_rk) then
+        print *, '===================================='
+        print *, ' density < 0.0, trying pressure fix @ (x,y) = ', mach_cone%p_xy
+        print *, '===================================='
+        density = rho_p_prime - (pressure / a_tilde**2) + cone_density_term
+      end if
+
+      u = sum((-p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) + &
+              u_i * (0.5_rk * (theta_ie - theta_ib) + &
+                     0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib))) - &
+              v_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib))) / pi
+
+      v = sum((p_i / (rho_tilde * a_tilde)) * (cos(theta_ie) - cos(theta_ib)) - &
+              u_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib)) + &
+              v_i * (0.5_rk * (theta_ie - theta_ib) + &
+                     0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib)))) / pi
+
+      if(density < 0.0_rk) error stop "Density < 0 in e0_operator"
+      if(pressure < 0.0_rk) error stop "Pressure < 0 in e0_operator"
+    end associate
+
+    primitive_variables = [density, u, v, pressure]
+
+  end function
 
   function get_pressure(mach_cone) result(pressure)
     !< Implementation of p(P) within the local evolution operator (Eq 45 in the text)
@@ -444,7 +507,7 @@ contains
 
     pressure = pressure / (2.0_rk * pi)
     if(near_zero(pressure) .or. pressure < 0.0_rk) then
-      ! debug_write(*, *) mach_cone
+      write(*, *) mach_cone
       error stop "Pressure <= 0 in local_evo_operator_t%get_pressure"
     end if
   end function get_pressure
@@ -456,10 +519,14 @@ contains
     ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     real(rk) :: density  !< rho(P)
+    real(rk) :: cone_contribution  !< rho(P)
+    real(rk) :: p_prime_contribution
+    real(rk) :: rhs_term
     integer(ik) :: arc, cell
     real(rk), dimension(4) :: p_prime_u_bar !< [rho, u, v, p] at P'
     real(rk) :: a
     density = 0.0_rk
+    cone_contribution = 0.0_rk
 
     do cell = 1, mach_cone%n_neighbor_cells
       if(mach_cone%n_arcs(cell) > 0) then
@@ -473,11 +540,11 @@ contains
                     rho_tilde=>mach_cone%reference_state(1), &
                     a_tilde=>mach_cone%reference_state(4))
 
-            density = density + ((p_i / a_tilde**2) * (theta_ie - theta_ib) &
-                                 - (rho_tilde / a_tilde) * u_i * (sin(theta_ie) - sin(theta_ib)) &
-                                 + (rho_tilde / a_tilde) * v_i * (cos(theta_ie) - cos(theta_ib)))
+            cone_contribution = cone_contribution + ((p_i / a_tilde**2) * (theta_ie - theta_ib) &
+                                                     - (rho_tilde / a_tilde) * u_i * (sin(theta_ie) - sin(theta_ib)) &
+                                                     + (rho_tilde / a_tilde) * v_i * (cos(theta_ie) - cos(theta_ib)))
 
-            if(ieee_is_nan(density)) then
+            if(ieee_is_nan(cone_contribution)) then
               error stop "NaNs getting generated by local_evo_operator_t%get_density"
             end if
           end associate
@@ -485,7 +552,7 @@ contains
       end if
     end do
 
-    density = density / (2.0_rk * pi)
+    cone_contribution = cone_contribution / (2.0_rk * pi)
 
     ! Reconstruct at P' to get rho(P') and p(P')
     p_prime_u_bar = self%reconstruction_operator%reconstruct_point(xy=mach_cone%p_prime_xy, &
@@ -493,15 +560,32 @@ contains
 
     associate(rho_p_prime=>p_prime_u_bar(1), pressure_p_prime=>p_prime_u_bar(4), &
               a_tilde=>mach_cone%reference_state(4))
-      density = density + rho_p_prime - (pressure_p_prime / a_tilde**2)
-    end associate
 
-    if(density < 0.0_rk) then
-      write(*, *) mach_cone
-      ! debug_write(*, *) "Density:", density
-      ! debug_write(*, *) "p_prime_u_bar [rho,u,v,p]:", p_prime_u_bar
-      error stop "Density < 0 in local_evo_operator_t%get_density"
-    end if
+      rhs_term = -(pressure_p_prime / a_tilde**2) + cone_contribution
+
+      ! if (rhs_term > rho_p_prime) then
+      density = rho_p_prime - (pressure_p_prime / a_tilde**2) + cone_contribution
+      ! if(density < 0.0_rk) then
+      !   density = rho_p_prime + abs(rhs_term)
+      ! end if
+
+      ! else
+      !   density = rho_p_prime - rhs_term
+      ! end if
+
+      if(density < 0.0_rk) then
+        write(*, *) mach_cone
+        write(*, '(a, es14.7)') "rhs_term = -(pressure_p_prime / a_tilde**2) + cone_contribution:", rhs_term
+        write(*, '(a, es14.7)') "rho_p_prime:", rho_p_prime
+        write(*, '(a, es14.7)') "-(pressure_p_prime / a_tilde**2)", -(pressure_p_prime / a_tilde**2)
+        write(*, '(a, es14.7)') "cone_contribution:", cone_contribution
+        write(*, '(a, es14.7)') "density:", density
+        ! write(*, '(a, es14.5)') "(pressure_p_prime / a_tilde**2):", (pressure_p_prime / a_tilde**2)
+        ! write(*, *) "p_prime_u_bar [rho,u,v,p]:", p_prime_u_bar
+        error stop "Density < 0 in local_evo_operator_t%get_density"
+      end if
+
+    end associate
   end function get_density
 
   function get_x_velocity(mach_cone) result(u)
