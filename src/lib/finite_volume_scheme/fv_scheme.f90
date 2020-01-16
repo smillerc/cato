@@ -104,6 +104,7 @@ module mod_finite_volume_schemes
     procedure, public :: apply_reconstructed_state_bc
     procedure, public :: apply_cell_gradient_bc
     procedure, public :: apply_source_terms
+    procedure, public :: set_time
     final :: finalize
   end type
 
@@ -353,6 +354,17 @@ contains
 
   end subroutine reconstruct
 
+  subroutine set_time(self, time)
+    class(finite_volume_scheme_t), intent(inout) :: self
+    real(rk), intent(in) :: time
+
+    self%time = time
+    call self%bc_plus_x%set_time(time)
+    call self%bc_minus_x%set_time(time)
+    call self%bc_plus_y%set_time(time)
+    call self%bc_minus_y%set_time(time)
+  end subroutine
+
   subroutine apply_conserved_vars_bc(self, conserved_vars, lbounds)
     !< Apply the boundary conditions
     class(finite_volume_scheme_t), intent(inout) :: self
@@ -473,10 +485,16 @@ contains
     jlo = lbound(self%leftright_midpoints_reference_state, dim=3)
     jhi = ubound(self%leftright_midpoints_reference_state, dim=3)
     ! associate(U_tilde=>self%leftright_midpoints_reference_state, U=>conserved_vars)
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
-        ! self%leftright_midpoints_reference_state(:, i, j) = 0.5_rk * (conserved_vars(:, i, j) + conserved_vars(:, i, j - 1))
-        self%leftright_midpoints_reference_state(:, i, j) = max(conserved_vars(:, i, j), conserved_vars(:, i, j - 1))
+    ! do concurrent(j=jlo:jhi)
+    !   do concurrent(i=ilo:ihi)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        self%leftright_midpoints_reference_state(:, i, j) = 0.5_rk * (conserved_vars(:, i, j) + conserved_vars(:, i, j - 1))
+        if(self%leftright_midpoints_reference_state(1, i, j) < 0.0_rk) then
+        print *, 'leftright_midpoints_reference_state density < 0 @', i, j, ' = ', self%leftright_midpoints_reference_state(1, i, j)
+          print *, conserved_vars(1, i, j), conserved_vars(1, i, j - 1)
+        end if
+        ! self%leftright_midpoints_reference_state(:, i, j) = max(conserved_vars(:, i, j), conserved_vars(:, i, j - 1))
         ! debug_write(*,*) conserved_vars(:, i, j), conserved_vars(:, i, j - 1)
       end do
     end do
@@ -488,10 +506,16 @@ contains
     jlo = lbound(self%downup_midpoints_reference_state, dim=3)
     jhi = ubound(self%downup_midpoints_reference_state, dim=3)
     ! associate(U_tilde=>self%downup_midpoints_reference_state, conserved_vars=>conserved_vars)
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
-        ! self%downup_midpoints_reference_state(:, i, j) = 0.5_rk * (conserved_vars(:, i - 1, j) + conserved_vars(:, i, j))
-        self%downup_midpoints_reference_state(:, i, j) = max(conserved_vars(:, i - 1, j), conserved_vars(:, i, j))
+    ! do concurrent(j=jlo:jhi)
+    !   do concurrent(i=ilo:ihi)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        self%downup_midpoints_reference_state(:, i, j) = 0.5_rk * (conserved_vars(:, i - 1, j) + conserved_vars(:, i, j))
+        if(self%downup_midpoints_reference_state(1, i, j) < 0.0_rk) then
+          print *, 'downup_midpoints_reference_state density < 0 @', i, j, ' = ', self%downup_midpoints_reference_state(1, i, j)
+          print *, conserved_vars(1, i - 1, j), conserved_vars(1, i, j)
+        end if
+        ! self%downup_midpoints_reference_state(:, i, j) = max(conserved_vars(:, i - 1, j), conserved_vars(:, i, j))
         ! debug_write(*,*) conserved_vars(:, i - 1, j), conserved_vars(:, i, j)
       end do
     end do
@@ -503,12 +527,19 @@ contains
     jlo = lbound(self%corner_reference_state, dim=3)
     jhi = ubound(self%corner_reference_state, dim=3)
     ! associate(U_tilde=>self%corner_reference_state, conserved_vars=>conserved_vars)
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
-        ! U_tilde(:, i, j) = 0.25_rk * (conserved_vars(:, i, j) + conserved_vars(:, i - 1, j) + &
-        !                               conserved_vars(:, i, j - 1) + conserved_vars(:, i - 1, j - 1))
-        self%corner_reference_state(:, i, j) = max(conserved_vars(:, i, j), conserved_vars(:, i - 1, j), &
-                                                   conserved_vars(:, i, j - 1), conserved_vars(:, i - 1, j - 1))
+    ! do concurrent(j=jlo:jhi)
+    !   do concurrent(i=ilo:ihi)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        self%corner_reference_state(:, i, j) = 0.25_rk * (conserved_vars(:, i, j) + conserved_vars(:, i - 1, j) + &
+                                                          conserved_vars(:, i, j - 1) + conserved_vars(:, i - 1, j - 1))
+        if(self%corner_reference_state(1, i, j) < 0.0_rk) then
+          print *, 'corner_reference_state density < 0 @', i, j, ' = ', self%corner_reference_state(1, i, j)
+          print *, conserved_vars(1, i, j), conserved_vars(1, i - 1, j), &
+            conserved_vars(1, i, j - 1), conserved_vars(1, i - 1, j - 1)
+        end if
+        ! self%corner_reference_state(:, i, j) = max(conserved_vars(:, i, j), conserved_vars(:, i - 1, j), &
+        !                                            conserved_vars(:, i, j - 1), conserved_vars(:, i - 1, j - 1))
 
         ! debug_write(*,*)
       end do
