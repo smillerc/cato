@@ -5,8 +5,6 @@ module mod_pressure_source
   use mod_source, only: source_t
   use mod_input, only: input_t
   use linear_interpolation_module, only: linear_interp_1d
-  use mod_fluid, only: fluid_t
-  use mod_eos, only: eos
 
   implicit none
 
@@ -133,9 +131,9 @@ contains
 
   end subroutine
 
-  subroutine apply_pressure_source(self, fluid, time)
+  subroutine apply_pressure_source(self, primitive_vars, time)
     class(pressure_source_t), intent(inout) :: self
-    type(fluid_t), intent(inout) :: fluid
+    real(rk), dimension(:, 0:, 0:), intent(inout) :: primitive_vars
     real(rk), intent(in) :: time
 
     integer(ik) :: interp_stat
@@ -151,17 +149,26 @@ contains
       end if
     end if
 
-    ! Apply across all i indices
-    if(self%ilo == 0 .and. self%ihi == 0) then
-      fluid%conserved_vars(4, :, self%jlo:self%jhi) = pressure
+    if(pressure > 0.0_rk) then
+      ! Apply across all i indices
+      if(self%ilo == 0 .and. self%ihi == 0) then
+        write(*, '(a, es14.5, 2(a, i0), a)') "Applying pressure = ", pressure, " [barye] at (i=:, j=", self%jlo, ":", self%jhi, ")"
+        primitive_vars(4, :, self%jlo:self%jhi) = pressure
+        ! primitive_vars(4, :, self%jlo:self%jhi) = primitive_vars(4, :, self%jlo:self%jhi) + pressure
 
-      ! Apply across all j indicies
-    else if(self%jlo == 0 .and. self%jhi == 0) then
-      fluid%conserved_vars(4, self%ilo:self%ihi, :) = pressure
+        ! Apply across all j indicies
+      else if(self%jlo == 0 .and. self%jhi == 0) then
+        write(*, '(a, es14.5, 2(a, i0), a)') "Applying pressure = ", pressure, " [barye] at (i=", self%ilo, ":", self%ihi, ", j=:)"
+        primitive_vars(4, self%ilo:self%ihi, :) = pressure
+        ! primitive_vars(4, self%ilo:self%ihi, :) = primitive_vars(4, self%ilo:self%ihi, :) + pressure
 
-      ! Apply within the index intervals
-    else
-      fluid%conserved_vars(4, self%ilo:self%ihi, self%jlo:self%jhi) = pressure
+        ! Apply within the index intervals
+      else
+        write(*, '(a, es14.5, 4(a, i0), a)') "Applying pressure = ", pressure, &
+          " [barye] at (i=", self%ilo, ":", self%ihi, ", j=", self%jlo, ":", self%jhi, ")"
+        primitive_vars(4, self%ilo:self%ihi, self%jlo:self%jhi) = pressure
+        ! primitive_vars(4, self%ilo:self%ihi, self%jlo:self%jhi) = primitive_vars(4, self%ilo:self%ihi, self%jlo:self%jhi) + pressure
+      end if
     end if
 
   end subroutine

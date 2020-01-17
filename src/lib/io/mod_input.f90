@@ -40,6 +40,7 @@ module mod_input
 
     ! source inputs (i.e. pressure source injection at a grid location)
     logical :: enable_source_terms = .false.
+    character(len=32) :: source_term_type = 'pressure'
     logical :: apply_constant_source_pressure = .false.
     character(:), allocatable :: pressure_source_file
     real(rk) :: constant_source_pressure_value = 0.0_rk
@@ -205,11 +206,27 @@ contains
       call cfg%get('source_terms', 'source_file', char_buffer)
       self%pressure_source_file = trim(char_buffer)
 
+      call cfg%get('source_terms', 'source_term_type', char_buffer)
+      self%source_term_type = trim(char_buffer)
+
       call cfg%get('source_terms', 'constant_source_value', self%constant_source_pressure_value, 0.0_rk)
       call cfg%get('source_terms', 'ilo', self%pressure_source_ilo, 0)
       call cfg%get('source_terms', 'ihi', self%pressure_source_ihi, 0)
       call cfg%get('source_terms', 'jlo', self%pressure_source_jlo, 0)
       call cfg%get('source_terms', 'jhi', self%pressure_source_jhi, 0)
+
+      if(self%pressure_source_ilo == 0 .and. &
+         self%pressure_source_ihi == 0 .and. &
+         self%pressure_source_jlo == 0 .and. &
+         self%pressure_source_jhi == 0) then
+        error stop "All of the (i,j) ranges in source_terms are 0"
+      end if
+
+      if(self%pressure_source_ilo > self%pressure_source_ihi) then
+        error stop "source_terms%ilo > source_terms%ihi"
+      else if(self%pressure_source_jlo > self%pressure_source_jhi) then
+        error stop "source_terms%jlo > source_terms%jhi"
+      end if
     end if
 
     ! Input/Output

@@ -1,6 +1,5 @@
 module mod_source
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_fluid, only: fluid_t
 
   implicit none
 
@@ -23,10 +22,10 @@ module mod_source
       class(source_t), intent(inout) :: out_source
     end subroutine copy_source
 
-    subroutine apply_source(self, fluid, time)
-      import :: source_t, fluid_t, rk
+    subroutine apply_source(self, primitive_vars, time)
+      import :: source_t, rk
       class(source_t), intent(inout) :: self
-      type(fluid_t), intent(inout) :: fluid
+      real(rk), dimension(:, 0:, 0:), intent(inout) :: primitive_vars
       real(rk), intent(in) :: time
     end subroutine apply_source
   end interface
