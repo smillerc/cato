@@ -1,6 +1,6 @@
 module test_fluxes
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_flux_tensor, only: H => flux_tensor_t
+  use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use funit
 
   implicit none
@@ -46,6 +46,37 @@ contains
     ! Test operators = and -
     flux_vector_3 = flux_vector_1 - flux_vector_2
     @assertEqual(flux_vector_3%state, flux_vector_1%state - flux_vector_2%state)
+
+  end subroutine
+
+  @test
+  subroutine test_vector_flux_dot()
+    real(rk), dimension(4) :: primitive_vars !< (rho, u, v, p)
+    real(rk), dimension(4) :: H_dot_n, H_dot_n_actual
+    type(H) :: flux_vector_1
+    real(rk) :: e
+    real(rk), dimension(2) :: normal_vector
+
+    H_dot_n = 0.0_rk
+    normal_vector = [6.0_rk, 7.0_rk]
+    associate(rho=>2.0_rk, u=>3.0_rk, v=>4.0_rk, p=>5.0_rk, &
+              gamma=>(5.0_rk / 3.0_rk), n=>normal_vector)
+
+      ! e = (p/(gamma - 1.0_rk)) + 0.5_rk*rho*(u**2 + v**2)
+      e = 0.5_rk * rho * (u**2 + v**2) + (p / (gamma - 1.0_rk))
+      primitive_vars = [rho, u, v, p]
+      H_dot_n_actual = [(rho * u) * n(1) + (rho * v) * n(2), &
+                        (rho * u**2 + p) * n(1) + (rho * u * v) * n(2), &
+                        (rho * u * v) * n(1) + (rho * v**2 + p) * n(2), &
+                        ((e + p) * u) * n(1) + ((e + p) * v) * n(2)]
+    end associate
+
+    flux_vector_1 = H(primitive_vars)
+
+    H_dot_n = flux_vector_1.dot.normal_vector
+    print *, H_dot_n
+    print *, H_dot_n_actual
+    @assertEqual(H_dot_n_actual, H_dot_n)
 
   end subroutine
 

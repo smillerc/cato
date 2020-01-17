@@ -9,7 +9,7 @@ module mod_flux_tensor
   public :: flux_tensor_t, operator(.dot.) !, operator(*), operator(-), operator(+)
 
   type flux_tensor_t
-    real(rk), dimension(2, 4) :: state
+    real(rk), dimension(2, 4) :: state  !< ((i,j), conserved_quantites)
   contains
     procedure, pass(lhs), private :: assign_from_flux
     procedure, pass(flux) :: real_mul_flux
@@ -45,15 +45,18 @@ contains
     real(rk) :: total_energy
 
     associate(rho=>primitive_variables(1), &
-              u=>primitive_variables(2), v=>primitive_variables(3), &
-              p=>primitive_variables(4), gamma=>eos%get_gamma())
+              u=>primitive_variables(2), &
+              v=>primitive_variables(3), &
+              p=>primitive_variables(4), &
+              gamma=>eos%get_gamma())
 
       total_energy = 0.5_rk * rho * (u**2 + v**2) + (p / (gamma - 1.0_rk))
     end associate
 
     ! The flux tensor is H = Fi + Gj
     associate(rho=>primitive_variables(1), &
-              u=>primitive_variables(2), v=>primitive_variables(3), &
+              u=>primitive_variables(2), &
+              v=>primitive_variables(3), &
               p=>primitive_variables(4), &
               E=>total_energy, H=>flux_tensor%state)
       ! F
