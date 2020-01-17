@@ -9,7 +9,7 @@ program cato
   use mod_fluid, only: fluid_t, new_fluid
   use mod_integrand, only: integrand_t
   use mod_grid, only: grid_t
-  use mod_eos, only: eos
+  use mod_eos, only: set_equation_of_state, eos
   ! use mod_grid_factory, only: grid_factory_t
   implicit none
 
@@ -53,6 +53,7 @@ program cato
 
   fv => make_fv_scheme(input)
   U => new_fluid(input, fv)
+  call set_equation_of_state(input)
 
   contour_writer = contour_writer_t(input=input)
 
@@ -73,10 +74,9 @@ program cato
 
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / c_sound
 
-    write(*, '(2(a, 1x, es10.3))') 'Time =', time, ' Delta t = ', delta_t
+    write(*, '(2(a, 1x, es10.3))') 'Time =', time, ', delta t = ', delta_t
 
-    ! print*, 'minval(U%conserved_vars(1,:,:))', minval(U%conserved_vars(1,:,:)), 'maxval(U%conserved_vars(1,:,:))', maxval(U%conserved_vars(1,:,:))
-    call fv%apply_source_terms()
+    call fv%apply_source_terms(U%conserved_vars, lbound(U%conserved_vars))
 
     ! First put conserved vars in ghost layers
     call fv%apply_conserved_vars_bc(U%conserved_vars, lbound(U%conserved_vars))
@@ -105,6 +105,7 @@ program cato
 
     time = time + delta_t
     iteration = iteration + 1
+    call fv%set_time(time)
   end do
 
   call timer%stop()
