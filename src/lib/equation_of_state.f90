@@ -16,12 +16,12 @@ module mod_eos
     procedure, public :: set_gamma
     procedure, public :: calc_pressure_from_dens_and_internal_energy
     procedure, public :: calc_internal_energy_from_press_and_dens
-    procedure, public :: calc_total_energy
-    procedure, public :: calc_sound_speed
+    procedure, public :: total_energy
+    procedure, public :: sound_speed
     procedure, public :: calc_density_from_isentropic_press
   end type eos_t
 
-  interface eos_t
+  interface new_eos
     module procedure :: constructor
   end interface
 
@@ -70,32 +70,27 @@ contains
     internal_energy = (pressure / density) / (self%gamma - 1.0_rk)
   end function
 
-  elemental function calc_total_energy(self, internal_energy, density, x_velocity, y_velocity) result(total_energy)
+  elemental real(rk) function total_energy(self, internal_energy, density, x_velocity, y_velocity)
     !< Calculate total energy
     class(eos_t), intent(in) :: self
     real(rk), intent(in) :: internal_energy
     real(rk), intent(in) :: density
     real(rk), intent(in) :: x_velocity
     real(rk), intent(in) :: y_velocity
-    real(rk) :: total_energy
 
     total_energy = density * (internal_energy + 0.5_rk * (x_velocity**2 + y_velocity**2))
   end function
 
-  elemental function calc_sound_speed(self, pressure, density) result(sound_speed)
+  elemental real(rk) function sound_speed(self, pressure, density)
     !< Calculate sound speed
     class(eos_t), intent(in) :: self
     real(rk), intent(in) :: pressure
     real(rk), intent(in) :: density
-    real(rk) :: sound_speed
-
-    real(rk) :: sqrt_term
+    ! real(rk) :: sound_speed
 
     if(pressure < 0) error stop "Pressure is < 0 in eos_t%calc_sound_speed"
     if(density < 0) error stop "Density is < 0 in eos_t%calc_sound_speed"
-
-    sqrt_term = self%gamma * pressure / density
-    sound_speed = sqrt(sqrt_term)
+    sound_speed = sqrt(self%gamma * pressure / density)
   end function
 
   elemental function calc_density_from_isentropic_press(self, P_1, P_2, rho_1) result(rho_2)
