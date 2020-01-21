@@ -143,6 +143,7 @@ contains
 
     integer(ik) :: interp_stat
     real(rk) :: boundary_pressure, boundary_density
+    real(rk), dimension(:), allocatable :: boundary_buffer
 
     left_ghost = lbound(conserved_vars, dim=2)
     right_ghost = ubound(conserved_vars, dim=2)
@@ -176,25 +177,47 @@ contains
     select case(self%location)
     case('+x')
 
+      ! Zero-gradient in velocity
+      conserved_vars(2, right, :) = conserved_vars(2, right - 1, :)
+      conserved_vars(3, right, :) = conserved_vars(3, right - 1, :)
+      conserved_vars(2, right_ghost, :) = conserved_vars(2, right, :)
+      conserved_vars(3, right_ghost, :) = conserved_vars(3, right, :)
+
       if(boundary_pressure <= 0.0_rk) then
         ! Default to zero-gradient if the input pressure goes <= 0
         conserved_vars(1, right:right_ghost, :) = conserved_vars(1, right:right_ghost, :)
         conserved_vars(4, right:right_ghost, :) = conserved_vars(4, right:right_ghost, :)
         print *, "Applying zero-gradient at +x boundary (input pressure is <= 0)"
       else
+
         print *, "Applying pressure at +x boundary of: ", boundary_pressure
+
+        ! Get the pressure of the cells inward (right - 1) from the boundary
+        allocate(boundary_buffer, mold=conserved_vars(1, right, :))
+
+        ! conserved_vars(4) stores energy, but I need pressure
+        boundary_buffer = eos%energy_to_pressure(energy=conserved_vars(4, right - 1, :), &
+                                                 rho=conserved_vars(1, right - 1, :), &
+                                                 u=conserved_vars(2, right - 1, :), &
+                                                 v=conserved_vars(3, right - 1, :))
+
+        ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
         conserved_vars(1, right, :) = eos%calc_density_from_isentropic_press(p_1=conserved_vars(4, right - 1, :), &
                                                                              rho_1=conserved_vars(1, right - 1, :), &
-                                                                             p_2=boundary_pressure)
+                                                                             p_2=boundary_buffer)
+        ! Zero gradient in density
         conserved_vars(1, right_ghost, :) = conserved_vars(1, right, :)
-        conserved_vars(4, right:right_ghost, :) = boundary_pressure
+
+        ! Set the energy based on the input pressure
+        conserved_vars(4, right, :) = eos%total_energy(pressure=boundary_pressure, &
+                                                       density=conserved_vars(1, right, :), &
+                                                       x_velocity=conserved_vars(2, right, :), & ! or right - 1?
+                                                       y_velocity=conserved_vars(3, right, :))
+
+        ! Zero gradient in energy
+        conserved_vars(4, right_ghost, :) = conserved_vars(4, right, :)
       end if
 
-      ! Zero-gradient in velocity
-      conserved_vars(2, right, :) = conserved_vars(2, right - 1, :)
-      conserved_vars(3, right, :) = conserved_vars(3, right - 1, :)
-      conserved_vars(2, right_ghost, :) = conserved_vars(2, right - 1, :)
-      conserved_vars(3, right_ghost, :) = conserved_vars(3, right - 1, :)
       ! case('-x')
       !   ! conserved_vars(:, left_ghost, :) = conserved_vars(:, right, bottom)
       ! case('+y')
@@ -206,6 +229,7 @@ contains
         "pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
     end select
 
+    if(allocated(boundary_buffer)) deallocate(boundary_buffer)
   end subroutine apply_pressure_input_conserved_var_bc
 
   subroutine apply_pressure_input_reconstructed_state_bc(self, reconstructed_state)
