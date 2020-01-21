@@ -11,6 +11,7 @@ module mod_fluid
   use mod_surrogate, only: surrogate
   use mod_grid, only: grid_t
   use mod_input, only: input_t
+  use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
@@ -24,14 +25,17 @@ module mod_fluid
 
   type, extends(integrand_t) :: fluid_t
     real(rk), dimension(:, :, :), allocatable :: conserved_vars
-    ! real(rk) :: timestep
-    ! real(rk) :: time
-    ! integer(ik) :: iteration
+    !< [rho, rho*u, rho*v, e] Conserved quantities
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
     procedure, private :: initialize_from_hdf5
     procedure, public :: t => time_derivative
+    procedure, public :: get_density
+    procedure, public :: get_x_velocity
+    procedure, public :: get_y_velocity
+    procedure, public :: get_pressure
+    procedure, public :: get_sound_speed
     procedure, pass(lhs), public :: type_plus_type => add_fluid
     procedure, pass(lhs), public :: type_minus_type => subtract_fluid
     procedure, pass(lhs), public :: type_mul_real => fluid_mul_real
@@ -51,7 +55,7 @@ contains
 
     allocate(fluid)
     call fluid%initialize(input, finite_volume_scheme)
-  end
+  end function
 
   subroutine initialize(self, input, finite_volume_scheme)
     class(fluid_t), intent(inout) :: self
@@ -87,12 +91,16 @@ contains
       call self%initialize_from_ini(input)
     end if
 
-    write(*, '(a)') 'Initial fluid stats'
-    write(*, '(a)') '==================='
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Density:  ', minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max U:        ', minval(self%conserved_vars(2, :, :)), maxval(self%conserved_vars(2, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max V:        ', minval(self%conserved_vars(3, :, :)), maxval(self%conserved_vars(3, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Pressure: ', minval(self%conserved_vars(4, :, :)), maxval(self%conserved_vars(4, :, :))
+    write(*, '(a)') 'Initial fluid conserved variable stats'
+    write(*, '(a)') '======================================'
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho:          ', &
+      minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho * u:      ', &
+      minval(self%conserved_vars(2, :, :)), maxval(self%conserved_vars(2, :, :))
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho * v:      ', &
+      minval(self%conserved_vars(3, :, :)), maxval(self%conserved_vars(3, :, :))
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max total energy: ', &
+      minval(self%conserved_vars(4, :, :)), maxval(self%conserved_vars(4, :, :))
     write(*, *)
   end subroutine
 
@@ -128,10 +136,14 @@ contains
     associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, imax=>finite_volume_scheme%grid%ihi_bc_cell, &
               jmin=>finite_volume_scheme%grid%jlo_bc_cell, jmax=>finite_volume_scheme%grid%jhi_bc_cell)
 
-      self%conserved_vars(1, imin:imax, jmin:jmax) = density    ! (1:imax,1:jmax)
-      self%conserved_vars(2, imin:imax, jmin:jmax) = x_velocity ! (1:imax,1:jmax)
-      self%conserved_vars(3, imin:imax, jmin:jmax) = y_velocity ! (1:imax,1:jmax)
-      self%conserved_vars(4, imin:imax, jmin:jmax) = pressure   ! (1:imax,1:jmax)
+      self%conserved_vars(1, imin:imax, jmin:jmax) = density
+      self%conserved_vars(2, imin:imax, jmin:jmax) = density * x_velocity
+      self%conserved_vars(3, imin:imax, jmin:jmax) = density * y_velocity
+      self%conserved_vars(4, imin:imax, jmin:jmax) = eos%total_energy(pressure=pressure, &
+                                                                      density=density, &
+                                                                      x_velocity=x_velocity, &
+                                                                      y_velocity=y_velocity)
+
     end associate
 
   end subroutine initialize_from_hdf5
@@ -143,12 +155,15 @@ contains
     class(input_t), intent(in) :: input
 
     call debug_print('Initializing fluid_t from .ini', __FILE__, __LINE__)
-    write(*, '(a,4(f0.3, 1x))') 'Initializing fluid_t%conserved_vars to [rho,u,v,p]: ', &
+    write(*, '(a,4(f0.3, 1x))') 'Initializing with [rho,u,v,p]: ', &
       input%init_density, input%init_x_velocity, input%init_y_velocity, input%init_pressure
     self%conserved_vars(1, :, :) = input%init_density
-    self%conserved_vars(2, :, :) = input%init_x_velocity
-    self%conserved_vars(3, :, :) = input%init_y_velocity
-    self%conserved_vars(4, :, :) = input%init_pressure
+    self%conserved_vars(2, :, :) = input%init_density * input%init_x_velocity
+    self%conserved_vars(3, :, :) = input%init_density * input%init_y_velocity
+    self%conserved_vars(4, :, :) = eos%total_energy(pressure=input%init_pressure, &
+                                                    density=input%init_density, &
+                                                    x_velocity=input%init_x_velocity, &
+                                                    y_velocity=input%init_y_velocity)
 
     if(near_zero(input%init_pressure)) then
       error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5"
@@ -386,5 +401,56 @@ contains
 
     call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
   end subroutine assign_fluid
+
+  function get_density(self) result(density)
+    class(fluid_t), intent(in) :: self
+    real(rk), dimension(:, :), allocatable :: density
+
+    allocate(density, mold=self%conserved_vars(1, :, :))
+    density = self%conserved_vars(1, :, :)
+  end function
+
+  function get_x_velocity(self) result(x_velocity)
+    class(fluid_t), intent(in) :: self
+    real(rk), dimension(:, :), allocatable :: x_velocity
+
+    allocate(x_velocity, mold=self%conserved_vars(1, :, :))
+    x_velocity = self%conserved_vars(2, :, :) / self%conserved_vars(1, :, :)
+  end function
+
+  function get_y_velocity(self) result(y_velocity)
+    class(fluid_t), intent(in) :: self
+    real(rk), dimension(:, :), allocatable :: y_velocity
+
+    allocate(y_velocity, mold=self%conserved_vars(1, :, :))
+    y_velocity = self%conserved_vars(3, :, :) / self%conserved_vars(1, :, :)
+  end function
+
+  function get_pressure(self) result(pressure)
+    class(fluid_t), intent(in) :: self
+    real(rk), dimension(:, :), allocatable :: pressure
+
+    allocate(pressure, mold=self%conserved_vars(1, :, :))
+    pressure = eos%energy_to_pressure(energy=self%conserved_vars(4, :, :), &
+                                      rho=self%conserved_vars(1, :, :), &
+                                      u=self%conserved_vars(2, :, :), &
+                                      v=self%conserved_vars(3, :, :))
+  end function
+
+  function get_sound_speed(self) result(sound_speed)
+    class(fluid_t), intent(in) :: self
+    real(rk), dimension(:, :), allocatable :: sound_speed
+
+    allocate(sound_speed, mold=self%conserved_vars(1, :, :))
+
+    associate(e=>self%conserved_vars(4, :, :), &
+              rho=>self%conserved_vars(1, :, :), &
+              u=>self%conserved_vars(2, :, :), &
+              v=>self%conserved_vars(3, :, :), &
+              gamma=>eos%get_gamma())
+
+      sound_speed = sqrt(gamma * ((gamma - 1.0_rk) * (e - 0.5_rk * rho * (u**2 + v**2))) / rho)
+    end associate
+  end function
 
 end module mod_fluid
