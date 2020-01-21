@@ -29,11 +29,11 @@ contains
     call debug_print('Running ralston_2nd%integrate()', __FILE__, __LINE__)
 
     select type(U)
-    class is(integrand_t)
-      allocate(U_half, source=U)
-      U_half = U + U%t(finite_volume_scheme) * dt
-      U = 0.5_rk * U + 0.5_rk * (U_half + (U_half%t(finite_volume_scheme) * dt))
-      deallocate(U_half)
+      ! class is(integrand_t)
+      !   allocate(U_half, source=U)
+      !   U_half = U + U%t(finite_volume_scheme) * dt
+      !   U = 0.5_rk * U + 0.5_rk * (U_half + (U_half%t(finite_volume_scheme) * dt))
+      !   deallocate(U_half)
     class default
       error stop 'Error in ralston_2nd%integrate - unsupported class'
     end select
