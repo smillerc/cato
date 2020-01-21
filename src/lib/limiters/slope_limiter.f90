@@ -38,6 +38,8 @@ contains
       limiter%limit => upwind_limit
     case('minmod')
       limiter%limit => minmod_limit
+    case('weno')
+      limiter%limit => weno_limit
     case default
       limiter%limit => upwind_limit
       limiter%name = 'upwind'
@@ -85,6 +87,22 @@ contains
     else
       slope = 0.0_rk
     end if
+
+  end function
+
+  pure function weno_limit(a, b) result(slope)
+    !< Basic WENO slope limiter
+
+    real(rk) :: slope
+    real(rk), intent(in) :: a, b
+    real(rk) :: omega_1, omega_2  !< weights
+    real(rk) :: epsilon
+
+    epsilon = 1e-6_rk
+    omega_1 = (epsilon + a**2)**(-2)
+    omega_2 = (epsilon + b**2)**(-2)
+
+    slope = (omega_1 * a + omega_2 * b) / (omega_1 + omega_2)
 
   end function
 
