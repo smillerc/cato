@@ -1,4 +1,4 @@
-module mod_2nd_order_runge_kutta
+module mod_2nd_order_heun
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
@@ -9,10 +9,10 @@ module mod_2nd_order_runge_kutta
 
   implicit none
   private
-  public :: runge_kutta_2nd
+  public :: heun_2nd
 
-  type, extends(strategy) :: runge_kutta_2nd
-    !< 2nd-order Runge-Kutta time integration
+  type, extends(strategy) :: heun_2nd
+    !< 2nd-order Heun's Method time integration
   contains
     procedure, nopass :: integrate ! integration procedure
   end type
@@ -24,22 +24,26 @@ contains
     class(surrogate), intent(inout) :: U
     class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     real(rk), intent(in) :: dt
-    class(integrand_t), allocatable :: U_half !< function evaluation at interval t+dt/2
+    class(integrand_t), allocatable :: U_1 !< first stage
 
-    call debug_print('Running runge_kutta_2nd%integrate()', __FILE__, __LINE__)
+    call debug_print('Running heun_2nd%integrate()', __FILE__, __LINE__)
 
     select type(U)
     class is(integrand_t)
-      allocate(U_half, source=U)
-      U_half = U + U%t(finite_volume_scheme) * dt
-      ! U = 0.5_rk * U + 0.5_rk * (U_half + U_half%t(finite_volume_scheme) * dt)
-      U = 0.5_rk * U + &
-          0.5_rk * U_half + &
-          0.5_rk * U_half%t(finite_volume_scheme) * dt
-      deallocate(U_half)
+      allocate(U_1, source=U)
+
+      ! 1st stage
+      U_1 = U + U%t(finite_volume_scheme) * dt
+
+      ! Final stage
+      U = U + &
+          0.5_rk * U_1 + &
+          0.5_rk * U_1%t(finite_volume_scheme) * dt
+      ! // TODO: Do I need to have bc's applied at each stage?
+      deallocate(U_1)
     class default
-      error stop 'Error in runge_kutta_2nd%integrate - unsupported class'
+      error stop 'Error in heun_2nd%integrate - unsupported class'
     end select
 
   end subroutine
-end module mod_2nd_order_runge_kutta
+end module mod_2nd_order_heun

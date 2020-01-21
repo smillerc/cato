@@ -62,7 +62,10 @@ add_library(
   lib/integrators/strategy.f90
   lib/integrators/surrogate.f90
   lib/integrators/time_integrator_factory.f90
-  lib/integrators/runge_kutta_2nd_order.f90)
+  lib/integrators/heun_2nd_order.f90
+  lib/integrators/ssp_runge_kutta_3rd_order.f90
+  lib/integrators/ssp_runge_kutta_2nd_order.f90
+  lib/integrators/ralston_2nd_order.f90)
 
 # target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(
