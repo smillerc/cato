@@ -42,34 +42,27 @@ contains
     !< Implementation of the flux tensor (H) construction. This requires the primitive variables
     real(rk), dimension(4), intent(in) :: primitive_variables !< [rho, u, v, p]
 
-    real(rk) :: total_energy
-
-    associate(rho=>primitive_variables(1), &
-              u=>primitive_variables(2), &
-              v=>primitive_variables(3), &
-              p=>primitive_variables(4), &
-              gamma=>eos%get_gamma())
-
-      total_energy = 0.5_rk * rho * (u**2 + v**2) + (p / (gamma - 1.0_rk))
-    end associate
+    real(rk) :: e !< total energy
 
     ! The flux tensor is H = Fi + Gj
     associate(rho=>primitive_variables(1), &
               u=>primitive_variables(2), &
               v=>primitive_variables(3), &
               p=>primitive_variables(4), &
-              E=>total_energy, H=>flux_tensor%state)
+              H=>flux_tensor%state)
+
+      e = eos%total_energy(pressure=p, density=rho, x_velocity=u, y_velocity=v)
       ! F
       H(1, :) = [rho * u, &
                  rho * u**2 + p, &
                  rho * u * v, &
-                 (E + p) * u]
+                 (e + p) * u]
 
       ! G
       H(2, :) = [rho * v, &
                  rho * u * v, &
                  rho * v**2 + p, &
-                 (E + p) * v]
+                 (e + p) * v]
     end associate
 
   end function
