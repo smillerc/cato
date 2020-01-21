@@ -6,6 +6,7 @@ module mod_second_order_reconstruction
   use mod_grid, only: grid_t
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
+  use mod_eos, only: eos
 
   implicit none
 
@@ -98,16 +99,17 @@ contains
     allocate(out_recon%cell_gradient, source=in_recon%cell_gradient)
 
     out_recon%limiter = in_recon%limiter
+    out_recon%domain_has_been_reconstructed = .false.
   end subroutine
 
-  pure function reconstruct_point(self, xy, cell_ij) result(U_bar)
+  pure function reconstruct_point(self, xy, cell_ij) result(V_bar)
     !< Reconstruct the value of the conserved variables (U) at location (x,y)
     !< withing a cell (i,j)
 
     class(second_order_reconstruction_t), intent(in) :: self
     ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
-    real(rk), dimension(2), intent(in) :: xy !< where should U_bar be reconstructed at?
-    real(rk), dimension(4) :: U_bar  !< U_bar = reconstructed [rho, u, v, p]
+    real(rk), dimension(2), intent(in) :: xy !< where should V_bar be reconstructed at?
+    real(rk), dimension(4) :: V_bar  !< V_bar = reconstructed [rho, u, v, p]
     integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
     real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
     integer(ik) :: i, j
@@ -115,19 +117,27 @@ contains
     i = cell_ij(1); j = cell_ij(2)
     centroid_xy = self%grid%get_cell_centroid_xy(i, j)
 
+    if(.not. self%domain_has_been_reconstructed) then
+      error stop "Error in second_order_reconstruction_t%reconstruct_point(), "// &
+        "domain_has_been_reconstructed is false, but should be true"
+    end if
+
     associate(dU_dx=>self%cell_gradient(1, :, i, j), &
               dU_dy=>self%cell_gradient(2, :, i, j), &
-              cell_ave=>self%conserved_vars(:, i, j), &
+              cell_ave=>eos%conserved_to_primitive(self%conserved_vars(:, i, j)), &
               x=>xy(1), y=>xy(2), &
               x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
 
-      U_bar = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
+      V_bar = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
     end associate
 
   end function reconstruct_point
 
   pure subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
-    !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
+    !< Reconstruct each corner/midpoint. This converts the cell centered conserved
+    !< quantities [rho, rho u, rho v, e] to reconstructed primitive variables [rho, u, v, p]
+    !< based on the chosen reconstruction order, e.g. using a piecewise-linear function based on the
+    !< selected cell and it's neighbors. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
     class(second_order_reconstruction_t), intent(inout) :: self
     ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
@@ -154,32 +164,15 @@ contains
     jlo = lbound(reconstructed_domain, dim=5) + 1
     jhi = ubound(reconstructed_domain, dim=5) - 1
 
-    ! debug_write(*,*) 'reconstruction indicies (phi, nhi, ilo, ihi, jlo, jhi):',phi, nhi, ilo, ihi, jlo, jhi
-! #ifdef __DEBUG__
     do j = jlo, jhi
       do i = ilo, ihi
-! #else
-!         do concurrent(j=jlo:jhi)
-!           do concurrent(i=ilo:ihi)
-! #endif
-
-        ! debug_write(*,*)
         self%cell_gradient(:, :, i, j) = self%estimate_gradients(i, j)
-        ! debug_write(*,*) 'Cell drho/dx (i,j):', i, j, self%cell_gradient(1, 1, i, j)
-        ! debug_write(*,*) 'Cell drho_dy (i,j):', i, j, self%cell_gradient(2, 1, i, j)
-        ! debug_write(*,*)
         centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
 
-        ! First do corners, then to midpoints
-        ! do concurrent(n=1:nhi)
-        do n = 1, nhi
-
-          ! Loop through each point (N1-N4, and M1-M4)
-          do p = 1, phi
-            ! do concurrent(p=1:phi)
-
-            associate(U_bar=>reconstructed_domain, &
-                      cell_ave=>self%conserved_vars(:, i, j), &
+        do n = 1, nhi ! First do corners, then to midpoints
+          do p = 1, phi ! Loop through each point (N1-N4, and M1-M4)
+            associate(V_bar=>reconstructed_domain, &
+                      cell_ave=>eos%conserved_to_primitive(self%conserved_vars(:, i, j)), &
                       x=>self%grid%cell_node_xy(1, p, n, i, j), &
                       y=>self%grid%cell_node_xy(2, p, n, i, j), &
                       dU_dx=>self%cell_gradient(1, :, i, j), &
@@ -187,13 +180,7 @@ contains
                       x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
 
               ! reconstructed_state(rho:p, point, node/midpoint, i, j)
-              U_bar(:, p, n, i, j) = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
-              ! debug_write(*,*) cell_ave
-              ! debug_write(*,*) dU_dx
-              ! debug_write(*,*) dU_dy
-              ! debug_write(*,*) x, x_ij, y, y_ij
-              ! debug_write(*,*) 'U_bar:',  U_bar(:, p, n, i, j)
-              ! debug_write(*,*)
+              V_bar(:, p, n, i, j) = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
             end associate
 
           end do
@@ -201,6 +188,7 @@ contains
       end do
     end do
 
+    self%domain_has_been_reconstructed = .true.
   end subroutine reconstruct_domain
 
   pure function estimate_gradients(self, i, j) result(gradients)
@@ -208,34 +196,50 @@ contains
     class(second_order_reconstruction_t), intent(in) :: self
     real(rk), dimension(2, 4) :: gradients !< ([x,y], [rho,u,v,p])
     integer(ik), intent(in) :: i, j
+    real(rk), dimension(4, 5) :: V  ! primitive vars ((rho,u,v,p),(up,down,left,right,center))
+    real(rk), dimension(5) :: var
+
+    V(:, 1) = eos%conserved_to_primitive(self%conserved_vars(:, i, j + 1))  ! up
+    V(:, 2) = eos%conserved_to_primitive(self%conserved_vars(:, i, j - 1))  ! down
+    V(:, 3) = eos%conserved_to_primitive(self%conserved_vars(:, i - 1, j))  ! left
+    V(:, 4) = eos%conserved_to_primitive(self%conserved_vars(:, i + 1, j))  ! right
+    V(:, 5) = eos%conserved_to_primitive(self%conserved_vars(:, i, j))    ! center
 
     ! density
-    gradients(:, 1) = self%estimate_single_gradient(i, j, var_idx=1)
+    var = V(1, :)
+    gradients(:, 1) = self%estimate_single_gradient(i, j, var)
 
     ! x velocity
-    gradients(:, 2) = self%estimate_single_gradient(i, j, var_idx=2)
+    var = V(2, :)
+    gradients(:, 2) = self%estimate_single_gradient(i, j, var)
 
     ! y velocity
-    gradients(:, 3) = self%estimate_single_gradient(i, j, var_idx=3)
+    var = V(3, :)
+    gradients(:, 3) = self%estimate_single_gradient(i, j, var)
 
     ! pressure
-    gradients(:, 4) = self%estimate_single_gradient(i, j, var_idx=4)
+    var = V(4, :)
+    gradients(:, 4) = self%estimate_single_gradient(i, j, var)
 
   end function estimate_gradients
 
-  pure function estimate_single_gradient(self, i, j, var_idx) result(grad_v)
+  pure function estimate_single_gradient(self, i, j, up_down_left_right_center_var) result(grad_v)
     !< Find the gradient of a variable (v) within a cell at indices (i,j) based on the neighbor information.
     !< See Eq. 9 in https://doi.org/10.1016/j.jcp.2006.03.018. The slope limiter is set via the constructor
     !< of this derived type.
 
     class(second_order_reconstruction_t), intent(in) :: self
-    integer(ik), intent(in) :: var_idx !< index of the variable to estimate the gradient
-    integer(ik), intent(in) :: i, j !< cell index
+    real(rk), dimension(5), intent(in) :: up_down_left_right_center_var !< index of the variable to estimate the gradient
+    integer(ik), intent(in) :: i, j
     real(rk), dimension(2) :: grad_v !< (dV/dx, dV/dy) gradient of the variable
     real(rk) :: edge_1, edge_2, edge_3, edge_4
 
     associate(L=>self%limiter, &
-              U=>self%conserved_vars, v=>var_idx, &
+              up=>up_down_left_right_center_var(1), &
+              down=>up_down_left_right_center_var(2), &
+              left=>up_down_left_right_center_var(3), &
+              right=>up_down_left_right_center_var(4), &
+              center=>up_down_left_right_center_var(5), &
               volume=>self%grid%get_cell_volumes(i, j), &
               n1=>self%grid%cell_edge_norm_vectors(:, 1, i, j), &
               n2=>self%grid%cell_edge_norm_vectors(:, 2, i, j), &
@@ -246,61 +250,23 @@ contains
               delta_l3=>self%grid%cell_edge_lengths(3, i, j), &
               delta_l4=>self%grid%cell_edge_lengths(4, i, j))
 
-      ! grad_v = (1._rk / (2.0_rk * volume)) * &
-      !          (L%limit(U(v, i + 1, j) - U(v, i, j), U(v, i, j) - U(v, i - 1, j)) * (n2 * delta_l2 - n4 * delta_l4) + &
-      !           L%limit(U(v, i, j + 1) - U(v, i, j), U(v, i, j) - U(v, i, j - 1)) * (n3 * delta_l3 - n1 * delta_l1))
-
-      ! if (v == 1) debug_write(*,*) 'i', i, 'j', j
       ! i, j - 1/2 (bottom edge)
-      edge_1 = U(v, i, j) - 0.5_rk * L%limit(U(v, i, j + 1) - U(v, i, j), U(v, i, j) - U(v, i, j - 1))
-      ! if (v == 1) then
-      !   debug_write(*,*) 'bottom edge'
-      !   debug_write(*,*) U(v, i, j-1), U(v, i, j), U(v, i, j+1)
-      !   debug_write(*,*) U(v, i, j + 1) - U(v, i, j), U(v, i, j) - U(v, i, j - 1)
-      !   debug_write(*,*) L%limit(U(v, i, j + 1) - U(v, i, j), U(v, i, j) - U(v, i, j - 1))
-      !   debug_write(*,*) 'edge_1', edge_1
-      ! end if
-      ! edge_4 = U(v, i, j) - 0.5_rk * L%limit(U(v, i, j) - U(v, i, j - 1), U(v, i, j + 1) - U(v, i, j))
+      edge_1 = center - 0.5_rk * L%limit(up - center, center - down)
 
       ! i, j + 1/2 (top edge)
-      edge_3 = U(v, i, j) + 0.5_rk * L%limit(U(v, i, j + 1) - U(v, i, j), U(v, i, j) - U(v, i, j - 1))
-      ! edge_2 = U(v, i, j) + 0.5_rk * L%limit(U(v, i, j) - U(v, i, j - 1), U(v, i, j + 1) - U(v, i, j))
+      edge_3 = center + 0.5_rk * L%limit(up - center, center - down)
 
       ! i + 1/2, j (right edge)
-      edge_2 = U(v, i, j) + 0.5_rk * L%limit(U(v, i + 1, j) - U(v, i, j), U(v, i, j) - U(v, i - 1, j))
-      ! if (v == 1) then
-      !   debug_write(*,*) 'right edge'
-      !   debug_write(*,*) U(v, i-1, j), U(v, i, j), U(v, i+1, j)
-      !   debug_write(*,*) U(v, i+1, j) - U(v, i, j), U(v, i, j) - U(v, i-1, j)
-      !   debug_write(*,*) L%limit(U(v, i+1, j) - U(v, i, j), U(v, i, j) - U(v, i-1, j))
-      !   debug_write(*,*) 'edge_2', edge_2
-      ! end if
-      ! edge_3 = U(v, i, j) + 0.5_rk * L%limit(U(v, i, j) - U(v, i - 1, j), U(v, i + 1, j) - U(v, i, j))
+      edge_2 = center + 0.5_rk * L%limit(right - center, center - left)
 
       ! i - 1/2, j (left edge)
-      edge_4 = U(v, i, j) - 0.5_rk * L%limit(U(v, i + 1, j) - U(v, i, j), U(v, i, j) - U(v, i - 1, j))
-      ! if (v == 1) then
-      !   debug_write(*,*) 'left edge'
-      !   debug_write(*,*) U(v, i-1, j), U(v, i, j), U(v, i+1, j)
-      !   debug_write(*,*) U(v, i+1, j) - U(v, i, j), U(v, i, j) - U(v, i-1, j)
-      !   debug_write(*,*) L%limit(U(v, i+1, j) - U(v, i, j), U(v, i, j) - U(v, i-1, j))
-      !   debug_write(*,*) 'edge_4', edge_4
-      ! end if
-      ! edge_1 = U(v, i, j) - 0.5_rk * L%limit(U(v, i, j) - U(v, i - 1, j), U(v, i + 1, j) - U(v, i, j))
+      edge_4 = center - 0.5_rk * L%limit(right - center, center - left)
 
       grad_v = (1.0_rk / volume) * ((edge_1 * n1 * delta_l1) + &
                                     (edge_2 * n2 * delta_l2) + &
                                     (edge_3 * n3 * delta_l3) + &
                                     (edge_4 * n4 * delta_l4))
 
-      ! debug_write(*,*) 'n1', n1
-      ! debug_write(*,*) 'n2', n2
-      ! debug_write(*,*) 'n3', n3
-      ! debug_write(*,*) 'n4', n4
-      ! debug_write(*,*) delta_l1, delta_l2, delta_l3, delta_l4
-      ! debug_write(*,*) edge_1, edge_2, edge_3, edge_4
-      ! debug_write(*,*)
-      ! error stop
     end associate
 
   end function estimate_single_gradient
