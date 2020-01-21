@@ -5,6 +5,7 @@ module math_constants
   implicit none
 
   real(rk), parameter :: pi = 4.0_rk * atan(1.0_rk)
+  real(rk), parameter :: universal_gas_const = 8.31446261815324_rk
 
 contains
   real(rk) elemental function rad2deg(rad) result(deg)
