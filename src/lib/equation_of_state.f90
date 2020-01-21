@@ -18,6 +18,9 @@ module mod_eos
     procedure, public :: calc_internal_energy_from_press_and_dens
     procedure, public :: total_energy
     procedure, public :: sound_speed
+    procedure, public :: energy_to_pressure
+    procedure, public :: conserved_to_primitive
+    procedure, public :: primitive_to_conserved
     procedure, public :: calc_density_from_isentropic_press
   end type eos_t
 
@@ -70,15 +73,15 @@ contains
     internal_energy = (pressure / density) / (self%gamma - 1.0_rk)
   end function
 
-  elemental real(rk) function total_energy(self, internal_energy, density, x_velocity, y_velocity)
+  elemental real(rk) function total_energy(self, pressure, density, x_velocity, y_velocity)
     !< Calculate total energy
     class(eos_t), intent(in) :: self
-    real(rk), intent(in) :: internal_energy
     real(rk), intent(in) :: density
+    real(rk), intent(in) :: pressure
     real(rk), intent(in) :: x_velocity
     real(rk), intent(in) :: y_velocity
 
-    total_energy = density * (internal_energy + 0.5_rk * (x_velocity**2 + y_velocity**2))
+    total_energy = (pressure / (self%gamma - 1.0_rk)) + 0.5_rk * density * (x_velocity**2 + y_velocity**2)
   end function
 
   elemental real(rk) function sound_speed(self, pressure, density)
@@ -106,4 +109,54 @@ contains
     if(rho_1 <= 0.0_rk) error stop "rho_1 <= 0"
     rho_2 = rho_1 * (P_2 / P_1)**(self%gamma - 1)
   end function
+
+  pure function conserved_to_primitive(self, conserved_vars) result(primitive_vars)
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(4), intent(in) :: conserved_vars !< [rho, rho*u, rho*v, E]
+    real(rk), dimension(4) :: primitive_vars !< [rho, u, v, p]
+
+    real(rk) :: rho
+    real(rk) :: pressure
+    real(rk) :: u
+    real(rk) :: v
+
+    rho = conserved_vars(1)
+    u = conserved_vars(2) / rho
+    v = conserved_vars(3) / rho
+
+    associate(e=>conserved_vars(4), gamma=>self%get_gamma())
+      pressure = (gamma - 1.0_rk) * (e - 0.5_rk * rho * (u**2 + v**2))
+    end associate
+
+    primitive_vars = [rho, u, v, pressure]
+
+  end function
+
+  pure function primitive_to_conserved(self, primitive_vars) result(conserved_vars)
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(4), intent(in) :: primitive_vars !< [rho, u, v, p]
+    real(rk), dimension(4) :: conserved_vars !< [rho, rho*u, rho*v, E]
+    real(rk) :: e  !< total energy
+
+    associate(gamma=>self%get_gamma(), &
+              rho=>primitive_vars(1), &
+              u=>primitive_vars(2), &
+              v=>primitive_vars(3), &
+              p=>primitive_vars(4))
+      e = (p / (gamma - 1.0_rk)) + 0.5_rk * rho * (u**2 + v**2)
+      conserved_vars = [rho, rho * u, rho * v, e]
+    end associate
+
+  end function
+
+  elemental real(rk) function energy_to_pressure(self, energy, rho, u, v) result(pressure)
+    class(eos_t), intent(in) :: self
+    real(rk), intent(in) :: energy
+    real(rk), intent(in) :: rho
+    real(rk), intent(in) :: u
+    real(rk), intent(in) :: v
+
+    pressure = (self%gamma - 1.0_rk) * (energy - 0.5_rk * rho * (u**2 + v**2))
+  end function
+
 end module mod_eos

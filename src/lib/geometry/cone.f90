@@ -37,7 +37,7 @@ module mod_cone
     logical, dimension(4) :: p_prime_in_cell = .false.
     !< (cell_1:cell_4); is P' inside the control volume?
 
-    real(rk), dimension(4, 2, 4) :: cell_conserved_vars = 0.0_rk
+    real(rk), dimension(4, 2, 4) :: arc_primitive_vars = 0.0_rk
     !< ((rho,u,v,p), (arc_1, arc_2), cell_1:cell_n)
 
     real(rk), dimension(4) :: reference_state = 0.0_rk
@@ -107,10 +107,8 @@ contains
         print *, reference_state
         print *, edge_vectors(:, :, 1)
         print *, edge_vectors(:, :, 2)
-        ! print*, edge_vectors(:,:,3)
-        ! print*, edge_vectors(:,:,4)
       end if
-      a = eos%calc_sound_speed(pressure=p, density=rho)
+      a = eos%sound_speed(pressure=p, density=rho)
       new_cone%radius = a * tau
     end associate
 
@@ -166,7 +164,7 @@ contains
 
       if(n_arcs > 0) then
         do arc = 1, n_arcs
-          new_cone%cell_conserved_vars(:, arc, neighbor_cell) = reconstructed_state(:, neighbor_cell)
+          new_cone%arc_primitive_vars(:, arc, neighbor_cell) = reconstructed_state(:, neighbor_cell)
         end do
       end if
       ! If all the arcs already add up to 2pi, then skip the remaining neighbor cells
@@ -245,12 +243,12 @@ contains
       'sum(arc delta theta) = ', sum(self%theta_ie - self%theta_ib), ' '//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Conserved Vars state [rho,u,v,p]'//new_line('a')
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Primitive Vars State [rho,u,v,p]'//new_line('a')
     do i = 1, 4
       write(unit, '(a, i0, a, 4(es10.3, 1x), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', self%cell_conserved_vars(:, 1, i), '] (arc 1)'//new_line('a')
+        'Cell: ', i, ' [ ', self%arc_primitive_vars(:, 1, i), '] (arc 1)'//new_line('a')
       write(unit, '(a, 4(es10.3, 1x), a)', iostat=iostat, iomsg=iomsg) &
-        '        [ ', self%cell_conserved_vars(:, 2, i), '] (arc 2)'//new_line('a')
+        '        [ ', self%arc_primitive_vars(:, 2, i), '] (arc 2)'//new_line('a')
     end do
 
     ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')

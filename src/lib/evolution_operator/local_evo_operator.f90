@@ -92,16 +92,11 @@ contains
 
     class(local_evo_operator_t), intent(in) :: self
 
-    ! real(rk), dimension(:, :, :, 0:, 0:), intent(in) :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
-
     real(rk), dimension(:, :, :), intent(in) :: reference_state
-    ! < ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges
+    !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint on the left/right edges
 
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
-    !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges
-
-    ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
+    !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint on the left/right edges
 
     ! Locals
     type(cone_t) :: mach_cone
@@ -187,11 +182,6 @@ contains
         !                           get_pressure(mach_cone) &    ! p
         !                           ]
 
-        ! if (i == 50 .and. j == 50) then
-        ! print *, mach_cone
-
-        ! error stop
-        ! end if
       end do
     end do
   end subroutine evolve_leftright_midpoints
@@ -202,17 +192,11 @@ contains
 
     class(local_evo_operator_t), intent(in) :: self
 
-    ! real(rk), dimension(:, :, :, 0:, 0:), intent(in) :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j);
-    !< The reconstructed state of each point P with respect to its parent cell
-
     real(rk), dimension(:, :, :), intent(in) :: reference_state
-    ! < ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges
+    ! < ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint on the left/right edges
 
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
-    !< ((rho,u,v,p), i, j); Evolved U at each midpoint on the left/right edges
-
-    ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
+    !< ((rho, u, v, p), i, j); Evolved U at each midpoint on the left/right edges
 
     ! Locals
     type(cone_t) :: mach_cone
@@ -303,16 +287,11 @@ contains
 
     class(local_evo_operator_t), intent(in) :: self
 
-    ! real(rk), dimension(:, :, :, 0:, 0:), intent(in) :: reconstructed_state
-    ! !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
-
     real(rk), dimension(:, :, :), intent(in) :: reference_state
-    !< ((rho,u,v,p), i, j); Reference state (tilde) at each corner
+    !< ((rho, u, v, p), i, j); Reference state (tilde) at each corner
 
     real(rk), dimension(:, :, :), intent(out) :: evolved_state
-    !< ((rho,u,v,p), i, j); Reconstructed U at each corner
-
-    ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
+    !< ((rho, u, v, p), i, j); Reconstructed U at each corner
 
     ! Locals
     type(cone_t) :: mach_cone
@@ -434,9 +413,9 @@ contains
               theta_ib=>mach_cone%theta_ib, &
               rho_p_prime=>p_prime_u_bar(1), &
               pressure_p_prime=>p_prime_u_bar(4), &
-              u_i=>mach_cone%cell_conserved_vars(2, :, :), &
-              v_i=>mach_cone%cell_conserved_vars(3, :, :), &
-              p_i=>mach_cone%cell_conserved_vars(4, :, :), &
+              u_i=>mach_cone%arc_primitive_vars(2, :, :), &
+              v_i=>mach_cone%arc_primitive_vars(3, :, :), &
+              p_i=>mach_cone%arc_primitive_vars(4, :, :), &
               rho_tilde=>mach_cone%reference_state(1), &
               a_tilde=>mach_cone%reference_state(4))
 
@@ -456,15 +435,13 @@ contains
         density = rho_p_prime - (pressure / a_tilde**2) + cone_density_term
       end if
 
-      u = sum((-p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) + &
-              u_i * (0.5_rk * (theta_ie - theta_ib) + &
-                     0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib))) - &
-              v_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib))) / pi
+      u = sum((-p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) &
+              + u_i * (0.5_rk * (theta_ie - theta_ib) + 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib))) &
+              - v_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib))) / pi
 
-      v = sum((p_i / (rho_tilde * a_tilde)) * (cos(theta_ie) - cos(theta_ib)) - &
-              u_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib)) + &
-              v_i * (0.5_rk * (theta_ie - theta_ib) + &
-                     0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib)))) / pi
+      v = sum((p_i / (rho_tilde * a_tilde)) * (cos(theta_ie) - cos(theta_ib)) &
+              - u_i * 0.25_rk * (cos(2 * theta_ie) - cos(2 * theta_ib)) &
+              + v_i * (0.5_rk * (theta_ie - theta_ib) - 0.25_rk * (sin(2 * theta_ie) - sin(2 * theta_ib)))) / pi
 
       if(density < 0.0_rk) error stop "Density < 0 in e0_operator"
       if(pressure < 0.0_rk) error stop "Pressure < 0 in e0_operator"
@@ -489,9 +466,9 @@ contains
 
           associate(theta_ie=>mach_cone%theta_ie(cell, arc), &
                     theta_ib=>mach_cone%theta_ib(cell, arc), &
-                    u_i=>mach_cone%cell_conserved_vars(2, arc, cell), &
-                    v_i=>mach_cone%cell_conserved_vars(3, arc, cell), &
-                    p_i=>mach_cone%cell_conserved_vars(4, arc, cell), &
+                    u_i=>mach_cone%arc_primitive_vars(2, arc, cell), &
+                    v_i=>mach_cone%arc_primitive_vars(3, arc, cell), &
+                    p_i=>mach_cone%arc_primitive_vars(4, arc, cell), &
                     rho_tilde=>mach_cone%reference_state(1), &
                     a_tilde=>mach_cone%reference_state(4))
 
@@ -516,7 +493,6 @@ contains
     !< Implementation of rho(P) within the local evolution operator (Eq. 42 in the text)
     class(local_evo_operator_t), intent(in) :: self
     class(cone_t), intent(in) :: mach_cone
-    ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
 
     real(rk) :: density  !< rho(P)
     real(rk) :: cone_contribution  !< rho(P)
@@ -534,9 +510,9 @@ contains
 
           associate(theta_ie=>mach_cone%theta_ie(cell, arc), &
                     theta_ib=>mach_cone%theta_ib(cell, arc), &
-                    u_i=>mach_cone%cell_conserved_vars(2, arc, cell), &
-                    v_i=>mach_cone%cell_conserved_vars(3, arc, cell), &
-                    p_i=>mach_cone%cell_conserved_vars(4, arc, cell), &
+                    u_i=>mach_cone%arc_primitive_vars(2, arc, cell), &
+                    v_i=>mach_cone%arc_primitive_vars(3, arc, cell), &
+                    p_i=>mach_cone%arc_primitive_vars(4, arc, cell), &
                     rho_tilde=>mach_cone%reference_state(1), &
                     a_tilde=>mach_cone%reference_state(4))
 
@@ -604,9 +580,9 @@ contains
           ! print*, cell, arc
           associate(theta_ie=>mach_cone%theta_ie(cell, arc), &
                     theta_ib=>mach_cone%theta_ib(cell, arc), &
-                    u_i=>mach_cone%cell_conserved_vars(2, arc, cell), &
-                    v_i=>mach_cone%cell_conserved_vars(3, arc, cell), &
-                    p_i=>mach_cone%cell_conserved_vars(4, arc, cell), &
+                    u_i=>mach_cone%arc_primitive_vars(2, arc, cell), &
+                    v_i=>mach_cone%arc_primitive_vars(3, arc, cell), &
+                    p_i=>mach_cone%arc_primitive_vars(4, arc, cell), &
                     rho_tilde=>mach_cone%reference_state(1), &
                     a_tilde=>mach_cone%reference_state(4))
 
@@ -640,9 +616,9 @@ contains
 
           associate(theta_ie=>mach_cone%theta_ie(cell, arc), &
                     theta_ib=>mach_cone%theta_ib(cell, arc), &
-                    u_i=>mach_cone%cell_conserved_vars(2, arc, cell), &
-                    v_i=>mach_cone%cell_conserved_vars(3, arc, cell), &
-                    p_i=>mach_cone%cell_conserved_vars(4, arc, cell), &
+                    u_i=>mach_cone%arc_primitive_vars(2, arc, cell), &
+                    v_i=>mach_cone%arc_primitive_vars(3, arc, cell), &
+                    p_i=>mach_cone%arc_primitive_vars(4, arc, cell), &
                     rho_tilde=>mach_cone%reference_state(1), &
                     a_tilde=>mach_cone%reference_state(4))
 
