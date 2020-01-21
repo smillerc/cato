@@ -12,6 +12,9 @@ module mod_finite_volume_schemes
   use mod_flux_tensor, only: H => flux_tensor_t
   use mod_grid_factory, only: grid_factory
   use mod_bc_factory, only: bc_factory
+  use mod_eos, only: eos
+  use mod_source, only: source_t
+  use mod_source_factory, only: source_factory
   use mod_evo_operator_factory, only: evo_operator_factory
   use mod_grid, only: grid_t
   use hdf5_interface, only: hdf5_file
@@ -37,9 +40,6 @@ module mod_finite_volume_schemes
     !< R_Omega reconstruction operator used to reconstruct the corners/midpoints based on the cell
     !< average (and gradient if high(er) order reconstruction used)
 
-    ! real(rk), dimension(:, :, :), allocatable :: conserved_vars
-    ! !< ((rho, u ,v, p), i, j); Conserved variables for each cell
-
     class(abstract_evo_operator_t), allocatable :: evolution_operator
     !< Evolution operator to construct (rho, u, v, p) at each corner and midpoint
 
@@ -50,6 +50,8 @@ module mod_finite_volume_schemes
     class(boundary_condition_t), allocatable :: bc_plus_y
     class(boundary_condition_t), allocatable :: bc_minus_x
     class(boundary_condition_t), allocatable :: bc_minus_y
+
+    class(source_t), allocatable :: source_term
 
     ! Corner/midpoint index convention
     ! --------------------------------
@@ -71,27 +73,27 @@ module mod_finite_volume_schemes
     ! If they were indexed via cell, each cell would duplicate information since they share corners and midpoints
 
     real(rk), dimension(:, :, :), allocatable :: evolved_corner_state
-    !< ((rho,u,v,p), i, j); Reconstructed U at each corner
+    !< ((rho, u, v, p), i, j); Reconstructed U at each corner
 
     real(rk), dimension(:, :, :), allocatable :: corner_reference_state
-    !< ((rho, u ,v, p), i, j); Reference state (tilde) at each corner
+    !< ((rho, u, v, p), i, j); Reference state (tilde) at each corner
 
     ! Indexing the midpoints is a pain, so they're split by the up/down edges and left/right edges
 
     real(rk), dimension(:, :, :), allocatable :: evolved_downup_midpoints_state
-    !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the up/down edges (edges 2 and 4)
+    !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint on the up/down edges (edges 2 and 4)
 
     real(rk), dimension(:, :, :), allocatable :: evolved_leftright_midpoints_state
-    !< ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
+    !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
 
     real(rk), dimension(:, :, :), allocatable :: downup_midpoints_reference_state
-    !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the down/up edges (edges 2 and 4)
+    !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint on the down/up edges (edges 2 and 4)
 
     real(rk), dimension(:, :, :), allocatable :: leftright_midpoints_reference_state
-    !< ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
+    !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
 
     real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); The node/midpoint dimension just selects which set of points,
+    !< (((rho, u, v, p)), point, node/midpoint, i, j); The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints. Note, this DOES repeat nodes, since corners and midpoints are
     !< shared by neighboring cells, but each point has its own reconstructed value based on the parent cell's state
 
@@ -129,6 +131,7 @@ contains
     class(input_t), intent(in) :: input
 
     class(boundary_condition_t), pointer :: bc => null()
+    class(source_t), pointer :: source_term => null()
     class(grid_t), pointer :: grid => null()
     class(abstract_reconstruction_t), pointer :: r_omega => null()
     class(abstract_evo_operator_t), pointer :: E0 => null()
@@ -166,6 +169,12 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_y"
     deallocate(bc)
 
+    if(input%enable_source_terms) then
+      source_term => source_factory(input)
+      allocate(self%source_term, source=source_term, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%source_term"
+    end if
+
     write(*, '(a)') "Boundary Conditions"
     write(*, '(a)') "==================="
     write(*, '(3(a),i0,a)') "+x: ", trim(self%bc_plus_x%name), ' (priority = ', self%bc_plus_x%priority, ')'
@@ -178,7 +187,7 @@ contains
               jmin=>self%grid%jlo_bc_cell, jmax=>self%grid%jhi_bc_cell)
 
       allocate(self%reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
-      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
+      ! (((rho, rho u, rho v, e)), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
       if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%reconstructed_state"
     end associate
 
@@ -205,39 +214,39 @@ contains
 
       ! corners
       if(.not. allocated(self%evolved_corner_state)) then
-        ! ((rho,u,v,p), i, j); Reconstructed U at each corner
+        ! ((rho, rho u, rho v, e), i, j); Reconstructed U at each corner
         allocate(self%evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
         if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%evolved_corner_state"
       end if
 
       if(.not. allocated(self%corner_reference_state)) then
-        ! ((rho, u ,v, p), i, j); Reference state (tilde) at each corner
+        ! (((rho, rho u, rho v, e)), i, j); Reference state (tilde) at each corner
         allocate(self%corner_reference_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
         if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%corner_reference_state"
       endif
 
       ! left/right midpoints
       if(.not. allocated(self%evolved_leftright_midpoints_state)) then
-        ! ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
+        ! ((rho, rho u, rho v, e), i, j); Reconstructed U at each midpoint on the left/right edges (edges 1 and 3)
         allocate(self%evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
         if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%evolved_leftright_midpoints_state"
       end if
 
       if(.not. allocated(self%leftright_midpoints_reference_state)) then
-        ! ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
+        ! ((rho, rho u, rho v, e), i, j); Reference state (tilde) at each midpoint on the left/right edges (edges 1 and 3)
         allocate(self%leftright_midpoints_reference_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
         if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%leftright_midpoints_reference_state"
       end if
 
       ! down/up midpoints
       if(.not. allocated(self%evolved_downup_midpoints_state)) then
-        ! ((rho,u,v,p), i, j); Reconstructed U at each midpoint on the down/up edges (edges 2 and 4)
+        ! ((rho, rho u, rho v, e), i, j); Reconstructed U at each midpoint on the down/up edges (edges 2 and 4)
         allocate(self%evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
         if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%evolved_downup_midpoints_state"
       end if
 
       if(.not. allocated(self%downup_midpoints_reference_state)) then
-        ! ((rho,u,v,p), i, j); Reference state (tilde) at each midpoint on the down/up edges (edges 2 and 4)
+        ! ((rho, rho u, rho v, e), i, j); Reference state (tilde) at each midpoint on the down/up edges (edges 2 and 4)
         allocate(self%downup_midpoints_reference_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
         if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%downup_midpoints_reference_state"
       end if
@@ -275,6 +284,11 @@ contains
     if(allocated(self%reconstruction_operator)) then
       deallocate(self%reconstruction_operator, stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to deallocate finite_volume_scheme_t%reconstruction_operator"
+    end if
+
+    if(allocated(self%source_term)) then
+      deallocate(self%source_term, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to deallocate finite_volume_scheme_t%source_term"
     end if
 
     if(allocated(self%bc_plus_x)) then
@@ -334,8 +348,36 @@ contains
 
   end subroutine finalize
 
-  subroutine apply_source_terms(self)
+  subroutine apply_source_terms(self, conserved_vars, lbounds)
     class(finite_volume_scheme_t), intent(inout) :: self
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: conserved_vars
+
+    if(allocated(self%source_term)) then
+
+      if(self%source_term%ilo /= 0 .and. self%source_term%ihi /= 0) then
+        if(max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)) then
+          error stop "max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)"
+        end if
+
+        if(min(self%source_term%ilo, self%source_term%ihi) < min(self%grid%ilo_cell, self%grid%ihi_cell)) then
+          error stop "min(self%source_term%ilo, self%source_term%ihi) > min(self%grid%ilo_cell, self%grid%ihi_cell)"
+        end if
+      end if
+
+      if(self%source_term%jlo /= 0 .and. self%source_term%jhi /= 0) then
+        if(max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)) then
+          error stop "max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)"
+        end if
+
+        if(min(self%source_term%jlo, self%source_term%jhi) < min(self%grid%jlo_cell, self%grid%jhi_cell)) then
+          error stop "min(self%source_term%jlo, self%source_term%jhi) > min(self%grid%jlo_cell, self%grid%jhi_cell)"
+        end if
+      end if
+
+      call self%source_term%apply_source(primitive_vars=conserved_vars, time=self%time)
+    end if
+
   end subroutine
 
   subroutine reconstruct(self, conserved_vars, lbounds)
@@ -484,67 +526,44 @@ contains
     ihi = ubound(self%leftright_midpoints_reference_state, dim=2)
     jlo = lbound(self%leftright_midpoints_reference_state, dim=3)
     jhi = ubound(self%leftright_midpoints_reference_state, dim=3)
-    ! associate(U_tilde=>self%leftright_midpoints_reference_state, U=>conserved_vars)
     ! do concurrent(j=jlo:jhi)
     !   do concurrent(i=ilo:ihi)
     do j = jlo, jhi
       do i = ilo, ihi
-        self%leftright_midpoints_reference_state(:, i, j) = 0.5_rk * (conserved_vars(:, i, j) + conserved_vars(:, i, j - 1))
-        if(self%leftright_midpoints_reference_state(1, i, j) < 0.0_rk) then
-        print *, 'leftright_midpoints_reference_state density < 0 @', i, j, ' = ', self%leftright_midpoints_reference_state(1, i, j)
-          print *, conserved_vars(1, i, j), conserved_vars(1, i, j - 1)
-        end if
-        ! self%leftright_midpoints_reference_state(:, i, j) = max(conserved_vars(:, i, j), conserved_vars(:, i, j - 1))
-        ! debug_write(*,*) conserved_vars(:, i, j), conserved_vars(:, i, j - 1)
+        self%leftright_midpoints_reference_state(:, i, j) = eos%conserved_to_primitive(0.5_rk * (conserved_vars(:, i, j) + &
+                                                                                                 conserved_vars(:, i, j - 1)))
       end do
     end do
-    ! end associate
 
     ! up/down midpoints -> needs to average cells right and left
     ilo = lbound(self%downup_midpoints_reference_state, dim=2)
     ihi = ubound(self%downup_midpoints_reference_state, dim=2)
     jlo = lbound(self%downup_midpoints_reference_state, dim=3)
     jhi = ubound(self%downup_midpoints_reference_state, dim=3)
-    ! associate(U_tilde=>self%downup_midpoints_reference_state, conserved_vars=>conserved_vars)
     ! do concurrent(j=jlo:jhi)
     !   do concurrent(i=ilo:ihi)
     do j = jlo, jhi
       do i = ilo, ihi
-        self%downup_midpoints_reference_state(:, i, j) = 0.5_rk * (conserved_vars(:, i - 1, j) + conserved_vars(:, i, j))
-        if(self%downup_midpoints_reference_state(1, i, j) < 0.0_rk) then
-          print *, 'downup_midpoints_reference_state density < 0 @', i, j, ' = ', self%downup_midpoints_reference_state(1, i, j)
-          print *, conserved_vars(1, i - 1, j), conserved_vars(1, i, j)
-        end if
-        ! self%downup_midpoints_reference_state(:, i, j) = max(conserved_vars(:, i - 1, j), conserved_vars(:, i, j))
-        ! debug_write(*,*) conserved_vars(:, i - 1, j), conserved_vars(:, i, j)
+        self%downup_midpoints_reference_state(:, i, j) = eos%conserved_to_primitive(0.5_rk * (conserved_vars(:, i - 1, j) + &
+                                                                                              conserved_vars(:, i, j)))
       end do
     end do
-    ! end associate
 
     ! Corners
     ilo = lbound(self%corner_reference_state, dim=2)
     ihi = ubound(self%corner_reference_state, dim=2)
     jlo = lbound(self%corner_reference_state, dim=3)
     jhi = ubound(self%corner_reference_state, dim=3)
-    ! associate(U_tilde=>self%corner_reference_state, conserved_vars=>conserved_vars)
     ! do concurrent(j=jlo:jhi)
     !   do concurrent(i=ilo:ihi)
     do j = jlo, jhi
       do i = ilo, ihi
-        self%corner_reference_state(:, i, j) = 0.25_rk * (conserved_vars(:, i, j) + conserved_vars(:, i - 1, j) + &
-                                                          conserved_vars(:, i, j - 1) + conserved_vars(:, i - 1, j - 1))
-        if(self%corner_reference_state(1, i, j) < 0.0_rk) then
-          print *, 'corner_reference_state density < 0 @', i, j, ' = ', self%corner_reference_state(1, i, j)
-          print *, conserved_vars(1, i, j), conserved_vars(1, i - 1, j), &
-            conserved_vars(1, i, j - 1), conserved_vars(1, i - 1, j - 1)
-        end if
-        ! self%corner_reference_state(:, i, j) = max(conserved_vars(:, i, j), conserved_vars(:, i - 1, j), &
-        !                                            conserved_vars(:, i, j - 1), conserved_vars(:, i - 1, j - 1))
-
-        ! debug_write(*,*)
+        self%corner_reference_state(:, i, j) = eos%conserved_to_primitive(0.25_rk * (conserved_vars(:, i, j) + &
+                                                                                     conserved_vars(:, i - 1, j) + &
+                                                                                     conserved_vars(:, i, j - 1) + &
+                                                                                     conserved_vars(:, i - 1, j - 1)))
       end do
     end do
-    ! end associate
 
   end subroutine calculate_reference_state
 
