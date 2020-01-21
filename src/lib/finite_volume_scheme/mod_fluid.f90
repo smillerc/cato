@@ -310,6 +310,7 @@ contains
     select type(rhs)
     class is(fluid_t)
       allocate(local_difference, source=lhs)
+      local_difference%time_integrator = rhs%time_integrator
       local_difference%conserved_vars = lhs%conserved_vars - rhs%conserved_vars
     class default
       error stop 'fluid%subtract_fluid: unsupported rhs class'
@@ -332,6 +333,7 @@ contains
     select type(rhs)
     class is(fluid_t)
       allocate(local_sum, source=lhs)
+      local_sum%time_integrator = rhs%time_integrator
       local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
     class default
       error stop 'fluid%add_fluid: unsupported rhs class'
@@ -375,6 +377,7 @@ contains
     allocate(local_product, source=rhs, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid%fluid_mul_real"
 
+    local_product%time_integrator = rhs%time_integrator
     local_product%conserved_vars = rhs%conserved_vars * lhs
 
     call move_alloc(local_product, product)
