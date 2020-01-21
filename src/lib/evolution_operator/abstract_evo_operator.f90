@@ -20,15 +20,9 @@ module mod_abstract_evo_operator
     class(grid_t), pointer :: grid => null()
     !< pointer to the grid object
 
-    ! real(rk), dimension(:, :, :), pointer :: conserved_vars => null()
-    !< pointer to U ((rho, u, v, p), i, j)
-
     real(rk), dimension(:, :, :, :, :), pointer :: reconstructed_state => null()
     !< ((rho, u ,v, p), point, node/midpoint, i, j);
     !< The reconstructed state of each point P with respect to its parent cell
-
-    ! real(rk), dimension(:, :, :, :, :), pointer :: reference_state => null()
-    ! !< pointer to the reference state at each point ((rho, u ,v, p), point, node/midpoint, i, j)
 
     class(abstract_reconstruction_t), pointer :: reconstruction_operator => null()
     !< pointer to the R_Omega operator used to provide values at the P' location
