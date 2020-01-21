@@ -67,11 +67,8 @@ program cato
 
   do while(time < input%max_time .and. iteration < input%max_iterations)
 
-    associate(rho=>U%conserved_vars(1, :, :), &
-              p=>U%conserved_vars(4, :, :), gamma=>eos%get_gamma())
-      c_sound = maxval(sqrt(abs(gamma * p / rho)))
-    end associate
-
+    ! Set the timestep via the CFL constraint
+    c_sound = maxval(U%get_sound_speed())
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / c_sound
 
     write(*, '(2(a, 1x, es10.3))') 'Time =', time, ', delta t = ', delta_t
