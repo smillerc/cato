@@ -103,12 +103,7 @@ contains
     ! //TODO: Move speed of sound calculation to the EOS module
     associate(a=>new_cone%reference_state(4), rho=>reference_state(1), &
               p=>reference_state(4))
-      if(rho < 0.0) then
-        print *, reference_state
-        print *, edge_vectors(:, :, 1)
-        print *, edge_vectors(:, :, 2)
-      end if
-      a = eos%sound_speed(pressure=p, density=rho)
+      a = eos%calc_sound_speed(pressure=p, density=rho)
       new_cone%radius = a * tau
     end associate
 
@@ -214,10 +209,10 @@ contains
     write(unit, '(a, 2(i7,1x), a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij, ")"//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference density:     ", self%reference_state(1), new_line('a')
-    write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference x velocity:  ", self%reference_state(2), new_line('a')
-    write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference y velocity:  ", self%reference_state(3), new_line('a')
-    write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference sound speed: ", self%reference_state(4), new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Reference density:     ", self%reference_state(1), new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Reference x velocity:  ", self%reference_state(2), new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Reference y velocity:  ", self%reference_state(3), new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Reference sound speed: ", self%reference_state(4), new_line('a')
 
     write(unit, '(a)', iostat=iostat) new_line('a')
     write(unit, '(a, 4(i0, 1x),a)', iostat=iostat) '# of valid arcs in each cell: [', self%n_arcs, ']'
@@ -562,13 +557,6 @@ contains
 
     angle = atan2(y=intersection_xy(2) - circle_origin_xy(2), &
                   x=intersection_xy(1) - circle_origin_xy(1))
-
-    ! if(angle < 0.0_rk) angle = angle + 2.0_rk * pi
   end function
 
-  pure subroutine set_arc_segments(theta_ib, theta_ie)
-    !< Sometimes, especially with cells that contain 2 arcs
-    real(rk), dimension(4, 2), intent(inout) :: theta_ib
-    real(rk), dimension(4, 2), intent(inout) :: theta_ie
-  end subroutine
 end module mod_cone
