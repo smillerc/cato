@@ -33,9 +33,6 @@ contains
     class(second_order_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid_target
-    ! integer(ik), dimension(3), intent(in) :: lbounds
-    ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
-    !   intent(in), target :: conserved_vars_target
 
     integer(ik) :: alloc_status
 
@@ -44,7 +41,6 @@ contains
     self%order = 2
     self%name = 'piecewise_linear_reconstruction'
 
-    ! self%conserved_vars => conserved_vars_target
     self%grid => grid_target
 
     call self%set_slope_limiter(name=input%slope_limiter)
@@ -66,10 +62,10 @@ contains
     type(second_order_reconstruction_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    call debug_print('Calling second_order_reconstruction_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running second_order_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
-    if(associated(self%conserved_vars)) nullify(self%conserved_vars)
+    if(associated(self%primitive_vars)) nullify(self%primitive_vars)
     if(allocated(self%cell_gradient)) then
       deallocate(self%cell_gradient, stat=alloc_status)
       if(alloc_status /= 0) then
@@ -82,15 +78,13 @@ contains
     class(abstract_reconstruction_t), intent(in) :: in_recon
     class(second_order_reconstruction_t), intent(inout) :: out_recon
 
-    call debug_print('Calling second_order_reconstruction_t%copy()', __FILE__, __LINE__)
+    call debug_print('Running second_order_reconstruction_t%copy()', __FILE__, __LINE__)
 
     if(associated(out_recon%grid)) nullify(out_recon%grid)
-    ! allocate(out_recon%grid, source=in_recon%grid)
     out_recon%grid => in_recon%grid
 
-    if(associated(out_recon%conserved_vars)) nullify(out_recon%conserved_vars)
-    ! allocate(out_recon%conserved_vars, source=in_recon%conserved_vars)
-    out_recon%conserved_vars => in_recon%conserved_vars
+    if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
+    out_recon%primitive_vars => in_recon%primitive_vars
 
     if(allocated(out_recon%name)) deallocate(out_recon%name)
     allocate(out_recon%name, source=in_recon%name)
@@ -103,11 +97,10 @@ contains
   end subroutine
 
   pure function reconstruct_point(self, xy, cell_ij) result(V_bar)
-    !< Reconstruct the value of the conserved variables (U) at location (x,y)
+    !< Reconstruct the value of the primitive variables (U) at location (x,y)
     !< withing a cell (i,j)
 
     class(second_order_reconstruction_t), intent(in) :: self
-    ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
     real(rk), dimension(2), intent(in) :: xy !< where should V_bar be reconstructed at?
     real(rk), dimension(4) :: V_bar  !< V_bar = reconstructed [rho, u, v, p]
     integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
@@ -124,7 +117,7 @@ contains
 
     associate(dU_dx=>self%cell_gradient(1, :, i, j), &
               dU_dy=>self%cell_gradient(2, :, i, j), &
-              cell_ave=>eos%conserved_to_primitive(self%conserved_vars(:, i, j)), &
+              cell_ave=>self%primitive_vars(:, i, j), &
               x=>xy(1), y=>xy(2), &
               x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
 
@@ -133,14 +126,13 @@ contains
 
   end function reconstruct_point
 
-  pure subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
+  subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
     !< Reconstruct each corner/midpoint. This converts the cell centered conserved
     !< quantities [rho, rho u, rho v, e] to reconstructed primitive variables [rho, u, v, p]
     !< based on the chosen reconstruction order, e.g. using a piecewise-linear function based on the
     !< selected cell and it's neighbors. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
     class(second_order_reconstruction_t), intent(inout) :: self
-    ! real(rk), dimension(:, 0:, 0:), intent(in) :: conserved_vars
     integer(ik), dimension(5), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
                         lbounds(4):, lbounds(5):), intent(out) :: reconstructed_domain
@@ -172,7 +164,7 @@ contains
         do n = 1, nhi ! First do corners, then to midpoints
           do p = 1, phi ! Loop through each point (N1-N4, and M1-M4)
             associate(V_bar=>reconstructed_domain, &
-                      cell_ave=>eos%conserved_to_primitive(self%conserved_vars(:, i, j)), &
+                      cell_ave=>self%primitive_vars(:, i, j), &
                       x=>self%grid%cell_node_xy(1, p, n, i, j), &
                       y=>self%grid%cell_node_xy(2, p, n, i, j), &
                       dU_dx=>self%cell_gradient(1, :, i, j), &
@@ -192,18 +184,18 @@ contains
   end subroutine reconstruct_domain
 
   pure function estimate_gradients(self, i, j) result(gradients)
-    !< Estimate the gradient of the conserved variables in the cell (i,j)
+    !< Estimate the gradient of the primitive variables in the cell (i,j)
     class(second_order_reconstruction_t), intent(in) :: self
     real(rk), dimension(2, 4) :: gradients !< ([x,y], [rho,u,v,p])
     integer(ik), intent(in) :: i, j
     real(rk), dimension(4, 5) :: V  ! primitive vars ((rho,u,v,p),(up,down,left,right,center))
     real(rk), dimension(5) :: var
 
-    V(:, 1) = eos%conserved_to_primitive(self%conserved_vars(:, i, j + 1))  ! up
-    V(:, 2) = eos%conserved_to_primitive(self%conserved_vars(:, i, j - 1))  ! down
-    V(:, 3) = eos%conserved_to_primitive(self%conserved_vars(:, i - 1, j))  ! left
-    V(:, 4) = eos%conserved_to_primitive(self%conserved_vars(:, i + 1, j))  ! right
-    V(:, 5) = eos%conserved_to_primitive(self%conserved_vars(:, i, j))    ! center
+    V(:, 1) = self%primitive_vars(:, i, j + 1)  ! up
+    V(:, 2) = self%primitive_vars(:, i, j - 1)  ! down
+    V(:, 3) = self%primitive_vars(:, i - 1, j)  ! left
+    V(:, 4) = self%primitive_vars(:, i + 1, j)  ! right
+    V(:, 5) = self%primitive_vars(:, i, j)      ! center
 
     ! density
     var = V(1, :)

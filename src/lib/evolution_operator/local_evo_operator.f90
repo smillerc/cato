@@ -15,13 +15,12 @@ module mod_local_evo_operator
   implicit none
 
   private
-  public :: local_evo_operator_t, get_density, get_pressure, get_x_velocity, get_y_velocity
+  public :: local_evo_operator_t
 
   type, extends(abstract_evo_operator_t) :: local_evo_operator_t
     !< Local Evolution Operator (E0)
   contains
     procedure, public :: initialize
-    procedure, private, nopass :: get_y_velocity
     procedure, public :: evolve_leftright_midpoints
     procedure, public :: evolve_downup_midpoints
     procedure, public :: evolve_corners
@@ -32,21 +31,17 @@ module mod_local_evo_operator
 
 contains
 
-  subroutine initialize(self, input, grid_target, recon_operator_target, reconstructed_state_target, lbounds)
+  subroutine initialize(self, input, grid_target, recon_operator_target)
     !< Constructor for the FVLEG operator
     class(local_evo_operator_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
     class(grid_t), intent(in), target :: grid_target
     class(abstract_reconstruction_t), intent(in), target :: recon_operator_target
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):, lbounds(5):), intent(in), target :: reconstructed_state_target
 
     self%name = "FVLEG"
     call self%set_tau(input%tau)
     self%grid => grid_target
-    self%reconstructed_state => reconstructed_state_target
     self%reconstruction_operator => recon_operator_target
 
   end subroutine
@@ -55,7 +50,7 @@ contains
     !< Cleanup the operator type
     type(local_evo_operator_t), intent(inout) :: self
 
-    call debug_print('Calling local_evo_operator_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running local_evo_operator_t%finalize()', __FILE__, __LINE__)
 
     if(allocated(self%name)) deallocate(self%name)
     if(associated(self%grid)) nullify(self%grid)
@@ -67,18 +62,15 @@ contains
     class(abstract_evo_operator_t), intent(in) :: in_evo
     class(local_evo_operator_t), intent(inout) :: out_evo
 
-    call debug_print('Calling local_evo_operator_t%copy()', __FILE__, __LINE__)
+    call debug_print('Running local_evo_operator_t%copy()', __FILE__, __LINE__)
 
     if(associated(out_evo%grid)) nullify(out_evo%grid)
-    ! allocate(out_evo%grid, source=in_evo%grid)
     out_evo%grid => in_evo%grid
 
     if(associated(out_evo%reconstructed_state)) nullify(out_evo%reconstructed_state)
-    ! allocate(out_evo%reconstructed_state, source=in_evo%reconstructed_state)
     out_evo%reconstructed_state => in_evo%reconstructed_state
 
     if(associated(out_evo%reconstruction_operator)) nullify(out_evo%reconstruction_operator)
-    ! allocate(out_evo%reconstruction_operator, source=in_evo%reconstruction_operator)
     out_evo%reconstruction_operator => in_evo%reconstruction_operator
 
     if(allocated(out_evo%name)) deallocate(out_evo%name)
@@ -86,16 +78,18 @@ contains
 
   end subroutine
 
-  subroutine evolve_leftright_midpoints(self, reference_state, evolved_state)
+  subroutine evolve_leftright_midpoints(self, reference_state, evolved_state, lbounds)
     !< Create Mach cones and evolve the state at all of the left/right midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the left and right.
 
     class(local_evo_operator_t), intent(in) :: self
 
-    real(rk), dimension(:, :, :), intent(in) :: reference_state
+    integer(ik), dimension(3), intent(in) :: lbounds
+
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
     !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint on the left/right edges
 
-    real(rk), dimension(:, :, :), intent(out) :: evolved_state
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
     !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint on the left/right edges
 
     ! Locals
@@ -147,6 +141,7 @@ contains
     jlo = lbound(reference_state, dim=3) ! in the j-direction, # left/right midpoints = # nodes
     jhi = ubound(reference_state, dim=3) ! in the j-direction, # left/right midpoints = # nodes
 
+    ! print*, 'left/right -> ', ilo, ihi, jlo, jhi
     do j = jlo, jhi
       do i = ilo, ihi
         ! do concurrent(j=jlo:jhi) local(neighbor_cell_indices, midpoint_edge_vectors, reconstructed_midpoint_state)
@@ -177,26 +172,23 @@ contains
 
         ! Set the evolved state at the midpoint
         evolved_state(:, i, j) = self%e0_operator(mach_cone)
-        ! evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
-        !                           get_x_velocity(mach_cone), & ! u
-        !                           get_y_velocity(mach_cone), & ! v
-        !                           get_pressure(mach_cone) &    ! p
-        !                           ]
 
       end do
     end do
   end subroutine evolve_leftright_midpoints
 
-  subroutine evolve_downup_midpoints(self, reference_state, evolved_state)
+  subroutine evolve_downup_midpoints(self, reference_state, evolved_state, lbounds)
     !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the down and up.
 
     class(local_evo_operator_t), intent(in) :: self
 
-    real(rk), dimension(:, :, :), intent(in) :: reference_state
+    integer(ik), dimension(3), intent(in) :: lbounds
+
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
     ! < ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint on the left/right edges
 
-    real(rk), dimension(:, :, :), intent(out) :: evolved_state
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
     !< ((rho, u, v, p), i, j); Evolved U at each midpoint on the left/right edges
 
     ! Locals
@@ -246,6 +238,7 @@ contains
     jlo = lbound(reference_state, dim=3)  ! in the j-direction, # down/up midpoints = # cells
     jhi = ubound(reference_state, dim=3)  ! in the j-direction, # down/up midpoints = # cells
 
+    ! print*, 'down/up -> ', ilo, ihi, jlo, jhi
     do j = jlo, jhi
       do i = ilo, ihi
         ! do concurrent(j=jlo:jhi)
@@ -272,26 +265,22 @@ contains
 
         ! Set the evolved state at the midpoint
         evolved_state(:, i, j) = self%e0_operator(mach_cone)
-        ! evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
-        !                           get_x_velocity(mach_cone), & ! u
-        !                           get_y_velocity(mach_cone), & ! v
-        !                           get_pressure(mach_cone) &    ! p
-        !                           ]
-
       end do
     end do
   end subroutine evolve_downup_midpoints
 
-  subroutine evolve_corners(self, reference_state, evolved_state)
+  subroutine evolve_corners(self, reference_state, evolved_state, lbounds)
     !< Create Mach cones and evolve the state at all of the down/up midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the down and up.
 
     class(local_evo_operator_t), intent(in) :: self
 
-    real(rk), dimension(:, :, :), intent(in) :: reference_state
+    integer(ik), dimension(3), intent(in) :: lbounds
+
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
     !< ((rho, u, v, p), i, j); Reference state (tilde) at each corner
 
-    real(rk), dimension(:, :, :), intent(out) :: evolved_state
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
     !< ((rho, u, v, p), i, j); Reconstructed U at each corner
 
     ! Locals
@@ -345,6 +334,7 @@ contains
     jlo = lbound(reference_state, dim=3)
     jhi = ubound(reference_state, dim=3)
 
+    ! print*, 'corner -> ', ilo, ihi, jlo, jhi
     do j = jlo, jhi
       do i = ilo, ihi
 
@@ -386,12 +376,6 @@ contains
 
         ! Set the evolved state at the midpoint
         evolved_state(:, i, j) = self%e0_operator(mach_cone)
-        ! evolved_state(:, i, j) = [get_density(self, mach_cone), &    ! rho
-        !                           get_x_velocity(mach_cone), & ! u
-        !                           get_y_velocity(mach_cone), & ! v
-        !                           get_pressure(mach_cone) &    ! p
-        !                           ]
-
       end do
     end do
   end subroutine evolve_corners
@@ -401,19 +385,19 @@ contains
     class(local_evo_operator_t), intent(in) :: self
     class(cone_t), intent(in) :: mach_cone
     real(rk), dimension(4) :: primitive_variables
-    real(rk), dimension(4) :: p_prime_u_bar !< [rho, u, v, p] at P'
+    real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
 
     real(rk) :: cone_density_term, pressure, density, u, v
 
     primitive_variables = 0.0_rk
 
-    p_prime_u_bar = self%reconstruction_operator%reconstruct_point(xy=mach_cone%p_prime_xy, &
-                                                                   cell_ij=mach_cone%p_prime_ij)
+    p_prime_prim_vars = self%reconstruction_operator%reconstruct_point(xy=mach_cone%p_prime_xy, &
+                                                                       cell_ij=mach_cone%p_prime_ij)
 
     associate(theta_ie=>mach_cone%theta_ie, &
               theta_ib=>mach_cone%theta_ib, &
-              rho_p_prime=>p_prime_u_bar(1), &
-              pressure_p_prime=>p_prime_u_bar(4), &
+              rho_p_prime=>p_prime_prim_vars(1), &
+              pressure_p_prime=>p_prime_prim_vars(4), &
               u_i=>mach_cone%arc_primitive_vars(2, :, :), &
               v_i=>mach_cone%arc_primitive_vars(3, :, :), &
               p_i=>mach_cone%arc_primitive_vars(4, :, :), &
@@ -421,30 +405,36 @@ contains
               a_tilde=>mach_cone%reference_state(4))
 
       pressure = sum(p_i * (theta_ie - theta_ib) &
-                     - rho_tilde * a_tilde * (u_i * (sin(theta_ie) - sin(theta_ib)) &
-                                              - v_i * (cos(theta_ie) - cos(theta_ib)))) / (2.0_rk * pi)
+                     - rho_tilde * a_tilde * u_i * (sin(theta_ie) - sin(theta_ib)) &
+                     + rho_tilde * a_tilde * v_i * (cos(theta_ie) - cos(theta_ib))) / (2.0_rk * pi)
 
       cone_density_term = sum((p_i / a_tilde**2) * (theta_ie - theta_ib) &
-                              - (rho_tilde / a_tilde) * (u_i * (sin(theta_ie) - sin(theta_ib))
-      -v_i * (cos(theta_ie) - cos(theta_ib)))) / (2.0_rk * pi)
+                              - (rho_tilde / a_tilde) * u_i * (sin(theta_ie) - sin(theta_ib)) &
+                              + (rho_tilde / a_tilde) * v_i * (cos(theta_ie) - cos(theta_ib))) / (2.0_rk * pi)
 
       density = rho_p_prime - (pressure_p_prime / a_tilde**2) + cone_density_term
-      if(density < 0.0_rk) then
-        print *, '===================================='
-        print *, ' density < 0.0, trying pressure fix @ (x,y) = ', mach_cone%p_xy
-        print *, '===================================='
-        density = rho_p_prime - (pressure / a_tilde**2) + cone_density_term
-      end if
+      ! if(density < 0.0_rk) then
+      !   print *, '===================================='
+      !   print *, ' density < 0.0, trying pressure fix @ (x,y) = ', mach_cone%p_xy
+      !   print *, '===================================='
+      !   density = rho_p_prime - (pressure / a_tilde**2) + cone_density_term
+      ! end if
 
       u = sum((-p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) &
-              + u_i * ((theta_ie - theta_ib) / 2.0_rk &
-                       + (sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)) / 4.0_rk) &
-              - v_i * (cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)) / 4.0_rk) / pi
+              + u_i * ( &
+              ((theta_ie - theta_ib) / 2.0_rk) &
+              + ((sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)) / 4.0_rk) &
+              ) &
+              - v_i * ((cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)) / 4.0_rk) &
+              ) / pi
 
       v = sum((p_i / (rho_tilde * a_tilde)) * (cos(theta_ie) - cos(theta_ib)) &
-              - u_i * (cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)) / 4.0_rk &
-              + v_i * ((theta_ie - theta_ib) / 2.0_rk &
-                       - (sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib) / 4.0_rk))) / pi
+              - u_i * ((cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)) / 4.0_rk) &
+              + v_i * ( &
+              ((theta_ie - theta_ib) / 2.0_rk) &
+              - ((sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)) / 4.0_rk) &
+              ) &
+              ) / pi
 
       if(density < 0.0_rk) then
         print *, mach_cone

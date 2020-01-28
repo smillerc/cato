@@ -22,7 +22,7 @@ contains
   subroutine integrate(U, finite_volume_scheme, dt)
     !< Time integrator implementation
     class(surrogate), intent(inout) :: U
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
+    class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
     real(rk), intent(in) :: dt
     class(integrand_t), allocatable :: U_1 !< first stage
 
@@ -33,13 +33,14 @@ contains
       allocate(U_1, source=U)
 
       ! 1st stage
+      call debug_print('Running heun_2nd 1st stage', __FILE__, __LINE__)
       U_1 = U + U%t(finite_volume_scheme) * dt
 
       ! Final stage
-      U = U + &
+      call debug_print('Running heun_2nd 2nd stage', __FILE__, __LINE__)
+      U = 0.5_rk * U + &
           0.5_rk * U_1 + &
           0.5_rk * U_1%t(finite_volume_scheme) * dt
-      ! // TODO: Do I need to have bc's applied at each stage?
       deallocate(U_1)
     class default
       error stop 'Error in heun_2nd%integrate - unsupported class'

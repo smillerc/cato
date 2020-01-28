@@ -1,4 +1,5 @@
 module mod_boundary_conditions
+  !< Define the based boundary condition class
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
@@ -14,10 +15,9 @@ module mod_boundary_conditions
     real(rk), private :: time = 0.0_rk ! Solution time (for time dependent bc's)
     integer(ik) :: priority !< Certain b.c.'s take priority over others in terms of when they are applied (periodic is last)
   contains
-    ! procedure(initialize), public, deferred :: initialize
     procedure, public :: set_time
     procedure, public :: get_time
-    procedure(apply_conserved_var_bc), public, deferred :: apply_conserved_var_bc
+    procedure(apply_primitive_var_bc), public, deferred :: apply_primitive_var_bc
     procedure(apply_reconstructed_state_bc), public, deferred :: apply_reconstructed_state_bc
     procedure(apply_cell_gradient_bc), public, deferred :: apply_cell_gradient_bc
     procedure(copy_bc), public, deferred :: copy
@@ -40,25 +40,30 @@ module mod_boundary_conditions
       class(boundary_condition_t), intent(inout) :: out_bc
     end subroutine
 
-    subroutine apply_conserved_var_bc(self, conserved_vars)
+    subroutine apply_primitive_var_bc(self, primitive_vars, lbounds)
       import :: boundary_condition_t
-      import :: rk
+      import :: ik, rk
       class(boundary_condition_t), intent(inout) :: self
-      real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
-    end subroutine apply_conserved_var_bc
+      integer(ik), dimension(3), intent(in) :: lbounds
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
+    end subroutine apply_primitive_var_bc
 
-    subroutine apply_reconstructed_state_bc(self, reconstructed_state)
+    subroutine apply_reconstructed_state_bc(self, reconstructed_state, lbounds)
       import :: boundary_condition_t
-      import :: rk
-      class(boundary_condition_t), intent(in) :: self
-      real(rk), dimension(:, :, :, 0:, 0:), intent(inout) :: reconstructed_state
+      import :: ik, rk
+      class(boundary_condition_t), intent(inout) :: self
+      integer(ik), dimension(5), intent(in) :: lbounds
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                          lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
     end subroutine apply_reconstructed_state_bc
 
-    subroutine apply_cell_gradient_bc(self, cell_gradient)
+    subroutine apply_cell_gradient_bc(self, cell_gradient, lbounds)
       import :: boundary_condition_t
-      import :: rk
+      import :: ik, rk
       class(boundary_condition_t), intent(in) :: self
-      real(rk), dimension(:, :, 0:, 0:), intent(inout) :: cell_gradient
+      integer(ik), dimension(4), intent(in) :: lbounds
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                          lbounds(4):), intent(inout) :: cell_gradient
     end subroutine apply_cell_gradient_bc
   end interface
 contains

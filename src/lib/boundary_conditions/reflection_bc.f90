@@ -11,7 +11,7 @@ module mod_reflection_bc
 
   type, extends(boundary_condition_t) :: reflection_bc_t
   contains
-    procedure, public :: apply_conserved_var_bc => apply_reflection_conserved_var_bc
+    procedure, public :: apply_primitive_var_bc => apply_reflection_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_reflection_reconstructed_state_bc
     procedure, public :: apply_cell_gradient_bc => apply_reflection_cell_gradient_bc
     procedure, public :: copy => copy_reflection_bc
@@ -32,10 +32,11 @@ contains
     class(reflection_bc_t), intent(inout) :: out_bc
   end subroutine
 
-  subroutine apply_reflection_conserved_var_bc(self, conserved_vars)
+  subroutine apply_reflection_primitive_var_bc(self, primitive_vars, lbounds)
     !< Apply reflection boundary conditions to the conserved state vector field
     class(reflection_bc_t), intent(inout) :: self
-    real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
     !< ((rho, u ,v, p), i, j); Conserved variables for each cell
 
     ! integer(ik) :: left         !< Min i real cell index
@@ -47,10 +48,10 @@ contains
     ! integer(ik) :: bottom_ghost !< Min j ghost cell index
     ! integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    ! left_ghost = lbound(conserved_vars, dim=2)
-    ! right_ghost = ubound(conserved_vars, dim=2)
-    ! bottom_ghost = lbound(conserved_vars, dim=3)
-    ! top_ghost = ubound(conserved_vars, dim=3)
+    ! left_ghost = lbound(primitive_vars, dim=2)
+    ! right_ghost = ubound(primitive_vars, dim=2)
+    ! bottom_ghost = lbound(primitive_vars, dim=3)
+    ! top_ghost = ubound(primitive_vars, dim=3)
     ! left = left_ghost + 1
     ! right = right_ghost - 1
     ! bottom = bottom_ghost + 1
@@ -58,32 +59,34 @@ contains
 
     ! select case(self%location)
     ! case('+x')
-    !   conserved_vars(:, right_ghost, top_ghost) = conserved_vars(:, left, bottom)
-    !   conserved_vars(:, right_ghost, bottom_ghost) = conserved_vars(:, left, top)
-    !   conserved_vars(:, right_ghost, bottom:top) = conserved_vars(:, left, bottom:top)
+    !   primitive_vars(:, right_ghost, top_ghost) = primitive_vars(:, left, bottom)
+    !   primitive_vars(:, right_ghost, bottom_ghost) = primitive_vars(:, left, top)
+    !   primitive_vars(:, right_ghost, bottom:top) = primitive_vars(:, left, bottom:top)
     ! case('-x')
-    !   conserved_vars(:, left_ghost, top_ghost) = conserved_vars(:, right, bottom)
-    !   conserved_vars(:, left_ghost, bottom_ghost) = conserved_vars(:, right, top)
-    !   conserved_vars(:, left_ghost, bottom:top) = conserved_vars(:, right, bottom:top)
+    !   primitive_vars(:, left_ghost, top_ghost) = primitive_vars(:, right, bottom)
+    !   primitive_vars(:, left_ghost, bottom_ghost) = primitive_vars(:, right, top)
+    !   primitive_vars(:, left_ghost, bottom:top) = primitive_vars(:, right, bottom:top)
     ! case('+y')
-    !   conserved_vars(:, left_ghost, top_ghost) = conserved_vars(:, right, bottom)
-    !   conserved_vars(:, right_ghost, top_ghost) = conserved_vars(:, left, bottom)
-    !   conserved_vars(:, left:right, top_ghost) = conserved_vars(:, left:right, bottom)
+    !   primitive_vars(:, left_ghost, top_ghost) = primitive_vars(:, right, bottom)
+    !   primitive_vars(:, right_ghost, top_ghost) = primitive_vars(:, left, bottom)
+    !   primitive_vars(:, left:right, top_ghost) = primitive_vars(:, left:right, bottom)
     ! case('-y')
-    !   conserved_vars(:, left_ghost, bottom_ghost) = conserved_vars(:, right, top)
-    !   conserved_vars(:, right_ghost, bottom_ghost) = conserved_vars(:, left, top)
-    !   conserved_vars(:, left:right, bottom_ghost) = conserved_vars(:, left:right, top)
+    !   primitive_vars(:, left_ghost, bottom_ghost) = primitive_vars(:, right, top)
+    !   primitive_vars(:, right_ghost, bottom_ghost) = primitive_vars(:, left, top)
+    !   primitive_vars(:, left:right, bottom_ghost) = primitive_vars(:, left:right, top)
     ! case default
     !   error stop "Unsupported location to apply the bc at in reflection_bc_t%apply_reflection_cell_gradient_bc()"
     ! end select
 
-  end subroutine apply_reflection_conserved_var_bc
+  end subroutine apply_reflection_primitive_var_bc
 
-  subroutine apply_reflection_reconstructed_state_bc(self, reconstructed_state)
+  subroutine apply_reflection_reconstructed_state_bc(self, reconstructed_state, lbounds)
     !< Apply reflection boundary conditions to the reconstructed state vector field
 
-    class(reflection_bc_t), intent(in) :: self
-    real(rk), dimension(:, :, :, 0:, 0:), intent(inout) :: reconstructed_state
+    class(reflection_bc_t), intent(inout) :: self
+    integer(ik), dimension(5), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                        lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
 
     ! integer(ik) :: left         !< Min i real cell index
@@ -127,11 +130,13 @@ contains
 
   end subroutine apply_reflection_reconstructed_state_bc
 
-  subroutine apply_reflection_cell_gradient_bc(self, cell_gradient)
+  subroutine apply_reflection_cell_gradient_bc(self, cell_gradient, lbounds)
     !< Apply reflection boundary conditions to the reconstructed state vector field
 
     class(reflection_bc_t), intent(in) :: self
-    real(rk), dimension(:, :, 0:, 0:), intent(inout) :: cell_gradient
+    integer(ik), dimension(4), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                        lbounds(4):), intent(inout) :: cell_gradient
     !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
 
     ! integer(ik) :: left         !< Min i real cell index

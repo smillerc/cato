@@ -11,7 +11,7 @@ module mod_symmetry_bc
 
   type, extends(boundary_condition_t) :: symmetry_bc_t
   contains
-    procedure, public :: apply_conserved_var_bc => apply_symmetry_conserved_var_bc
+    procedure, public :: apply_primitive_var_bc => apply_symmetry_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_symmetry_reconstructed_state_bc
     procedure, public :: apply_cell_gradient_bc => apply_symmetry_cell_gradient_bc
     procedure, public :: copy => copy_symmetry_bc
@@ -33,16 +33,17 @@ contains
     class(boundary_condition_t), intent(in) :: in_bc
     class(symmetry_bc_t), intent(inout) :: out_bc
 
-    call debug_print('Calling symmetry_bc_t%copy_symmetry_bc()', __FILE__, __LINE__)
+    call debug_print('Running symmetry_bc_t%copy_symmetry_bc()', __FILE__, __LINE__)
     out_bc%name = in_bc%name
     out_bc%location = in_bc%location
 
   end subroutine
 
-  subroutine apply_symmetry_conserved_var_bc(self, conserved_vars)
+  subroutine apply_symmetry_primitive_var_bc(self, primitive_vars, lbounds)
     !< Apply symmetry boundary conditions to the conserved state vector field
     class(symmetry_bc_t), intent(inout) :: self
-    real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
     !< ((rho, u ,v, p), i, j); Conserved variables for each cell
 
     integer(ik) :: left         !< Min i real cell index
@@ -54,10 +55,10 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    left_ghost = lbound(conserved_vars, dim=2)
-    right_ghost = ubound(conserved_vars, dim=2)
-    bottom_ghost = lbound(conserved_vars, dim=3)
-    top_ghost = ubound(conserved_vars, dim=3)
+    left_ghost = lbound(primitive_vars, dim=2)
+    right_ghost = ubound(primitive_vars, dim=2)
+    bottom_ghost = lbound(primitive_vars, dim=3)
+    top_ghost = ubound(primitive_vars, dim=3)
     left = left_ghost + 1
     right = right_ghost - 1
     bottom = bottom_ghost + 1
@@ -65,36 +66,38 @@ contains
 
     select case(self%location)
     case('+x')
-      conserved_vars(1, right_ghost, :) = conserved_vars(1, right, :)      ! density
-      conserved_vars(2, right_ghost, :) = -1 * conserved_vars(2, right, :) ! x velocity
-      conserved_vars(3, right_ghost, :) = conserved_vars(3, right, :)      ! y velocity
-      conserved_vars(4, right_ghost, :) = conserved_vars(4, right, :)      ! pressure
+      primitive_vars(1, right_ghost, :) = primitive_vars(1, right, :)      ! density
+      primitive_vars(2, right_ghost, :) = -1 * primitive_vars(2, right, :) ! x velocity
+      primitive_vars(3, right_ghost, :) = primitive_vars(3, right, :)      ! y velocity
+      primitive_vars(4, right_ghost, :) = primitive_vars(4, right, :)      ! pressure
     case('-x')
-      conserved_vars(1, left_ghost, :) = conserved_vars(1, left, :)      ! density
-      conserved_vars(2, left_ghost, :) = -1 * conserved_vars(2, left, :) ! x velocity
-      conserved_vars(3, left_ghost, :) = conserved_vars(3, left, :)      ! y velocity
-      conserved_vars(4, left_ghost, :) = conserved_vars(4, left, :)      ! pressure
+      primitive_vars(1, left_ghost, :) = primitive_vars(1, left, :)      ! density
+      primitive_vars(2, left_ghost, :) = -1 * primitive_vars(2, left, :) ! x velocity
+      primitive_vars(3, left_ghost, :) = primitive_vars(3, left, :)      ! y velocity
+      primitive_vars(4, left_ghost, :) = primitive_vars(4, left, :)      ! pressure
     case('+y')
-      conserved_vars(1, :, top_ghost) = conserved_vars(1, :, top)      ! density
-      conserved_vars(2, :, top_ghost) = conserved_vars(2, :, top)      ! x velocity
-      conserved_vars(3, :, top_ghost) = -1 * conserved_vars(3, :, top) ! y velocity
-      conserved_vars(4, :, top_ghost) = conserved_vars(4, :, top)      ! pressure
+      primitive_vars(1, :, top_ghost) = primitive_vars(1, :, top)      ! density
+      primitive_vars(2, :, top_ghost) = primitive_vars(2, :, top)      ! x velocity
+      primitive_vars(3, :, top_ghost) = -1 * primitive_vars(3, :, top) ! y velocity
+      primitive_vars(4, :, top_ghost) = primitive_vars(4, :, top)      ! pressure
     case('-y')
-      conserved_vars(1, :, bottom_ghost) = conserved_vars(1, :, bottom)      ! density
-      conserved_vars(2, :, bottom_ghost) = conserved_vars(2, :, bottom)      ! x velocity
-      conserved_vars(3, :, bottom_ghost) = -1 * conserved_vars(3, :, bottom) ! y velocity
-      conserved_vars(4, :, bottom_ghost) = conserved_vars(4, :, bottom)      ! pressure
+      primitive_vars(1, :, bottom_ghost) = primitive_vars(1, :, bottom)      ! density
+      primitive_vars(2, :, bottom_ghost) = primitive_vars(2, :, bottom)      ! x velocity
+      primitive_vars(3, :, bottom_ghost) = -1 * primitive_vars(3, :, bottom) ! y velocity
+      primitive_vars(4, :, bottom_ghost) = primitive_vars(4, :, bottom)      ! pressure
     case default
       error stop "Unsupported location to apply the bc at in symmetry_bc_t%apply_symmetry_cell_gradient_bc()"
     end select
 
-  end subroutine apply_symmetry_conserved_var_bc
+  end subroutine apply_symmetry_primitive_var_bc
 
-  subroutine apply_symmetry_reconstructed_state_bc(self, reconstructed_state)
+  subroutine apply_symmetry_reconstructed_state_bc(self, reconstructed_state, lbounds)
     !< Apply symmetry boundary conditions to the reconstructed state vector field
 
-    class(symmetry_bc_t), intent(in) :: self
-    real(rk), dimension(:, :, :, 0:, 0:), intent(inout) :: reconstructed_state
+    class(symmetry_bc_t), intent(inout) :: self
+    integer(ik), dimension(5), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                        lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
 
     integer(ik) :: left         !< Min i real cell index
@@ -142,11 +145,13 @@ contains
 
   end subroutine apply_symmetry_reconstructed_state_bc
 
-  subroutine apply_symmetry_cell_gradient_bc(self, cell_gradient)
+  subroutine apply_symmetry_cell_gradient_bc(self, cell_gradient, lbounds)
     !< Apply symmetry boundary conditions to the cell gradient state vector field
 
     class(symmetry_bc_t), intent(in) :: self
-    real(rk), dimension(:, :, 0:, 0:), intent(inout) :: cell_gradient
+    integer(ik), dimension(4), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                        lbounds(4):), intent(inout) :: cell_gradient
     !< ((d/dx, d/dy), (rho, u ,v, p), i, j); Gradient of each cell's conserved quantities
 
     integer(ik) :: left         !< Min i real cell index

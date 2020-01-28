@@ -1,5 +1,6 @@
 module mod_integrand
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
   use mod_surrogate, only: surrogate
   use mod_globals, only: debug_print
   use mod_strategy, only: strategy
@@ -31,13 +32,12 @@ module mod_integrand
   end type
 
   abstract interface
-    function time_derivative(self, finite_volume_scheme) result(dState_dt)
+    function time_derivative(self, fv) result(dState_dt)
       import :: integrand_t
       import :: finite_volume_scheme_t
       import :: rk
       class(integrand_t), intent(in) :: self
-      class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
-      ! real(rk), intent(in) :: dt
+      class(finite_volume_scheme_t), intent(inout) :: fv !< finite volume scheme
       class(integrand_t), allocatable :: dState_dt
     end function time_derivative
 
@@ -73,31 +73,36 @@ module mod_integrand
 contains
 
   subroutine set_time_integrator(self, s)
+    !< Set the time integration scheme, e.g. RK-4, RK-2, etc...
     class(integrand_t), intent(inout) :: self
     class(strategy), intent(in) :: s
 
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
-
     allocate(self%time_integrator, source=s)
   end subroutine
 
   function get_time_integrator(self) result(self_strategy)
+    !< Get the currently set time integration scheme
     class(integrand_t), intent(in) :: self
     class(strategy), allocatable :: self_strategy
-
     allocate(self_strategy, source=self%time_integrator)
   end function
 
   subroutine integrate(model, finite_volume_scheme, dt)
+    !< Integration implementation
     class(integrand_t), intent(inout) :: model ! integrand_t
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
+    class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
     real(rk), intent(in) :: dt ! time step size
+
+    if(.not. ieee_is_finite(dt)) then
+      error stop 'The timestep "dt" in integrand_t%integrate() is not a finite number'
+    end if
 
     call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
     else
-      stop 'integrate: no integration procedure available.'
+      error stop 'Error: No integration procedure available in integrand_t%integrate()'
     end if
   end subroutine
 end module mod_integrand

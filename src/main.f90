@@ -9,8 +9,8 @@ program cato
   use mod_fluid, only: fluid_t, new_fluid
   use mod_integrand, only: integrand_t
   use mod_grid, only: grid_t
-  use mod_eos, only: set_equation_of_state, eos
-  ! use mod_grid_factory, only: grid_factory_t
+  use mod_eos, only: set_equation_of_state
+
   implicit none
 
   character(150) :: command_line_arg
@@ -23,7 +23,7 @@ program cato
   type(timer_t) :: timer
   real(rk) :: time = 0.0_rk
   real(rk) :: delta_t
-  real(rk) :: c_sound = 0.0_rk
+  real(rk) :: max_cs = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
   logical :: file_exists = .false.
@@ -50,16 +50,17 @@ program cato
   end if
 
   call input%read_from_ini(input_filename)
+  call set_equation_of_state(input)
 
   fv => make_fv_scheme(input)
   U => new_fluid(input, fv)
-  call set_equation_of_state(input)
 
   contour_writer = contour_writer_t(input=input)
+  ! call contour_writer%write_contour(U, fv, time, iteration)
 
   print *
   write(*, '(a)') '--------------------------------------------'
-  print *, 'Starting time loop:'
+  write(*, '(a)') ' Starting time loop:'
   write(*, '(a)') '--------------------------------------------'
   print *
 
@@ -67,29 +68,9 @@ program cato
 
   do while(time < input%max_time .and. iteration < input%max_iterations)
 
-    ! Set the timestep via the CFL constraint
-    c_sound = maxval(U%get_sound_speed())
-    delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / c_sound
-
+    max_cs = U%get_max_sound_speed()
+    delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
     write(*, '(2(a, 1x, es10.3))') 'Time =', time, ', delta t = ', delta_t
-
-    call fv%apply_source_terms(U%conserved_vars, lbound(U%conserved_vars))
-
-    ! First put conserved vars in ghost layers
-    call fv%apply_conserved_vars_bc(U%conserved_vars, lbound(U%conserved_vars))
-
-    ! Reference state is a neighbor average (which is why edges needed ghost U vars)
-    call fv%calculate_reference_state(U%conserved_vars, lbound(U%conserved_vars))
-
-    ! Now we can reconstruct the entire domain
-    call fv%reconstruct(U%conserved_vars, lbound(U%conserved_vars))
-
-    ! Apply the reconstructed state to the ghost layers
-    call fv%apply_reconstructed_state_bc()
-    call fv%apply_cell_gradient_bc()
-
-    ! Evolve U at each edge
-    call fv%evolve_domain()
 
     if(time >= next_output_time) then
       next_output_time = next_output_time + input%contour_interval_dt
@@ -102,7 +83,8 @@ program cato
 
     time = time + delta_t
     iteration = iteration + 1
-    call fv%set_time(time)
+    call fv%set_time(time, delta_t, iteration)
+    call U%update_primitive_vars()
   end do
 
   call timer%stop()

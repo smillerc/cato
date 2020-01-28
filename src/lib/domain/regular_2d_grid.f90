@@ -146,7 +146,7 @@ contains
     class(grid_t), intent(in) :: in_grid
     class(regular_2d_grid_t), intent(inout) :: out_grid
 
-    call debug_print('Calling regular_2d_grid_t%copy()', __FILE__, __LINE__)
+    call debug_print('Running regular_2d_grid_t%copy()', __FILE__, __LINE__)
 
     out_grid%ilo_bc_node = in_grid%ilo_bc_node
     out_grid%jlo_bc_node = in_grid%jlo_bc_node
@@ -245,8 +245,6 @@ contains
 
     real(rk), dimension(:, :), allocatable :: x
     real(rk), dimension(:, :), allocatable :: y
-
-    integer(ik) :: i, j
 
     file_exists = .false.
     inquire(file=trim(input%initial_condition_file), exist=file_exists)
@@ -445,7 +443,7 @@ contains
     class(regular_2d_grid_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    call debug_print('Calling regular_2d_grid_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running regular_2d_grid_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%cell_volume)) then
       deallocate(self%cell_volume, stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volume"

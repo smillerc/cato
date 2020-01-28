@@ -17,9 +17,15 @@ module mod_pressure_input_bc
     ! Temporal inputs
     type(linear_interp_1d) :: temporal_pressure_input
     character(len=100) :: input_filename
+
+    real(rk), dimension(:, :), allocatable :: edge_primitive_vars
+    !< ((rho, u ,v, p), i); Conserved variables for the ghost cells along the boundary. This is saved b/c
+    !< it is reapplied to the reconstructed bc state for the ghost cells (besides for the conserved var bc)
+
   contains
     procedure, private :: read_pressure_input
-    procedure, public :: apply_conserved_var_bc => apply_pressure_input_conserved_var_bc
+    procedure, private :: get_desired_pressure
+    procedure, public :: apply_primitive_var_bc => apply_pressure_input_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_pressure_input_reconstructed_state_bc
     procedure, public :: apply_cell_gradient_bc => apply_pressure_input_cell_gradient_bc
     procedure, public :: copy => copy_pressure_input_bc
@@ -110,7 +116,7 @@ contains
     class(boundary_condition_t), intent(in) :: in_bc
     class(pressure_input_bc_t), intent(inout) :: out_bc
 
-    call debug_print('Calling pressure_input_bc_t%copy_pressure_input_bc()', __FILE__, __LINE__)
+    call debug_print('Running pressure_input_bc_t%copy_pressure_input_bc()', __FILE__, __LINE__)
 
     out_bc%name = in_bc%name
     out_bc%location = in_bc%location
@@ -126,10 +132,26 @@ contains
 
   end subroutine
 
-  subroutine apply_pressure_input_conserved_var_bc(self, conserved_vars)
+  real(rk) function get_desired_pressure(self) result(desired_pressure)
+    class(pressure_input_bc_t), intent(inout) :: self
+    integer(ik) :: interp_stat
+
+    if(self%constant_pressure) then
+      desired_pressure = self%pressure_input
+    else
+      call self%temporal_pressure_input%evaluate(x=self%get_time(), f=desired_pressure, istat=interp_stat)
+      if(interp_stat /= 0) then
+        error stop "Unable to interpolate pressure within pressure_input_bc_t%get_desired_pressure()"
+      end if
+    end if
+
+  end function get_desired_pressure
+
+  subroutine apply_pressure_input_primitive_var_bc(self, primitive_vars, lbounds)
     !< Apply pressure_input boundary conditions to the conserved state vector field
     class(pressure_input_bc_t), intent(inout) :: self
-    real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
     !< ((rho, u ,v, p), i, j); Conserved variables for each cell
 
     integer(ik) :: left         !< Min i real cell index
@@ -141,14 +163,20 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    integer(ik) :: interp_stat
-    real(rk) :: boundary_pressure, boundary_density
-    real(rk), dimension(:), allocatable :: boundary_buffer
+    real(rk) :: desired_boundary_pressure, boundary_density
+    real(rk), dimension(:), allocatable :: edge_pressure
 
-    left_ghost = lbound(conserved_vars, dim=2)
-    right_ghost = ubound(conserved_vars, dim=2)
-    bottom_ghost = lbound(conserved_vars, dim=3)
-    top_ghost = ubound(conserved_vars, dim=3)
+    integer(ik) :: imin, imax, jmin, jmax
+
+    imin = lbound(primitive_vars, dim=2)
+    imax = ubound(primitive_vars, dim=2)
+    jmin = lbound(primitive_vars, dim=3)
+    jmax = ubound(primitive_vars, dim=3)
+
+    left_ghost = lbound(primitive_vars, dim=2)
+    right_ghost = ubound(primitive_vars, dim=2)
+    bottom_ghost = lbound(primitive_vars, dim=3)
+    top_ghost = ubound(primitive_vars, dim=3)
     left = left_ghost + 1
     right = right_ghost - 1
     bottom = bottom_ghost + 1
@@ -164,79 +192,75 @@ contains
     !  rho_1    |  rho2
     !           |
 
-    if(self%constant_pressure) then
-      boundary_pressure = self%pressure_input
-    else
-      call self%temporal_pressure_input%evaluate(x=self%get_time(), f=boundary_pressure, istat=interp_stat)
-      if(interp_stat /= 0) then
-        error stop "Unable to interpolate pressure within "// &
-          "pressure_input_bc_t%apply_pressure_input_conserved_var_bc()"
-      end if
-    end if
-
     select case(self%location)
     case('+x')
+      call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
+
+      if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
+      allocate(self%edge_primitive_vars(4, jmin:jmax))
+      allocate(edge_pressure(jmin:jmax))
 
       ! Zero-gradient in velocity
-      conserved_vars(2, right, :) = conserved_vars(2, right - 1, :)
-      conserved_vars(3, right, :) = conserved_vars(3, right - 1, :)
-      conserved_vars(2, right_ghost, :) = conserved_vars(2, right, :)
-      conserved_vars(3, right_ghost, :) = conserved_vars(3, right, :)
+      self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
+      self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
 
-      if(boundary_pressure <= 0.0_rk) then
+      desired_boundary_pressure = self%get_desired_pressure()
+      if(desired_boundary_pressure <= 0.0_rk) then
         ! Default to zero-gradient if the input pressure goes <= 0
-        conserved_vars(1, right:right_ghost, :) = conserved_vars(1, right:right_ghost, :)
-        conserved_vars(4, right:right_ghost, :) = conserved_vars(4, right:right_ghost, :)
-        print *, "Applying zero-gradient at +x boundary (input pressure is <= 0)"
+        write(*, '(a)') "Applying zero-gradient at +x boundary (input pressure is <= 0)"
+        self%edge_primitive_vars(1, :) = primitive_vars(1, right, :)
+        self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
+        self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
+        self%edge_primitive_vars(4, :) = primitive_vars(4, right, :)
       else
-
-        print *, "Applying pressure at +x boundary of: ", boundary_pressure
-
-        ! Get the pressure of the cells inward (right - 1) from the boundary
-        allocate(boundary_buffer, mold=conserved_vars(1, right, :))
-
-        ! conserved_vars(4) stores energy, but I need pressure
-        boundary_buffer = eos%energy_to_pressure(energy=conserved_vars(4, right - 1, :), &
-                                                 rho=conserved_vars(1, right - 1, :), &
-                                                 u=conserved_vars(2, right - 1, :), &
-                                                 v=conserved_vars(3, right - 1, :))
+        write(*, '(a, es10.4)') "Applying pressure at +x boundary of: ", desired_boundary_pressure
+        ! Pressure on the right-most column of fluid cells
+        edge_pressure = eos%total_energy_to_pressure(total_energy=primitive_vars(4, right, :) / primitive_vars(1, right, :), &
+                                                     rho=primitive_vars(1, right, :), &
+                                                     u=primitive_vars(2, right, :) / primitive_vars(1, right, :), &
+                                                     v=primitive_vars(3, right, :) / primitive_vars(1, right, :))
 
         ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
-        conserved_vars(1, right, :) = eos%calc_density_from_isentropic_press(p_1=conserved_vars(4, right - 1, :), &
-                                                                             rho_1=conserved_vars(1, right - 1, :), &
-                                                                             p_2=boundary_buffer)
-        ! Zero gradient in density
-        conserved_vars(1, right_ghost, :) = conserved_vars(1, right, :)
+        self%edge_primitive_vars(1, :) = eos%calc_density_from_isentropic_press( &
+                                         p_1=edge_pressure, &
+                                         rho_1=primitive_vars(1, right, :), &
+                                         p_2=desired_boundary_pressure)
 
         ! Set the energy based on the input pressure
-        conserved_vars(4, right, :) = eos%total_energy(pressure=boundary_pressure, &
-                                                       density=conserved_vars(1, right, :), &
-                                                       x_velocity=conserved_vars(2, right, :), & ! or right - 1?
-                                                       y_velocity=conserved_vars(3, right, :))
+        self%edge_primitive_vars(4, :) = primitive_vars(1, right_ghost, :) * &
+                                         eos%calculate_total_energy(pressure=desired_boundary_pressure, &
+                                                                    density=primitive_vars(1, right_ghost, :), &
+                                                       x_velocity=primitive_vars(2, right_ghost, :) / primitive_vars(1, right, :), &
+                                                         y_velocity=primitive_vars(3, right_ghost, :) / primitive_vars(1, right, :))
 
-        ! Zero gradient in energy
-        conserved_vars(4, right_ghost, :) = conserved_vars(4, right, :)
+        self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
+        self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
+
       end if
 
+      primitive_vars(:, right_ghost, :) = self%edge_primitive_vars
       ! case('-x')
-      !   ! conserved_vars(:, left_ghost, :) = conserved_vars(:, right, bottom)
+      !   ! primitive_vars(:, left_ghost, :) = primitive_vars(:, right, bottom)
       ! case('+y')
-      !   ! conserved_vars(:, :, top_ghost) = conserved_vars(:, left:right, bottom)
+      !   ! primitive_vars(:, :, top_ghost) = primitive_vars(:, left:right, bottom)
       ! case('-y')
-      !   ! conserved_vars(:, :, bottom_ghost) = conserved_vars(:, left:right, top)
+      !   ! primitive_vars(:, :, bottom_ghost) = primitive_vars(:, left:right, top)
     case default
       error stop "Unsupported location to apply the bc at in "// &
         "pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
     end select
 
-    if(allocated(boundary_buffer)) deallocate(boundary_buffer)
-  end subroutine apply_pressure_input_conserved_var_bc
+    if(allocated(edge_pressure)) deallocate(edge_pressure)
 
-  subroutine apply_pressure_input_reconstructed_state_bc(self, reconstructed_state)
+  end subroutine apply_pressure_input_primitive_var_bc
+
+  subroutine apply_pressure_input_reconstructed_state_bc(self, reconstructed_state, lbounds)
     !< Apply pressure_input boundary conditions to the reconstructed state vector field
 
-    class(pressure_input_bc_t), intent(in) :: self
-    real(rk), dimension(:, :, :, 0:, 0:), intent(inout) :: reconstructed_state
+    class(pressure_input_bc_t), intent(inout) :: self
+    integer(ik), dimension(5), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                        lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
     !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
 
     integer(ik) :: left         !< Min i real cell index
@@ -247,7 +271,9 @@ contains
     integer(ik) :: right_ghost  !< Max i ghost cell index
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
+    integer(ik) :: n, p, n_points
 
+    n_points = ubound(reconstructed_state, dim=2)
     left_ghost = lbound(reconstructed_state, dim=4)
     right_ghost = ubound(reconstructed_state, dim=4)
     bottom_ghost = lbound(reconstructed_state, dim=5)
@@ -259,7 +285,13 @@ contains
 
     select case(self%location)
     case('+x')
-      reconstructed_state(:, :, :, right_ghost, :) = reconstructed_state(:, :, :, right, :)
+      call debug_print('Running pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc() +x', __FILE__, __LINE__)
+      do n = 1, 2
+        do p = 1, n_points
+          reconstructed_state(:, p, n, right_ghost, :) = self%edge_primitive_vars
+        end do
+      end do
+
       ! case('-x')
       !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
       !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
@@ -276,13 +308,16 @@ contains
       error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
     end select
 
+    if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
   end subroutine apply_pressure_input_reconstructed_state_bc
 
-  subroutine apply_pressure_input_cell_gradient_bc(self, cell_gradient)
+  subroutine apply_pressure_input_cell_gradient_bc(self, cell_gradient, lbounds)
     !< Apply pressure_input boundary conditions to the reconstructed state vector field
 
     class(pressure_input_bc_t), intent(in) :: self
-    real(rk), dimension(:, :, 0:, 0:), intent(inout) :: cell_gradient
+    integer(ik), dimension(4), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
+                        lbounds(4):), intent(inout) :: cell_gradient
     !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
 
     integer(ik) :: left         !< Min i real cell index

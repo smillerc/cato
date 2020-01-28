@@ -24,18 +24,19 @@ module mod_fluid
   public :: fluid_t, new_fluid
 
   type, extends(integrand_t) :: fluid_t
-    real(rk), dimension(:, :, :), allocatable :: conserved_vars
-    !< [rho, rho*u, rho*v, e] Conserved quantities
+    real(rk), dimension(:, :, :), allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
+    real(rk), dimension(:, :, :), allocatable :: primitive_vars !< ((rho, u, v, p), i, j); Primitive quantities
+    real(rk), dimension(:, :), allocatable :: sound_speed !< (i, j); Speed of sound
+    logical :: primitives_updated = .false.
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
     procedure, private :: initialize_from_hdf5
     procedure, public :: t => time_derivative
-    procedure, public :: get_density
-    procedure, public :: get_x_velocity
-    procedure, public :: get_y_velocity
-    procedure, public :: get_pressure
-    procedure, public :: get_sound_speed
+    procedure, public :: calculate_sound_speed
+    procedure, public :: get_max_sound_speed
+    procedure, public :: update_primitive_vars
+    procedure, nopass, private :: flux_edges
     procedure, pass(lhs), public :: type_plus_type => add_fluid
     procedure, pass(lhs), public :: type_minus_type => subtract_fluid
     procedure, pass(lhs), public :: type_mul_real => fluid_mul_real
@@ -55,7 +56,7 @@ contains
 
     allocate(fluid)
     call fluid%initialize(input, finite_volume_scheme)
-  end function
+  end function new_fluid
 
   subroutine initialize(self, input, finite_volume_scheme)
     class(fluid_t), intent(inout) :: self
@@ -74,10 +75,22 @@ contains
               jmax=>finite_volume_scheme%grid%jhi_bc_cell)
 
       allocate(self%conserved_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
-      ! ((rho,u,v,p),i,j) Conserved variables for each cell
       if(alloc_status /= 0) then
         error stop "Unable to allocate fluid_t%conserved_vars"
       end if
+      self%conserved_vars = 0.0_rk
+
+      allocate(self%primitive_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) then
+        error stop "Unable to allocate fluid_t%primitive_vars"
+      end if
+      self%primitive_vars = 0.0_rk
+
+      allocate(self%sound_speed(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) then
+        error stop "Unable to allocate fluid_t%sound_speed"
+      end if
+      self%sound_speed = 0.0_rk
     end associate
 
     time_integrator => time_integrator_factory(input)
@@ -91,18 +104,35 @@ contains
       call self%initialize_from_ini(input)
     end if
 
-    write(*, '(a)') 'Initial fluid conserved variable stats'
+    call self%update_primitive_vars()
+    call self%calculate_sound_speed()
+    self%primitives_updated = .true.
+
+    write(*, '(a)') 'Initial fluid stats'
     write(*, '(a)') '======================================'
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho:          ', &
+    write(*, '(a, f0.3)') 'EOS Gamma:                ', eos%get_gamma()
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Sound Speed:      ', &
+      minval(self%sound_speed), maxval(self%sound_speed)
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Density:          ', &
+      minval(self%primitive_vars(1, :, :)), maxval(self%primitive_vars(1, :, :))
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max X-Velocity:       ', &
+      minval(self%primitive_vars(2, :, :)), maxval(self%primitive_vars(2, :, :))
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Y-Velocity:       ', &
+      minval(self%primitive_vars(3, :, :)), maxval(self%primitive_vars(3, :, :))
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Pressure:         ', &
+      minval(self%primitive_vars(4, :, :)), maxval(self%primitive_vars(4, :, :))
+    write(*, *)
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho:              ', &
       minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho * u:      ', &
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho u:            ', &
       minval(self%conserved_vars(2, :, :)), maxval(self%conserved_vars(2, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho * v:      ', &
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho v:            ', &
       minval(self%conserved_vars(3, :, :)), maxval(self%conserved_vars(3, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max total energy: ', &
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho E:            ', &
       minval(self%conserved_vars(4, :, :)), maxval(self%conserved_vars(4, :, :))
     write(*, *)
-  end subroutine
+
+  end subroutine initialize
 
   subroutine initialize_from_hdf5(self, input, finite_volume_scheme)
     !< Initialize from an .hdf5 file. The conserved variables are already allocated appropriately from
@@ -139,11 +169,11 @@ contains
       self%conserved_vars(1, imin:imax, jmin:jmax) = density
       self%conserved_vars(2, imin:imax, jmin:jmax) = density * x_velocity
       self%conserved_vars(3, imin:imax, jmin:jmax) = density * y_velocity
-      self%conserved_vars(4, imin:imax, jmin:jmax) = eos%total_energy(pressure=pressure, &
-                                                                      density=density, &
-                                                                      x_velocity=x_velocity, &
-                                                                      y_velocity=y_velocity)
-
+      self%conserved_vars(4, imin:imax, jmin:jmax) = density &
+                                                     * eos%calculate_total_energy(pressure=pressure, &
+                                                                                  density=density, &
+                                                                                  x_velocity=x_velocity, &
+                                                                                  y_velocity=y_velocity)
     end associate
 
   end subroutine initialize_from_hdf5
@@ -160,10 +190,10 @@ contains
     self%conserved_vars(1, :, :) = input%init_density
     self%conserved_vars(2, :, :) = input%init_density * input%init_x_velocity
     self%conserved_vars(3, :, :) = input%init_density * input%init_y_velocity
-    self%conserved_vars(4, :, :) = eos%total_energy(pressure=input%init_pressure, &
-                                                    density=input%init_density, &
-                                                    x_velocity=input%init_x_velocity, &
-                                                    y_velocity=input%init_y_velocity)
+    self%conserved_vars(4, :, :) = input%init_density * eos%calculate_total_energy(pressure=input%init_pressure, &
+                                                                                   density=input%init_density, &
+                                                                                   x_velocity=input%init_x_velocity, &
+                                                                                   y_velocity=input%init_y_velocity)
 
     if(near_zero(input%init_pressure)) then
       error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5"
@@ -178,124 +208,292 @@ contains
   subroutine force_finalization(self)
     class(fluid_t), intent(inout) :: self
 
-    call debug_print('Calling fluid_t%force_finalization()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%force_finalization()', __FILE__, __LINE__)
     if(allocated(self%conserved_vars)) deallocate(self%conserved_vars)
+    if(allocated(self%primitive_vars)) deallocate(self%primitive_vars)
+    if(allocated(self%sound_speed)) deallocate(self%sound_speed)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
-  end subroutine
+  end subroutine force_finalization
 
   subroutine finalize(self)
     type(fluid_t), intent(inout) :: self
 
-    call debug_print('Calling fluid_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%conserved_vars)) deallocate(self%conserved_vars)
+    if(allocated(self%primitive_vars)) deallocate(self%primitive_vars)
+    if(allocated(self%sound_speed)) deallocate(self%sound_speed)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
-  end subroutine
+  end subroutine finalize
 
-  function time_derivative(self, finite_volume_scheme) result(d_dt)
-    !< Evaluate the fluxes along the edges. This is equation 13 in the paper
+  function time_derivative(self, fv) result(d_dt)
+    !< Implementation of dU/dt
+
     class(fluid_t), intent(in) :: self
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
+    class(finite_volume_scheme_t), intent(inout) :: fv
 
-    class(integrand_t), allocatable :: d_dt
-    type(fluid_t), allocatable :: local_d_dt
+    ! Locals
+    class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
+    type(fluid_t), allocatable :: local_d_dt !< dU/dt
+    integer(ik) :: alloc_status
 
-    real(rk), dimension(4) :: edge_flux
-    integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: i, j
+    real(rk), dimension(:, :, :), allocatable :: evolved_corner_state
+    !< ((rho, u, v, p), i, j); Reconstructed U at each corner
 
-    call debug_print('Calculating d/dt, e.g. integrating edge fluxes', __FILE__, __LINE__)
-    allocate(local_d_dt, source=self)
+    real(rk), dimension(:, :, :), allocatable :: corner_reference_state
+    !< ((rho, u, v, p), i, j); Reference state (tilde) at each corner
 
-    ilo = finite_volume_scheme%grid%ilo_cell
-    jlo = finite_volume_scheme%grid%jlo_cell
-    ihi = finite_volume_scheme%grid%ihi_cell
-    jhi = finite_volume_scheme%grid%jhi_cell
+    ! Indexing the midpoints is a pain, so they're split by the up/down edges and left/right edges
+    real(rk), dimension(:, :, :), allocatable :: evolved_downup_midpoints_state
+    !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint defined by vectors that go up/down
+    !< (edges 2 (right edge) and 4 (left edge))
 
-    associate(grid=>finite_volume_scheme%grid, &
-              corner_state=>finite_volume_scheme%evolved_corner_state, &
-              leftright_midpoints_state=>finite_volume_scheme%evolved_leftright_midpoints_state, &
-              downup_midpoints_state=>finite_volume_scheme%evolved_downup_midpoints_state)
+    real(rk), dimension(:, :, :), allocatable :: evolved_leftright_midpoints_state
+    !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint defined by vectors that go left/right
+    !< (edges 1 (bottom edge) and 3 (top edge))
 
-      ! do concurrent(j=jlo:jhi)
-      !   do concurrent(i=ilo:ihi)
-      do j = jlo, jhi
-        do i = ilo, ihi
+    real(rk), dimension(:, :, :), allocatable :: downup_midpoints_reference_state
+    !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint defined by vectors that go up/down
+    !< (edges 2 (right edge) and 4 (left edge))
 
-          edge_flux = 0.0_rk
-          ! Edge 1 (bottom)
-          associate(E0_R_omega_k1=>corner_state(:, i, j), &
-                    E0_R_omega_kc=>leftright_midpoints_state(:, i, j), &
-                    E0_R_omega_k2=>corner_state(:, i + 1, j), &
-                    n_hat=>grid%cell_edge_norm_vectors(:, 1, i, j), &
-                    delta_l=>grid%cell_edge_lengths(1, i, j))
+    real(rk), dimension(:, :, :), allocatable :: leftright_midpoints_reference_state
+    !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint defined by vectors that go left/right
+    !< (edges 1 (bottom edge) and 3 (top edge))
 
-            ! Eq. 13, for edge 1
-            edge_flux = edge_flux + &
-                        ( &
-                        ((H(E0_R_omega_k1) + &
-                          4.0_rk * H(E0_R_omega_kc) + &
-                          H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+    real(rk), dimension(:, :, :, :, :), allocatable, target :: reconstructed_state
+    !< (((rho, u, v, p)), point, node/midpoint, i, j); The node/midpoint dimension just selects which set of points,
+    !< e.g. 1 - all corners, 2 - all midpoints. Note, this DOES repeat nodes, since corners and midpoints are
+    !< shared by neighboring cells, but each point has its own reconstructed value based on the parent cell's state
 
-          end associate
+    call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
-          ! Edge 2 (right)
-          associate(E0_R_omega_k1=>corner_state(:, i + 1, j), &
-                    E0_R_omega_kc=>downup_midpoints_state(:, i + 1, j), &
-                    E0_R_omega_k2=>corner_state(:, i + 1, j + 1), &
-                    n_hat=>grid%cell_edge_norm_vectors(:, 2, i, j), &
-                    delta_l=>grid%cell_edge_lengths(2, i, j))
+    associate(imin=>fv%grid%ilo_bc_cell, imax=>fv%grid%ihi_bc_cell, &
+              jmin=>fv%grid%jlo_bc_cell, jmax=>fv%grid%jhi_bc_cell)
 
-            ! Eq. 13, for edge 2
-            edge_flux = edge_flux + &
-                        ( &
-                        ((H(E0_R_omega_k1) + &
-                          4.0_rk * H(E0_R_omega_kc) + &
-                          H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
-
-          end associate
-
-          ! Edge 3 (top)
-          associate(E0_R_omega_k1=>corner_state(:, i + 1, j + 1), &
-                    E0_R_omega_kc=>leftright_midpoints_state(:, i, j + 1), &
-                    E0_R_omega_k2=>corner_state(:, i, j + 1), &
-                    n_hat=>grid%cell_edge_norm_vectors(:, 3, i, j), &
-                    delta_l=>grid%cell_edge_lengths(3, i, j))
-
-            ! Eq. 13, for edge 3
-            edge_flux = edge_flux + &
-                        ( &
-                        ((H(E0_R_omega_k1) + &
-                          4.0_rk * H(E0_R_omega_kc) + &
-                          H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
-
-          end associate
-
-          ! Edge 4 (left)
-          associate(E0_R_omega_k1=>corner_state(:, i, j + 1), &
-                    E0_R_omega_kc=>downup_midpoints_state(:, i, j), &
-                    E0_R_omega_k2=>corner_state(:, i, j), &
-                    n_hat=>grid%cell_edge_norm_vectors(:, 4, i, j), &
-                    delta_l=>grid%cell_edge_lengths(4, i, j))
-
-            ! Eq. 13, for edge 4
-            edge_flux = edge_flux + &
-                        ( &
-                        ((H(E0_R_omega_k1) + &
-                          4.0_rk * H(E0_R_omega_kc) + &
-                          H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
-
-          end associate
-
-          local_d_dt%conserved_vars(:, i, j) = (-1.0_rk / grid%cell_volume(i, j)) * edge_flux
-
-        end do ! i
-      end do ! j
+      allocate(reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state in fluid_t%time_derivative()"
+      reconstructed_state = 0.0_rk
     end associate
+
+    associate(imin_node=>fv%grid%ilo_node, imax_node=>fv%grid%ihi_node, &
+              jmin_node=>fv%grid%jlo_node, jmax_node=>fv%grid%jhi_node, &
+              imin_cell=>fv%grid%ilo_cell, imax_cell=>fv%grid%ihi_cell, &
+              jmin_cell=>fv%grid%jlo_cell, jmax_cell=>fv%grid%jhi_cell)
+
+      ! corners
+      allocate(evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state in fluid_t%time_derivative()"
+      evolved_corner_state = 0.0_rk
+
+      allocate(corner_reference_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate corner_reference_state in fluid_t%time_derivative()"
+      corner_reference_state = 0.0_rk
+
+      ! left/right midpoints
+      allocate(evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state in fluid_t%time_derivative()"
+      evolved_leftright_midpoints_state = 0.0_rk
+
+      allocate(leftright_midpoints_reference_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate leftright_midpoints_reference_state in fluid_t%time_derivative()"
+      leftright_midpoints_reference_state = 0.0_rk
+
+      ! down/up midpoints
+      allocate(evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state"
+      evolved_downup_midpoints_state = 0.0_rk
+
+      allocate(downup_midpoints_reference_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate downup_midpoints_reference_state"
+      downup_midpoints_reference_state = 0.0_rk
+    end associate
+
+    allocate(local_d_dt, source=self)
+    local_d_dt%primitives_updated = .false.
+    local_d_dt%conserved_vars = self%conserved_vars
+    local_d_dt%primitive_vars = 0.0_rk
+
+    call local_d_dt%update_primitive_vars()
+
+    ! call fv%apply_source_terms(local_d_dt%conserved_vars, lbound(local_d_dt%conserved_vars))
+
+    ! First put conserved vars in ghost layers
+    call fv%apply_primitive_vars_bc(local_d_dt%primitive_vars, lbound(local_d_dt%primitive_vars))
+
+    ! Reference state is a neighbor average (which is why edges needed ghost U vars)
+    call fv%calculate_reference_state(primitive_vars=local_d_dt%primitive_vars, &
+                                      leftright_midpoints_reference_state=leftright_midpoints_reference_state, &
+                                      downup_midpoints_reference_state=downup_midpoints_reference_state, &
+                                      corner_reference_state=corner_reference_state, &
+                                      cell_lbounds=lbound(local_d_dt%primitive_vars))
+
+    ! Now we can reconstruct the entire domain
+    call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=local_d_dt%primitive_vars, &
+                                                               lbounds=lbound(local_d_dt%primitive_vars))
+
+    call fv%reconstruct(primitive_vars=local_d_dt%primitive_vars, &
+                        cell_lbounds=lbound(local_d_dt%primitive_vars), &
+                        reconstructed_state=reconstructed_state)
+
+    call fv%evolution_operator%set_reconstructed_state_pointer( &
+      reconstructed_state_target=reconstructed_state, &
+      lbounds=lbound(reconstructed_state))
+
+    ! Apply the reconstructed state to the ghost layers
+    call fv%apply_reconstructed_state_bc(reconstructed_state, lbounds=lbound(reconstructed_state))
+
+    call fv%apply_cell_gradient_bc()
+
+    ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
+    call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
+    call fv%evolution_operator%evolve_leftright_midpoints(reference_state=leftright_midpoints_reference_state, &
+                                                          evolved_state=evolved_leftright_midpoints_state, &
+                                                          lbounds=lbound(leftright_midpoints_reference_state))
+
+    ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
+    call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
+    call fv%evolution_operator%evolve_downup_midpoints(reference_state=downup_midpoints_reference_state, &
+                                                       evolved_state=evolved_downup_midpoints_state, &
+                                                       lbounds=lbound(evolved_downup_midpoints_state))
+
+    ! Evolve, i.e. E0(R_omega), at all corner nodes
+    call debug_print('Evolving corner nodes', __FILE__, __LINE__)
+    call fv%evolution_operator%evolve_corners(reference_state=corner_reference_state, &
+                                              evolved_state=evolved_corner_state, &
+                                              lbounds=lbound(evolved_corner_state))
+
+    nullify(fv%reconstruction_operator%primitive_vars)
+    nullify(fv%evolution_operator%reconstructed_state)
+
+    call self%flux_edges(grid=fv%grid, &
+                         evolved_corner_state=evolved_corner_state, &
+                         evolved_leftright_midpoints_state=evolved_leftright_midpoints_state, &
+                         evolved_downup_midpoints_state=evolved_downup_midpoints_state, &
+                         new_conserved_vars=local_d_dt%conserved_vars)
 
     call move_alloc(local_d_dt, d_dt)
     call d_dt%set_temp(calling_function='time_derivative (d_dt)', line=__LINE__)
 
+    ! Now deallocate everything
+    deallocate(evolved_corner_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state"
+
+    deallocate(corner_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate corner_reference_state"
+
+    deallocate(evolved_downup_midpoints_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state"
+
+    deallocate(evolved_leftright_midpoints_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state"
+
+    deallocate(downup_midpoints_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate downup_midpoints_reference_state"
+
+    deallocate(leftright_midpoints_reference_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate leftright_midpoints_reference_state"
+
+    deallocate(reconstructed_state, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state"
+
   end function time_derivative
+
+  subroutine flux_edges(grid, evolved_corner_state, evolved_leftright_midpoints_state, &
+                        evolved_downup_midpoints_state, new_conserved_vars)
+    !< Evaluate the fluxes along the edges. This is equation 13 in the paper
+    class(grid_t), intent(in) :: grid
+    real(rk), dimension(:, grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_state
+    real(rk), dimension(:, grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_leftright_midpoints_state
+    real(rk), dimension(:, grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_downup_midpoints_state
+    real(rk), dimension(:, grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: new_conserved_vars
+
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j
+    real(rk), dimension(4) :: edge_flux
+
+    ilo = grid%ilo_cell
+    ihi = grid%ihi_cell
+    jlo = grid%jlo_cell
+    jhi = grid%jhi_cell
+
+    call debug_print('Running fluid_t%flux_edges()', __FILE__, __LINE__)
+
+    new_conserved_vars(:, grid%ilo_bc_cell, :) = 0.0_rk
+    new_conserved_vars(:, grid%ihi_bc_cell, :) = 0.0_rk
+    new_conserved_vars(:, :, grid%jlo_bc_cell) = 0.0_rk
+    new_conserved_vars(:, :, grid%jhi_bc_cell) = 0.0_rk
+
+    do concurrent(j=jlo:jhi)
+      do concurrent(i=ilo:ihi)
+
+        edge_flux = 0.0_rk
+        ! Edge 1 (bottom)
+        associate(E0_R_omega_k1=>evolved_corner_state(:, i, j), &
+                  E0_R_omega_kc=>evolved_leftright_midpoints_state(:, i, j), &
+                  E0_R_omega_k2=>evolved_corner_state(:, i + 1, j), &
+                  n_hat=>grid%cell_edge_norm_vectors(:, 1, i, j), &
+                  delta_l=>grid%cell_edge_lengths(1, i, j))
+
+          ! Eq. 13, for edge 1
+          edge_flux = edge_flux + &
+                      ( &
+                      ((H(E0_R_omega_k1) + &
+                        4.0_rk * H(E0_R_omega_kc) + &
+                        H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+
+        end associate
+
+        ! Edge 2 (right)
+        associate(E0_R_omega_k1=>evolved_corner_state(:, i + 1, j), &
+                  E0_R_omega_kc=>evolved_downup_midpoints_state(:, i + 1, j), &
+                  E0_R_omega_k2=>evolved_corner_state(:, i + 1, j + 1), &
+                  n_hat=>grid%cell_edge_norm_vectors(:, 2, i, j), &
+                  delta_l=>grid%cell_edge_lengths(2, i, j))
+
+          ! Eq. 13, for edge 2
+          edge_flux = edge_flux + &
+                      ( &
+                      ((H(E0_R_omega_k1) + &
+                        4.0_rk * H(E0_R_omega_kc) + &
+                        H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+
+        end associate
+
+        ! Edge 3 (top)
+        associate(E0_R_omega_k1=>evolved_corner_state(:, i + 1, j + 1), &
+                  E0_R_omega_kc=>evolved_leftright_midpoints_state(:, i, j + 1), &
+                  E0_R_omega_k2=>evolved_corner_state(:, i, j + 1), &
+                  n_hat=>grid%cell_edge_norm_vectors(:, 3, i, j), &
+                  delta_l=>grid%cell_edge_lengths(3, i, j))
+
+          ! Eq. 13, for edge 3
+          edge_flux = edge_flux + &
+                      ( &
+                      ((H(E0_R_omega_k1) + &
+                        4.0_rk * H(E0_R_omega_kc) + &
+                        H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+
+        end associate
+
+        ! Edge 4 (left)
+        associate(E0_R_omega_k1=>evolved_corner_state(:, i, j + 1), &
+                  E0_R_omega_kc=>evolved_downup_midpoints_state(:, i, j), &
+                  E0_R_omega_k2=>evolved_corner_state(:, i, j), &
+                  n_hat=>grid%cell_edge_norm_vectors(:, 4, i, j), &
+                  delta_l=>grid%cell_edge_lengths(4, i, j))
+
+          ! Eq. 13, for edge 4
+          edge_flux = edge_flux + &
+                      ( &
+                      ((H(E0_R_omega_k1) + &
+                        4.0_rk * H(E0_R_omega_kc) + &
+                        H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+
+        end associate
+
+        new_conserved_vars(:, i, j) = (-1.0_rk / grid%cell_volume(i, j)) * edge_flux
+      end do ! i
+    end do ! j
+  end subroutine flux_edges
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
@@ -305,15 +503,16 @@ contains
     class(integrand_t), allocatable :: difference
     type(fluid_t), allocatable :: local_difference
 
-    call debug_print('Calling fluid%subtract_fluid()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%subtract_fluid()', __FILE__, __LINE__)
 
     select type(rhs)
     class is(fluid_t)
       allocate(local_difference, source=lhs)
       local_difference%time_integrator = rhs%time_integrator
       local_difference%conserved_vars = lhs%conserved_vars - rhs%conserved_vars
+      local_difference%primitives_updated = .false.
     class default
-      error stop 'fluid%subtract_fluid: unsupported rhs class'
+      error stop 'fluid_t%subtract_fluid: unsupported rhs class'
     end select
 
     call move_alloc(local_difference, difference)
@@ -328,15 +527,16 @@ contains
     class(integrand_t), allocatable :: sum
     type(fluid_t), allocatable :: local_sum
 
-    call debug_print('Calling fluid%add_fluid()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%add_fluid()', __FILE__, __LINE__)
 
     select type(rhs)
     class is(fluid_t)
       allocate(local_sum, source=lhs)
       local_sum%time_integrator = rhs%time_integrator
       local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
+      local_sum%primitives_updated = .false.
     class default
-      error stop 'fluid%add_fluid: unsupported rhs class'
+      error stop 'fluid_t%add_fluid: unsupported rhs class'
     end select
 
     call move_alloc(local_sum, sum)
@@ -352,13 +552,13 @@ contains
     type(fluid_t), allocatable :: local_product
     integer(ik) :: alloc_status
 
-    call debug_print('Calling fluid%fluid_mul_real()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
 
     allocate(local_product, source=lhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid%fluid_mul_real"
+    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
 
     local_product%conserved_vars = lhs%conserved_vars * rhs
-
+    local_product%primitives_updated = .false.
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
   end function fluid_mul_real
@@ -372,14 +572,14 @@ contains
     type(fluid_t), allocatable :: local_product
     integer(ik) :: alloc_status
 
-    call debug_print('Calling fluid%real_mul_fluid()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
 
     allocate(local_product, source=rhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid%fluid_mul_real"
+    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
 
     local_product%time_integrator = rhs%time_integrator
     local_product%conserved_vars = rhs%conserved_vars * lhs
-
+    local_product%primitives_updated = .false.
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
   end function real_mul_fluid
@@ -391,69 +591,89 @@ contains
     integer(ik) :: alloc_status
 
     alloc_status = 0
-    call debug_print('Calling assign_fluid', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
 
     call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
     select type(rhs)
     class is(fluid_t)
       lhs%time_integrator = rhs%time_integrator
       lhs%conserved_vars = rhs%conserved_vars
+      ! lhs%primitive_vars = rhs%primitive_vars
     class default
-      error stop 'fluid%assign_fluid: unsupported class'
+      error stop 'Erro in fluid_t%assign_fluid: unsupported class'
     end select
 
     call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
   end subroutine assign_fluid
 
-  function get_density(self) result(density)
-    class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :), allocatable :: density
+  subroutine calculate_sound_speed(self)
+    !< Calculate the sound speed for the entire domain
+    class(fluid_t), intent(inout) :: self
 
-    allocate(density, mold=self%conserved_vars(1, :, :))
-    density = self%conserved_vars(1, :, :)
-  end function
+    call debug_print('Running fluid_t%calculate_sound_speed()', __FILE__, __LINE__)
 
-  function get_x_velocity(self) result(x_velocity)
-    class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :), allocatable :: x_velocity
+    call eos%calc_sound_speed_from_primitive(primitive_vars=self%primitive_vars, &
+                                             sound_speed=self%sound_speed)
+  end subroutine calculate_sound_speed
 
-    allocate(x_velocity, mold=self%conserved_vars(1, :, :))
-    x_velocity = self%conserved_vars(2, :, :) / self%conserved_vars(1, :, :)
-  end function
+  real(rk) function get_max_sound_speed(self) result(max_cs)
+    class(fluid_t), intent(inout) :: self
 
-  function get_y_velocity(self) result(y_velocity)
-    class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :), allocatable :: y_velocity
+    call debug_print('Running fluid_t%get_max_sound_speed()', __FILE__, __LINE__)
+    if(.not. self%primitives_updated) then
+      call self%update_primitive_vars()
+    end if
 
-    allocate(y_velocity, mold=self%conserved_vars(1, :, :))
-    y_velocity = self%conserved_vars(3, :, :) / self%conserved_vars(1, :, :)
-  end function
+    call self%calculate_sound_speed()
+    max_cs = maxval(self%sound_speed)
+  end function get_max_sound_speed
 
-  function get_pressure(self) result(pressure)
-    class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :), allocatable :: pressure
+  subroutine update_primitive_vars(self)
+    !< Convert the conserved variables [rho, rho u, rho v, rho E] to primitive [rho, u, v, p]
 
-    allocate(pressure, mold=self%conserved_vars(1, :, :))
-    pressure = eos%energy_to_pressure(energy=self%conserved_vars(4, :, :), &
-                                      rho=self%conserved_vars(1, :, :), &
-                                      u=self%conserved_vars(2, :, :), &
-                                      v=self%conserved_vars(3, :, :))
-  end function
+    class(fluid_t), intent(inout) :: self
+    integer(ik) :: alloc_stat
+    alloc_stat = 0
 
-  function get_sound_speed(self) result(sound_speed)
-    class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :), allocatable :: sound_speed
+    call debug_print('Running fluid_t%update_primitive_vars()', __FILE__, __LINE__)
 
-    allocate(sound_speed, mold=self%conserved_vars(1, :, :))
+    ! rho
+    self%primitive_vars(1, :, :) = self%conserved_vars(1, :, :)
 
-    associate(e=>self%conserved_vars(4, :, :), &
+    ! u
+    self%primitive_vars(2, :, :) = self%conserved_vars(2, :, :) / self%conserved_vars(1, :, :)
+
+    ! v
+    self%primitive_vars(3, :, :) = self%conserved_vars(3, :, :) / self%conserved_vars(1, :, :)
+
+    ! ! pressure
+    ! self%primitive_vars(4, :, :) = eos%total_energy_to_pressure( &
+    !                                total_energy=self%conserved_vars(4, :, :) / self%conserved_vars(1, :, :), &
+    !                                rho=self%conserved_vars(1, :, :), &
+    !                                u=self%primitive_vars(2, :, :), &
+    !                                v=self%primitive_vars(3, :, :))
+
+    associate(gamma=>eos%get_gamma(), E=>self%conserved_vars(4, :, :) / self%conserved_vars(1, :, :), &
               rho=>self%conserved_vars(1, :, :), &
-              u=>self%conserved_vars(2, :, :), &
-              v=>self%conserved_vars(3, :, :), &
-              gamma=>eos%get_gamma())
+              u=>self%primitive_vars(2, :, :), &
+              v=>self%primitive_vars(3, :, :))
 
-      sound_speed = sqrt(gamma * ((gamma - 1.0_rk) * (e - 0.5_rk * rho * (u**2 + v**2))) / rho)
+      self%primitive_vars(4, :, :) = (gamma - 1.0_rk) * (E - (rho / 2.0_rk) * (u**2 + v**2))
     end associate
-  end function
+
+    self%primitives_updated = .true.
+
+    ! print*, '---'
+    ! print*, 'min/max self%conserved_vars(1,:,:)', minval(self%conserved_vars(1,:,:)), maxval(self%conserved_vars(1,:,:))
+    ! print*, 'min/max self%conserved_vars(2,:,:)', minval(self%conserved_vars(2,:,:)), maxval(self%conserved_vars(2,:,:))
+    ! print*, 'min/max self%conserved_vars(3,:,:)', minval(self%conserved_vars(3,:,:)), maxval(self%conserved_vars(3,:,:))
+    ! print*, 'min/max self%conserved_vars(4,:,:)', minval(self%conserved_vars(4,:,:)), maxval(self%conserved_vars(4,:,:))
+    ! print*, 'min/max self%primitive_vars(1,:,:)', minval(self%primitive_vars(1,:,:)), maxval(self%primitive_vars(1,:,:))
+    ! print*, 'min/max self%primitive_vars(2,:,:)', minval(self%primitive_vars(2,:,:)), maxval(self%primitive_vars(2,:,:))
+    ! print*, 'min/max self%primitive_vars(3,:,:)', minval(self%primitive_vars(3,:,:)), maxval(self%primitive_vars(3,:,:))
+    ! print*, 'min/max self%primitive_vars(4,:,:)', minval(self%primitive_vars(4,:,:)), maxval(self%primitive_vars(4,:,:))
+    ! print*, '---'
+
+  end subroutine update_primitive_vars
 
 end module mod_fluid

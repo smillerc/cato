@@ -22,7 +22,7 @@ contains
   subroutine integrate(U, finite_volume_scheme, dt)
     !< Time integrator implementation
     class(surrogate), intent(inout) :: U
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
+    class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
     real(rk), intent(in) :: dt
     class(integrand_t), allocatable :: U_1 !< first stage
     class(integrand_t), allocatable :: U_2 !< second stage

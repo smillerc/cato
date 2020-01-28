@@ -15,15 +15,12 @@ module mod_evo_operator_factory
 
 contains
 
-  function evo_operator_factory(input, grid_target, recon_operator_target, reconstructed_state_target, lbounds) result(operator)
+  function evo_operator_factory(input, grid_target, recon_operator_target) result(operator)
     class(input_t), intent(in) :: input
     class(abstract_evo_operator_t), pointer :: operator
 
     class(grid_t), intent(in), target :: grid_target
     class(abstract_reconstruction_t), intent(in), target :: recon_operator_target
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):, lbounds(5):), intent(in), target :: reconstructed_state_target
 
     character(len=32) :: evo_type = ''
 
@@ -34,9 +31,7 @@ contains
     case('fvleg')
       allocate(local_evo_operator_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target, &
-                               recon_operator_target=recon_operator_target, &
-                               reconstructed_state_target=reconstructed_state_target, &
-                               lbounds=lbounds)
+                               recon_operator_target=recon_operator_target)
     case default
       ! if(this_image() == 1) then
       error stop "Error in evo_operator_factory, unrecognizable evolution type"

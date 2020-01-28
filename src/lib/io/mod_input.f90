@@ -38,16 +38,16 @@ module mod_input
     character(len=32) ::  plus_y_bc = 'periodic' !< Boundary condition at +y
     character(len=32) :: minus_y_bc = 'periodic' !< Boundary condition at -y
 
-    ! source inputs (i.e. pressure source injection at a grid location)
+    ! source inputs (i.e. energy source injection at a grid location)
     logical :: enable_source_terms = .false.
-    character(len=32) :: source_term_type = 'pressure'
-    logical :: apply_constant_source_pressure = .false.
-    character(:), allocatable :: pressure_source_file
-    real(rk) :: constant_source_pressure_value = 0.0_rk
-    integer(ik) :: pressure_source_ilo = 0
-    integer(ik) :: pressure_source_ihi = 0
-    integer(ik) :: pressure_source_jlo = 0
-    integer(ik) :: pressure_source_jhi = 0
+    character(len=32) :: source_term_type = 'energy'
+    logical :: apply_constant_source = .false.
+    character(:), allocatable :: source_file
+    real(rk) :: constant_source_value = 0.0_rk
+    integer(ik) :: source_ilo = 0
+    integer(ik) :: source_ihi = 0
+    integer(ik) :: source_jlo = 0
+    integer(ik) :: source_jhi = 0
 
     ! io
     character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
@@ -202,29 +202,29 @@ contains
     call cfg%get('source_terms', 'enable_source_terms', self%enable_source_terms, .false.)
 
     if(self%enable_source_terms) then
-      call cfg%get('source_terms', 'apply_constant_source', self%apply_constant_source_pressure, .false.)
+      call cfg%get('source_terms', 'apply_constant_source', self%apply_constant_source, .false.)
       call cfg%get('source_terms', 'source_file', char_buffer)
-      self%pressure_source_file = trim(char_buffer)
+      self%source_file = trim(char_buffer)
 
       call cfg%get('source_terms', 'source_term_type', char_buffer)
       self%source_term_type = trim(char_buffer)
 
-      call cfg%get('source_terms', 'constant_source_value', self%constant_source_pressure_value, 0.0_rk)
-      call cfg%get('source_terms', 'ilo', self%pressure_source_ilo, 0)
-      call cfg%get('source_terms', 'ihi', self%pressure_source_ihi, 0)
-      call cfg%get('source_terms', 'jlo', self%pressure_source_jlo, 0)
-      call cfg%get('source_terms', 'jhi', self%pressure_source_jhi, 0)
+      call cfg%get('source_terms', 'constant_source_value', self%constant_source_value, 0.0_rk)
+      call cfg%get('source_terms', 'ilo', self%source_ilo, 0)
+      call cfg%get('source_terms', 'ihi', self%source_ihi, 0)
+      call cfg%get('source_terms', 'jlo', self%source_jlo, 0)
+      call cfg%get('source_terms', 'jhi', self%source_jhi, 0)
 
-      if(self%pressure_source_ilo == 0 .and. &
-         self%pressure_source_ihi == 0 .and. &
-         self%pressure_source_jlo == 0 .and. &
-         self%pressure_source_jhi == 0) then
+      if(self%source_ilo == 0 .and. &
+         self%source_ihi == 0 .and. &
+         self%source_jlo == 0 .and. &
+         self%source_jhi == 0) then
         error stop "All of the (i,j) ranges in source_terms are 0"
       end if
 
-      if(self%pressure_source_ilo > self%pressure_source_ihi) then
+      if(self%source_ilo > self%source_ihi) then
         error stop "source_terms%ilo > source_terms%ihi"
-      else if(self%pressure_source_jlo > self%pressure_source_jhi) then
+      else if(self%source_jlo > self%source_jhi) then
         error stop "source_terms%jlo > source_terms%jhi"
       end if
     end if
