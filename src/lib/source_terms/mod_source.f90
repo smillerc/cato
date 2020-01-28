@@ -22,10 +22,10 @@ module mod_source
       class(source_t), intent(inout) :: out_source
     end subroutine copy_source
 
-    subroutine apply_source(self, primitive_vars, time)
+    subroutine apply_source(self, conserved_vars, time)
       import :: source_t, rk
       class(source_t), intent(inout) :: self
-      real(rk), dimension(:, 0:, 0:), intent(inout) :: primitive_vars
+      real(rk), dimension(:, 0:, 0:), intent(inout) :: conserved_vars
       real(rk), intent(in) :: time
     end subroutine apply_source
   end interface
