@@ -90,15 +90,15 @@ contains
                          cell_indices=neighbor_cell_indices)
 
     ! print*, mach_cone
+    error stop 'need to update these'
+    ! x_vel = get_x_velocity(mach_cone)
+    ! @assertEqual(1.0_rk, x_vel, 1e-10)
 
-    x_vel = get_x_velocity(mach_cone)
-    @assertEqual(1.0_rk, x_vel, 1e-10)
+    ! y_vel = get_y_velocity(mach_cone)
+    ! @assertEqual(1.0_rk, y_vel, 1e-10)
 
-    y_vel = get_y_velocity(mach_cone)
-    @assertEqual(1.0_rk, y_vel, 1e-10)
-
-    pressure = get_pressure(mach_cone)
-    @assertEqual(1.0_rk, pressure, 1e-10)
+    ! pressure = get_pressure(mach_cone)
+    ! @assertEqual(1.0_rk, pressure, 1e-10)
   end subroutine
 
   @test
@@ -126,15 +126,15 @@ contains
                          cell_indices=neighbor_cell_indices)
 
     ! print*, mach_cone
+    error stop 'need to update these'
+    ! x_vel = get_x_velocity(mach_cone)
+    ! @assertEqual(2.0_rk, x_vel, 1e-10)
 
-    x_vel = get_x_velocity(mach_cone)
-    @assertEqual(2.0_rk, x_vel, 1e-10)
+    ! y_vel = get_y_velocity(mach_cone)
+    ! @assertEqual(3.0_rk, y_vel, 1e-10)
 
-    y_vel = get_y_velocity(mach_cone)
-    @assertEqual(3.0_rk, y_vel, 1e-10)
-
-    pressure = get_pressure(mach_cone)
-    @assertEqual(4.0_rk, pressure, 1e-10)
+    ! pressure = get_pressure(mach_cone)
+    ! @assertEqual(4.0_rk, pressure, 1e-10)
   end subroutine
 
 end module test_evo_operator

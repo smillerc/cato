@@ -53,7 +53,7 @@ contains
 
     input%slope_limiter = 'upwind'
     reconstruction_operator => reconstruction_factory(input=input, grid_target=grid)
-    call reconstruction_operator%set_conserved_vars_pointer(conserved_vars=U, lbounds=lbound(U))
+    call reconstruction_operator%set_primitive_vars_pointer(primitive_vars=U, lbounds=lbound(U))
     call reconstruction_operator%set_grid_pointer(grid=grid)
 
     @assertEqual(1, reconstruction_operator%order)
@@ -69,12 +69,12 @@ contains
     @assertEqual(4.0_rk, reconstructed_domain(4, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
 
     ! U = 2.0_rk
-    ! call reconstruction_operator%reconstruct_domain(conserved_vars=U, reconstructed_domain=reconstructed_domain)
+    ! call reconstruction_operator%reconstruct_domain(primitive_vars=U, reconstructed_domain=reconstructed_domain)
     ! @assertEqual(2.0_rk, reconstructed_domain)
 
     ! @assertEqual(2.0_rk, reconstruction_operator%grid%get_cell_volumes(1, 1))
     ! @assertEqual([ni_cells, nj_cells], shape(reconstruction_operator%grid%cell_volume))
-    ! @assertEqual([4, ni_cells, nj_cells], shape(reconstruction_operator%conserved_vars))
+    ! @assertEqual([4, ni_cells, nj_cells], shape(reconstruction_operator%primitive_vars))
 
     deallocate(reconstruction_operator)
     deallocate(grid)
@@ -123,7 +123,7 @@ contains
 
     input%slope_limiter = 'upwind'
     reconstruction_operator => reconstruction_factory(input=input, grid_target=grid)
-    call reconstruction_operator%set_conserved_vars_pointer(conserved_vars=U, lbounds=lbound(U))
+    call reconstruction_operator%set_primitive_vars_pointer(primitive_vars=U, lbounds=lbound(U))
     call reconstruction_operator%set_grid_pointer(grid=grid)
 
     @assertEqual(2, reconstruction_operator%order)
