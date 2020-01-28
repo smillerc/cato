@@ -14,8 +14,8 @@ module mod_eos
   contains
     procedure, public :: get_gamma
     procedure, public :: set_gamma
-    procedure, public :: calc_pressure_from_dens_and_internal_energy
-    procedure, public :: calc_internal_energy_from_press_and_dens
+    ! procedure, public :: calc_pressure_from_dens_and_internal_energy
+    ! procedure, public :: calc_internal_energy_from_press_and_dens
     procedure, public :: calculate_total_energy
     procedure, public :: calc_sound_speed
     procedure, public :: calc_sound_speed_from_primitive
@@ -52,25 +52,25 @@ contains
     eos = constructor(input)
   end subroutine set_equation_of_state
 
-  elemental function calc_pressure_from_dens_and_internal_energy(self, density, internal_energy) result(pressure)
-    !< Ideal gas law -> P = (1-gamma)*rho*e
-    class(eos_t), intent(in) :: self
-    real(rk) :: pressure
-    real(rk), intent(in) :: density
-    real(rk), intent(in) :: internal_energy
+  ! elemental function calc_pressure_from_dens_and_internal_energy(self, density, internal_energy) result(pressure)
+  !   !< Ideal gas law -> P = (1-gamma)*rho*e
+  !   class(eos_t), intent(in) :: self
+  !   real(rk) :: pressure
+  !   real(rk), intent(in) :: density
+  !   real(rk), intent(in) :: internal_energy
 
-    pressure = (1.0_rk - self%gamma) * density * internal_energy
-  end function calc_pressure_from_dens_and_internal_energy
+  !   pressure = (1.0_rk - self%gamma) * density * internal_energy
+  ! end function calc_pressure_from_dens_and_internal_energy
 
-  elemental function calc_internal_energy_from_press_and_dens(self, pressure, density) result(internal_energy)
-    !< Calculate internal energy
-    class(eos_t), intent(in) :: self
-    real(rk), intent(in) :: pressure
-    real(rk), intent(in) :: density
-    real(rk) :: internal_energy
+  ! elemental function calc_internal_energy_from_press_and_dens(self, pressure, density) result(internal_energy)
+  !   !< Calculate internal energy
+  !   class(eos_t), intent(in) :: self
+  !   real(rk), intent(in) :: pressure
+  !   real(rk), intent(in) :: density
+  !   real(rk) :: internal_energy
 
-    internal_energy = (pressure / density) / (self%gamma - 1.0_rk)
-  end function calc_internal_energy_from_press_and_dens
+  !   internal_energy = (pressure / density) / (self%gamma - 1.0_rk)
+  ! end function calc_internal_energy_from_press_and_dens
 
   elemental real(rk) function calculate_total_energy(self, pressure, density, x_velocity, y_velocity) result(total_energy)
     !< Calculate total energy
@@ -80,7 +80,8 @@ contains
     real(rk), intent(in) :: x_velocity
     real(rk), intent(in) :: y_velocity
 
-    total_energy = (pressure / (self%gamma - 1.0_rk)) + (density / 2.0_rk) * (x_velocity**2 + y_velocity**2)
+    ! total_energy = (pressure / (self%gamma - 1.0_rk)) + (density / 2.0_rk) * (x_velocity**2 + y_velocity**2)
+    total_energy = (pressure / (density * (self%gamma - 1.0_rk))) + ((x_velocity**2 + y_velocity**2) / 2.0_rk)
   end function calculate_total_energy
 
   elemental real(rk) function calc_sound_speed(self, pressure, density) result(sound_speed)
@@ -133,7 +134,8 @@ contains
     real(rk), intent(in) :: u
     real(rk), intent(in) :: v
 
-    pressure = (self%gamma - 1.0_rk) * (total_energy - (rho / 2.0_rk) * (u**2 + v**2))
+    ! pressure = (self%gamma - 1.0_rk) * (total_energy - (rho / 2.0_rk) * (u**2 + v**2))
+    pressure = rho * (self%gamma - 1.0_rk) * (total_energy - ((u**2 + v**2) / 2.0_rk))
   end function total_energy_to_pressure
 
 end module mod_eos

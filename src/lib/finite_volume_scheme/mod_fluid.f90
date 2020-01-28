@@ -408,12 +408,33 @@ contains
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
-    real(rk), dimension(4) :: edge_flux
+    real(rk), dimension(4) :: top_left_corner, top_right_corner, bottom_left_corner, bottom_right_corner
+    real(rk), dimension(4) :: bottom_midpoint, right_midpoint, top_midpoint, left_midpoint
+    real(rk), dimension(2, 4) :: n_hat
+    real(rk), dimension(4) :: delta_l
+    real(rk), dimension(4) :: edge_flux_1
+    real(rk), dimension(4) :: edge_flux_2
+    real(rk), dimension(4) :: edge_flux_3
+    real(rk), dimension(4) :: edge_flux_4
 
     ilo = grid%ilo_cell
     ihi = grid%ihi_cell
     jlo = grid%jlo_cell
     jhi = grid%jhi_cell
+
+    edge_flux_1 = 0.0_rk
+    edge_flux_2 = 0.0_rk
+    edge_flux_3 = 0.0_rk
+    edge_flux_4 = 0.0_rk
+
+    top_left_corner = 0.0_rk
+    top_right_corner = 0.0_rk
+    bottom_left_corner = 0.0_rk
+    bottom_right_corner = 0.0_rk
+    bottom_midpoint = 0.0_rk
+    right_midpoint = 0.0_rk
+    top_midpoint = 0.0_rk
+    left_midpoint = 0.0_rk
 
     call debug_print('Running fluid_t%flux_edges()', __FILE__, __LINE__)
 
@@ -425,72 +446,101 @@ contains
     do concurrent(j=jlo:jhi)
       do concurrent(i=ilo:ihi)
 
-        edge_flux = 0.0_rk
+        top_left_corner = evolved_corner_state(:, i, j + 1)
+        bottom_left_corner = evolved_corner_state(:, i, j)
+        top_right_corner = evolved_corner_state(:, i + 1, j + 1)
+        bottom_right_corner = evolved_corner_state(:, i + 1, j)
+        bottom_midpoint = evolved_leftright_midpoints_state(:, i, j)
+        top_midpoint = evolved_leftright_midpoints_state(:, i, j + 1)
+        right_midpoint = evolved_downup_midpoints_state(:, i + 1, j)
+        left_midpoint = evolved_downup_midpoints_state(:, i, j)
+        delta_l = grid%cell_edge_lengths(:, i, j)
+        n_hat = grid%cell_edge_norm_vectors(:, :, i, j)
+
         ! Edge 1 (bottom)
-        associate(E0_R_omega_k1=>evolved_corner_state(:, i, j), &
-                  E0_R_omega_kc=>evolved_leftright_midpoints_state(:, i, j), &
-                  E0_R_omega_k2=>evolved_corner_state(:, i + 1, j), &
-                  n_hat=>grid%cell_edge_norm_vectors(:, 1, i, j), &
-                  delta_l=>grid%cell_edge_lengths(1, i, j))
+        edge_flux_1 = ( &
+                      ((H(bottom_left_corner) + &
+                        4.0_rk * H(bottom_midpoint) + &
+                        H(bottom_right_corner)) .dot.n_hat(:, 1)) * (delta_l(1) / 6.0_rk))
 
-          ! Eq. 13, for edge 1
-          edge_flux = edge_flux + &
-                      ( &
-                      ((H(E0_R_omega_k1) + &
-                        4.0_rk * H(E0_R_omega_kc) + &
-                        H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+        ! associate(E0_R_omega_k1=>evolved_corner_state(:, i, j), &
+        !           E0_R_omega_kc=>evolved_leftright_midpoints_state(:, i, j), &
+        !           E0_R_omega_k2=>evolved_corner_state(:, i + 1, j), &
+        !           n_hat=>grid%cell_edge_norm_vectors(:, 1, i, j), &
+        !           delta_l=>grid%cell_edge_lengths(1, i, j))
 
-        end associate
+        !   ! Eq. 13, for edge 1
+        !   edge_flux = edge_flux + &
+        !               ( &
+        !               ((H(E0_R_omega_k1) + &
+        !                 4.0_rk * H(E0_R_omega_kc) + &
+        !                 H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+
+        ! end associate
 
         ! Edge 2 (right)
-        associate(E0_R_omega_k1=>evolved_corner_state(:, i + 1, j), &
-                  E0_R_omega_kc=>evolved_downup_midpoints_state(:, i + 1, j), &
-                  E0_R_omega_k2=>evolved_corner_state(:, i + 1, j + 1), &
-                  n_hat=>grid%cell_edge_norm_vectors(:, 2, i, j), &
-                  delta_l=>grid%cell_edge_lengths(2, i, j))
+        edge_flux_2 = ( &
+                      ((H(bottom_right_corner) + &
+                        4.0_rk * H(right_midpoint) + &
+                        H(top_right_corner)) .dot.n_hat(:, 2)) * (delta_l(2) / 6.0_rk))
+        ! associate(E0_R_omega_k1=>evolved_corner_state(:, i + 1, j), &
+        !           E0_R_omega_kc=>evolved_downup_midpoints_state(:, i + 1, j), &
+        !           E0_R_omega_k2=>evolved_corner_state(:, i + 1, j + 1), &
+        !           n_hat=>grid%cell_edge_norm_vectors(:, 2, i, j), &
+        !           delta_l=>grid%cell_edge_lengths(2, i, j))
 
-          ! Eq. 13, for edge 2
-          edge_flux = edge_flux + &
-                      ( &
-                      ((H(E0_R_omega_k1) + &
-                        4.0_rk * H(E0_R_omega_kc) + &
-                        H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+        !   ! Eq. 13, for edge 2
+        !   edge_flux = edge_flux + &
+        !               ( &
+        !               ((H(E0_R_omega_k1) + &
+        !                 4.0_rk * H(E0_R_omega_kc) + &
+        !                 H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
 
-        end associate
+        ! end associate
 
         ! Edge 3 (top)
-        associate(E0_R_omega_k1=>evolved_corner_state(:, i + 1, j + 1), &
-                  E0_R_omega_kc=>evolved_leftright_midpoints_state(:, i, j + 1), &
-                  E0_R_omega_k2=>evolved_corner_state(:, i, j + 1), &
-                  n_hat=>grid%cell_edge_norm_vectors(:, 3, i, j), &
-                  delta_l=>grid%cell_edge_lengths(3, i, j))
+        edge_flux_3 = ( &
+                      ((H(top_right_corner) + &
+                        4.0_rk * H(top_midpoint) + &
+                        H(top_left_corner)) .dot.n_hat(:, 3)) * (delta_l(3) / 6.0_rk))
 
-          ! Eq. 13, for edge 3
-          edge_flux = edge_flux + &
-                      ( &
-                      ((H(E0_R_omega_k1) + &
-                        4.0_rk * H(E0_R_omega_kc) + &
-                        H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+        ! associate(E0_R_omega_k1=>evolved_corner_state(:, i + 1, j + 1), &
+        !           E0_R_omega_kc=>evolved_leftright_midpoints_state(:, i, j + 1), &
+        !           E0_R_omega_k2=>evolved_corner_state(:, i, j + 1), &
+        !           n_hat=>grid%cell_edge_norm_vectors(:, 3, i, j), &
+        !           delta_l=>grid%cell_edge_lengths(3, i, j))
 
-        end associate
+        !   ! Eq. 13, for edge 3
+        !   edge_flux = edge_flux + &
+        !               ( &
+        !               ((H(E0_R_omega_k1) + &
+        !                 4.0_rk * H(E0_R_omega_kc) + &
+        !                 H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+
+        ! end associate
 
         ! Edge 4 (left)
-        associate(E0_R_omega_k1=>evolved_corner_state(:, i, j + 1), &
-                  E0_R_omega_kc=>evolved_downup_midpoints_state(:, i, j), &
-                  E0_R_omega_k2=>evolved_corner_state(:, i, j), &
-                  n_hat=>grid%cell_edge_norm_vectors(:, 4, i, j), &
-                  delta_l=>grid%cell_edge_lengths(4, i, j))
+        edge_flux_4 = ( &
+                      ((H(top_left_corner) + &
+                        4.0_rk * H(left_midpoint) + &
+                        H(bottom_left_corner)) .dot.n_hat(:, 4)) * (delta_l(4) / 6.0_rk))
 
-          ! Eq. 13, for edge 4
-          edge_flux = edge_flux + &
-                      ( &
-                      ((H(E0_R_omega_k1) + &
-                        4.0_rk * H(E0_R_omega_kc) + &
-                        H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
+        ! associate(E0_R_omega_k1=>evolved_corner_state(:, i, j + 1), &
+        !           E0_R_omega_kc=>evolved_downup_midpoints_state(:, i, j), &
+        !           E0_R_omega_k2=>evolved_corner_state(:, i, j), &
+        !           n_hat=>grid%cell_edge_norm_vectors(:, 4, i, j), &
+        !           delta_l=>grid%cell_edge_lengths(4, i, j))
 
-        end associate
+        !   ! Eq. 13, for edge 4
+        !   edge_flux = edge_flux + &
+        !               ( &
+        !               ((H(E0_R_omega_k1) + &
+        !                 4.0_rk * H(E0_R_omega_kc) + &
+        !                 H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
 
-        new_conserved_vars(:, i, j) = (-1.0_rk / grid%cell_volume(i, j)) * edge_flux
+        ! end associate
+
+        new_conserved_vars(:, i, j) = (-1.0_rk / grid%cell_volume(i, j)) * (edge_flux_1 + edge_flux_2 + edge_flux_3 + edge_flux_4)
       end do ! i
     end do ! j
   end subroutine flux_edges
@@ -510,6 +560,7 @@ contains
       allocate(local_difference, source=lhs)
       local_difference%time_integrator = rhs%time_integrator
       local_difference%conserved_vars = lhs%conserved_vars - rhs%conserved_vars
+      local_difference%primitive_vars = lhs%primitive_vars - rhs%primitive_vars
       local_difference%primitives_updated = .false.
     class default
       error stop 'fluid_t%subtract_fluid: unsupported rhs class'
@@ -534,6 +585,7 @@ contains
       allocate(local_sum, source=lhs)
       local_sum%time_integrator = rhs%time_integrator
       local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
+      local_sum%primitive_vars = lhs%primitive_vars + rhs%primitive_vars
       local_sum%primitives_updated = .false.
     class default
       error stop 'fluid_t%add_fluid: unsupported rhs class'
@@ -558,6 +610,7 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
 
     local_product%conserved_vars = lhs%conserved_vars * rhs
+    local_product%primitive_vars = lhs%primitive_vars * rhs
     local_product%primitives_updated = .false.
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
@@ -579,6 +632,7 @@ contains
 
     local_product%time_integrator = rhs%time_integrator
     local_product%conserved_vars = rhs%conserved_vars * lhs
+    local_product%primitive_vars = rhs%primitive_vars * lhs
     local_product%primitives_updated = .false.
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
@@ -598,7 +652,7 @@ contains
     class is(fluid_t)
       lhs%time_integrator = rhs%time_integrator
       lhs%conserved_vars = rhs%conserved_vars
-      ! lhs%primitive_vars = rhs%primitive_vars
+      lhs%primitive_vars = rhs%primitive_vars
     class default
       error stop 'Erro in fluid_t%assign_fluid: unsupported class'
     end select
@@ -658,7 +712,7 @@ contains
               u=>self%primitive_vars(2, :, :), &
               v=>self%primitive_vars(3, :, :))
 
-      self%primitive_vars(4, :, :) = (gamma - 1.0_rk) * (E - (rho / 2.0_rk) * (u**2 + v**2))
+      self%primitive_vars(4, :, :) = rho * (gamma - 1.0_rk) * (E - ((u**2 + v**2) / 2.0_rk))
     end associate
 
     self%primitives_updated = .true.
