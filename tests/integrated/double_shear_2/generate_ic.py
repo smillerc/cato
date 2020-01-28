@@ -11,7 +11,7 @@ from generate_initial_grids import make_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
 double_shear = make_uniform_grid(
-    n_nodes=(256, 256), xrange=(0, 2 * np.pi), yrange=(0, 2 * np.pi)
+    n_cells=(256, 256), xrange=(0, 2 * np.pi), yrange=(0, 2 * np.pi)
 )
 
 # Set the initial conditions

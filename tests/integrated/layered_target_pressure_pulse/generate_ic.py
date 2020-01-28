@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Make the double periodic shear test grid"""
+"""Make the layered target test grid"""
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
@@ -7,13 +7,15 @@ import os
 
 # sys.path.append(os.path.abspath('../../../'))
 sys.path.append(os.path.abspath("../../../scripts"))
-from generate_initial_grids import make_uniform_grid, write_initial_hdf5
+# from generate_initial_grids import make_uniform_grid, write_initial_hdf5
+from generate_initial_grids import make_1d_in_x_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
-layered_target = make_uniform_grid(n_nodes=(200, 2), xrange=(0, 1), yrange=(0, 0.1))
+# layered_target = make_uniform_grid(n_cells=(200, 2), xrange=(0, 1), yrange=(0, 0.1))
+layered_target = make_1d_in_x_uniform_grid(n_cells=550, limits=(0, 1.2))
 
 # Set the initial conditions
-p0 = 1e-3
+p0 = 1e9  # 1 atm
 # layered_target["rho"] = layered_target["rho"] * 1.0
 layered_target["p"] = layered_target["p"] * p0
 # Zero velocity everywhere
@@ -25,15 +27,18 @@ y = layered_target["yc"]
 
 for i in range(y.shape[0]):
     for j in range(y.shape[1]):
-        if 0 < x[i, j] <= 0.1:
-            layered_target["rho"][i, j] = 0.025
-        elif 0.1 < x[i, j] <= 0.4:
-            layered_target["rho"][i, j] = 0.5
-        elif 0.4 < x[i, j] <= 0.6:
-            layered_target["rho"][i, j] = 1.0
-        else:
-            layered_target["rho"][i, j] = 1e-3
+        if 0 < x[i, j] <= 0.1:  # inner
+            layered_target["rho"][i, j] = 0.01
 
+        elif 0.1 < x[i, j] <= 0.4:  # ice
+            layered_target["rho"][i, j] = 0.25
+
+        elif 0.4 < x[i, j] <= 0.7:  # shell
+            layered_target["rho"][i, j] = 1.0
+            layered_target["rho"][i, j] = 1.0
+
+        else:  # vaccuum
+            layered_target["rho"][i, j] = 1e-3
 
 bc_dict = {"+x": "periodic", "+y": "periodic", "-x": "periodic", "-y": "periodic"}
 
@@ -43,20 +48,20 @@ write_initial_hdf5(
     boundary_conditions_dict=bc_dict,
 )
 
-# Plot the results
-fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
+# # Plot the results
+# fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
 
-vc = ax1.pcolormesh(
-    layered_target["x"],
-    layered_target["y"],
-    layered_target["rho"],
-    edgecolor="k",
-    lw=0.1,
-    # cmap="RdBu",
-    antialiased=True,
-)
-fig.colorbar(vc, ax=ax1, label="Density")
-ax1.set_xlabel("X")
-ax1.set_ylabel("Y")
-# ax1.axis("equal")
-plt.show()
+# vc = ax1.pcolormesh(
+#     layered_target["x"],
+#     layered_target["y"],
+#     layered_target["rho"],
+#     edgecolor="k",
+#     lw=0.1,
+#     # cmap="RdBu",
+#     antialiased=True,
+# )
+# fig.colorbar(vc, ax=ax1, label="Density")
+# ax1.set_xlabel("X")
+# ax1.set_ylabel("Y")
+# # ax1.axis("equal")
+# plt.show()

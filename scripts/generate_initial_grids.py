@@ -6,15 +6,15 @@ import numpy as np
 import h5py
 
 
-def make_uniform_grid(n_nodes, xrange, yrange):
+def make_uniform_grid(n_cells, xrange, yrange):
     """Generate a uniform grid. This will output a dictionary
     that contains the appropriate arrays, which include the ghost
     cell layer.
 
     Parameters
     ----------
-    n_nodes : tuple
-        Number of non-ghost nodes in each direction (x,y)
+    n_cells : tuple
+        Number of non-ghost cells in each direction (x,y)
     xrange : tuple
         Extent of the domain in x (min,max)
     yrange : tuple
@@ -27,12 +27,12 @@ def make_uniform_grid(n_nodes, xrange, yrange):
         velocity, p), grid (x,y) points, and the cell center (xc,yc) points
     """
 
-    x = np.linspace(xrange[0], xrange[1], n_nodes[0], dtype=np.float64)
+    x = np.linspace(xrange[0], xrange[1], n_cells[0] - 1, dtype=np.float64)
     ldx = x[1] - x[0]
     rdx = x[-1] - x[-2]
     x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)
 
-    y = np.linspace(yrange[0], yrange[1], n_nodes[1], dtype=np.float64)
+    y = np.linspace(yrange[0], yrange[1], n_cells[1] - 1, dtype=np.float64)
     ldy = y[1] - y[0]
     rdy = y[-1] - y[-2]
     y = np.array([y[0] - ldy] + list(y) + [y[-1] + rdy], dtype=np.float64)
@@ -65,28 +65,26 @@ def make_uniform_grid(n_nodes, xrange, yrange):
     }
 
 
-def make_1d_in_x_uniform_grid(n_nodes, limits=(0, 1)):
+def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1)):
     """Generate a uniform grid 1d grid in x. This will output a dictionary
     that contains the appropriate arrays, which include the ghost
     cell layer.
 
     Parameters
     ----------
-    n_nodes : tuple
-        Number of non-ghost nodes in each direction (x,y)
-    xrange : tuple
-        Extent of the domain in x (min,max)
-    yrange : tuple
-        Extent of the domain in y (min,max)
+    n_cells : tuple
+        Number of non-ghost cells
+    limits : tuple
+        Extent of the domain (min,max)
 
     Returns
     -------
     dictionary
         A dictionary that contains the conserved variables (rho, u velocity, v
-        velocity, p), grid (x,y) points, and the cell center (xc,yc) points
+        velocity, p), grid points, and the cell center (xc, yc) points
     """
 
-    x = np.linspace(limits[0], limits[1], n_nodes, dtype=np.float64)
+    x = np.linspace(limits[0], limits[1], n_cells - 1, dtype=np.float64)
     ldx = x[1] - x[0]
     rdx = x[-1] - x[-2]
     x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)

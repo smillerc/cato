@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath("../../../scripts"))
 from generate_initial_grids import make_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
-domain = make_uniform_grid(n_nodes=(500, 500), xrange=(-10, 10), yrange=(-10, 10))
+domain = make_uniform_grid(n_cells=(500, 500), xrange=(-10, 10), yrange=(-10, 10))
 
 E = 1
 dr = 1
