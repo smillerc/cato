@@ -25,17 +25,14 @@ module mod_fluid
 
   type, extends(integrand_t) :: fluid_t
     real(rk), dimension(:, :, :), allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
-    real(rk), dimension(:, :, :), allocatable :: primitive_vars !< ((rho, u, v, p), i, j); Primitive quantities
-    real(rk), dimension(:, :), allocatable :: sound_speed !< (i, j); Speed of sound
-    logical :: primitives_updated = .false.
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
     procedure, private :: initialize_from_hdf5
     procedure, public :: t => time_derivative
-    procedure, public :: calculate_sound_speed
+    procedure, public :: get_sound_speed
     procedure, public :: get_max_sound_speed
-    procedure, public :: update_primitive_vars
+    procedure, public :: get_primitive_vars
     procedure, nopass, private :: flux_edges
     procedure, pass(lhs), public :: type_plus_type => add_fluid
     procedure, pass(lhs), public :: type_minus_type => subtract_fluid
@@ -80,17 +77,17 @@ contains
       end if
       self%conserved_vars = 0.0_rk
 
-      allocate(self%primitive_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) then
-        error stop "Unable to allocate fluid_t%primitive_vars"
-      end if
-      self%primitive_vars = 0.0_rk
+      ! allocate(self%primitive_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
+      ! if(alloc_status /= 0) then
+      !   error stop "Unable to allocate fluid_t%primitive_vars"
+      ! end if
+      ! self%primitive_vars = 0.0_rk
 
-      allocate(self%sound_speed(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) then
-        error stop "Unable to allocate fluid_t%sound_speed"
-      end if
-      self%sound_speed = 0.0_rk
+      ! allocate(self%sound_speed(imin:imax, jmin:jmax), stat=alloc_status)
+      ! if(alloc_status /= 0) then
+      !   error stop "Unable to allocate fluid_t%sound_speed"
+      ! end if
+      ! self%sound_speed = 0.0_rk
     end associate
 
     time_integrator => time_integrator_factory(input)
@@ -104,24 +101,24 @@ contains
       call self%initialize_from_ini(input)
     end if
 
-    call self%update_primitive_vars()
-    call self%calculate_sound_speed()
-    self%primitives_updated = .true.
+    ! call self%update_primitive_vars()
+    ! call self%calculate_sound_speed()
+    ! self%primitives_updated = .true.
 
     write(*, '(a)') 'Initial fluid stats'
     write(*, '(a)') '======================================'
     write(*, '(a, f0.3)') 'EOS Gamma:                ', eos%get_gamma()
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Sound Speed:      ', &
-      minval(self%sound_speed), maxval(self%sound_speed)
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Density:          ', &
-      minval(self%primitive_vars(1, :, :)), maxval(self%primitive_vars(1, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max X-Velocity:       ', &
-      minval(self%primitive_vars(2, :, :)), maxval(self%primitive_vars(2, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Y-Velocity:       ', &
-      minval(self%primitive_vars(3, :, :)), maxval(self%primitive_vars(3, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max Pressure:         ', &
-      minval(self%primitive_vars(4, :, :)), maxval(self%primitive_vars(4, :, :))
-    write(*, *)
+    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max Sound Speed:      ', &
+    !   minval(self%sound_speed), maxval(self%sound_speed)
+    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max Density:          ', &
+    !   minval(self%primitive_vars(1, :, :)), maxval(self%primitive_vars(1, :, :))
+    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max X-Velocity:       ', &
+    !   minval(self%primitive_vars(2, :, :)), maxval(self%primitive_vars(2, :, :))
+    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max Y-Velocity:       ', &
+    !   minval(self%primitive_vars(3, :, :)), maxval(self%primitive_vars(3, :, :))
+    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max Pressure:         ', &
+    !   minval(self%primitive_vars(4, :, :)), maxval(self%primitive_vars(4, :, :))
+    ! write(*, *)
     write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho:              ', &
       minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
     write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho u:            ', &
@@ -210,8 +207,6 @@ contains
 
     call debug_print('Running fluid_t%force_finalization()', __FILE__, __LINE__)
     if(allocated(self%conserved_vars)) deallocate(self%conserved_vars)
-    if(allocated(self%primitive_vars)) deallocate(self%primitive_vars)
-    if(allocated(self%sound_speed)) deallocate(self%sound_speed)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine force_finalization
 
@@ -220,8 +215,6 @@ contains
 
     call debug_print('Running fluid_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%conserved_vars)) deallocate(self%conserved_vars)
-    if(allocated(self%primitive_vars)) deallocate(self%primitive_vars)
-    if(allocated(self%sound_speed)) deallocate(self%sound_speed)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine finalize
 
@@ -236,19 +229,22 @@ contains
     type(fluid_t), allocatable :: local_d_dt !< dU/dt
     integer(ik) :: alloc_status
 
+    real(rk), dimension(:, :, :), allocatable :: primitive_vars
+    !< ((rho, u, v, p), i, j); Primitive variables at each cell center
+
     real(rk), dimension(:, :, :), allocatable :: evolved_corner_state
-    !< ((rho, u, v, p), i, j); Reconstructed U at each corner
+    !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each corner
 
     real(rk), dimension(:, :, :), allocatable :: corner_reference_state
     !< ((rho, u, v, p), i, j); Reference state (tilde) at each corner
 
     ! Indexing the midpoints is a pain, so they're split by the up/down edges and left/right edges
     real(rk), dimension(:, :, :), allocatable :: evolved_downup_midpoints_state
-    !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint defined by vectors that go up/down
+    !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go up/down
     !< (edges 2 (right edge) and 4 (left edge))
 
     real(rk), dimension(:, :, :), allocatable :: evolved_leftright_midpoints_state
-    !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint defined by vectors that go left/right
+    !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go left/right
     !< (edges 1 (bottom edge) and 3 (top edge))
 
     real(rk), dimension(:, :, :), allocatable :: downup_midpoints_reference_state
@@ -308,30 +304,29 @@ contains
     end associate
 
     allocate(local_d_dt, source=self)
-    local_d_dt%primitives_updated = .false.
-    local_d_dt%conserved_vars = self%conserved_vars
-    local_d_dt%primitive_vars = 0.0_rk
+    ! local_d_dt%conserved_vars = self%conserved_vars
 
-    call local_d_dt%update_primitive_vars()
+    allocate(primitive_vars, mold=self%conserved_vars)
+    call local_d_dt%get_primitive_vars(primitive_vars)
 
-    ! call fv%apply_source_terms(local_d_dt%conserved_vars, lbound(local_d_dt%conserved_vars))
+    call fv%apply_source_terms(primitive_vars, lbound(primitive_vars))
 
-    ! First put conserved vars in ghost layers
-    call fv%apply_primitive_vars_bc(local_d_dt%primitive_vars, lbound(local_d_dt%primitive_vars))
+    ! First put primitive vars in ghost layers
+    call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
 
-    ! Reference state is a neighbor average (which is why edges needed ghost U vars)
-    call fv%calculate_reference_state(primitive_vars=local_d_dt%primitive_vars, &
+    ! Reference state is a neighbor average (which is why edges needed ghost primitive variables)
+    call fv%calculate_reference_state(primitive_vars=primitive_vars, &
                                       leftright_midpoints_reference_state=leftright_midpoints_reference_state, &
                                       downup_midpoints_reference_state=downup_midpoints_reference_state, &
                                       corner_reference_state=corner_reference_state, &
-                                      cell_lbounds=lbound(local_d_dt%primitive_vars))
+                                      cell_lbounds=lbound(primitive_vars))
 
     ! Now we can reconstruct the entire domain
-    call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=local_d_dt%primitive_vars, &
-                                                               lbounds=lbound(local_d_dt%primitive_vars))
+    call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
+                                                               lbounds=lbound(primitive_vars))
 
-    call fv%reconstruct(primitive_vars=local_d_dt%primitive_vars, &
-                        cell_lbounds=lbound(local_d_dt%primitive_vars), &
+    call fv%reconstruct(primitive_vars=primitive_vars, &
+                        cell_lbounds=lbound(primitive_vars), &
                         reconstructed_state=reconstructed_state)
 
     call fv%evolution_operator%set_reconstructed_state_pointer( &
@@ -371,26 +366,29 @@ contains
                          new_conserved_vars=local_d_dt%conserved_vars)
 
     call move_alloc(local_d_dt, d_dt)
-    call d_dt%set_temp(calling_function='time_derivative (d_dt)', line=__LINE__)
+    call d_dt%set_temp(calling_function='fluid_t%time_derivative (d_dt)', line=__LINE__)
 
     ! Now deallocate everything
+    deallocate(primitive_vars, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate primitive_vars in fluid_t%time_derivative()"
+
     deallocate(evolved_corner_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state"
+    if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state in fluid_t%time_derivative()"
 
     deallocate(corner_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate corner_reference_state"
+    if(alloc_status /= 0) error stop "Unable to allocate corner_reference_state in fluid_t%time_derivative()"
 
     deallocate(evolved_downup_midpoints_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state"
+    if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state in fluid_t%time_derivative()"
 
     deallocate(evolved_leftright_midpoints_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state"
+    if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state in fluid_t%time_derivative()"
 
     deallocate(downup_midpoints_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate downup_midpoints_reference_state"
+    if(alloc_status /= 0) error stop "Unable to allocate downup_midpoints_reference_state in fluid_t%time_derivative()"
 
     deallocate(leftright_midpoints_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate leftright_midpoints_reference_state"
+    if(alloc_status /= 0) error stop "Unable to allocate leftright_midpoints_reference_state in fluid_t%time_derivative()"
 
     deallocate(reconstructed_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state"
@@ -543,6 +541,7 @@ contains
         new_conserved_vars(:, i, j) = (-1.0_rk / grid%cell_volume(i, j)) * (edge_flux_1 + edge_flux_2 + edge_flux_3 + edge_flux_4)
       end do ! i
     end do ! j
+    ! new_conserved_vars(3,:,:) = 0.0_rk
   end subroutine flux_edges
 
   function subtract_fluid(lhs, rhs) result(difference)
@@ -558,10 +557,7 @@ contains
     select type(rhs)
     class is(fluid_t)
       allocate(local_difference, source=lhs)
-      local_difference%time_integrator = rhs%time_integrator
       local_difference%conserved_vars = lhs%conserved_vars - rhs%conserved_vars
-      local_difference%primitive_vars = lhs%primitive_vars - rhs%primitive_vars
-      local_difference%primitives_updated = .false.
     class default
       error stop 'fluid_t%subtract_fluid: unsupported rhs class'
     end select
@@ -583,16 +579,14 @@ contains
     select type(rhs)
     class is(fluid_t)
       allocate(local_sum, source=lhs)
-      local_sum%time_integrator = rhs%time_integrator
       local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
-      local_sum%primitive_vars = lhs%primitive_vars + rhs%primitive_vars
-      local_sum%primitives_updated = .false.
     class default
       error stop 'fluid_t%add_fluid: unsupported rhs class'
     end select
 
+    call local_sum%set_temp(calling_function='fluid_t%add_fluid(local_sum)', line=__LINE__)
     call move_alloc(local_sum, sum)
-    call sum%set_temp(calling_function='add_fluid(sum)', line=__LINE__)
+    call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
   end function add_fluid
 
   function fluid_mul_real(lhs, rhs) result(product)
@@ -601,7 +595,7 @@ contains
     real(rk), intent(in) :: rhs
     class(integrand_t), allocatable :: product
 
-    type(fluid_t), allocatable :: local_product
+    class(fluid_t), allocatable :: local_product
     integer(ik) :: alloc_status
 
     call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
@@ -610,8 +604,7 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
 
     local_product%conserved_vars = lhs%conserved_vars * rhs
-    local_product%primitive_vars = lhs%primitive_vars * rhs
-    local_product%primitives_updated = .false.
+
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
   end function fluid_mul_real
@@ -628,12 +621,11 @@ contains
     call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
 
     allocate(local_product, source=rhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
+    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%real_mul_fluid"
 
     local_product%time_integrator = rhs%time_integrator
     local_product%conserved_vars = rhs%conserved_vars * lhs
-    local_product%primitive_vars = rhs%primitive_vars * lhs
-    local_product%primitives_updated = .false.
+
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
   end function real_mul_fluid
@@ -652,82 +644,51 @@ contains
     class is(fluid_t)
       lhs%time_integrator = rhs%time_integrator
       lhs%conserved_vars = rhs%conserved_vars
-      lhs%primitive_vars = rhs%primitive_vars
     class default
-      error stop 'Erro in fluid_t%assign_fluid: unsupported class'
+      error stop 'Error in fluid_t%assign_fluid: unsupported class'
     end select
 
     call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
   end subroutine assign_fluid
 
-  subroutine calculate_sound_speed(self)
+  subroutine get_sound_speed(self, sound_speed)
     !< Calculate the sound speed for the entire domain
-    class(fluid_t), intent(inout) :: self
+    class(fluid_t), intent(in) :: self
+    real(rk), dimension(:, :), intent(out), allocatable :: sound_speed
+
+    integer(ik) :: ilo, ihi, jlo, jhi
+
+    ilo = lbound(self%conserved_vars, dim=2)
+    ihi = ubound(self%conserved_vars, dim=2)
+    jlo = lbound(self%conserved_vars, dim=3)
+    jhi = ubound(self%conserved_vars, dim=3)
+
+    allocate(sound_speed(ilo:ihi, jlo:jhi))
 
     call debug_print('Running fluid_t%calculate_sound_speed()', __FILE__, __LINE__)
 
-    call eos%calc_sound_speed_from_primitive(primitive_vars=self%primitive_vars, &
-                                             sound_speed=self%sound_speed)
-  end subroutine calculate_sound_speed
+    call eos%sound_speed_from_conserved(conserved_vars=self%conserved_vars, &
+                                        sound_speed=sound_speed)
+  end subroutine get_sound_speed
 
   real(rk) function get_max_sound_speed(self) result(max_cs)
-    class(fluid_t), intent(inout) :: self
+    !< Find the maximum sound speed in the domain
+    class(fluid_t), intent(in) :: self
+    real(rk), dimension(:, :), allocatable :: sound_speed
 
     call debug_print('Running fluid_t%get_max_sound_speed()', __FILE__, __LINE__)
-    if(.not. self%primitives_updated) then
-      call self%update_primitive_vars()
-    end if
 
-    call self%calculate_sound_speed()
-    max_cs = maxval(self%sound_speed)
+    call self%get_sound_speed(sound_speed)
+    max_cs = maxval(sound_speed)
   end function get_max_sound_speed
 
-  subroutine update_primitive_vars(self)
-    !< Convert the conserved variables [rho, rho u, rho v, rho E] to primitive [rho, u, v, p]
+  pure subroutine get_primitive_vars(self, primitive_vars)
+    !< Convert the current conserved_vars [rho, rho u, rho v, rho E] to primitive [rho, u, v, p]. Note, the
+    !< work is done in the EOS module due to the energy to pressure conversion
+    class(fluid_t), intent(in) :: self
+    real(rk), dimension(:, :, :), intent(out) :: primitive_vars
 
-    class(fluid_t), intent(inout) :: self
-    integer(ik) :: alloc_stat
-    alloc_stat = 0
-
-    call debug_print('Running fluid_t%update_primitive_vars()', __FILE__, __LINE__)
-
-    ! rho
-    self%primitive_vars(1, :, :) = self%conserved_vars(1, :, :)
-
-    ! u
-    self%primitive_vars(2, :, :) = self%conserved_vars(2, :, :) / self%conserved_vars(1, :, :)
-
-    ! v
-    self%primitive_vars(3, :, :) = self%conserved_vars(3, :, :) / self%conserved_vars(1, :, :)
-
-    ! ! pressure
-    ! self%primitive_vars(4, :, :) = eos%total_energy_to_pressure( &
-    !                                total_energy=self%conserved_vars(4, :, :) / self%conserved_vars(1, :, :), &
-    !                                rho=self%conserved_vars(1, :, :), &
-    !                                u=self%primitive_vars(2, :, :), &
-    !                                v=self%primitive_vars(3, :, :))
-
-    associate(gamma=>eos%get_gamma(), E=>self%conserved_vars(4, :, :) / self%conserved_vars(1, :, :), &
-              rho=>self%conserved_vars(1, :, :), &
-              u=>self%primitive_vars(2, :, :), &
-              v=>self%primitive_vars(3, :, :))
-
-      self%primitive_vars(4, :, :) = rho * (gamma - 1.0_rk) * (E - ((u**2 + v**2) / 2.0_rk))
-    end associate
-
-    self%primitives_updated = .true.
-
-    ! print*, '---'
-    ! print*, 'min/max self%conserved_vars(1,:,:)', minval(self%conserved_vars(1,:,:)), maxval(self%conserved_vars(1,:,:))
-    ! print*, 'min/max self%conserved_vars(2,:,:)', minval(self%conserved_vars(2,:,:)), maxval(self%conserved_vars(2,:,:))
-    ! print*, 'min/max self%conserved_vars(3,:,:)', minval(self%conserved_vars(3,:,:)), maxval(self%conserved_vars(3,:,:))
-    ! print*, 'min/max self%conserved_vars(4,:,:)', minval(self%conserved_vars(4,:,:)), maxval(self%conserved_vars(4,:,:))
-    ! print*, 'min/max self%primitive_vars(1,:,:)', minval(self%primitive_vars(1,:,:)), maxval(self%primitive_vars(1,:,:))
-    ! print*, 'min/max self%primitive_vars(2,:,:)', minval(self%primitive_vars(2,:,:)), maxval(self%primitive_vars(2,:,:))
-    ! print*, 'min/max self%primitive_vars(3,:,:)', minval(self%primitive_vars(3,:,:)), maxval(self%primitive_vars(3,:,:))
-    ! print*, 'min/max self%primitive_vars(4,:,:)', minval(self%primitive_vars(4,:,:)), maxval(self%primitive_vars(4,:,:))
-    ! print*, '---'
-
-  end subroutine update_primitive_vars
+    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
+  end subroutine get_primitive_vars
 
 end module mod_fluid
