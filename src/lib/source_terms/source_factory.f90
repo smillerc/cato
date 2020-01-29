@@ -2,7 +2,7 @@ module mod_source_factory
 
   use mod_input, only: input_t
   use mod_source, only: source_t
-  use mod_energy_source, only: energy_source_t, new_energy_source
+  use mod_pressure_source, only: pressure_source_t, new_pressure_source
   implicit none
 
   private
@@ -16,7 +16,7 @@ contains
 
     select case(trim(input%source_term_type))
     case('energy')
-      source => new_energy_source(input)
+      source => new_pressure_source(input)
     case default
       error stop "Unsupported source type in source_factory"
     end select
