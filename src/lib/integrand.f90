@@ -11,7 +11,6 @@ module mod_integrand
 
   type, abstract, public, extends(surrogate) :: integrand_t
     class(strategy), allocatable :: time_integrator
-    logical :: initiated = .false.
   contains
     procedure, non_overridable :: integrate   ! Time integrator
     procedure, non_overridable :: set_time_integrator

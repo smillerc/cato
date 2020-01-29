@@ -34,7 +34,6 @@ module mod_finite_volume_schemes
     integer(ik) :: iteration = 0
     real(rk) :: delta_t = 0.0_rk
     real(rk) :: time = 0.0_rk
-    logical :: initiated = .false.
 
     class(abstract_reconstruction_t), allocatable :: reconstruction_operator
     !< R_Omega reconstruction operator used to reconstruct the corners/midpoints based on the cell
@@ -178,8 +177,6 @@ contains
 
     call self%evolution_operator%set_grid_pointer(grid_target=self%grid)
     call self%evolution_operator%set_reconstruction_operator_pointer(operator_target=self%reconstruction_operator)
-
-    self%initiated = .true.
   end subroutine initialize
 
   subroutine finalize(self)
@@ -239,30 +236,30 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
 
     error stop 'source terms not set yet'
-    ! if(allocated(self%source_term)) then
+    if(allocated(self%source_term)) then
 
-    !   if(self%source_term%ilo /= 0 .and. self%source_term%ihi /= 0) then
-    !     if(max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)) then
-    !       error stop "max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)"
-    !     end if
+      if(self%source_term%ilo /= 0 .and. self%source_term%ihi /= 0) then
+        if(max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)) then
+          error stop "max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)"
+        end if
 
-    !     if(min(self%source_term%ilo, self%source_term%ihi) < min(self%grid%ilo_cell, self%grid%ihi_cell)) then
-    !       error stop "min(self%source_term%ilo, self%source_term%ihi) > min(self%grid%ilo_cell, self%grid%ihi_cell)"
-    !     end if
-    !   end if
+        if(min(self%source_term%ilo, self%source_term%ihi) < min(self%grid%ilo_cell, self%grid%ihi_cell)) then
+          error stop "min(self%source_term%ilo, self%source_term%ihi) > min(self%grid%ilo_cell, self%grid%ihi_cell)"
+        end if
+      end if
 
-    !   if(self%source_term%jlo /= 0 .and. self%source_term%jhi /= 0) then
-    !     if(max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)) then
-    !       error stop "max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)"
-    !     end if
+      if(self%source_term%jlo /= 0 .and. self%source_term%jhi /= 0) then
+        if(max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)) then
+          error stop "max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)"
+        end if
 
-    !     if(min(self%source_term%jlo, self%source_term%jhi) < min(self%grid%jlo_cell, self%grid%jhi_cell)) then
-    !       error stop "min(self%source_term%jlo, self%source_term%jhi) > min(self%grid%jlo_cell, self%grid%jhi_cell)"
-    !     end if
-    !   end if
+        if(min(self%source_term%jlo, self%source_term%jhi) < min(self%grid%jlo_cell, self%grid%jhi_cell)) then
+          error stop "min(self%source_term%jlo, self%source_term%jhi) > min(self%grid%jlo_cell, self%grid%jhi_cell)"
+        end if
+      end if
 
-    !   call self%source_term%apply_source(primitive_vars=primitive_vars, time=self%time)
-    ! end if
+      call self%source_term%apply_source(primitive_vars=primitive_vars, lbounds=lbound(primitive_vars), time=self%time)
+    end if
 
   end subroutine apply_source_terms
 

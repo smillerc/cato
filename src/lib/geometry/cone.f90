@@ -9,7 +9,6 @@ module mod_cone
 
   type :: cone_t
     !< Type to encapsulate and calculate the geometry of the mach cone for the evolution operators
-
     real(rk), dimension(2, 4) :: theta_ie = 0.0_rk
     !< ((arc_1, arc_2), (cell_1:cell_4)); arc end angle
 
@@ -46,7 +45,7 @@ module mod_cone
     real(rk) :: tau = 0.0_rk
     !< Time evolution increment
 
-    real(rk), dimension(4, 4) :: reconstructed_state = 0.0_rk
+    ! real(rk), dimension(4, 4) :: reconstructed_state = 0.0_rk
     !< ((rho,u,v,p), (cell_1:cell_4))
 
   contains
@@ -103,7 +102,7 @@ contains
     ! //TODO: Move speed of sound calculation to the EOS module
     associate(a=>new_cone%reference_state(4), rho=>reference_state(1), &
               p=>reference_state(4))
-      a = eos%calc_sound_speed(pressure=p, density=rho)
+      a = eos%sound_speed(pressure=p, density=rho)
       new_cone%radius = a * tau
     end associate
 
@@ -181,7 +180,7 @@ contains
       ! debug_write(*, *) new_cone
       error stop "Cone arcs do not add up to 2pi"
     end if
-  end function
+  end function new_cone
 
   subroutine write_cone(self, unit, iotype, v_list, iostat, iomsg)
     !< Implementation of `write(*,*) vector_t`
@@ -347,7 +346,7 @@ contains
                              n_intersections=n_intersections, &
                              theta_start_end=arc_segments, n_arcs=n_arcs)
     ! print*, 'theta_start_end', rad2deg(arc_segments)
-  end subroutine
+  end subroutine get_arc_segments
 
   pure subroutine get_theta_start_end(thetas, origin_in_cell, valid_intersections, n_intersections, theta_start_end, n_arcs)
     !< Find the starting and ending angle of the arc
@@ -441,7 +440,7 @@ contains
       end if ! if there are intersections
 
     end associate
-  end subroutine
+  end subroutine get_theta_start_end
 
   pure subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections)
     !< Given a arbitrary line from (x1,y1) to (x2,y2) and a circle at (x,y) with a given radius, find
@@ -473,7 +472,7 @@ contains
         arc_angles(i) = intersection_angle_from_x_axis(circle_xy, intersection_xy(:, i))
       end if
     end do
-  end subroutine
+  end subroutine get_intersection_angles
 
   pure subroutine find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
     !< Find the intersections between an arbitrary line and circle. There can be 0, 1, or 2 intersections.
@@ -546,7 +545,7 @@ contains
         end associate
       end do
     end if
-  end subroutine
+  end subroutine find_line_circle_intersections
 
   pure real(rk) function intersection_angle_from_x_axis(circle_origin_xy, intersection_xy) result(angle)
     !< Given the the intersection point and origin of the circle it intersected, determine the
@@ -557,6 +556,6 @@ contains
 
     angle = atan2(y=intersection_xy(2) - circle_origin_xy(2), &
                   x=intersection_xy(1) - circle_origin_xy(1))
-  end function
+  end function intersection_angle_from_x_axis
 
 end module mod_cone

@@ -48,7 +48,7 @@ add_library(
   lib/boundary_conditions/bc_factory.f90
   lib/source_terms/source_factory.f90
   lib/source_terms/mod_source.f90
-  lib/source_terms/energy_source.f90
+  lib/source_terms/pressure_source.f90
   lib/domain/fluxes.f90
   lib/evolution_operator/abstract_evo_operator.f90
   lib/evolution_operator/local_evo_operator.f90

@@ -84,7 +84,6 @@ program cato
     time = time + delta_t
     iteration = iteration + 1
     call fv%set_time(time, delta_t, iteration)
-    call U%update_primitive_vars()
   end do
 
   call timer%stop()
