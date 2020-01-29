@@ -134,6 +134,11 @@ contains
     real(rk), intent(in) :: time
     character(32) :: dataset_name
 
+    real(rk), dimension(:, :, :), allocatable :: primitive_vars
+
+    allocate(primitive_vars, mold=fluid%conserved_vars)
+    call fluid%get_primitive_vars(primitive_vars)
+
     call self%hdf5_file%initialize(filename=self%hdf5_filename, &
                                    status='new', action='w', comp_lvl=6)
 
@@ -189,7 +194,7 @@ contains
     ! Primitive Variables
     dataset_name = '/density'
     ! if(self%plot_64bit) then
-    call self%hdf5_file%add(trim(dataset_name), fluid%primitive_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+    call self%hdf5_file%add(trim(dataset_name), primitive_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     ! else
     !   call self%hdf5_file%add(trim(dataset_name), real(fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     ! end if
@@ -199,9 +204,9 @@ contains
 
     dataset_name = '/x_velocity'
     ! if(self%plot_64bit) then
-    call self%hdf5_file%add(trim(dataset_name), fluid%primitive_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+    call self%hdf5_file%add(trim(dataset_name), primitive_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     ! else
-    !   call self%hdf5_file%add(trim(dataset_name), real(fluid%primitive_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
+    !   call self%hdf5_file%add(trim(dataset_name), real(primitive_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), real32))
     ! end if
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', 'cm/s')
@@ -209,7 +214,7 @@ contains
 
     dataset_name = '/y_velocity'
     ! if(self%plot_64bit) then
-    call self%hdf5_file%add(trim(dataset_name), fluid%primitive_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+    call self%hdf5_file%add(trim(dataset_name), primitive_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     ! else
     !   call self%hdf5_file%add(trim(dataset_name), real(contour_ptr, real32))
     ! end if
@@ -219,7 +224,7 @@ contains
 
     dataset_name = '/pressure'
     ! if(self%plot_64bit) then
-    call self%hdf5_file%add(trim(dataset_name), fluid%primitive_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+    call self%hdf5_file%add(trim(dataset_name), primitive_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     ! else
     !   call self%hdf5_file%add(trim(dataset_name), real(contour_ptr, real32))
     ! end if
@@ -279,6 +284,7 @@ contains
     ! end if
 
     ! nullify(contour_ptr)
+    deallocate(primitive_vars)
     call self%hdf5_file%finalize()
   end subroutine
 
