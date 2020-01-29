@@ -207,18 +207,15 @@ contains
       desired_boundary_pressure = self%get_desired_pressure()
       if(desired_boundary_pressure <= 0.0_rk) then
         ! Default to zero-gradient if the input pressure goes <= 0
-        write(*, '(a)') "Applying zero-gradient at +x boundary (input pressure is <= 0)"
+        ! write(*, '(a)') "Applying zero-gradient at +x boundary (input pressure is <= 0)"
         self%edge_primitive_vars(1, :) = primitive_vars(1, right, :)
         self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
         self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
         self%edge_primitive_vars(4, :) = primitive_vars(4, right, :)
       else
-        write(*, '(a, es10.4)') "Applying pressure at +x boundary of: ", desired_boundary_pressure
+        ! write(*, '(a, es10.4)') "Applying pressure at +x boundary of: ", desired_boundary_pressure
         ! Pressure on the right-most column of fluid cells
-        edge_pressure = eos%total_energy_to_pressure(total_energy=primitive_vars(4, right, :) / primitive_vars(1, right, :), &
-                                                     rho=primitive_vars(1, right, :), &
-                                                     u=primitive_vars(2, right, :) / primitive_vars(1, right, :), &
-                                                     v=primitive_vars(3, right, :) / primitive_vars(1, right, :))
+        edge_pressure = primitive_vars(4, right, :)
 
         ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
         self%edge_primitive_vars(1, :) = eos%calc_density_from_isentropic_press( &
@@ -226,12 +223,7 @@ contains
                                          rho_1=primitive_vars(1, right, :), &
                                          p_2=desired_boundary_pressure)
 
-        ! Set the energy based on the input pressure
-        self%edge_primitive_vars(4, :) = primitive_vars(1, right_ghost, :) * &
-                                         eos%calculate_total_energy(pressure=desired_boundary_pressure, &
-                                                                    density=primitive_vars(1, right_ghost, :), &
-                                                       x_velocity=primitive_vars(2, right_ghost, :) / primitive_vars(1, right, :), &
-                                                         y_velocity=primitive_vars(3, right_ghost, :) / primitive_vars(1, right, :))
+        self%edge_primitive_vars(4, :) = desired_boundary_pressure
 
         self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
         self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
@@ -247,7 +239,7 @@ contains
       !   ! primitive_vars(:, :, bottom_ghost) = primitive_vars(:, left:right, top)
     case default
       error stop "Unsupported location to apply the bc at in "// &
-        "pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
+        "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"
     end select
 
     if(allocated(edge_pressure)) deallocate(edge_pressure)
