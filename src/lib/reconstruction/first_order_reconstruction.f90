@@ -5,7 +5,7 @@
 #endif
 
 module mod_first_order_reconstruction
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use mod_globals, only: debug_print
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_grid, only: grid_t
@@ -95,14 +95,14 @@ contains
 
   end function reconstruct_point
 
-  pure subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
+  subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
+
     class(first_order_reconstruction_t), intent(inout) :: self
     integer(ik), dimension(5), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
                         lbounds(4):, lbounds(5):), intent(out) :: reconstructed_domain
-
     !< ((rho, u ,v, p), point, node/midpoint, i, j);
     !< The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints
@@ -121,20 +121,11 @@ contains
     jlo = lbound(reconstructed_domain, dim=5) + 1
     jhi = ubound(reconstructed_domain, dim=5) - 1
 
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
-        do concurrent(n=1:nhi)  ! First do corners, then to midpoints
-          do concurrent(p=1:phi)  ! Loop through each point (N1-N4, and M1-M4)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        do n = 1, nhi ! First do corners, then to midpoints
+          do p = 1, phi  ! Loop through each point (N1-N4, and M1-M4)
             reconstructed_domain(:, p, n, i, j) = self%primitive_vars(:, i, j)
-
-            if(reconstructed_domain(1, p, n, i, j) < 0) then
-              error stop "Density <= 0 in first_order_reconstruction_t%reconstruct_domain"
-            end if
-
-            if(reconstructed_domain(4, p, n, i, j) < 0) then
-              error stop "Pressure <= 0 in first_order_reconstruction_t%reconstruct_domain"
-            end if
-
           end do
         end do
       end do

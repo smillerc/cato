@@ -248,11 +248,11 @@ contains
       ! i, j + 1/2 (top edge)
       edge_3 = center + 0.5_rk * L%limit(up - center, center - down)
 
-      ! i + 1/2, j (right edge)
-      edge_2 = center + 0.5_rk * L%limit(right - center, center - left)
-
       ! i - 1/2, j (left edge)
       edge_4 = center - 0.5_rk * L%limit(right - center, center - left)
+
+      ! i + 1/2, j (right edge)
+      edge_2 = center + 0.5_rk * L%limit(right - center, center - left)
 
       grad_v = (1.0_rk / volume) * ((edge_1 * n1 * delta_l1) + &
                                     (edge_2 * n2 * delta_l2) + &
