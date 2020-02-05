@@ -23,7 +23,7 @@ contains
     !< Time integrator implementation
     class(surrogate), intent(inout) :: U
     class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
-    real(rk), intent(in) :: dt
+    real(rk), intent(inout) :: dt
     class(integrand_t), allocatable :: U_1 !< first stage
     class(integrand_t), allocatable :: U_2 !< second stage
 
@@ -47,7 +47,6 @@ contains
           + (2.0_rk / 3.0_rk) * U_2 &
           + (2.0_rk / 3.0_rk) * dt * U_2%t(finite_volume_scheme)
 
-      ! // TODO: Do I need to have bc's applied at each stage?
       deallocate(U_1)
       deallocate(U_2)
     class default
