@@ -62,13 +62,14 @@ module mod_abstract_evo_operator
       class(abstract_evo_operator_t), intent(inout) :: out_evo
     end subroutine
 
-    subroutine evolve_location(self, reference_state, evolved_state, lbounds)
+    subroutine evolve_location(self, evolved_state, lbounds, error_code)
       import :: abstract_evo_operator_t
       import :: rk, ik
       class(abstract_evo_operator_t), intent(in) :: self
       ! !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
       integer(ik), dimension(3), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
+      integer(ik), intent(out) :: error_code
+      ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
       ! !< ((rho,u,v,p), i, j); Reference state (tilde) at each location
       real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
       !< ((rho,u,v,p), i, j); Reconstructed U at each location
