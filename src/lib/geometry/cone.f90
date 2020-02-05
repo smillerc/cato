@@ -47,16 +47,18 @@ module mod_cone
 
     ! real(rk), dimension(4, 4) :: reconstructed_state = 0.0_rk
     !< ((rho,u,v,p), (cell_1:cell_4))
-
+    real(rk) :: ave_rho, ave_u, ave_v, ave_p, ave_cs
+    real(rk), dimension(:, :), allocatable :: recon_state
   contains
     procedure, nopass, private :: determine_if_p_prime_is_in_cell
+    procedure, public :: get_better_ref_state
     procedure, pass :: write => write_cone
     generic, public :: write(formatted) => write
   end type
 
 contains
 
-  type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
+  type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, cell_indices)
     !< Constructor for the Mach cone type
     real(rk), intent(in) :: tau
     !< time increment, tau -> 0 (very small number)
@@ -71,7 +73,7 @@ contains
     !< ((rho,u,v,p), cell); reconstructed state for point P.
     !< P has a different reconstruction for each cell
 
-    real(rk), dimension(4), intent(in) :: reference_state  !< (rho, u, v, p)
+    ! real(rk), dimension(4), intent(in) :: reference_state  !< (rho, u, v, p)
     !< (rho, u, v, p); reference state of the point P
 
     integer(ik) :: n_total_vectors  !< number of edge vectors (should be 2 or 4)
@@ -96,15 +98,38 @@ contains
     n_total_vectors = size(edge_vectors, dim=3)
     new_cone%tau = tau
 
+    ! print*, n_total_vectors, shape(reconstructed_state)
+    allocate(new_cone%recon_state, mold=reconstructed_state)
+    new_cone%recon_state = reconstructed_state
+    new_cone%ave_rho = sum(reconstructed_state(1, :)) / real(n_total_vectors, rk)
+    new_cone%ave_u = sum(reconstructed_state(2, :)) / real(n_total_vectors, rk)
+    new_cone%ave_v = sum(reconstructed_state(3, :)) / real(n_total_vectors, rk)
+    new_cone%ave_p = sum(reconstructed_state(4, :)) / real(n_total_vectors, rk)
+    new_cone%ave_cs = eos%sound_speed(pressure=new_cone%ave_p, density=new_cone%ave_rho)
+    new_cone%radius = new_cone%ave_cs * tau
+    new_cone%reference_state = [new_cone%ave_rho, new_cone%ave_u, new_cone%ave_v, new_cone%ave_cs]
+
+    ! print*, 'ave values for (nvectors)', real(n_total_vectors,rk)
+    ! print*, ave_rho, ave_u, ave_v, ave_p
+    ! print*, 'reconstructed_state'
+    ! print*, reconstructed_state
+    ! print*
+    ! error stop
     ! In the cone reference state, index 4 is sound speed rather than pressure
     !< (rho, u, v, a) vs  !< (rho, u, v, p)
-    new_cone%reference_state = reference_state
+    ! new_cone%reference_state = reference_state
+    ! new_cone%reference_state = reference_state
+    ! associate(a=>new_cone%reference_state(4), rho=>ave_rho, p=>ave_p)
+    !   a = eos%sound_speed(pressure=p, density=rho)
+    !   new_cone%radius = a * tau
+    ! end associate
+
     ! //TODO: Move speed of sound calculation to the EOS module
-    associate(a=>new_cone%reference_state(4), rho=>reference_state(1), &
-              p=>reference_state(4))
-      a = eos%sound_speed(pressure=p, density=rho)
-      new_cone%radius = a * tau
-    end associate
+    ! associate(a=>new_cone%reference_state(4), rho=>reference_state(1), &
+    !           p=>reference_state(4))
+    !   a = eos%sound_speed(pressure=p, density=rho)
+    !   new_cone%radius = a * tau
+    ! end associate
 
     ! the order of the vectors matters, mainly for the cross product to determine
     ! if P' is in the neighboring cell or not
@@ -127,11 +152,9 @@ contains
       ! This defines P' (x,y) globally, not with respect to P
       new_cone%p_xy = [x, y]
       new_cone%p_prime_xy = [x - u_tilde * tau, y - v_tilde * tau]
-      ! debug_write(*,*) x, u_tilde, tau, y, v_tilde
     end associate
 
     ! The P' vector points from P (tail), to P' (head)
-    ! debug_write(*,*) "P'", new_cone%p_prime_xy
     p_prime_vector = vector_t(x=[edge_vectors(1, 1, 1), new_cone%p_prime_xy(1)], &
                               y=[edge_vectors(2, 1, 1), new_cone%p_prime_xy(2)])
 
@@ -175,12 +198,42 @@ contains
     end if
 
     if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
-      ! print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
-      write(*, *) new_cone
-      ! debug_write(*, *) new_cone
+      print *, "Cone arcs do not add up to 2pi: ", sum(new_cone%theta_ie - new_cone%theta_ib)
+      print *, new_cone
       error stop "Cone arcs do not add up to 2pi"
     end if
   end function new_cone
+
+  function get_better_ref_state(self) result(reference_state)
+    !< Find the reference state of the cone only based on the cells that are touched by the cone.
+    !< Sometimes when a cone is near a large density jump, a skewed reference state can cause
+    !< negative densities and pressures. This aims to alleviate that problem...
+
+    class(cone_t), intent(in) :: self
+    real(rk), dimension(4) :: reference_state !< [rho, u, v, a]
+    integer(ik) :: cell, i, arc
+    real(rk) :: ave_rho, ave_p, ave_u, ave_v, ave_cs
+
+    ave_rho = sum(self%arc_primitive_vars(1, :, :)) / sum(self%n_arcs)
+    ave_u = sum(self%arc_primitive_vars(2, :, :)) / sum(self%n_arcs)
+    ave_v = sum(self%arc_primitive_vars(3, :, :)) / sum(self%n_arcs)
+    ave_p = sum(self%arc_primitive_vars(4, :, :)) / sum(self%n_arcs)
+    ave_cs = eos%sound_speed(pressure=ave_p, density=ave_rho)
+
+    reference_state = [ave_rho, ave_u, ave_v, ave_cs]
+
+    ! do cell = 1, 4
+    !   if (self%n_arcs(cell) > 0) then
+    !     do arc = 1, self%n_arcs(cell)
+    !       ave_rho = ave_rho + self%arc_primitive_vars(1,arc,cell)
+    !       ave_u = ave_u + self%arc_primitive_vars(1,arc,cell)
+    !       ave_v = ave_v + self%arc_primitive_vars(1,arc,cell)
+    !       ave_p = ave_p + self%arc_primitive_vars(1,arc,cell)
+    !     end do
+    !   end if
+    ! end do
+
+  end function get_better_ref_state
 
   subroutine write_cone(self, unit, iotype, v_list, iostat, iomsg)
     !< Implementation of `write(*,*) vector_t`
@@ -208,6 +261,8 @@ contains
     write(unit, '(a, 2(i7,1x), a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij, ")"//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+    write(unit, '(a, 4(es10.3))', iostat=iostat, iomsg=iomsg) 'Ave values: ', self%ave_rho, self%ave_u, self%ave_v, self%ave_cs
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Reference density:     ", self%reference_state(1), new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Reference x velocity:  ", self%reference_state(2), new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Reference y velocity:  ", self%reference_state(3), new_line('a')
@@ -218,7 +273,7 @@ contains
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [deg]     Theta_ie [deg]'//new_line('a')
     do i = 1, 4
-      write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
+      write(unit, '(a, i0, 2(a,2(f9.4, 1x)), 2(a,2(f9.4, 1x)), a)', iostat=iostat, iomsg=iomsg) &
         'Cell: ', i, ' [ ', rad2deg(self%theta_ib(:, i)), &
         '], [ ', rad2deg(self%theta_ie(:, i)), '], delta theta = ', &
         rad2deg(self%theta_ie(:, i) - self%theta_ib(:, i)), ' '//new_line('a')
@@ -259,6 +314,18 @@ contains
     end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Recon state '//new_line('a')
+    write(unit, '(a, i0, a)', iostat=iostat, iomsg=iomsg) 'Neighbor cells', self%n_neighbor_cells, new_line('a')
+    do i = 1, ubound(self%recon_state, dim=2)
+      write(unit, '(a, i0, 1x, 4(es10.3, 1x), a)', iostat=iostat, iomsg=iomsg) 'Cell: ', i, self%recon_state(:, i), new_line('a')
+    end do
+
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+
+    ! do i = 1, ubound(self%recon_state,dim=2)
+    !   write(unit, '(a, i0, 1x, 4(es10.3, 1x), a)', iostat=iostat, iomsg=iomsg) 'Cell: ',i , self%recon_state(:,i),  new_line('a')
+    ! end do
     ! write(unit, '(a, (f0.4))', iostat=iostat) 'Theta_ib', self%theta_ib
     ! write(unit, '((a,f0.4))', iostat=iostat) 'Theta_ie', self%theta_ie
     ! write(unit, '((a,f0.4))', iostat=iostat) 'Theta_ie'
@@ -528,7 +595,7 @@ contains
     ! The scale factor t must be between 0 and 1, otherwise there is no intersection
     valid_intersection = .false.
     if(discriminiant > 0.0_rk) then
-      do i = 1, 2
+      do i = 1, 2 ! TODO: Can we use a where block?
         if(t(i) >= 0.0_rk .and. t(i) <= 1.0_rk) then
           valid_intersection(i) = .true.
         end if
