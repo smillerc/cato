@@ -1,6 +1,6 @@
 module mod_fluid
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_is_finite
   use mod_globals, only: debug_print
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
@@ -33,6 +33,7 @@ module mod_fluid
     procedure, public :: get_sound_speed
     procedure, public :: get_max_sound_speed
     procedure, public :: get_primitive_vars
+    procedure, public :: sanity_check
     procedure, nopass, private :: flux_edges
     procedure, pass(lhs), public :: type_plus_type => add_fluid
     procedure, pass(lhs), public :: type_minus_type => subtract_fluid
@@ -227,16 +228,13 @@ contains
     ! Locals
     class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
     type(fluid_t), allocatable :: local_d_dt !< dU/dt
-    integer(ik) :: alloc_status
+    integer(ik) :: alloc_status, error_code
 
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
     !< ((rho, u, v, p), i, j); Primitive variables at each cell center
 
     real(rk), dimension(:, :, :), allocatable :: evolved_corner_state
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each corner
-
-    real(rk), dimension(:, :, :), allocatable :: corner_reference_state
-    !< ((rho, u, v, p), i, j); Reference state (tilde) at each corner
 
     ! Indexing the midpoints is a pain, so they're split by the up/down edges and left/right edges
     real(rk), dimension(:, :, :), allocatable :: evolved_downup_midpoints_state
@@ -245,14 +243,6 @@ contains
 
     real(rk), dimension(:, :, :), allocatable :: evolved_leftright_midpoints_state
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go left/right
-    !< (edges 1 (bottom edge) and 3 (top edge))
-
-    real(rk), dimension(:, :, :), allocatable :: downup_midpoints_reference_state
-    !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint defined by vectors that go up/down
-    !< (edges 2 (right edge) and 4 (left edge))
-
-    real(rk), dimension(:, :, :), allocatable :: leftright_midpoints_reference_state
-    !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint defined by vectors that go left/right
     !< (edges 1 (bottom edge) and 3 (top edge))
 
     real(rk), dimension(:, :, :, :, :), allocatable, target :: reconstructed_state
@@ -267,7 +257,6 @@ contains
 
       allocate(reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state in fluid_t%time_derivative()"
-      reconstructed_state = 0.0_rk
     end associate
 
     associate(imin_node=>fv%grid%ilo_node, imax_node=>fv%grid%ihi_node, &
@@ -278,34 +267,18 @@ contains
       ! corners
       allocate(evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state in fluid_t%time_derivative()"
-      evolved_corner_state = 0.0_rk
-
-      allocate(corner_reference_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate corner_reference_state in fluid_t%time_derivative()"
-      corner_reference_state = 0.0_rk
 
       ! left/right midpoints
       allocate(evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state in fluid_t%time_derivative()"
-      evolved_leftright_midpoints_state = 0.0_rk
-
-      allocate(leftright_midpoints_reference_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate leftright_midpoints_reference_state in fluid_t%time_derivative()"
-      leftright_midpoints_reference_state = 0.0_rk
 
       ! down/up midpoints
       allocate(evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state"
-      evolved_downup_midpoints_state = 0.0_rk
 
-      allocate(downup_midpoints_reference_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate downup_midpoints_reference_state"
-      downup_midpoints_reference_state = 0.0_rk
     end associate
 
     allocate(local_d_dt, source=self)
-    ! local_d_dt%conserved_vars = self%conserved_vars
-
     allocate(primitive_vars, mold=self%conserved_vars)
     call local_d_dt%get_primitive_vars(primitive_vars)
 
@@ -313,13 +286,6 @@ contains
 
     ! First put primitive vars in ghost layers
     call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
-
-    ! Reference state is a neighbor average (which is why edges needed ghost primitive variables)
-    call fv%calculate_reference_state(primitive_vars=primitive_vars, &
-                                      leftright_midpoints_reference_state=leftright_midpoints_reference_state, &
-                                      downup_midpoints_reference_state=downup_midpoints_reference_state, &
-                                      corner_reference_state=corner_reference_state, &
-                                      cell_lbounds=lbound(primitive_vars))
 
     ! Now we can reconstruct the entire domain
     call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
@@ -340,21 +306,33 @@ contains
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_leftright_midpoints(reference_state=leftright_midpoints_reference_state, &
-                                                          evolved_state=evolved_leftright_midpoints_state, &
-                                                          lbounds=lbound(leftright_midpoints_reference_state))
+    call fv%evolution_operator%evolve_leftright_midpoints(evolved_state=evolved_leftright_midpoints_state, &
+                                                          lbounds=lbound(evolved_leftright_midpoints_state), &
+                                                          error_code=error_code)
+    if(error_code /= 0) then
+      fv%error_code = error_code
+      ! error stop 'Error code!'
+    end if
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_downup_midpoints(reference_state=downup_midpoints_reference_state, &
-                                                       evolved_state=evolved_downup_midpoints_state, &
-                                                       lbounds=lbound(evolved_downup_midpoints_state))
+    call fv%evolution_operator%evolve_downup_midpoints(evolved_state=evolved_downup_midpoints_state, &
+                                                       lbounds=lbound(evolved_downup_midpoints_state), &
+                                                       error_code=error_code)
+    if(error_code /= 0) then
+      fv%error_code = error_code
+      ! error stop 'Error code!'
+    end if
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_corners(reference_state=corner_reference_state, &
-                                              evolved_state=evolved_corner_state, &
-                                              lbounds=lbound(evolved_corner_state))
+    call fv%evolution_operator%evolve_corners(evolved_state=evolved_corner_state, &
+                                              lbounds=lbound(evolved_corner_state), &
+                                              error_code=error_code)
+    if(error_code /= 0) then
+      fv%error_code = error_code
+      ! error stop 'Error code!'
+    end if
 
     nullify(fv%reconstruction_operator%primitive_vars)
     nullify(fv%evolution_operator%reconstructed_state)
@@ -375,20 +353,11 @@ contains
     deallocate(evolved_corner_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state in fluid_t%time_derivative()"
 
-    deallocate(corner_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate corner_reference_state in fluid_t%time_derivative()"
-
     deallocate(evolved_downup_midpoints_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state in fluid_t%time_derivative()"
 
     deallocate(evolved_leftright_midpoints_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state in fluid_t%time_derivative()"
-
-    deallocate(downup_midpoints_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate downup_midpoints_reference_state in fluid_t%time_derivative()"
-
-    deallocate(leftright_midpoints_reference_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate leftright_midpoints_reference_state in fluid_t%time_derivative()"
 
     deallocate(reconstructed_state, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state"
@@ -441,8 +410,8 @@ contains
     new_conserved_vars(:, :, grid%jlo_bc_cell) = 0.0_rk
     new_conserved_vars(:, :, grid%jhi_bc_cell) = 0.0_rk
 
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
+    do j = jlo, jhi
+      do i = ilo, ihi
 
         top_left_corner = evolved_corner_state(:, i, j + 1)
         bottom_left_corner = evolved_corner_state(:, i, j)
@@ -461,40 +430,11 @@ contains
                         4.0_rk * H(bottom_midpoint) + &
                         H(bottom_right_corner)) .dot.n_hat(:, 1)) * (delta_l(1) / 6.0_rk))
 
-        ! associate(E0_R_omega_k1=>evolved_corner_state(:, i, j), &
-        !           E0_R_omega_kc=>evolved_leftright_midpoints_state(:, i, j), &
-        !           E0_R_omega_k2=>evolved_corner_state(:, i + 1, j), &
-        !           n_hat=>grid%cell_edge_norm_vectors(:, 1, i, j), &
-        !           delta_l=>grid%cell_edge_lengths(1, i, j))
-
-        !   ! Eq. 13, for edge 1
-        !   edge_flux = edge_flux + &
-        !               ( &
-        !               ((H(E0_R_omega_k1) + &
-        !                 4.0_rk * H(E0_R_omega_kc) + &
-        !                 H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
-
-        ! end associate
-
         ! Edge 2 (right)
         edge_flux_2 = ( &
                       ((H(bottom_right_corner) + &
                         4.0_rk * H(right_midpoint) + &
                         H(top_right_corner)) .dot.n_hat(:, 2)) * (delta_l(2) / 6.0_rk))
-        ! associate(E0_R_omega_k1=>evolved_corner_state(:, i + 1, j), &
-        !           E0_R_omega_kc=>evolved_downup_midpoints_state(:, i + 1, j), &
-        !           E0_R_omega_k2=>evolved_corner_state(:, i + 1, j + 1), &
-        !           n_hat=>grid%cell_edge_norm_vectors(:, 2, i, j), &
-        !           delta_l=>grid%cell_edge_lengths(2, i, j))
-
-        !   ! Eq. 13, for edge 2
-        !   edge_flux = edge_flux + &
-        !               ( &
-        !               ((H(E0_R_omega_k1) + &
-        !                 4.0_rk * H(E0_R_omega_kc) + &
-        !                 H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
-
-        ! end associate
 
         ! Edge 3 (top)
         edge_flux_3 = ( &
@@ -502,46 +442,15 @@ contains
                         4.0_rk * H(top_midpoint) + &
                         H(top_left_corner)) .dot.n_hat(:, 3)) * (delta_l(3) / 6.0_rk))
 
-        ! associate(E0_R_omega_k1=>evolved_corner_state(:, i + 1, j + 1), &
-        !           E0_R_omega_kc=>evolved_leftright_midpoints_state(:, i, j + 1), &
-        !           E0_R_omega_k2=>evolved_corner_state(:, i, j + 1), &
-        !           n_hat=>grid%cell_edge_norm_vectors(:, 3, i, j), &
-        !           delta_l=>grid%cell_edge_lengths(3, i, j))
-
-        !   ! Eq. 13, for edge 3
-        !   edge_flux = edge_flux + &
-        !               ( &
-        !               ((H(E0_R_omega_k1) + &
-        !                 4.0_rk * H(E0_R_omega_kc) + &
-        !                 H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
-
-        ! end associate
-
         ! Edge 4 (left)
         edge_flux_4 = ( &
                       ((H(top_left_corner) + &
                         4.0_rk * H(left_midpoint) + &
                         H(bottom_left_corner)) .dot.n_hat(:, 4)) * (delta_l(4) / 6.0_rk))
 
-        ! associate(E0_R_omega_k1=>evolved_corner_state(:, i, j + 1), &
-        !           E0_R_omega_kc=>evolved_downup_midpoints_state(:, i, j), &
-        !           E0_R_omega_k2=>evolved_corner_state(:, i, j), &
-        !           n_hat=>grid%cell_edge_norm_vectors(:, 4, i, j), &
-        !           delta_l=>grid%cell_edge_lengths(4, i, j))
-
-        !   ! Eq. 13, for edge 4
-        !   edge_flux = edge_flux + &
-        !               ( &
-        !               ((H(E0_R_omega_k1) + &
-        !                 4.0_rk * H(E0_R_omega_kc) + &
-        !                 H(E0_R_omega_k2)) .dot.n_hat) * (delta_l / 6.0_rk))
-
-        ! end associate
-
         new_conserved_vars(:, i, j) = (-1.0_rk / grid%cell_volume(i, j)) * (edge_flux_1 + edge_flux_2 + edge_flux_3 + edge_flux_4)
       end do ! i
     end do ! j
-    ! new_conserved_vars(3,:,:) = 0.0_rk
   end subroutine flux_edges
 
   function subtract_fluid(lhs, rhs) result(difference)
@@ -682,13 +591,92 @@ contains
     max_cs = maxval(sound_speed)
   end function get_max_sound_speed
 
-  pure subroutine get_primitive_vars(self, primitive_vars)
+  subroutine get_primitive_vars(self, primitive_vars)
     !< Convert the current conserved_vars [rho, rho u, rho v, rho E] to primitive [rho, u, v, p]. Note, the
     !< work is done in the EOS module due to the energy to pressure conversion
     class(fluid_t), intent(in) :: self
     real(rk), dimension(:, :, :), intent(out) :: primitive_vars
+    integer(ik) :: i, j, ilo, jlo, ihi, jhi
+    logical :: invalid_numbers
 
+    invalid_numbers = .false.
+
+    call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
     call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
+
+    ilo = lbound(primitive_vars, dim=2)
+    ihi = ubound(primitive_vars, dim=2)
+    jlo = lbound(primitive_vars, dim=3)
+    jhi = ubound(primitive_vars, dim=3)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(.not. any(ieee_is_finite(primitive_vars(:, i, j)))) then
+          write(std_err, '(2(a,i0), a, 4(es10.3))') 'Infinite numbers in primitive_vars(:, ', i, ', ', j, ')', &
+            primitive_vars(:, i, j)
+          invalid_numbers = .true.
+        end if
+
+        if(any(ieee_is_nan(primitive_vars(:, i, j)))) then
+          write(std_err, '(2(a,i0), a, 4(es10.3))') 'NaNs in primitive_vars(:, ', i, ', ', j, ')', &
+            primitive_vars(:, i, j)
+          invalid_numbers = .true.
+        end if
+      end do
+    end do
+
+    if(invalid_numbers) then
+      write(*, *) "Invalid numbers in primitive_vars"
+      error stop "Invalid numbers in primitive_vars"
+    end if
   end subroutine get_primitive_vars
+
+  subroutine sanity_check(self)
+    !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.
+    class(fluid_t), intent(in) :: self
+    integer(ik) :: i, j, ilo, jlo, ihi, jhi
+    logical :: invalid_numbers
+
+    ilo = lbound(self%conserved_vars, dim=2)
+    ihi = ubound(self%conserved_vars, dim=2)
+    jlo = lbound(self%conserved_vars, dim=3)
+    jhi = ubound(self%conserved_vars, dim=3)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(.not. any(ieee_is_finite(self%conserved_vars(:, i, j)))) then
+          write(std_err, '(2(a,i0), a, 4(es10.3))') 'Infinite numbers in conserved_vars(:, ', i, ', ', j, ')', &
+            self%conserved_vars(:, i, j)
+          invalid_numbers = .true.
+        end if
+
+        if(any(ieee_is_nan(self%conserved_vars(:, i, j)))) then
+          write(std_err, '(2(a,i0), a, 4(es10.3))') 'NaNs in conserved_vars(:, ', i, ', ', j, ')', &
+            self%conserved_vars(:, i, j)
+          invalid_numbers = .true.
+        end if
+      end do
+    end do
+
+    if(invalid_numbers) then
+      write(std_out, '(a)') "Invalid numbers in the conserved variables [rho, rho u, rho v, rho E]"
+      error stop "Invalid numbers in the conserved variables [rho, rho u, rho v, rho E]"
+    end if
+
+    if(minval(self%conserved_vars(1, :, :)) < 0.0_rk) then
+      write(std_out, '(a, 2(i0, 1x))') "Error: Negative density at fluid_t%conserved_vars(1,i,j): ", &
+        minloc(self%conserved_vars(1, :, :))
+      write(std_err, '(a, 2(i0, 1x), a, es10.3)') "Error: Negative density at fluid_t%conserved_vars(1,i,j): (", &
+        minloc(self%conserved_vars(1, :, :)), ") density = ", minval(self%conserved_vars(1, :, :))
+      error stop "Error in fluid_t%sanity_checks(): Negative density"
+    end if
+
+    if(minval(self%conserved_vars(4, :, :)) < 0.0_rk) then
+      write(std_out, '(a, 2(i0, 1x))') "Error: Negative rho E (density * total energy) at fluid_t%conserved_vars(4,i,j): ", &
+        minloc(self%conserved_vars(4, :, :))
+      write(std_err, '(a, 2(i0, 1x))') "Error: Negative rho E (density * total energy) at fluid_t%conserved_vars(4,i,j): ", &
+        minloc(self%conserved_vars(4, :, :))
+      error stop "Error in fluid_t%sanity_checks(): Negative density"
+    end if
+
+  end subroutine sanity_check
 
 end module mod_fluid

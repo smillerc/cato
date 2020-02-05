@@ -1,7 +1,7 @@
 module mod_finite_volume_schemes
 
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
+  use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_is_finite
   use mod_globals, only: debug_print
   use mod_floating_point_utils, only: near_zero
   use mod_input, only: input_t
@@ -34,6 +34,7 @@ module mod_finite_volume_schemes
     integer(ik) :: iteration = 0
     real(rk) :: delta_t = 0.0_rk
     real(rk) :: time = 0.0_rk
+    integer(ik) :: error_code = 0
 
     class(abstract_reconstruction_t), allocatable :: reconstruction_operator
     !< R_Omega reconstruction operator used to reconstruct the corners/midpoints based on the cell
@@ -235,7 +236,6 @@ contains
     integer(ik), dimension(3), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
 
-    error stop 'source terms not set yet'
     if(allocated(self%source_term)) then
 
       if(self%source_term%ilo /= 0 .and. self%source_term%ihi /= 0) then
@@ -349,19 +349,23 @@ contains
     do priority = max_priority_bc, 0, -1
 
       if(self%bc_plus_x%priority == priority) then
-      call self%bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, lbounds=lbound(reconstructed_state))
+        call self%bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
+                                                         lbounds=lbound(reconstructed_state))
       end if
 
       if(self%bc_plus_y%priority == priority) then
-      call self%bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, lbounds=lbound(reconstructed_state))
+        call self%bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
+                                                         lbounds=lbound(reconstructed_state))
       end if
 
       if(self%bc_minus_x%priority == priority) then
-     call self%bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, lbounds=lbound(reconstructed_state))
+        call self%bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
+                                                          lbounds=lbound(reconstructed_state))
       end if
 
       if(self%bc_minus_y%priority == priority) then
-     call self%bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, lbounds=lbound(reconstructed_state))
+        call self%bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
+                                                          lbounds=lbound(reconstructed_state))
       end if
 
     end do
@@ -405,59 +409,5 @@ contains
     end if
 
   end subroutine apply_cell_gradient_bc
-
-  subroutine calculate_reference_state(self, primitive_vars, &
-                                       leftright_midpoints_reference_state, &
-                                       downup_midpoints_reference_state, &
-                                       corner_reference_state, &
-                                       cell_lbounds)
-    !< Calculate the reference state at each corner/midpoint. This is just an average of
-    !< the neighboring cells
-    class(finite_volume_scheme_t), intent(inout) :: self
-    integer(ik), dimension(3), intent(in) :: cell_lbounds
-    real(rk), dimension(:, :, :), intent(out) :: leftright_midpoints_reference_state
-    real(rk), dimension(:, :, :), intent(out) :: downup_midpoints_reference_state
-    real(rk), dimension(:, :, :), intent(out) :: corner_reference_state
-    real(rk), dimension(cell_lbounds(1):, &
-                        cell_lbounds(2):, &
-                        cell_lbounds(3):), intent(in) :: primitive_vars
-
-    integer(ik) :: i, j
-    integer(ik) :: ilo, jlo, ihi, jhi
-
-    ! left/right midpoints -> needs to average cells above and below
-    ilo = lbound(leftright_midpoints_reference_state, dim=2)
-    ihi = ubound(leftright_midpoints_reference_state, dim=2)
-    jlo = lbound(leftright_midpoints_reference_state, dim=3)
-    jhi = ubound(leftright_midpoints_reference_state, dim=3)
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
-        leftright_midpoints_reference_state(:, i, j) = (primitive_vars(:, i, j) + primitive_vars(:, i, j - 1)) / 2.0_rk
-      end do
-    end do
-
-    ! up/down midpoints -> needs to average cells right and left
-    ilo = lbound(downup_midpoints_reference_state, dim=2)
-    ihi = ubound(downup_midpoints_reference_state, dim=2)
-    jlo = lbound(downup_midpoints_reference_state, dim=3)
-    jhi = ubound(downup_midpoints_reference_state, dim=3)
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
-        downup_midpoints_reference_state(:, i, j) = (primitive_vars(:, i - 1, j) + primitive_vars(:, i, j)) / 2.0_rk
-      end do
-    end do
-
-    ! Corners
-    ilo = lbound(corner_reference_state, dim=2)
-    ihi = ubound(corner_reference_state, dim=2)
-    jlo = lbound(corner_reference_state, dim=3)
-    jhi = ubound(corner_reference_state, dim=3)
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
-        corner_reference_state(:, i, j) = (primitive_vars(:, i, j) + primitive_vars(:, i - 1, j) + &
-                                           primitive_vars(:, i, j - 1) + primitive_vars(:, i - 1, j - 1)) / 4.0_rk
-      end do
-    end do
-  end subroutine calculate_reference_state
 
 end module mod_finite_volume_schemes
