@@ -24,7 +24,7 @@ module mod_strategy
       import :: finite_volume_scheme_t
       class(surrogate), intent(inout) :: U
       class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
-      real(rk), intent(in) :: dt !< time step size
+      real(rk), intent(inout) :: dt !< time step size
     end subroutine
   end interface
 contains

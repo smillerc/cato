@@ -11,11 +11,13 @@ module mod_integrand
 
   type, abstract, public, extends(surrogate) :: integrand_t
     class(strategy), allocatable :: time_integrator
+    integer(ik) :: error_code = 0
   contains
     procedure, non_overridable :: integrate   ! Time integrator
     procedure, non_overridable :: set_time_integrator
     procedure, non_overridable :: get_time_integrator
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
+    procedure(sanity_check), deferred :: sanity_check
 
     procedure(symmetric_operator), deferred :: type_plus_type
     procedure(symmetric_operator), deferred :: type_minus_type
@@ -39,6 +41,11 @@ module mod_integrand
       class(finite_volume_scheme_t), intent(inout) :: fv !< finite volume scheme
       class(integrand_t), allocatable :: dState_dt
     end function time_derivative
+
+    subroutine sanity_check(self)
+      import :: integrand_t
+      class(integrand_t), intent(in) :: self
+    end subroutine sanity_check
 
     function symmetric_operator(lhs, rhs) result(operator_result)
       import :: integrand_t
@@ -91,7 +98,7 @@ contains
     !< Integration implementation
     class(integrand_t), intent(inout) :: model ! integrand_t
     class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
-    real(rk), intent(in) :: dt ! time step size
+    real(rk), intent(inout) :: dt ! time step size
 
     if(.not. ieee_is_finite(dt)) then
       error stop 'The timestep "dt" in integrand_t%integrate() is not a finite number'
@@ -100,6 +107,7 @@ contains
     call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
+      call model%sanity_check()
     else
       error stop 'Error: No integration procedure available in integrand_t%integrate()'
     end if
