@@ -1,6 +1,6 @@
 program cato
 
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, output_unit
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, output_unit, std_error => error_unit
   use mod_contour_writer, only: contour_writer_t
   use mod_globals, only: print_version_stats
   use mod_input, only: input_t
@@ -27,6 +27,9 @@ program cato
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
   logical :: file_exists = .false.
+
+  print *, 'std_error', std_error
+  open(std_error, file='cato.error')
 
   ! ascii art for the heck of it :)
   write(output_unit, '(a)')
@@ -56,7 +59,7 @@ program cato
   U => new_fluid(input, fv)
 
   contour_writer = contour_writer_t(input=input)
-  ! call contour_writer%write_contour(U, fv, time, iteration)
+  call contour_writer%write_contour(U, fv, time, iteration)
 
   print *
   write(*, '(a)') '--------------------------------------------'
@@ -72,21 +75,24 @@ program cato
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
     write(*, '(2(a, 1x, es10.3))') 'Time =', time, ', delta t = ', delta_t
 
-    if(time >= next_output_time) then
-      next_output_time = next_output_time + input%contour_interval_dt
-      write(*, '(a, es10.3)') 'Saving Contour, Next Output Time: ', next_output_time
-      call contour_writer%write_contour(U, fv, time, iteration)
-    end if
-
     ! Integrate in time
     call U%integrate(fv, delta_t)
 
     time = time + delta_t
     iteration = iteration + 1
     call fv%set_time(time, delta_t, iteration)
+
+    ! I/O
+    if(time >= next_output_time) then
+      next_output_time = next_output_time + input%contour_interval_dt
+      write(*, '(a, es10.3)') 'Saving Contour, Next Output Time: ', next_output_time
+      call contour_writer%write_contour(U, fv, time, iteration)
+    end if
+
   end do
 
   call timer%stop()
+
   ! Write the final step
   call contour_writer%write_contour(U, fv, time, iteration)
 
@@ -94,4 +100,5 @@ program cato
   deallocate(U)
 
   call timer%output_stats()
+  close(std_error)
 end program
