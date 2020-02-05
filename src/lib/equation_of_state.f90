@@ -70,29 +70,31 @@ contains
     real(rk), intent(in) :: pressure
     real(rk), intent(in) :: density
 
-    if(pressure < 0) error stop "Pressure is < 0 in eos_t%sound_speed"
-    if(density < 0) error stop "Density is < 0 in eos_t%sound_speed"
-    sound_speed = sqrt(self%gamma * pressure / density)
+    ! if(pressure < 0) error stop "Pressure is < 0 in eos_t%sound_speed"
+    ! if(density < 0) error stop "Density is < 0 in eos_t%sound_speed"
+    sound_speed = sqrt(self%gamma * abs(pressure / density))
   end function sound_speed
 
-  pure subroutine sound_speed_from_primitive(self, primitive_vars, sound_speed)
+  subroutine sound_speed_from_primitive(self, primitive_vars, sound_speed)
     !< Calculate sound speed using the primitive variables [rho, u, v, p]
     class(eos_t), intent(in) :: self
     real(rk), dimension(:, :, :), intent(in) :: primitive_vars
     real(rk), dimension(:, :), intent(out) :: sound_speed
 
-    if(minval(primitive_vars(4, :, :)) < 0.0_rk) then
-      error stop "Pressure is < 0 in eos_t%calc_sound_speed_from_primitive()"
-    end if
+    ! if(minval(primitive_vars(4, :, :)) < 0.0_rk) then
+    !   print*, 'minloc(primitive_vars(4, :, :))', minloc(primitive_vars(4, :, :))
+    !   error stop "Pressure is < 0 in eos_t%calc_sound_speed_from_primitive()"
+    ! end if
 
-    if(minval(primitive_vars(1, :, :)) < 0.0_rk) then
-      error stop "Density is < 0 in eos_t%calc_sound_speed_from_primitive()"
-    end if
+    ! if(minval(primitive_vars(1, :, :)) < 0.0_rk) then
+    !   print*, 'minloc(primitive_vars(1, :, :))', minloc(primitive_vars(1, :, :))
+    !   error stop "Density is < 0 in eos_t%calc_sound_speed_from_primitive()"
+    ! end if
 
-    sound_speed = sqrt(self%gamma * primitive_vars(4, :, :) / primitive_vars(1, :, :))
+    sound_speed = sqrt(self%gamma * abs(primitive_vars(4, :, :) / primitive_vars(1, :, :)))
   end subroutine sound_speed_from_primitive
 
-  pure subroutine sound_speed_from_conserved(self, conserved_vars, sound_speed)
+  subroutine sound_speed_from_conserved(self, conserved_vars, sound_speed)
     !< Calculate the sound speed using the conserved variables [rho, rho u, rho v, rho E]
     class(eos_t), intent(in) :: self
     real(rk), dimension(:, :, :), intent(in) :: conserved_vars
@@ -113,9 +115,9 @@ contains
     real(rk), intent(in) :: rho_1
     real(rk) :: rho_2
 
-    if(P_1 <= 0.0_rk) error stop "P_1 <= 0"
-    if(P_2 <= 0.0_rk) error stop "P_2 <= 0"
-    if(rho_1 <= 0.0_rk) error stop "rho_1 <= 0"
+    if(P_1 <= 0.0_rk) error stop "Error in eos_t%calc_density_from_isentropic_press(): P_1 <= 0"
+    if(P_2 <= 0.0_rk) error stop "Error in eos_t%calc_density_from_isentropic_press(): P_2 <= 0"
+    if(rho_1 <= 0.0_rk) error stop "Error in eos_t%calc_density_from_isentropic_press(): rho_1 <= 0"
     rho_2 = rho_1 * (P_2 / P_1)**(self%gamma - 1)
   end function calc_density_from_isentropic_press
 
@@ -130,7 +132,7 @@ contains
     pressure = rho * (self%gamma - 1.0_rk) * (total_energy - ((u**2 + v**2) / 2.0_rk))
   end function total_energy_to_pressure
 
-  pure subroutine conserved_to_primitive(self, conserved_vars, primitive_vars)
+  subroutine conserved_to_primitive(self, conserved_vars, primitive_vars)
     !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
     !< is in the EOS class due to requirement of converting energy into pressure
 
