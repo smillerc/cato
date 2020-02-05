@@ -45,8 +45,6 @@ module mod_cone
     real(rk) :: tau = 0.0_rk
     !< Time evolution increment
 
-    ! real(rk), dimension(4, 4) :: reconstructed_state = 0.0_rk
-    !< ((rho,u,v,p), (cell_1:cell_4))
     real(rk) :: ave_rho, ave_u, ave_v, ave_p, ave_cs
     real(rk), dimension(:, :), allocatable :: recon_state
   contains
