@@ -9,7 +9,8 @@ module mod_flux_tensor
   public :: flux_tensor_t, operator(.dot.) !, operator(*), operator(-), operator(+)
 
   type flux_tensor_t
-    real(rk), dimension(2, 4) :: state  !< ((i,j), conserved_quantites)
+    real(rk), dimension(4, 2) :: state  !< ((i,j), conserved_quantites)
+    !< TODO: fix the stride to (4,2) for better access
   contains
     procedure, pass(lhs), private :: assign_from_flux
     procedure, pass(flux) :: real_mul_flux
@@ -54,13 +55,13 @@ contains
       total_energy = eos%calculate_total_energy(pressure=p, density=rho, x_velocity=u, y_velocity=v)
 
       ! F
-      H(1, :) = [rho * u, &
+      H(:, 1) = [rho * u, &
                  rho * u**2 + p, &
                  rho * u * v, &
                  u * (rho * total_energy + p)]
 
       ! G
-      H(2, :) = [rho * v, &
+      H(:, 2) = [rho * v, &
                  rho * u * v, &
                  rho * v**2 + p, &
                  v * (rho * total_energy + p)]
@@ -121,10 +122,25 @@ contains
     type(flux_tensor_t), intent(in) :: lhs  !< Left-hand side of the dot product
     real(rk), dimension(2), intent(in) :: vec  !< Right-hand side of the dot product
     real(rk), dimension(4) :: output
-    output(1) = dot_product(lhs%state(:, 1), vec)
-    output(2) = dot_product(lhs%state(:, 2), vec)
-    output(3) = dot_product(lhs%state(:, 3), vec)
-    output(4) = dot_product(lhs%state(:, 4), vec)
+
+    ! The flux tensor is H = Fi + Gj
+    ! associate(nx => vec(1), ny => vec(2), &
+    !           F => lhs%state(:,1), &
+    !           G => lhs%state(:,2))
+
+    !   output(1) = F(1) * nx + G(1) * ny
+    !   output(2) = F(2) * nx + G(2) * ny
+    !   output(3) = F(3) * nx + G(3) * ny
+    !   output(4) = F(4) * nx + G(4) * ny
+
+    ! end associate
+
+    output = lhs%state(:, 1) * vec(1) + lhs%state(:, 2) * vec(2)
+
+    ! output(1) = dot_product(lhs%state(:, 1), vec)
+    ! output(2) = dot_product(lhs%state(:, 2), vec)
+    ! output(3) = dot_product(lhs%state(:, 3), vec)
+    ! output(4) = dot_product(lhs%state(:, 4), vec)
   end function
 
 end module mod_flux_tensor

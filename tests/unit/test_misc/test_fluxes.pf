@@ -5,31 +5,36 @@ module test_fluxes
 
   implicit none
 
-  real(rk) :: gamma = 5.0_rk / 3.0_rk
+  real(rk), parameter :: gamma = 5.0_rk / 3.0_rk
 
 contains
 
   @test
   subroutine test_fvleg_operators()
 
-    real(rk), dimension(4) :: V !< (rho, u, v, p) primitive variables
+    real(rk), dimension(4) :: prim_vars !< (rho, u, v, p) primitive variables
     type(H) :: flux_vector_1, flux_vector_2, flux_vector_3
     real(rk) :: E, internal_energy
+    real(rk) :: rho, u, v, p
 
-    V = [2.0_rk, 3.0_rk, 4.0_rk, 5.0_rk]
+    rho = 2.0_rk
+    u = 3.0_rk
+    v = 4.0_rk
+    p = 5.0_rk
+    prim_vars = [rho, u, v, p]
 
-    flux_vector_1 = H(V)
+    flux_vector_1 = H(prim_vars)
 
-    internal_energy = V(4) / (V(1) * (gamma - 1))
-    E = V(1) * (internal_energy + 0.5_rk * (V(2)**2 + V(3)**2)) ! total energy
+    internal_energy = p / (rho * (gamma - 1))
+    E = (internal_energy + (u**2 + v**2)/2.0_rk) ! total energy
 
     ! Fi
-    ! H(1, :) = [rho * u, rho * u**2 + p, rho * u * v,(rho * E + p) * u]
-    @assertEqual([6.0_rk, 23.0_rk, 24.0_rk,(2.0_rk * E + V(4)) * V(2)], flux_vector_1%state(1, :))
+    ! H(:, 1) = [rho * u, rho * u**2 + p, rho * u * v,(rho * E + p) * u]
+    @assertEqual([6.0_rk, 23.0_rk, 24.0_rk,(2.0_rk * E + 5.0_rk) * 3.0_rk], flux_vector_1%state(:, 1))
 
     ! Gj
-    ! H(2, :) = [rho * v, rho * u * v, rho * v**2 + p,(rho * E + p) * v]
-    @assertEqual([8.0_rk, 24.0_rk, 37.0_rk,(2.0_rk * E + V(4)) * V(3)], flux_vector_1%state(2, :))
+    ! H(:, 2) = [rho * v, rho * u * v, rho * v**2 + p,(rho * E + p) * v]
+    @assertEqual([8.0_rk, 24.0_rk, 37.0_rk,(2.0_rk * E + 5.0_rk) * 4.0_rk], flux_vector_1%state(:, 2))
 
     ! Test operators = and *
     flux_vector_2 = 2.0_rk * flux_vector_1
