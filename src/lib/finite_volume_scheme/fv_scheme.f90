@@ -73,11 +73,9 @@ module mod_finite_volume_schemes
     ! If they were indexed via cell, each cell would duplicate information since they share corners and midpoints
 
   contains
-    procedure, public :: calculate_reference_state
     procedure, public :: initialize
     procedure, public :: reconstruct
     procedure, public :: apply_primitive_vars_bc
-    ! procedure, public :: evolve_domain
     procedure, public :: apply_reconstructed_state_bc
     procedure, public :: apply_cell_gradient_bc
     procedure, public :: apply_source_terms
