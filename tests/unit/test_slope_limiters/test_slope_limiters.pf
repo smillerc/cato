@@ -12,12 +12,35 @@ contains
 
     type(slope_limiter_t) :: limiter
 
-    limiter = slope_limiter_t(name='upwind')
+    limiter = slope_limiter_t(name='barth_jesperson')
+    @assertEqual(0.0_rk, limiter%limit(f=0.0_rk))
+    @assertEqual(1.0_rk, limiter%limit(f=0.5_rk))
+    @assertEqual(0.0_rk, limiter%limit(f=1.0_rk))
+    @assertEqual('barth_jesperson', limiter%name)
 
-    @assertEqual(2.0_rk, limiter%limit(a=2.0_rk, b=2.0_rk))
+    limiter = slope_limiter_t(name='minmod')
+    @assertEqual(0.0_rk, limiter%limit(f=0.0_rk))
+    @assertEqual(1.0_rk, limiter%limit(f=0.5_rk))
+    @assertEqual(0.0_rk, limiter%limit(f=1.0_rk))
+    @assertEqual('minmod', limiter%name)
 
-    limiter = slope_limiter_t(name='unknown')
-    @assertEqual('upwind', limiter%name)
+    limiter = slope_limiter_t(name='van_leer')
+    @assertEqual(0.0_rk, limiter%limit(f=0.0_rk))
+    @assertEqual(1.0_rk, limiter%limit(f=0.5_rk))
+    @assertEqual(0.0_rk, limiter%limit(f=1.0_rk))
+    @assertEqual('van_leer', limiter%name)
+
+    limiter = slope_limiter_t(name='sine')
+    @assertEqual(0.0_rk, limiter%limit(f=0.0_rk), 1e-10_rk)
+    @assertEqual(1.0_rk, limiter%limit(f=0.5_rk), 1e-10_rk)
+    @assertEqual(0.0_rk, limiter%limit(f=1.0_rk), 1e-10_rk)
+    @assertEqual('sine', limiter%name)
+
+    limiter = slope_limiter_t(name='van_albada')
+    @assertEqual(0.0_rk, limiter%limit(f=0.0_rk))
+    @assertEqual(1.0_rk, limiter%limit(f=0.5_rk))
+    @assertEqual(0.0_rk, limiter%limit(f=1.0_rk))
+    @assertEqual('van_albada', limiter%name)
   end subroutine test_basic
 
 end module test_slope_limiters
