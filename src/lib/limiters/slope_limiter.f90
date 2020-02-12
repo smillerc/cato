@@ -1,8 +1,8 @@
 module mod_slope_limiter
   !< Summary: Define the various slope limiters
-  !< Note: The slope limiters in the form listed below is based on [1] and the symmetric forms
-  !<       of the slope (not flux) limiters. Slope and flux limiters are very similar, but
-  !<       have some subtle differences. See the reference for more info. The formulas are based on Eq 10.
+  !< Note: The slope limiters in the form listed below is based on [1] the slope (not flux)
+  !<       limiters. Slope and flux limiters are very similar, but have some subtle differences.
+  !<       See the reference for more info. The formulas are based on Eq 10.
   !< References:
   !< [1] M. Berger, M. Aftosmis, S. Muman, "Analysis of Slope Limiters on Irregular Grids",
   !<     43rd AIAA Aerospace Sciences Meeting and Exhibit (2005), https://doi.org/10.2514/6.2005-490
@@ -28,15 +28,15 @@ module mod_slope_limiter
   end interface
 
   interface
-    pure real(rk) function limit(f) result(slope)
+    real(rk) function limit(R) result(phi_lim)
       import :: rk
-      real(rk), intent(in) :: f
+      real(rk), intent(in) :: R
     end function
   end interface
 
 contains
 
-  type(slope_limiter_t) pure function constructor(name) result(limiter)
+  type(slope_limiter_t) function constructor(name) result(limiter)
     !< Slope limiter factory/constructor
     character(len=*), intent(in) :: name
 
@@ -49,13 +49,10 @@ contains
       limiter%limit => minmod
     case('van_leer')
       limiter%limit => van_leer
-    case('sine')
-      limiter%limit => sine
     case('van_albada')
       limiter%limit => van_albada
     case default
-      limiter%limit => minmod
-      limiter%name = 'minmod'
+      error stop "Error in slope_limiter_t%constructor(): Unknown slope limiter name"
     end select
   end function
 
@@ -65,39 +62,44 @@ contains
     if(allocated(self%name)) deallocate(self%name)
   end subroutine finalize
 
-  pure real(rk) function barth_jespersen(f) result(slope)
-    !< Barth Jesperson slope limiter. See Eq. 10 in [1]
-    real(rk), intent(in) :: f !< f  = (u_i - u_{i-1}) / (u_{i+1} - u_{i-1})
-
-    slope = min(1.0_rk, 4.0_rk * f, 4.0_rk * (1.0_rk - f))
+  real(rk) function barth_jespersen(R) result(phi_lim)
+    !< Barth Jesperson slope limiter. See Eq. 8 in [1]
+    real(rk), intent(in) :: R !< R  = (u_{i+1} - u_i) / (u_i - u_{i-1})
+    if(R <= 0.0_rk) then
+      phi_lim = 0.0_rk
+    else
+      phi_lim = min(1.0_rk, 4.0_rk / (R + 1.0_rk),(4.0_rk * R) / (R + 1.0_rk))
+    end if
   end function barth_jespersen
 
-  pure real(rk) function van_leer(f) result(slope)
-    !< van Leer slope limiter. See Eq. 10 in [1]
-    real(rk), intent(in) :: f !< f  = (u_i - u_{i-1}) / (u_{i+1} - u_{i-1})
-
-    slope = 4.0_rk * f * (1.0_rk - f)
+  pure real(rk) function van_leer(R) result(phi_lim)
+    !< van Leer slope limiter. See Eq. 8 in [1]
+    real(rk), intent(in) :: R !< R  = (u_{i+1} - u_i) / (u_i - u_{i-1})
+    if(R <= 0.0_rk) then
+      phi_lim = 0.0_rk
+    else
+      phi_lim = 4.0_rk * R / (R + 1.0_rk)**2
+    end if
   end function van_leer
 
-  pure real(rk) function sine(f) result(slope)
-    !< Sine slope limiter. See Eq. 10 in [1]
-    real(rk), intent(in) :: f !< f  = (u_i - u_{i-1}) / (u_{i+1} - u_{i-1})
-
-    slope = sin(pi * f)
-  end function sine
-
-  pure real(rk) function van_albada(f) result(slope)
-    !< van Albada slope limiter. See Eq. 10 in [1]
-    real(rk), intent(in) :: f !< f  = (u_i - u_{i-1}) / (u_{i+1} - u_{i-1})
-
-    slope = (2.0_rk * f * (1.0_rk - f)) / (f**2 + (1.0_rk - f)**2)
+  pure real(rk) function van_albada(R) result(phi_lim)
+    !< van Albada slope limiter. See Eq. 8 in [1]
+    real(rk), intent(in) :: R !< R  = (u_{i+1} - u_i) / (u_i - u_{i-1})
+    if(R <= 0.0_rk) then
+      phi_lim = 0.0_rk
+    else
+      phi_lim = (2.0_rk * R) / (R**2 + 1.0_rk)
+    end if
   end function van_albada
 
-  pure real(rk) function minmod(f) result(slope)
-    !< Min-mod slope limiter. See Eq. 10 in [1]
-    real(rk), intent(in) :: f !< f  = (u_i - u_{i-1}) / (u_{i+1} - u_{i-1})
-
-    slope = min(2.0_rk * f, 2 * (1.0_rk - f))
+  pure real(rk) function minmod(R) result(phi_lim)
+    !< Min-mod slope limiter. See Eq. 8 in [1]
+    real(rk), intent(in) :: R !< R  = (u_{i+1} - u_i) / (u_i - u_{i-1})
+    if(R <= 0.0_rk) then
+      phi_lim = 0.0_rk
+    else
+      phi_lim = min(2.0_rk / (1.0_rk + R),(2.0_rk * R) / (1.0_rk + R))
+    end if
   end function minmod
 
 end module mod_slope_limiter

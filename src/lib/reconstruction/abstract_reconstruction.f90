@@ -25,11 +25,17 @@ module mod_abstract_reconstruction
     character(:), allocatable, public :: name  !< Name of the reconstruction scheme
 
     real(rk), dimension(:, :, :, :), allocatable :: cell_gradient
-    !< ((d/dx, d/dy), (rho, u ,v, p), i, j); Gradient of each cell's primitive variables
+    !< ((rho, u ,v, p), (d/dx, d/dy), i, j); Gradient of each cell's primitive variables
+
+    real(rk), dimension(:, :, :), allocatable :: cell_average
+    !< ((rho, u ,v, p), i, j); Cell average (based on nodes and neighbor cells)
 
     type(slope_limiter_t), public :: limiter  !< Slope limiter (if any)
 
+    logical :: use_post_limiter = .false. !< Use the 'a posteriori' limiter (Kitamura et al.)
+
     logical :: domain_has_been_reconstructed = .false.
+    logical :: cell_averages_found = .false.
   contains
     procedure, public, non_overridable :: set_slope_limiter
     procedure, public, non_overridable :: set_grid_pointer

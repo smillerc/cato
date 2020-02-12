@@ -1,9 +1,3 @@
-#ifdef __DEBUG__
-#define debug_write write
-#else
-#define debug_write ! write
-#endif
-
 module mod_first_order_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use mod_globals, only: debug_print
