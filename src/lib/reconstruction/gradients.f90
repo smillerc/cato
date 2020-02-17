@@ -36,7 +36,7 @@ contains
     real(rk), dimension(4, 5), intent(in) :: prim_vars
     !< ((rho, u, v, p), (current cell, neighbor_cell (1-n))) primitive
     real(rk), dimension(4), intent(in) :: edge_lengths  !< (n_edges)
-    real(rk), dimension(4), intent(in) :: volumes  !< (n_cells)
+    real(rk), dimension(5), intent(in) :: volumes  !< (n_cells)
     real(rk), dimension(2, 4), intent(in) :: edge_normals !< ((x,y), edge)
 
     real(rk), dimension(4, 2) :: gradient ! ((rho, u, v, p), (grad x, grad y))
@@ -47,27 +47,21 @@ contains
 
     gradient = 0.0_rk
 
-    ! associate(v => volumes, U => prim_vars, U_f => face_prim_vars)
-    !   ! Volume weighted average on the face
-    !   U_f(:,1) = (U(:,1) * v(1) + U(:,2) * v(2)) / (v(1) + v(2))  ! down
-    !   U_f(:,2) = (U(:,1) * v(1) + U(:,3) * v(3)) / (v(1) + v(3))  ! right
-    !   U_f(:,3) = (U(:,1) * v(1) + U(:,4) * v(4)) / (v(1) + v(4))  ! up
-    !   U_f(:,4) = (U(:,1) * v(1) + U(:,5) * v(5)) / (v(1) + v(5))  ! left
-
-    !   ! Smoothness indicators
-    !   R_left_right = get_smoothness(U(:,1),U(:,5), U(:,3))
-    !   R_up_down = get_smoothness(U(:,1),U(:,5), U(:,3))
-
-    ! end associate
+    associate(v=>volumes, U=>prim_vars, U_f=>face_prim_vars)
+      ! Volume weighted average on the face
+      U_f(:, 1) = (U(:, 1) * v(1) + U(:, 2) * v(2)) / (v(1) + v(2))  ! bottom
+      U_f(:, 2) = (U(:, 1) * v(1) + U(:, 3) * v(3)) / (v(1) + v(3))  ! right
+      U_f(:, 3) = (U(:, 1) * v(1) + U(:, 4) * v(4)) / (v(1) + v(4))  ! top
+      U_f(:, 4) = (U(:, 1) * v(1) + U(:, 5) * v(5)) / (v(1) + v(5))  ! left
+    end associate
 
     do i = 1, n_faces
       ! Volume weighted average on the face
-      face_prim_vars(:, i) = (prim_vars(:, 1) * volumes(1) + prim_vars(:, i + 1) * volumes(i + 1)) / (volumes(1) + volumes(i + 1))
       ! x-component
-      gradient(:, 1) = gradient(:, 1) + face_prim_vars(:, i) * edge_normals(1, i) * edge_lengths(i)
+      gradient(:, 1) = gradient(:, 1) + (face_prim_vars(:, i) * edge_normals(1, i) * edge_lengths(i))
 
       ! y-component
-      gradient(:, 2) = gradient(:, 2) + face_prim_vars(:, i) * edge_normals(2, i) * edge_lengths(i)
+      gradient(:, 2) = gradient(:, 2) + (face_prim_vars(:, i) * edge_normals(2, i) * edge_lengths(i))
     end do
 
     gradient = gradient / volumes(1)

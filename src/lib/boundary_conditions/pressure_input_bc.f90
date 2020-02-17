@@ -144,7 +144,6 @@ contains
         error stop "Unable to interpolate pressure within pressure_input_bc_t%get_desired_pressure()"
       end if
     end if
-
   end function get_desired_pressure
 
   subroutine apply_pressure_input_primitive_var_bc(self, primitive_vars, lbounds)
@@ -207,23 +206,34 @@ contains
       desired_boundary_pressure = self%get_desired_pressure()
       if(desired_boundary_pressure <= 0.0_rk) then
         ! Default to zero-gradient if the input pressure goes <= 0
-        ! write(*, '(a)') "Applying zero-gradient at +x boundary (input pressure is <= 0)"
         self%edge_primitive_vars(1, :) = primitive_vars(1, right, :)
         self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
         self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
         self%edge_primitive_vars(4, :) = primitive_vars(4, right, :)
       else
-        ! write(*, '(a, es10.4)') "Applying pressure at +x boundary of: ", desired_boundary_pressure
         ! Pressure on the right-most column of fluid cells
         edge_pressure = primitive_vars(4, right, :)
 
         ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
-        self%edge_primitive_vars(1, :) = eos%calc_density_from_isentropic_press( &
-                                         p_1=edge_pressure, &
-                                         rho_1=primitive_vars(1, right, :), &
-                                         p_2=desired_boundary_pressure)
+        associate(rho_1=>primitive_vars(1, right, :), &
+                  P_1=>edge_pressure, &
+                  gamma=>eos%get_gamma(), &
+                  P_2=>desired_boundary_pressure)
 
-        self%edge_primitive_vars(4, :) = desired_boundary_pressure
+          if(desired_boundary_pressure < minval(edge_pressure)) then
+            self%edge_primitive_vars(1, :) = primitive_vars(1, right, :)
+            self%edge_primitive_vars(4, :) = edge_pressure
+
+          else
+            self%edge_primitive_vars(1, :) = rho_1 * (P_2 / P_1)**(gamma - 1)
+            self%edge_primitive_vars(4, :) = desired_boundary_pressure
+          end if
+        end associate
+
+        ! self%edge_primitive_vars(1, :) = eos%calc_density_from_isentropic_press( &
+        !                                  p_1=edge_pressure, &
+        !                                  rho_1=primitive_vars(1, right, :), &
+        !                                  p_2=desired_boundary_pressure)
 
         self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
         self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)

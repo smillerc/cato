@@ -60,7 +60,6 @@ contains
     real(rk), intent(in) :: x_velocity
     real(rk), intent(in) :: y_velocity
 
-    ! total_energy = (pressure / (self%gamma - 1.0_rk)) + (density / 2.0_rk) * (x_velocity**2 + y_velocity**2)
     total_energy = (pressure / (density * (self%gamma - 1.0_rk))) + ((x_velocity**2 + y_velocity**2) / 2.0_rk)
   end function calculate_total_energy
 

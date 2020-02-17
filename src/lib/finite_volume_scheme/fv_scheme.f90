@@ -7,7 +7,6 @@ module mod_finite_volume_schemes
   use mod_input, only: input_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
-  use mod_second_order_reconstruction, only: second_order_reconstruction_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_flux_tensor, only: H => flux_tensor_t
   use mod_grid_factory, only: grid_factory
@@ -229,10 +228,10 @@ contains
 
   end subroutine finalize
 
-  subroutine apply_source_terms(self, primitive_vars, lbounds)
+  subroutine apply_source_terms(self, conserved_vars, lbounds)
     class(finite_volume_scheme_t), intent(inout) :: self
     integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: conserved_vars
 
     if(allocated(self%source_term)) then
 
@@ -256,7 +255,7 @@ contains
         end if
       end if
 
-      call self%source_term%apply_source(primitive_vars=primitive_vars, lbounds=lbound(primitive_vars), time=self%time)
+      call self%source_term%apply_source(conserved_vars=conserved_vars, lbounds=lbound(conserved_vars), time=self%time)
     end if
 
   end subroutine apply_source_terms

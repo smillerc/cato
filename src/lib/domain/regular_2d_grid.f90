@@ -5,6 +5,7 @@ module mod_regular_2d_grid
   use mod_input, only: input_t
   use hdf5_interface, only: hdf5_file
   use mod_globals, only: debug_print
+  use mod_floating_point_utils, only: equal
 
   implicit none
 
@@ -431,6 +432,18 @@ contains
 
       end do
     end do
+
+    ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
+    if(equal(minval(self%cell_volume), maxval(self%cell_volume), epsilon=1e-8_rk)) then
+      self%cell_volume = (maxval(self%cell_volume) + minval(self%cell_volume)) / 2.0_rk
+    end if
+
+    ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
+    if(equal(minval(self%cell_edge_lengths), maxval(self%cell_edge_lengths), epsilon=1e-3_rk)) then
+      ! print*, 'assdflkasdjf;saldkfj', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
+      ! error stop
+      self%cell_edge_lengths = (maxval(self%cell_edge_lengths) + minval(self%cell_edge_lengths)) / 2.0_rk
+    end if
 
   end subroutine
 

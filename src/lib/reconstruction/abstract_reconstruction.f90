@@ -5,7 +5,7 @@ module mod_abstract_reconstruction
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
-  ! use slope_limiter, only: limit
+  use mod_globals, only: debug_print
 
   implicit none
 
@@ -41,6 +41,8 @@ module mod_abstract_reconstruction
     procedure, public, non_overridable :: set_grid_pointer
     procedure, public, non_overridable :: set_primitive_vars_pointer
     procedure, public, non_overridable :: nullify_pointer_members
+    procedure, public, non_overridable :: find_extrema
+    procedure, public, non_overridable :: interpolate
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct_point), public, deferred :: reconstruct_point
     procedure(reconstruct_domain), public, deferred :: reconstruct_domain
@@ -59,7 +61,7 @@ module mod_abstract_reconstruction
       class(grid_t), intent(in), target :: grid_target
     end subroutine
 
-    pure function reconstruct_point(self, xy, cell_ij) result(V_bar)
+    function reconstruct_point(self, xy, cell_ij) result(V_bar)
       !< Reconstruct the value of the primitive variables (V) at location (x,y) based on the
       !> cell average and gradient (if higher order)
       import :: abstract_reconstruction_t
@@ -128,4 +130,99 @@ contains
     nullify(self%primitive_vars)
   end subroutine nullify_pointer_members
 
+  subroutine find_extrema(self, i, j, U_max, U_min)
+    !< At each corner and midpoint, find the min/max
+    class(abstract_reconstruction_t), intent(in) :: self
+    real(rk), dimension(4, 4, 2), intent(out) :: U_max !< ((rho, u, v, p), (point 1 - 4), (corner=1/midpoint=2))
+    real(rk), dimension(4, 4, 2), intent(out) :: U_min !< ((rho, u, v, p), (point 1 - 4), (corner=1/midpoint=2))
+    integer(ik), intent(in) :: i, j
+    integer(ik) :: l
+    integer(ik), parameter :: c = 1 !< corner index
+    integer(ik), parameter :: m = 2 !< midpoint index
+
+    call debug_print('Running abstract_reconstruction_t%find_extrema()', __FILE__, __LINE__)
+
+    ! Find the extrema at each node point
+    associate(U=>self%primitive_vars)
+
+      ! C1
+      do l = 1, 4
+        U_max(l, 1, c) = max(U(l, i, j), U(l, i - 1, j), U(l, i - 1, j - 1), U(l, i, j - 1))
+        U_min(l, 1, c) = min(U(l, i, j), U(l, i - 1, j), U(l, i - 1, j - 1), U(l, i, j - 1))
+      end do
+
+      ! C2
+      do l = 1, 4
+        U_max(l, 2, c) = max(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j - 1), U(l, i, j - 1))
+        U_min(l, 2, c) = min(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j - 1), U(l, i, j - 1))
+      end do
+
+      ! C3
+      do l = 1, 4
+        U_max(l, 3, c) = max(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j + 1), U(l, i, j + 1))
+        U_min(l, 3, c) = min(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j + 1), U(l, i, j + 1))
+      end do
+
+      ! C4
+      do l = 1, 4
+        U_max(l, 4, c) = max(U(l, i, j), U(l, i, j + 1), U(l, i - 1, j + 1), U(l, i - 1, j))
+        U_min(l, 4, c) = min(U(l, i, j), U(l, i, j + 1), U(l, i - 1, j + 1), U(l, i - 1, j))
+      end do
+
+      ! M1
+      do l = 1, 4
+        U_max(l, 1, m) = max(U(l, i, j), U(l, i, j - 1))
+        U_min(l, 1, m) = min(U(l, i, j), U(l, i, j - 1))
+      end do
+
+      ! M2
+      do l = 1, 4
+        U_max(l, 2, m) = max(U(l, i, j), U(l, i + 1, j))
+        U_min(l, 2, m) = min(U(l, i, j), U(l, i + 1, j))
+      end do
+
+      ! M3
+      do l = 1, 4
+        U_max(l, 3, m) = max(U(l, i, j), U(l, i, j + 1))
+        U_min(l, 3, m) = min(U(l, i, j), U(l, i, j + 1))
+      end do
+
+      ! M4
+      do l = 1, 4
+        U_max(l, 4, m) = max(U(l, i, j), U(l, i - 1, j))
+        U_min(l, 4, m) = min(U(l, i, j), U(l, i - 1, j))
+      end do
+
+    end associate
+
+  end subroutine find_extrema
+
+  pure function interpolate(self, i, j, x, y, cell_gradient) result(u_tilde)
+    !< Given the cell gradient and location, interpolate the value
+    real(rk), dimension(4) :: u_tilde !< (rho, u, v, p); interpolated primitive variables
+    class(abstract_reconstruction_t), intent(in) :: self
+    integer(ik), intent(in) :: i, j !< cell indices
+    real(rk), intent(in) :: x, y !< position to interpolate at
+    real(rk), dimension(4, 2), intent(in), optional :: cell_gradient
+
+    real(rk), dimension(4, 2) :: grad_u
+    real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
+
+    centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
+
+    ! The gradient can be supplied in the case when we wish to use
+    ! the limited or unlimited version
+    if(present(cell_gradient)) then
+      grad_u = cell_gradient ! the provided (typically limited) gradient
+    else
+      grad_u(:, 1) = self%cell_gradient(:, 1, i, j) ! the unlimited gradient
+      grad_u(:, 2) = self%cell_gradient(:, 2, i, j) ! the unlimited gradient
+    end if
+
+    associate(cell_ave=>self%primitive_vars(:, i, j), &
+              dU_dx=>grad_u(:, 1), dU_dy=>grad_u(:, 2), &
+              x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
+      u_tilde = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
+    end associate
+  end function interpolate
 end module mod_abstract_reconstruction

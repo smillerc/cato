@@ -98,34 +98,20 @@ contains
     out_recon%domain_has_been_reconstructed = .false.
   end subroutine
 
-  pure function reconstruct_point(self, xy, cell_ij) result(V_bar)
+  function reconstruct_point(self, xy, cell_ij) result(V_bar)
     !< Reconstruct the value of the primitive variables (U) at location (x,y)
     !< withing a cell (i,j)
 
     class(second_order_sgg_reconstruction_t), intent(in) :: self
     real(rk), dimension(2), intent(in) :: xy !< where should V_bar be reconstructed at?
-    real(rk), dimension(4) :: V_bar  !< V_bar = reconstructed [rho, u, v, p]
     integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
+    real(rk), dimension(4) :: V_bar  !< V_bar = reconstructed [rho, u, v, p]
     real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
     integer(ik) :: i, j
 
     i = cell_ij(1); j = cell_ij(2)
     centroid_xy = self%grid%get_cell_centroid_xy(i, j)
-
-    if(.not. self%domain_has_been_reconstructed) then
-      error stop "Error in second_order_sgg_reconstruction_t%reconstruct_point(), "// &
-        "domain_has_been_reconstructed is false, but should be true"
-    end if
-
-    associate(dU_dx=>self%cell_gradient(:, 1, i, j), &
-              dU_dy=>self%cell_gradient(:, 2, i, j), &
-              cell_ave=>self%primitive_vars(:, i, j), &
-              x=>xy(1), y=>xy(2), &
-              x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
-
-      V_bar = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
-    end associate
-
+    V_bar = self%interpolate(i=i, j=j, x=xy(1), y=xy(2))
   end function reconstruct_point
 
   subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
@@ -143,15 +129,21 @@ contains
     !< The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints
 
-    real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
-    integer(ik) :: i, j  !< cell i,j index
+    integer(ik) :: i, j, l  !< cell i,j index
     integer(ik) :: m  !< midpoint index
     integer(ik) :: c  !< corner index
+    integer(ik) :: n, p
     integer(ik) :: phi, nhi, ilo, ihi, jlo, jhi
-    real(rk), dimension(4) :: smooth_updown !< (rho, u, v, p); y smoothness indicator
-    real(rk), dimension(4) :: smooth_leftright !< (rho, u, v, p); x smoothness indicator
-    real(rk), dimension(4, 2) :: phi_x !< ((rho, u, v, p), (left/right)); x slope limiter
-    real(rk), dimension(4, 2) :: phi_y !< ((rho, u, v, p), (up/down)); y slope limiter
+    real(rk), dimension(4) :: U_cell_ave_max
+    real(rk), dimension(4) :: U_cell_ave_min
+    real(rk), dimension(4) :: U_recon_max
+    real(rk), dimension(4) :: U_recon_min
+    real(rk), dimension(4, 2) :: grad_u_limited
+    real(rk), dimension(4) :: beta_min
+    real(rk), dimension(4) :: beta_max
+    real(rk), dimension(4) :: phi_lim
+
+    real(rk), dimension(4, 4, 2) :: reconstructed_cell !< reconstructed corner/midpoints for the current cell
 
     ! Bounds do not include ghost cells. Ghost cells get their
     ! reconstructed values and gradients from the boundary conditions
@@ -162,6 +154,7 @@ contains
     jlo = lbound(reconstructed_domain, dim=5) + 1
     jhi = ubound(reconstructed_domain, dim=5) - 1
 
+    ! Find the unlimited gradients sets the self%cell_gradients array
     call self%estimate_gradients()
 
     !  Reconstruction points for each cell (corners and mid-points)
@@ -173,40 +166,56 @@ contains
 
     do j = jlo, jhi
       do i = ilo, ihi
-        centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
 
-        smooth_leftright = get_smoothness(prim_vars(:, 1), prim_vars(:, 5), prim_vars(:, 3))
-        smooth_updown = get_smoothness(prim_vars(:, 1), prim_vars(:, 2), prim_vars(:, 4))
+        do concurrent(l=1:4)
+          U_cell_ave_max(l) = maxval(self%primitive_vars(l, i - 1:i + 1, j - 1:j + 1))
+          U_cell_ave_min(l) = minval(self%primitive_vars(l, i - 1:i + 1, j - 1:j + 1))
+        end do
 
-        phi_x = self%limiter%limit(smooth_leftright)
-        phi_y = self%limiter%limit(smooth_updown)
-
-        v(:, 1, m, i, j) = v_cell + phi_lim * (dv_dx * (x - x_ij) + dv_dy * (y - y_ij))
-        v(:, 2, m, i, j) = v_cell + phi_lim * (dv_dx * (x - x_ij) + dv_dy * (y - y_ij))
-        v(:, 3, m, i, j) = v_cell + phi_lim * (dv_dx * (x - x_ij) + dv_dy * (y - y_ij))
-        v(:, 4, m, i, j) = v_cell + phi_lim * (dv_dx * (x - x_ij) + dv_dy * (y - y_ij))
-
-        v(:, 1, c, i, j) = v_cell + phi_lim * (dv_dx * (x - x_ij) + dv_dy * (y - y_ij))
-        v(:, 2, c, i, j) = v_cell + phi_lim * (dv_dx * (x - x_ij) + dv_dy * (y - y_ij))
-        v(:, 3, c, i, j) = v_cell + phi_lim * (dv_dx * (x - x_ij) + dv_dy * (y - y_ij))
-        v(:, 4, c, i, j) = v_cell + phi_lim * (dv_dx * (x - x_ij) + dv_dy * (y - y_ij))
-
-        do n = 1, nhi ! First do corners, then to midpoints
-          do p = 1, phi ! Loop through each point (N1-N4, and M1-M4)
-            associate(V_bar=>reconstructed_domain, &
-                      cell_ave=>self%primitive_vars(:, i, j), &
-                      x=>self%grid%cell_node_xy(1, p, n, i, j), &
-                      y=>self%grid%cell_node_xy(2, p, n, i, j), &
-                      dU_dx=>self%cell_gradient(:, 1, i, j), &
-                      dU_dy=>self%cell_gradient(:, 2, i, j), &
-                      x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
-
-              ! reconstructed_state(rho:p, point, node/midpoint, i, j)
-              V_bar(:, p, n, i, j) = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
+        ! First, find the unlimited interpolated values for each corner and midpoint
+        do n = 1, 2 ! First do corners, then to midpoints
+          do p = 1, 4 ! Loop through each point (N1-N4, and M1-M4)
+            associate(x=>self%grid%cell_node_xy(1, p, n, i, j), &
+                      y=>self%grid%cell_node_xy(2, p, n, i, j))
+              reconstructed_cell(:, p, n) = self%interpolate(i, j, x, y)
             end associate
-
           end do
         end do
+
+        do concurrent(l=1:4)
+          U_recon_max(l) = maxval(reconstructed_cell(l, :, :))
+          U_recon_min(l) = minval(reconstructed_cell(l, :, :))
+        end do
+
+        associate(U_ave=>self%primitive_vars(:, i, j))
+          beta_min = 0.0_rk
+          beta_max = 0.0_rk
+          do concurrent(l=1:4)
+            if(abs(U_recon_min(l) - U_ave(l)) > 0.0_rk) then
+              beta_min(l) = max(0.0_rk,(U_cell_ave_min(l) - U_ave(l)) / (U_recon_min(l) - U_ave(l)))
+            end if
+            if(abs(U_recon_max(l) - U_ave(l)) > 0.0_rk) then
+              beta_max(l) = max(0.0_rk,(U_cell_ave_max(l) - U_ave(l)) / (U_recon_max(l) - U_ave(l)))
+            end if
+            phi_lim(l) = min(1.0_rk, beta_min(l), beta_max(l))
+
+          end do
+        end associate
+
+        do concurrent(l=1:4)
+          self%cell_gradient(l, :, i, j) = phi_lim(l) * self%cell_gradient(l, :, i, j)
+        end do
+
+        ! Now reinterpolate with the limited gradient
+        do n = 1, 2 ! First do corners, then to midpoints
+          do p = 1, 4 ! Loop through each point (N1-N4, and M1-M4)
+            associate(x=>self%grid%cell_node_xy(1, p, n, i, j), &
+                      y=>self%grid%cell_node_xy(2, p, n, i, j))
+              reconstructed_cell(:, p, n) = self%interpolate(i, j, x, y)
+            end associate
+          end do
+        end do
+        reconstructed_domain(:, :, :, i, j) = reconstructed_cell
       end do
     end do
 
@@ -239,7 +248,6 @@ contains
 
     do j = jlo, jhi
       do i = ilo, ihi
-
         ! current cell and neighbor cell [bottom, right, top, left] information for gradient estimation
         prim_vars(:, 1) = self%primitive_vars(:, i, j)      ! current
         prim_vars(:, 2) = self%primitive_vars(:, i, j - 1)  ! bottom
@@ -264,29 +272,7 @@ contains
         edge_normals(:, 3) = self%grid%cell_edge_norm_vectors(:, 3, i, j + 1)  ! top
         edge_normals(:, 4) = self%grid%cell_edge_norm_vectors(:, 4, i - 1, j)  ! left
 
-        ! ! get smoothness in both directions
-        ! smooth_leftright = get_smoothness(prim_vars(:, 1), prim_vars(:, 5), prim_vars(:, 3))
-        ! smooth_updown = get_smoothness(prim_vars(:, 1), prim_vars(:, 2), prim_vars(:, 4))
-
-        ! ! density limiter
-        ! phi_lim(1, :) = [self%limiter%limit(smooth_leftright(1)), self%limiter%limit(smooth_updown(1))]
-
-        ! ! u limiter
-        ! phi_lim(2, :) = [self%limiter%limit(smooth_leftright(2)), self%limiter%limit(smooth_updown(2))]
-
-        ! ! v limiter
-        ! phi_lim(3, :) = [self%limiter%limit(smooth_leftright(3)), self%limiter%limit(smooth_updown(3))]
-
-        ! ! pressure limiter
-        ! phi_lim(4, :) = [self%limiter%limit(smooth_leftright(4)), self%limiter%limit(smooth_updown(4))]
-
-        ! gradient = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
         self%cell_gradient(:, :, i, j) = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
-        ! write(*,'(2(i0, 1x), a, 2(es10.3, 1x))') i, j, 'gradient: ', gradient(1,:)
-        ! write(*,'(2(i0, 1x), a, 4(es10.3, 1x))') i, j, 'R, l, c, r: ', smooth_leftright(1), prim_vars(1, 5), prim_vars(1, 1), prim_vars(1, 3)
-        ! write(*,'(2(i0, 1x), a, 4(es10.3, 1x))') i, j, 'R, u, c, d: ', smooth_updown(1), prim_vars(1, 2), prim_vars(1, 1), prim_vars(1, 4)
-        ! write(*,'(2(i0, 1x), a, 2(es10.3, 1x))') i, j, 'limiter : ', phi_lim(1,:)
-        ! print*
       end do
     end do
   end subroutine estimate_gradients

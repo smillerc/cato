@@ -43,6 +43,8 @@ contains
     limiter%name = trim(name)
 
     select case(trim(name))
+    case('none')
+      limiter%limit => none
     case('barth_jesperson')
       limiter%limit => barth_jespersen
     case('minmod')
@@ -61,6 +63,12 @@ contains
     if(associated(self%limit)) nullify(self%limit)
     if(allocated(self%name)) deallocate(self%name)
   end subroutine finalize
+
+  real(rk) function none(R) result(phi_lim)
+    !< Unlimited slope
+    real(rk), intent(in) :: R !< R  = (u_{i+1} - u_i) / (u_i - u_{i-1})
+    phi_lim = 1.0_rk
+  end function none
 
   real(rk) function barth_jespersen(R) result(phi_lim)
     !< Barth Jesperson slope limiter. See Eq. 8 in [1]

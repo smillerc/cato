@@ -280,9 +280,8 @@ contains
 
     allocate(local_d_dt, source=self)
     allocate(primitive_vars, mold=self%conserved_vars)
-    call local_d_dt%get_primitive_vars(primitive_vars)
 
-    call fv%apply_source_terms(primitive_vars, lbound(primitive_vars))
+    call local_d_dt%get_primitive_vars(primitive_vars)
 
     ! First put primitive vars in ghost layers
     call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
@@ -635,6 +634,8 @@ contains
     class(fluid_t), intent(in) :: self
     integer(ik) :: i, j, ilo, jlo, ihi, jhi
     logical :: invalid_numbers
+
+    invalid_numbers = .false.
 
     ilo = lbound(self%conserved_vars, dim=2)
     ihi = ubound(self%conserved_vars, dim=2)

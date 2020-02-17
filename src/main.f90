@@ -75,6 +75,8 @@ program cato
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
     write(*, '(2(a, 1x, es10.3))') 'Time =', time, ', delta t = ', delta_t
 
+    call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
+                               lbounds=lbound(U%conserved_vars))
     ! Integrate in time
     call U%integrate(fv, delta_t)
 

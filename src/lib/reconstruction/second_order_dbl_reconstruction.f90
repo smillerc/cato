@@ -13,7 +13,6 @@ module mod_second_order_dbl_reconstruction
   use mod_input, only: input_t
   use mod_eos, only: eos
   use mod_floating_point_utils, only: equal
-  use mod_gradients, only: green_gauss_gradient, get_smoothness
 
   implicit none
 
@@ -27,7 +26,6 @@ module mod_second_order_dbl_reconstruction
     procedure, public :: initialize
     procedure, public :: reconstruct_domain
     procedure, public :: reconstruct_point
-    procedure, private :: find_extrema
     procedure, private, nopass :: limit
     procedure, public :: copy
     final :: finalize
@@ -104,7 +102,7 @@ contains
     out_recon%domain_has_been_reconstructed = .false.
   end subroutine
 
-  pure function reconstruct_point(self, xy, cell_ij) result(V_bar)
+  function reconstruct_point(self, xy, cell_ij) result(V_bar)
     !< Reconstruct the value of the primitive variables (U) at location (x,y)
     !< withing a cell (i,j)
 
@@ -115,6 +113,16 @@ contains
     real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
     integer(ik) :: i, j
 
+    real(rk), dimension(4) :: U_max
+    real(rk), dimension(4) :: U_min
+    real(rk), dimension(4) :: U_tilde
+    real(rk), dimension(4) :: f_x
+    real(rk), dimension(4) :: f_y
+    real(rk), dimension(4) :: f_xy
+    real(rk) :: h !< cell size parameter
+    real(rk) :: k !< cell size parameter
+    real(rk), dimension(4) :: phi_lim !< slope limiter for (rho, u, v, p)
+
     i = cell_ij(1); j = cell_ij(2)
     centroid_xy = self%grid%get_cell_centroid_xy(i, j)
 
@@ -123,15 +131,31 @@ contains
         "domain_has_been_reconstructed is false, but should be true"
     end if
 
-    associate(dU_dx=>self%cell_gradient(:, 1, i, j), &
-              dU_dy=>self%cell_gradient(:, 2, i, j), &
-              cell_ave=>self%primitive_vars(:, i, j), &
-              x=>xy(1), y=>xy(2), &
-              x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
+    if(i > 0 .and. j > 0 .and. i < ubound(self%primitive_vars, dim=2) .and. j < ubound(self%primitive_vars, dim=3)) then
+      centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
 
-      V_bar = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
-    end associate
+      ! Note: this only works for uniform grids!!!
+      associate(U=>self%primitive_vars, grid=>self%grid, v=>self%grid%cell_volume)
+        h = (grid%min_dx + grid%max_dx) / 2.0_rk
+        k = (grid%min_dy + grid%max_dy) / 2.0_rk
+        ! Cell centered version
+        f_x = (U(:, i + 1, j) - U(:, i - 1, j)) / (2.0_rk * h)
+        f_y = (U(:, i, j + 1) - U(:, i, j - 1)) / (2.0_rk * k)
+        f_xy = (U(:, i + 1, j + 1) - U(:, i + 1, j - 1) - U(:, i - 1, j + 1) + U(:, i - 1, j - 1)) / (4.0_rk * h * k)
+      end associate
 
+      ! call self%find_extrema(i, j, U_max, U_min)
+      associate(x=>xy(1), y=>xy(2), &
+                U=>self%primitive_vars, x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
+
+        U_tilde = (x - x_ij) * f_x + (y - y_ij) * f_y + (x - x_ij) * (y - y_ij) * f_xy
+        ! phi_lim = self%limit(u_ij=U(:, i, j), u_tilde=U(:, i, j) + U_tilde, u_max=U_max(:), u_min=U_min(:))
+        V_bar = U(:, i, j) + U_tilde
+
+      end associate
+    else
+      V_bar = self%primitive_vars(:, i, j)
+    end if
   end function reconstruct_point
 
   subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
@@ -157,16 +181,17 @@ contains
     real(rk), dimension(4, 4, 2) :: U_max
     real(rk), dimension(4, 4, 2) :: U_min
     real(rk), dimension(4) :: U_tilde
-    real(rk), dimension(4) :: delta_x
-    real(rk), dimension(4) :: delta_y
-    real(rk), dimension(4) :: mu_x
-    real(rk), dimension(4) :: mu_y
-    real(rk), dimension(4, 4) :: face_prim_vars
+    real(rk), dimension(4) :: f_x, f_x_top, f_x_bottom
+    real(rk), dimension(4) :: f_y, f_y_left, f_y_right
+    real(rk), dimension(4) :: f_xy
+    real(rk), dimension(4) :: top_right, top_left, bottom_right, bottom_left
 
     real(rk), dimension(2, 4, 2) :: node_pos
-    real(rk), dimension(2, 4, 2) :: h !< cell size parameter
+    real(rk) :: h !< cell size parameter
+    real(rk) :: k !< cell size parameter
     real(rk), dimension(4) :: phi_lim !< slope limiter for (rho, u, v, p)
 
+    call debug_print('Running second_order_dbl_reconstruction_t%reconstruct_domain()', __FILE__, __LINE__)
     ! Bounds do not include ghost cells. Ghost cells get their
     ! reconstructed values and gradients from the boundary conditions
     ilo = lbound(reconstructed_domain, dim=4) + 1
@@ -186,78 +211,61 @@ contains
       do i = ilo, ihi
         centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
 
-        ! Volume average to get the interface values
-        associate(v=>self%grid%cell_volume, U=>self%primitive_vars, U_f=>face_prim_vars)
-          U_f(:, 1) = (U(:, i, j) * v(i, j) + U(:, i, j - 1) * v(i, j - 1)) / &
-                      (v(i, j) + v(i, j - 1))  ! down
+        ! Note: this only works for uniform grids!!!
+        associate(U=>self%primitive_vars, grid=>self%grid, v=>self%grid%cell_volume)
 
-          U_f(:, 2) = (U(:, i, j) * v(i, j) + U(:, i + 1, j) * v(i + 1, j)) / &
-                      (v(i, j) + v(i + 1, j))  ! right
+          ! top_right = (U(:, i, j) * v(i, j) + U(:, i, j+1) * v(i, j+1) + U(:, i+1, j+1) * v(i+1, j+1) + U(:, i+1, j) * v(i+1, j)) / &
+          !             (v(i, j) + v(i, j+1) + v(i+1, j+1) + v(i+1, j))
 
-          U_f(:, 3) = (U(:, i, j) * v(i, j) + U(:, i, j + 1) * v(i, j + 1)) / &
-                      (v(i, j) + v(i, j + 1))  ! up
+          ! top_left = (U(:, i, j) * v(i, j) + U(:, i, j+1) * v(i, j+1) + U(:, i-1, j+1) * v(i-1, j+1) + U(:, i-1, j) * v(i-1, j)) / &
+          !            (v(i, j) + v(i, j+1) + v(i-1, j+1) + v(i-1, j))
 
-          U_f(:, 4) = (U(:, i, j) * v(i, j) + U(:, i - 1, j) * v(i - 1, j)) / &
-                      (v(i, j) + v(i - 1, j))  ! left
+          ! bottom_left = (U(:, i, j) * v(i, j) + U(:, i, j-1) * v(i, j-1) + U(:, i-1, j-1) * v(i-1, j-1) + U(:, i-1, j) * v(i-1, j)) / &
+          !               (v(i, j) + v(i, j-1) + v(i-1, j-1) + v(i-1, j))
 
-          mu_x = 0.5_rk * (U_f(:, 2) + U_f(:, 4)) ! Average of face values
-          mu_y = 0.5_rk * (U_f(:, 3) + U_f(:, 1)) ! Average of face values
+          ! bottom_right = (U(:, i, j) * v(i, j) + U(:, i, j-1) * v(i, j-1) + U(:, i+1, j-1) * v(i+1, j-1) + U(:, i+1, j) * v(i+1, j)) / &
+          !                (v(i, j) + v(i, j-1) + v(i+1, j-1) + v(i+1, j))
 
-          delta_x = U_f(:, 2) - U_f(:, 4) ! Difference in face values
-          delta_y = U_f(:, 3) - U_f(:, 1) ! Difference in face values
+          h = (grid%min_dx + grid%max_dx) / 2.0_rk
+          k = (grid%min_dy + grid%max_dy) / 2.0_rk
+          ! Cell centered version
+          f_x = (U(:, i + 1, j) - U(:, i - 1, j)) / (2.0_rk * h)
+          f_y = (U(:, i, j + 1) - U(:, i, j - 1)) / (2.0_rk * k)
+          f_xy = (U(:, i + 1, j + 1) - U(:, i + 1, j - 1) - U(:, i - 1, j + 1) + U(:, i - 1, j - 1)) / (4.0_rk * h * k)
+          ! f_x_top = (top_right - top_left) / (2.0_rk * h)
+          ! f_x_bottom = (bottom_right - bottom_left) / (2.0_rk * h)
+          ! f_x = (f_x_top + f_x_bottom) / 2.0_rk
+
+          ! f_y_left = (top_left - bottom_left) / (2.0_rk * k)
+          ! f_y_right = (top_right - bottom_right) / (2.0_rk * k)
+          ! f_y = (f_y_left + f_y_right) / 2.0_rk
+
+          ! f_xy = (top_right - bottom_right - top_left + bottom_left) / (4.0_rk * h * k)
         end associate
 
         node_pos = self%grid%cell_node_xy(:, :, :, i, j) !< (x,y), (p1,p2,p3,p4), (node/midpoint),
-
-        ! Calculate the edge lengths (needed for non-uniform grid)
-        associate(x_c1=>node_pos(1, 1, 1), y_c1=>node_pos(2, 1, 1), &
-                  x_m1=>node_pos(1, 1, 2), y_m1=>node_pos(2, 1, 2), &
-                  x_c2=>node_pos(1, 2, 1), y_c2=>node_pos(2, 2, 1), &
-                  x_m2=>node_pos(1, 2, 2), y_m2=>node_pos(2, 2, 2), &
-                  x_c3=>node_pos(1, 3, 1), y_c3=>node_pos(2, 3, 1), &
-                  x_m3=>node_pos(1, 3, 2), y_m3=>node_pos(2, 3, 2), &
-                  x_c4=>node_pos(1, 4, 1), y_c4=>node_pos(2, 4, 1), &
-                  x_m4=>node_pos(1, 4, 2), y_m4=>node_pos(2, 4, 2))
-
-          h(1, 1, c) = abs(x_c2 - x_c1) ! C1 x-component
-          h(2, 1, c) = abs(y_c4 - y_c1) ! C1 y-component
-
-          h(1, 1, m) = abs(x_c2 - x_c1) ! M1 x-component
-          h(2, 1, m) = abs(y_m3 - y_m1) ! M1 y-component
-
-          h(1, 2, c) = abs(x_c2 - x_c1) ! C2 x-component
-          h(2, 2, c) = abs(y_c3 - y_c2) ! C2 y-component
-
-          h(1, 2, m) = abs(x_m2 - x_m4) ! M2 x-component
-          h(2, 2, m) = abs(y_c3 - y_c2) ! M2 y-component
-
-          h(1, 3, c) = abs(x_c3 - x_c4) ! C3 x-component
-          h(2, 3, c) = abs(y_c3 - y_c2) ! C3 y-component
-
-          h(1, 3, m) = abs(x_c3 - x_c4) ! M3 x-component
-          h(2, 3, m) = abs(y_m3 - y_m1) ! M3 y-component
-
-          h(1, 4, c) = abs(x_c3 - x_c4) ! C4 x-component
-          h(2, 4, c) = abs(y_c4 - y_c1) ! C4 y-component
-
-          h(1, 4, m) = abs(x_m2 - x_m4) ! M4 x-component
-          h(2, 4, m) = abs(y_c4 - y_c1) ! M4 y-component
-        end associate
 
         call self%find_extrema(i, j, U_max, U_min)
 
         do n = 1, 2 ! corner / midpoint
           do p = 1, 4 ! point
 
-            associate(x=>node_pos(1, p, n), y=>node_pos(2, p, n), h_x=>h(1, p, n), h_y=>h(2, p, n), &
+            associate(x=>node_pos(1, p, n), y=>node_pos(2, p, n), &
                       U=>self%primitive_vars, x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
 
-              U_tilde = ((x - x_ij) / h_x) * mu_x * mu_y * mu_y * delta_x + &
-                        ((y - y_ij) / h_y) * mu_x * mu_x * mu_y * delta_y + &
-                        (((x - x_ij) * (y - y_ij)) / (h_x * h_y)) * mu_x * mu_y * delta_x * delta_y
+              U_tilde = (x - x_ij) * f_x + (y - y_ij) * f_y + (x - x_ij) * (y - y_ij) * f_xy
 
-              phi_lim = self%limit(u_ij=U(:, i, j), u_tilde=U_tilde, u_max=U_max(:, p, n), u_min=U_min(:, p, n))
+              ! write(*, '(a, 4(i3, 1x))') 'i, j, n, p: ', i, j, n, p
+              ! write(*, '(a, f8.3)') 'U center: ', U(1, i, j)
+              ! write(*, '(a, f8.3)') 'U_tilde : ', U_tilde(1)
+              ! write(*, '(a, f8.3)') 'U_max   : ', U_max(1, p, n)
+              ! write(*, '(a, f8.3)') 'U_min   : ', U_min(1, p, n)
+              phi_lim = self%limit(u_ij=U(:, i, j), u_tilde=U(:, i, j) + U_tilde, u_max=U_max(:, p, n), u_min=U_min(:, p, n))
+              ! write(*,'(a, f8.3)') 'phi_lim : ', phi_lim(1)
               reconstructed_domain(:, p, n, i, j) = U(:, i, j) + phi_lim * U_tilde
+              ! write(*,'(a, f8.3)') 'U_recon : ', reconstructed_domain(1, p, n, i, j)
+              ! print*
+              ! if (i == 2 .and. j == 2 .and. n == 1 .and. p == 3) error stop "Stopping!"
             end associate
           end do
         end do
@@ -283,70 +291,5 @@ contains
     end if
 
   end function limit
-
-  subroutine find_extrema(self, i, j, U_max, U_min)
-    !< At each corner and minpoint, find the min/max
-    class(second_order_dbl_reconstruction_t), intent(in) :: self
-    real(rk), dimension(4, 4, 2), intent(out) :: U_max !< ((rho, u, v, p), (point 1 - 4), (corner=1/midpoint=2))
-    real(rk), dimension(4, 4, 2), intent(out) :: U_min !< ((rho, u, v, p), (point 1 - 4), (corner=1/midpoint=2))
-    integer(ik), intent(in) :: i, j
-    integer(ik) :: l
-    integer(ik), parameter :: c = 1 !< corner index
-    integer(ik), parameter :: m = 2 !< midpoint index
-
-    ! Find the extrema at each node point
-    associate(U=>self%primitive_vars)
-
-      ! C1
-      do l = 1, 4
-        U_max(1, l, c) = max(U(l, i, j), U(l, i - 1, j), U(l, i - 1, j - 1), U(l, i, j - 1))
-        U_min(1, l, c) = min(U(l, i, j), U(l, i - 1, j), U(l, i - 1, j - 1), U(l, i, j - 1))
-      end do
-
-      ! C2
-      do l = 1, 4
-        U_max(2, l, c) = max(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j - 1), U(l, i, j - 1))
-        U_min(2, l, c) = min(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j - 1), U(l, i, j - 1))
-      end do
-
-      ! C3
-      do l = 1, 4
-        U_max(3, l, c) = max(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j + 1), U(l, i, j + 1))
-        U_min(3, l, c) = min(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j + 1), U(l, i, j + 1))
-      end do
-
-      ! C4
-      do l = 1, 4
-        U_max(4, l, c) = max(U(l, i, j), U(l, i, j + 1), U(l, i - 1, j + 1), U(l, i - 1, j))
-        U_min(4, l, c) = min(U(l, i, j), U(l, i, j + 1), U(l, i - 1, j + 1), U(l, i - 1, j))
-      end do
-
-      ! M1
-      do l = 1, 4
-        U_max(1, l, m) = max(U(l, i, j), U(l, i, j - 1))
-        U_min(1, l, m) = min(U(l, i, j), U(l, i, j - 1))
-      end do
-
-      ! M2
-      do l = 1, 4
-        U_max(2, l, m) = max(U(l, i, j), U(l, i + 1, j))
-        U_min(2, l, m) = min(U(l, i, j), U(l, i + 1, j))
-      end do
-
-      ! M3
-      do l = 1, 4
-        U_max(3, l, m) = max(U(l, i, j), U(l, i, j + 1))
-        U_min(3, l, m) = min(U(l, i, j), U(l, i, j + 1))
-      end do
-
-      ! M4
-      do l = 1, 4
-        U_max(4, l, m) = max(U(l, i, j), U(l, i - 1, j))
-        U_min(4, l, m) = min(U(l, i, j), U(l, i - 1, j))
-      end do
-
-    end associate
-
-  end subroutine find_extrema
 
 end module mod_second_order_dbl_reconstruction

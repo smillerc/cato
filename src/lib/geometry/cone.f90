@@ -21,7 +21,7 @@ module mod_cone
     real(rk), dimension(2) :: p_xy = 0.0_rk
     !< (x,y); Location of P
 
-    integer(ik), dimension(2) :: p_prime_ij = 0
+    integer(ik), dimension(2, 4) :: p_prime_ij = 0
     !< x,y location of P' or the apex of the Mach cone (global, not relative to P0)
 
     integer(ik) :: n_neighbor_cells = 0
@@ -168,10 +168,10 @@ contains
 
       ! P' can only be in 1 cell
       p_prime_in_cell = determine_if_p_prime_is_in_cell(single_cell_edge_vectors, p_prime_vector)
-      if(.not. any(new_cone%p_prime_in_cell)) then
-        new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
-        if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
-      end if
+      ! if(.not. any(new_cone%p_prime_in_cell)) then
+      new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
+      if(p_prime_in_cell) new_cone%p_prime_ij(:, neighbor_cell) = cell_ij
+      ! end if
 
       call get_arc_segments(lines=single_cell_edge_vectors, origin_in_cell=p_prime_in_cell, &
                             circle_xy=new_cone%p_prime_xy, circle_radius=new_cone%radius, &
@@ -200,6 +200,7 @@ contains
       print *, new_cone
       error stop "Cone arcs do not add up to 2pi"
     end if
+
   end function new_cone
 
   function get_better_ref_state(self) result(reference_state)
@@ -216,9 +217,9 @@ contains
     ave_u = sum(self%arc_primitive_vars(2, :, :)) / sum(self%n_arcs)
     ave_v = sum(self%arc_primitive_vars(3, :, :)) / sum(self%n_arcs)
     ave_p = sum(self%arc_primitive_vars(4, :, :)) / sum(self%n_arcs)
-    ave_cs = eos%sound_speed(pressure=ave_p, density=ave_rho)
+    ! ave_cs = eos%sound_speed(pressure=ave_p, density=ave_rho)
 
-    reference_state = [ave_rho, ave_u, ave_v, ave_cs]
+    reference_state = [ave_rho, ave_u, ave_v, ave_p]
 
     ! do cell = 1, 4
     !   if (self%n_arcs(cell) > 0) then
@@ -256,7 +257,9 @@ contains
     write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) &
       "P'(x,y) - P(x,y): (", self%p_prime_xy - self%p_xy, ")"//new_line('a')
 
-    write(unit, '(a, 2(i7,1x), a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij, ")"//new_line('a')
+    do i = 1, 4
+write(unit, '(a, 2(i7,1x), a, i0, a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij(:, i), ") Cell: ", i, new_line('a')
+    end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a, 4(es10.3))', iostat=iostat, iomsg=iomsg) 'Ave values: ', self%ave_rho, self%ave_u, self%ave_v, self%ave_cs

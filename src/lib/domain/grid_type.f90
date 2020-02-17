@@ -70,8 +70,8 @@ module mod_grid
     ! M: midpoint of the edge (o)
     ! C: cell or control volume (in finite-volume lingo)
 
-    real(rk), dimension(:, :), allocatable :: node_x !< (i, j, N1:N4); x location of each node
-    real(rk), dimension(:, :), allocatable :: node_y !< (i, j, N1:N4); y location of each node
+    real(rk), dimension(:, :), allocatable :: node_x !< (i, j); x location of each node
+    real(rk), dimension(:, :), allocatable :: node_y !< (i, j); y location of each node
 
     real(rk), dimension(:, :, :), allocatable :: cell_centroid_xy
     !< ((x,y), i, j); (x,y) location of the cell centroid
