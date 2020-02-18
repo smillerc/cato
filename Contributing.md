@@ -19,6 +19,21 @@ associate(rho => self%density, &
 end associate
 ```
 
+## Documentation
+
+Module documentation
+```fortran
+  !< Authors: Sam Miller
+  !< Summary: Define the cell gradient calculation procedures using
+  !<          the standard Green-Gauss theorem. Although this procedure can be found  
+  !<          many places, I based this version off of the method shown in [1].
+  !< Notes:
+  !<
+  !< References:
+  !< [1] M. Deka, et al., "A new Green–Gauss reconstruction on unstructured meshes. Part I: Gradient reconstruction",
+  !<     Journal of Computational Physics (2018), https://doi.org/10.1016/j.jcp.2018.10.023.
+```
+
 
 #### Naming Conventions
 Use `snake_case` naming exclusively. Fortran is a case insensitive language, so the compiler does not differentiate between `camelCase` or `PascalCase` variables.
