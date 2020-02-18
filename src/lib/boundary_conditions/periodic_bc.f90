@@ -224,6 +224,14 @@ contains
     bottom = bottom_ghost + 1
     top = top_ghost - 1
 
+    if(size(cell_gradient, dim=1) /= 4) then
+      error stop "Error in periodic_bc_t%apply_periodic_cell_gradient_bc(), dimension 1 /= 4 (rho,u,v,p)"
+    end if
+
+    if(size(cell_gradient, dim=2) /= 2) then
+      error stop "Error in periodic_bc_t%apply_periodic_cell_gradient_bc(), dimension 2 /= 2 (d/dx, d/dy)"
+    end if
+
     select case(self%location)
     case('+x')
       call debug_print('Running periodic_bc_t%apply_periodic_cell_gradient_bc() +x', __FILE__, __LINE__)

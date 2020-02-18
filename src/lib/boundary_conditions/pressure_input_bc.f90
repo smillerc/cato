@@ -320,12 +320,8 @@ contains
     integer(ik), dimension(4), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
                         lbounds(4):), intent(inout) :: cell_gradient
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
+    !< ((rho, u ,v, p), (d/dx, d/dy), i, j); Gradient of each cell's primitive variables
 
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
     integer(ik) :: left_ghost   !< Min i ghost cell index
     integer(ik) :: right_ghost  !< Max i ghost cell index
     integer(ik) :: bottom_ghost !< Min j ghost cell index
@@ -335,26 +331,20 @@ contains
     right_ghost = ubound(cell_gradient, dim=3)
     bottom_ghost = lbound(cell_gradient, dim=4)
     top_ghost = ubound(cell_gradient, dim=4)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
 
     select case(self%location)
     case('+x')
+      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() +x', __FILE__, __LINE__)
       cell_gradient(:, :, right_ghost, :) = 0.0_rk
-      ! case('-x')
-      !   cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
-      !   cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
-      !   cell_gradient(:, :, left_ghost, bottom:top) = cell_gradient(:, :, right, bottom:top)
-      ! case('+y')
-      !   cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
-      !   cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
-      !   cell_gradient(:, :, left:right, top_ghost) = cell_gradient(:, :, left:right, bottom)
-      ! case('-y')
-      !   cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
-      !   cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
-      !   cell_gradient(:, :, left:right, bottom_ghost) = cell_gradient(:, :, left:right, top)
+    case('-x')
+      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() -x', __FILE__, __LINE__)
+      cell_gradient(:, :, right_ghost, :) = 0.0_rk
+    case('+y')
+      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() +y', __FILE__, __LINE__)
+      cell_gradient(:, :, :, top_ghost) = 0.0_rk
+    case('-y')
+      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() -y', __FILE__, __LINE__)
+      cell_gradient(:, :, :, bottom_ghost) = 0.0_rk
     case default
       error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
     end select

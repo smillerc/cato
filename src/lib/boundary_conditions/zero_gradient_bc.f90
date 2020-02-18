@@ -130,7 +130,7 @@ contains
     integer(ik), dimension(4), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
                         lbounds(4):), intent(inout) :: cell_gradient
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
+    !< ((rho, u ,v, p), (d/dx, d/dy), i, j); Gradient of each cell's primitive variables
 
     integer(ik) :: left         !< Min i real cell index
     integer(ik) :: right        !< Max i real cell index
@@ -152,16 +152,12 @@ contains
 
     select case(self%location)
     case('+x')
-      call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc() +x', __FILE__, __LINE__)
       cell_gradient(:, :, right_ghost, :) = 0.0_rk
     case('-x')
-      call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc() -x', __FILE__, __LINE__)
       cell_gradient(:, :, left_ghost, :) = 0.0_rk
     case('+y')
-      call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc() +y', __FILE__, __LINE__)
       cell_gradient(:, :, :, top_ghost) = 0.0_rk
     case('-y')
-      call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc() -y', __FILE__, __LINE__)
       cell_gradient(:, :, :, bottom_ghost) = 0.0_rk
     case default
       error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc()"
