@@ -94,10 +94,6 @@ program cato
   end do
 
   call timer%stop()
-
-  ! Write the final step
-  call contour_writer%write_contour(U, fv, time, iteration)
-
   deallocate(fv)
   deallocate(U)
 
