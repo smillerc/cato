@@ -58,3 +58,4 @@ tests/**/*.error
 *.avi
 scripts/sandbox.ipynb
 tests/integrated/double_shear_2/memcheck.sh
+misc/~$grid_layout.pptx
