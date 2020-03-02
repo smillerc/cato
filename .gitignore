@@ -59,3 +59,5 @@ tests/**/*.error
 scripts/sandbox.ipynb
 tests/integrated/double_shear_2/memcheck.sh
 misc/~$grid_layout.pptx
+scripts/mach_cone_testing.ipynb
+scripts/reconstruction_testing.ipynb
