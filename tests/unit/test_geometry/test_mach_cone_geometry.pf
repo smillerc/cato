@@ -65,7 +65,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=midpoint_edge_vectors, &
                          reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
     ! print*, mach_cone
 
@@ -124,9 +125,10 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=midpoint_edge_vectors, &
                          reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
-    print *, mach_cone
+    ! print *, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.0_rk, -0.01_rk], mach_cone%p_prime_xy)
@@ -185,7 +187,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=midpoint_edge_vectors, &
                          reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
     ! print*, mach_cone
 
@@ -249,9 +252,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=midpoint_edge_vectors, &
                          reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices)
-
-    ! print*, mach_cone
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.04_rk, 0.0_rk], mach_cone%p_prime_xy)
@@ -309,7 +311,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=midpoint_edge_vectors, &
                          reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
     ! print*, mach_cone
 
@@ -383,14 +386,15 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=corner_edge_vectors, &
                          reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
-    print *, mach_cone
+    ! print *, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([1, 1, 1, 1], mach_cone%n_arcs)
     @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy)
-    @assertEqual(.true., mach_cone%p_prime_in_cell)
+    @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
     ! @assertEqual([1, 1], mach_cone%p_prime_ij)
 
     theta = 0.0_rk
@@ -461,7 +465,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=corner_edge_vectors, &
                          reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
     ! print*, mach_cone
 
     ! P' should be in the cell below the midpoint
@@ -547,7 +552,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=corner_edge_vectors, &
                          reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
     ! print*, mach_cone
 
@@ -633,7 +639,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=corner_edge_vectors, &
                          reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
     ! print*, mach_cone
 
@@ -719,7 +726,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=corner_edge_vectors, &
                          reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
     ! print*, mach_cone
 
@@ -805,7 +813,8 @@ contains
     mach_cone = new_cone(tau=1.0e-2_rk, &
                          edge_vectors=corner_edge_vectors, &
                          reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices)
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='')
 
     ! print*, mach_cone
 
@@ -839,4 +848,154 @@ contains
 
   end subroutine test_corner_p_prime_upper_left_2_arcs
 
+  ! Transonic tests
+  @test
+  subroutine test_transonic_du_midpoint()
+    !< Test the Mach cone, when the cell set is transonic
+
+    !  |         C2         |
+    !  |  cell 1 |  cell 2  |
+    !  | (i-1,j) |    (i,j) |
+    !  |         M          |
+    !  |  (.) P' |          |
+    !  |         |          |
+    !  |         C1         |
+
+    type(cone_t) :: mach_cone
+    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
+    real(rk), dimension(4, 2) :: midpoint_state
+    integer(ik), dimension(2, 2) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(2, 4) :: theta
+    real(rk) :: theta_11, theta_12
+    real(rk) :: pressure
+
+    print *, 'Testing transonic cone'
+    i = 1
+    j = 1
+    midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
+                                     [0.0_rk, -1.0_rk], & ! head, vector 1
+                                     [0.0_rk, 0.0_rk], & ! tail, vector 2
+                                     [0.0_rk, 1.0_rk] & ! head, vector 2
+                                     ], shape=[2, 2, 2])
+
+    ! cell ordering is 1) left, 2) right
+    neighbor_cell_indices = reshape([[i - 1, j], &   ! cell left
+                                     [i, j] &   ! cell right
+                                     ], shape=[2, 2])
+
+    ! This odd value is to make the sound speed = 1, since gamma = 5/3
+    pressure = 3.0_rk / 5.0_rk
+
+    ! Left cell state (subsonic cell)
+    midpoint_state(:, 1) = [1.0_rk, 0.9_rk, 0.0_rk, pressure]
+
+    ! Right cell state (supersonic cell)
+    midpoint_state(:, 2) = [1.0_rk, 2.0_rk, 0.0_rk, pressure]
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=midpoint_edge_vectors, &
+                         reconstructed_state=midpoint_state, &
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='down/up midpoint')
+
+    ! print*, mach_cone
+    @assertEqual([-1.45e-2_rk, 0.0_rk], mach_cone%p_prime_xy)
+    @assertEqual(1.55e-2_rk, mach_cone%radius)
+    @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
+
+    ! arc begin angles
+    theta = 0.0_rk
+    theta_11 = 0.36117042838139601_rk
+    theta_12 = -0.36117042838139601_rk
+    theta(1, 1) = theta_11 ! cell 1 (left)
+    theta(1, 2) = theta_12 ! cell 2 (right)
+    @assertEqual(theta, mach_cone%theta_ib, 1e-8_rk)
+
+    ! arc end angles
+    theta = 0.0_rk
+    theta(1, 1) = theta_12 + 2 * pi ! cell 1 (left)
+    theta(1, 2) = theta_11 ! cell 2 (right)
+    @assertEqual(theta, mach_cone%theta_ie, 1e-8_rk)
+  end subroutine
+
+  @test
+  subroutine test_transonic_corner()
+    !< Test at a corner node where P' is in the upper right. The corner is situated
+    !< at the origin with each vector having a length of 3 in the cardinal directions.
+
+    !           C3
+    !   cell 4  |   cell 3
+    ! ij: (1,2) |  ij: (2,2)
+    !   (.) P'  |
+    ! C4-------C0--------C2
+    !           |
+    ! ij: (1,1) |  ij: (2,1)
+    !   cell 1  |   cell 2
+    !          C1
+
+    type(cone_t) :: mach_cone
+    real(rk), dimension(2, 2, 4) :: corner_edge_vectors
+    real(rk), dimension(4, 4) :: corner_state
+    integer(ik), dimension(2, 4) :: neighbor_cell_indices
+    integer(ik) :: i, j
+    real(rk), dimension(2, 4) :: theta
+    real(rk) :: pressure
+
+    i = 2
+    j = 2
+    print *, 'Testing transonic corner'
+
+    ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+    corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
+                                   [0.0_rk, -1.0_rk], &  ! (x,y) head, vector 1
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
+                                   [1.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
+                                   [0.0_rk, 1.0_rk], &  ! (x,y) head, vector 3
+                                   [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
+                                   [-1.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
+                                   ], shape=[2, 2, 4])
+
+    ! cell ordering is 1) top, 2) bottom
+    neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
+                                     [i, j - 1], &  ! lower right
+                                     [i, j], &  ! upper right
+                                     [i - 1, j] &  ! upper left
+                                     ], shape=[2, 4])
+
+    ! This odd value is to make the sound speed = 1, since gamma = 5/3
+    pressure = 3.0_rk / 5.0_rk
+    corner_state(:, 1) = [1.0_rk, 0.7_rk, -0.7_rk, pressure]
+    corner_state(:, 2) = [1.0_rk, -1.1_rk, -1.1_rk, pressure]
+    corner_state(:, 3) = [1.0_rk, -1.1_rk, 1.1_rk, pressure]
+    corner_state(:, 4) = [1.0_rk, 1.1_rk, 1.1_rk, pressure]
+
+    mach_cone = new_cone(tau=1.0e-2_rk, &
+                         edge_vectors=corner_edge_vectors, &
+                         reconstructed_state=corner_state, &
+                         cell_indices=neighbor_cell_indices, &
+                         cone_location='corner')
+
+    print *, mach_cone
+
+    ! P' should be in the cell below the midpoint
+    @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy)
+    @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
+
+    theta = 0.0_rk
+    theta(:, 1) = [pi, 0.0_rk]
+    theta(:, 2) = [-pi / 2.0_rk, 0.0_rk]
+    theta(:, 3) = [0.0_rk, 0.0_rk]
+    theta(:, 4) = [pi / 2.0_rk, 0.0_rk]
+    @assertEqual(theta, mach_cone%theta_ib, 1.0e-8_rk)
+
+    theta = 0.0_rk
+    theta(:, 1) = [1.5_rk * pi, 0.0_rk]
+    theta(:, 2) = [0.0_rk, 0.0_rk]
+    theta(:, 3) = [pi / 2.0_rk, 0.0_rk]
+    theta(:, 4) = [pi, 0.0_rk]
+    @assertEqual(theta, mach_cone%theta_ie, 1.0e-8_rk)
+
+  end subroutine test_transonic_corner
 end module test_mach_cone_geometry

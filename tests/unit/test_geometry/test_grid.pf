@@ -223,6 +223,17 @@ contains
     @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ilo_bc_cell, grid%jlo_bc_cell))
     @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ihi_bc_cell, grid%jhi_bc_cell))
 
+    ! ((x,y), (point_1: point_4), (corner, midpoint), i, j)
+    @assertEqual([-2.0_rk, -2.0_rk], grid%cell_node_xy(:, 1, 1, 1, 1))
+    @assertEqual([-1.0_rk, -2.0_rk], grid%cell_node_xy(:, 2, 1, 1, 1))
+    @assertEqual([-1.0_rk, 0.0_rk], grid%cell_node_xy(:, 3, 1, 1, 1))
+    @assertEqual([-2.0_rk, 0.0_rk], grid%cell_node_xy(:, 4, 1, 1, 1))
+
+    @assertEqual([-1.5_rk, -2.0_rk], grid%cell_node_xy(:, 1, 2, 1, 1))
+    @assertEqual([-1.0_rk, -1.0_rk], grid%cell_node_xy(:, 2, 2, 1, 1))
+    @assertEqual([-1.5_rk, 0.0_rk], grid%cell_node_xy(:, 3, 2, 1, 1))
+    @assertEqual([-2.0_rk, -1.0_rk], grid%cell_node_xy(:, 4, 2, 1, 1))
+
     ! Check bounds and shape
     @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_volume))
     @assertEqual([0, 0], lbound(grid%cell_volume))
