@@ -1,7 +1,7 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
-  use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_is_finite
-  use mod_globals, only: debug_print
+  use, intrinsic :: ieee_arithmetic
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -31,6 +31,7 @@ module mod_fluid
     procedure, private :: initialize_from_hdf5
     procedure, public :: t => time_derivative
     procedure, public :: get_sound_speed
+    procedure, public :: residual_smoother
     procedure, public :: get_max_sound_speed
     procedure, public :: get_primitive_vars
     procedure, public :: sanity_check
@@ -77,18 +78,6 @@ contains
         error stop "Unable to allocate fluid_t%conserved_vars"
       end if
       self%conserved_vars = 0.0_rk
-
-      ! allocate(self%primitive_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
-      ! if(alloc_status /= 0) then
-      !   error stop "Unable to allocate fluid_t%primitive_vars"
-      ! end if
-      ! self%primitive_vars = 0.0_rk
-
-      ! allocate(self%sound_speed(imin:imax, jmin:jmax), stat=alloc_status)
-      ! if(alloc_status /= 0) then
-      !   error stop "Unable to allocate fluid_t%sound_speed"
-      ! end if
-      ! self%sound_speed = 0.0_rk
     end associate
 
     time_integrator => time_integrator_factory(input)
@@ -102,24 +91,9 @@ contains
       call self%initialize_from_ini(input)
     end if
 
-    ! call self%update_primitive_vars()
-    ! call self%calculate_sound_speed()
-    ! self%primitives_updated = .true.
-
     write(*, '(a)') 'Initial fluid stats'
     write(*, '(a)') '======================================'
-    write(*, '(a, f0.3)') 'EOS Gamma:                ', eos%get_gamma()
-    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max Sound Speed:      ', &
-    !   minval(self%sound_speed), maxval(self%sound_speed)
-    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max Density:          ', &
-    !   minval(self%primitive_vars(1, :, :)), maxval(self%primitive_vars(1, :, :))
-    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max X-Velocity:       ', &
-    !   minval(self%primitive_vars(2, :, :)), maxval(self%primitive_vars(2, :, :))
-    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max Y-Velocity:       ', &
-    !   minval(self%primitive_vars(3, :, :)), maxval(self%primitive_vars(3, :, :))
-    ! write(*, '(a, 2(es10.3, 1x))') 'Min/Max Pressure:         ', &
-    !   minval(self%primitive_vars(4, :, :)), maxval(self%primitive_vars(4, :, :))
-    ! write(*, *)
+    write(*, '(a, f0.4)') 'EOS Gamma:                 ', eos%get_gamma()
     write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho:              ', &
       minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
     write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho u:            ', &
@@ -303,21 +277,23 @@ contains
 
     call fv%apply_cell_gradient_bc()
 
-    ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
-    call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_leftright_midpoints(evolved_state=evolved_leftright_midpoints_state, &
-                                                          lbounds=lbound(evolved_leftright_midpoints_state), &
-                                                          error_code=error_code)
-    if(error_code /= 0) then
-      fv%error_code = error_code
-      ! error stop 'Error code!'
-    end if
-
+    ! call print_recon_data('rho', 601, 1, reconstructed_state, primitive_vars)
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
     call fv%evolution_operator%evolve_downup_midpoints(evolved_state=evolved_downup_midpoints_state, &
                                                        lbounds=lbound(evolved_downup_midpoints_state), &
                                                        error_code=error_code)
+
+    if(error_code /= 0) then
+      fv%error_code = error_code
+      ! error stop 'Error code!'
+    end if
+
+    ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
+    call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
+    call fv%evolution_operator%evolve_leftright_midpoints(evolved_state=evolved_leftright_midpoints_state, &
+                                                          lbounds=lbound(evolved_leftright_midpoints_state), &
+                                                          error_code=error_code)
     if(error_code /= 0) then
       fv%error_code = error_code
       ! error stop 'Error code!'
@@ -330,9 +306,14 @@ contains
                                               error_code=error_code)
     if(error_code /= 0) then
       fv%error_code = error_code
-      ! error stop 'Error code!'
     end if
 
+    ! call print_evolved_cell_data('rho', 601, 1, evolved_corner_state, &
+    !                              evolved_downup_midpoints_state, evolved_leftright_midpoints_state, primitive_vars)
+    ! call print_evolved_cell_data('p', 601, 1, evolved_corner_state, &
+    !                              evolved_downup_midpoints_state, evolved_leftright_midpoints_state, primitive_vars)
+
+    ! error stop
     nullify(fv%reconstruction_operator%primitive_vars)
     nullify(fv%evolution_operator%reconstructed_state)
 
@@ -340,7 +321,7 @@ contains
                          evolved_corner_state=evolved_corner_state, &
                          evolved_leftright_midpoints_state=evolved_leftright_midpoints_state, &
                          evolved_downup_midpoints_state=evolved_downup_midpoints_state, &
-                         new_conserved_vars=local_d_dt%conserved_vars)
+                         dU_dt=local_d_dt%conserved_vars)
 
     call move_alloc(local_d_dt, d_dt)
     call d_dt%set_temp(calling_function='fluid_t%time_derivative (d_dt)', line=__LINE__)
@@ -364,13 +345,13 @@ contains
   end function time_derivative
 
   subroutine flux_edges(grid, evolved_corner_state, evolved_leftright_midpoints_state, &
-                        evolved_downup_midpoints_state, new_conserved_vars)
+                        evolved_downup_midpoints_state, dU_dt)
     !< Evaluate the fluxes along the edges. This is equation 13 in the paper
     class(grid_t), intent(in) :: grid
     real(rk), dimension(:, grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_state
     real(rk), dimension(:, grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_leftright_midpoints_state
     real(rk), dimension(:, grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_downup_midpoints_state
-    real(rk), dimension(:, grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: new_conserved_vars
+    real(rk), dimension(:, grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: dU_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
@@ -378,20 +359,20 @@ contains
     real(rk), dimension(4) :: bottom_midpoint, right_midpoint, top_midpoint, left_midpoint
     real(rk), dimension(2, 4) :: n_hat
     real(rk), dimension(4) :: delta_l
-    real(rk), dimension(4) :: edge_flux_1
-    real(rk), dimension(4) :: edge_flux_2
-    real(rk), dimension(4) :: edge_flux_3
-    real(rk), dimension(4) :: edge_flux_4
+    real(rk), dimension(4) :: bottom_flux
+    real(rk), dimension(4) :: right_flux
+    real(rk), dimension(4) :: top_flux
+    real(rk), dimension(4) :: left_flux
 
     ilo = grid%ilo_cell
     ihi = grid%ihi_cell
     jlo = grid%jlo_cell
     jhi = grid%jhi_cell
 
-    edge_flux_1 = 0.0_rk
-    edge_flux_2 = 0.0_rk
-    edge_flux_3 = 0.0_rk
-    edge_flux_4 = 0.0_rk
+    bottom_flux = 0.0_rk
+    right_flux = 0.0_rk
+    top_flux = 0.0_rk
+    left_flux = 0.0_rk
 
     top_left_corner = 0.0_rk
     top_right_corner = 0.0_rk
@@ -404,11 +385,7 @@ contains
 
     call debug_print('Running fluid_t%flux_edges()', __FILE__, __LINE__)
 
-    new_conserved_vars(:, grid%ilo_bc_cell, :) = 0.0_rk
-    new_conserved_vars(:, grid%ihi_bc_cell, :) = 0.0_rk
-    new_conserved_vars(:, :, grid%jlo_bc_cell) = 0.0_rk
-    new_conserved_vars(:, :, grid%jhi_bc_cell) = 0.0_rk
-
+    dU_dt = 0.0_rk
     do j = jlo, jhi
       do i = ilo, ihi
 
@@ -424,33 +401,127 @@ contains
         n_hat = grid%cell_edge_norm_vectors(:, :, i, j)
 
         ! Edge 1 (bottom)
-        edge_flux_1 = ( &
+        bottom_flux = ( &
                       ((H(bottom_left_corner) + &
                         4.0_rk * H(bottom_midpoint) + &
                         H(bottom_right_corner)) .dot.n_hat(:, 1)) * (delta_l(1) / 6.0_rk))
 
         ! Edge 2 (right)
-        edge_flux_2 = ( &
-                      ((H(bottom_right_corner) + &
-                        4.0_rk * H(right_midpoint) + &
-                        H(top_right_corner)) .dot.n_hat(:, 2)) * (delta_l(2) / 6.0_rk))
+        right_flux = ( &
+                     ((H(bottom_right_corner) + &
+                       4.0_rk * H(right_midpoint) + &
+                       H(top_right_corner)) .dot.n_hat(:, 2)) * (delta_l(2) / 6.0_rk))
 
         ! Edge 3 (top)
-        edge_flux_3 = ( &
-                      ((H(top_right_corner) + &
-                        4.0_rk * H(top_midpoint) + &
-                        H(top_left_corner)) .dot.n_hat(:, 3)) * (delta_l(3) / 6.0_rk))
+        top_flux = ( &
+                   ((H(top_right_corner) + &
+                     4.0_rk * H(top_midpoint) + &
+                     H(top_left_corner)) .dot.n_hat(:, 3)) * (delta_l(3) / 6.0_rk))
 
         ! Edge 4 (left)
-        edge_flux_4 = ( &
-                      ((H(top_left_corner) + &
-                        4.0_rk * H(left_midpoint) + &
-                        H(bottom_left_corner)) .dot.n_hat(:, 4)) * (delta_l(4) / 6.0_rk))
+        left_flux = ( &
+                    ((H(top_left_corner) + &
+                      4.0_rk * H(left_midpoint) + &
+                      H(bottom_left_corner)) .dot.n_hat(:, 4)) * (delta_l(4) / 6.0_rk))
 
-        new_conserved_vars(:, i, j) = (-1.0_rk / grid%cell_volume(i, j)) * (edge_flux_1 + edge_flux_2 + edge_flux_3 + edge_flux_4)
+        dU_dt(:, i, j) = (-1.0_rk / grid%cell_volume(i, j)) * (bottom_flux + right_flux + top_flux + left_flux)
       end do ! i
     end do ! j
   end subroutine flux_edges
+
+  subroutine residual_smoother(self)
+    class(fluid_t), intent(inout) :: self
+
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j
+    real(rk) :: eps
+    real(rk), dimension(:, :, :), allocatable :: primitive_vars
+
+    logical :: underflow_mode
+
+    call ieee_get_underflow_mode(underflow_mode)
+    call ieee_set_underflow_mode(.false.)
+
+    allocate(primitive_vars, mold=self%conserved_vars)
+    primitive_vars = 1.0_rk
+    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
+    call self%get_primitive_vars(primitive_vars)
+
+    ilo = lbound(self%conserved_vars, dim=2) + 1
+    ihi = ubound(self%conserved_vars, dim=2) - 1
+    jlo = lbound(self%conserved_vars, dim=3) + 1
+    jhi = ubound(self%conserved_vars, dim=3) - 1
+
+    do j = jlo, jhi
+      do i = ilo, ihi
+        associate(rho=>primitive_vars(1, :, :), &
+                  u=>primitive_vars(2, :, :), &
+                  v=>primitive_vars(3, :, :), &
+                  p=>primitive_vars(4, :, :))
+
+          eps = (2.0e-5_rk / rho(i, j))  ! smoother
+          if(i > ilo .and. i < ihi .and. j > jlo .and. j < jhi) then ! center
+            rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+
+          else if(i == ilo .and. j > jlo .and. j < jhi) then ! left (w/o corners)
+            rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+
+          else if(i == ihi .and. j > jlo .and. j < jhi) then ! right (w/o corners)
+            rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+
+          else if(i > ilo .and. i < ihi .and. j == jlo) then ! bottom (w/o corners)
+            rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+
+          else if(i > ilo .and. i < ihi .and. j == jhi) then ! top (w/o corners)
+            rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+
+          else if(i == ilo .and. j == jlo) then ! bottom left corner
+            rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+
+          else if(i == ilo .and. j == jhi) then ! top left corner
+            rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+          else if(i == ihi .and. j == jlo) then ! bottom right corner
+            rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+          else if(i == ihi .and. j == jhi) then ! top right corner
+            rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+            u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+            v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+            p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+          end if
+
+        end associate
+      end do
+    end do
+
+    call eos%primitive_to_conserved(primitive_vars, self%conserved_vars)
+    deallocate(primitive_vars)
+    call ieee_set_underflow_mode(underflow_mode)
+
+  end subroutine
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
@@ -588,6 +659,7 @@ contains
 
     call self%get_sound_speed(sound_speed)
     max_cs = maxval(sound_speed)
+    ! write(*,'(a, es10.3)') 'Max sound speed: ', max_cs
   end function get_max_sound_speed
 
   subroutine get_primitive_vars(self, primitive_vars)
