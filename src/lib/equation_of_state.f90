@@ -1,7 +1,7 @@
-#undef pure
 module mod_eos
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: ieee_arithmetic
   use mod_input, only: input_t
   implicit none
 
@@ -19,6 +19,7 @@ module mod_eos
     procedure, public :: sound_speed_from_primitive
     procedure, public :: sound_speed_from_conserved
     procedure, public :: conserved_to_primitive
+    procedure, public :: primitive_to_conserved
     procedure, public :: total_energy_to_pressure
     procedure, public :: calc_density_from_isentropic_press
   end type eos_t
@@ -139,6 +140,11 @@ contains
     real(rk), dimension(:, :, :), intent(in) :: conserved_vars
     real(rk), dimension(:, :, :), intent(out) :: primitive_vars
 
+    logical :: underflow_mode
+
+    call ieee_get_underflow_mode(underflow_mode)
+    call ieee_set_underflow_mode(.false.)
+
     ! rho
     primitive_vars(1, :, :) = conserved_vars(1, :, :)
 
@@ -157,6 +163,40 @@ contains
       primitive_vars(4, :, :) = rho * (gamma - 1.0_rk) * (E - ((u**2 + v**2) / 2.0_rk))
     end associate
 
+    call ieee_set_underflow_mode(underflow_mode)
   end subroutine conserved_to_primitive
+
+  subroutine primitive_to_conserved(self, primitive_vars, conserved_vars)
+    !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
+    !< is in the EOS class due to requirement of converting energy into pressure
+
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :, :), intent(out) :: conserved_vars
+    real(rk), dimension(:, :, :), intent(in) :: primitive_vars
+
+    logical :: underflow_mode
+
+    call ieee_get_underflow_mode(underflow_mode)
+    call ieee_set_underflow_mode(.false.)
+    ! rho
+    conserved_vars(1, :, :) = primitive_vars(1, :, :)
+
+    ! rho u
+    conserved_vars(2, :, :) = primitive_vars(2, :, :) * conserved_vars(1, :, :)
+
+    ! rho v
+    conserved_vars(3, :, :) = primitive_vars(3, :, :) * conserved_vars(1, :, :)
+
+    associate(gamma=>self%gamma, &
+              rho=>primitive_vars(1, :, :), &
+              p=>primitive_vars(4, :, :), &
+              u=>primitive_vars(2, :, :), &
+              v=>primitive_vars(3, :, :))
+      ! rho E
+      conserved_vars(4, :, :) = (p / (self%gamma - 1.0_rk)) + rho * ((u**2 + v**2) / 2.0_rk)
+    end associate
+
+    call ieee_set_underflow_mode(underflow_mode)
+  end subroutine primitive_to_conserved
 
 end module mod_eos
