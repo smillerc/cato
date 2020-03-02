@@ -10,10 +10,10 @@ sys.path.append(os.path.abspath("../../../scripts"))
 from generate_initial_grids import make_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
-domain = make_uniform_grid(n_cells=(300, 300), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
+domain = make_uniform_grid(n_cells=(350, 350), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
 
 # Set the initial conditions
-domain["rho"] = domain["rho"] * 1.0
+domain["rho"] = domain["rho"] * 0.001
 # domain["p"] = domain["p"] * .001
 p0 = 1e-3
 domain["x"] = domain["x"]
@@ -23,11 +23,19 @@ y = domain["yc"]
 
 # Make pressure a centered gaussian with surrounding pressure of 1.0
 # domain["p"] = np.exp(-(x**2 + y**2)) * 1.0e6 + 1e6# 1 atm
-domain["p"] = 10 * np.exp(-((x ** 2) / 0.01 + (y ** 2) / 0.01)) + p0
+domain["p"] = 10 * np.exp(-((x ** 2) / 0.001 + (y ** 2) / 0.001)) + p0
 
 # Zero velocity everywhere
 domain["u"] = domain["u"] * 0.0
 domain["v"] = domain["v"] * 0.0
+
+# for i in range(y.shape[0]):
+#     for j in range(y.shape[1]):
+#         radius = np.sqrt(x[i, j]**2 + y[i, j]**2)
+#         if 0.2 < radius <= .22:
+#             domain["rho"][i, j] = 1.0
+#         # elif radius > .22:
+#         #     domain["rho"][i, j] = .1
 
 bc_dict = {"+x": "periodic", "+y": "periodic", "-x": "periodic", "-y": "periodic"}
 
@@ -47,7 +55,7 @@ vc = ax1.pcolormesh(
     cmap="RdBu",
     antialiased=True,
 )
-fig.colorbar(vc, ax=ax1, label="Pessure")
+fig.colorbar(vc, ax=ax1, label="Pressure")
 ax1.set_xlabel("X")
 ax1.set_ylabel("Y")
 ax1.axis("equal")

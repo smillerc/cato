@@ -9,6 +9,7 @@ export I_MPI_VAR_CHECK_SPELLING=0
 export FOR_COARRAY_NUM_IMAGES=1
 
 rm cato.x
+python generate_ic.py
 rm -rf step*
 cd ../../../build &&\
 make -j &&\

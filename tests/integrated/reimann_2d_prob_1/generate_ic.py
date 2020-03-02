@@ -69,7 +69,7 @@ vc = ax1.pcolormesh(
     cmap="RdBu",
     antialiased=True,
 )
-fig.colorbar(vc, ax=ax1, label="Pessure")
+fig.colorbar(vc, ax=ax1, label="Pressure")
 ax1.set_xlabel("X")
 ax1.set_ylabel("Y")
 ax1.axis("equal")

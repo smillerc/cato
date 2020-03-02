@@ -8,6 +8,7 @@ export I_MPI_REMOVED_VAR_WARNING=0
 export I_MPI_VAR_CHECK_SPELLING=0
 export FOR_COARRAY_NUM_IMAGES=1
 
+python generate_ic.py
 rm cato.x
 rm -rf step*
 cd ../../../build &&\

@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath("../../../scripts"))
 from generate_initial_grids import make_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
-domain = make_uniform_grid(n_cells=(400, 400), xrange=(-1, 1), yrange=(-1, 1))
+domain = make_uniform_grid(n_cells=(200, 200), xrange=(-1, 1), yrange=(-1, 1))
 
 domain["x"] = domain["x"]
 domain["y"] = domain["y"]
@@ -69,7 +69,7 @@ vc = ax1.pcolormesh(
     cmap="RdBu",
     antialiased=True,
 )
-fig.colorbar(vc, ax=ax1, label="Pessure")
+fig.colorbar(vc, ax=ax1, label="Pressure")
 ax1.set_xlabel("X")
 ax1.set_ylabel("Y")
 ax1.axis("equal")
