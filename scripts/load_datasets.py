@@ -31,7 +31,7 @@ def read_stepfile(file):
         data["time"] = h5["/time"][()]
         for var in var_list:
             try:
-                data[var] = h5[f"/{var}"][()].T[:, 1]
+                data[var] = h5[f"/{var}"][()].T
             except Exception:
                 print(f"Unable to read {var}")
     return data
@@ -83,12 +83,12 @@ def read_1d_dataset(folder, units="cgs"):
 
     for t, f in enumerate(step_files):
         single_step_data = read_stepfile(f)
-        data["x"][t, :] = single_step_data["x"]
+        data["x"][t, :] = single_step_data["x"][:, 0]
         data["time"][t] = single_step_data["time"]
-        data["x_velocity"][t, :] = single_step_data["x_velocity"]
-        data["y_velocity"][t, :] = single_step_data["y_velocity"]
-        data["density"][t, :] = single_step_data["density"]
-        data["pressure"][t, :] = single_step_data["pressure"]
+        data["x_velocity"][t, :] = single_step_data["x_velocity"][:, 0]
+        data["y_velocity"][t, :] = single_step_data["y_velocity"][:, 0]
+        data["density"][t, :] = single_step_data["density"][:, 0]
+        data["pressure"][t, :] = single_step_data["pressure"][:, 0]
 
     density = data["density"] * ureg("g/cc")
     pressure = data["pressure"] * ureg("barye")
