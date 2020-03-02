@@ -8,6 +8,7 @@ module mod_reconstruction_factory
   ! use mod_second_order_mgg_reconstruction, only: second_order_mgg_reconstruction_t
   use mod_second_order_sgg_reconstruction, only: second_order_sgg_reconstruction_t
   use mod_second_order_dbl_reconstruction, only: second_order_dbl_reconstruction_t
+  use mod_second_order_sgg_structured_reconstruction, only: second_order_sgg_structured_reconstruction_t
   use mod_grid, only: grid_t
 
   implicit none
@@ -33,6 +34,9 @@ contains
       call operator%initialize(input=input, grid_target=grid_target)
     case('piecewise_linear_sgg')
       allocate(second_order_sgg_reconstruction_t :: operator)
+      call operator%initialize(input=input, grid_target=grid_target)
+    case('piecewise_linear_sgg_structured')
+      allocate(second_order_sgg_structured_reconstruction_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target)
       ! case('piecewise_linear_mgg')
       !   allocate(second_order_mgg_reconstruction_t :: operator)

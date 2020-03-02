@@ -197,7 +197,7 @@ contains
 
   end subroutine find_extrema
 
-  pure function interpolate(self, i, j, x, y, cell_gradient) result(u_tilde)
+  function interpolate(self, i, j, x, y, cell_gradient) result(u_tilde)
     !< Given the cell gradient and location, interpolate the value
     real(rk), dimension(4) :: u_tilde !< (rho, u, v, p); interpolated primitive variables
     class(abstract_reconstruction_t), intent(in) :: self
@@ -224,5 +224,20 @@ contains
               x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
       u_tilde = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
     end associate
+
+    if(u_tilde(1) < 0.0_rk) then
+      write(*, '(a,i0,", ",i0,a,2(es10.3,1x))') "Error in abstract_reconstruction_t%interpolate(), "// &
+        "density < 0 at (i,j) = ", i, j, ' and (x,y) = ', x, y
+      write(*, '(a,4(es10.3, 1x))') "U (rho,u,v,p): ", u_tilde
+      error stop "Error in abstract_reconstruction_t%interpolate(), density < 0"
+    end if
+
+    if(u_tilde(4) < 0.0_rk) then
+      write(*, '(a,i0,", ",i0,a,2(es10.3,1x))') "Error in abstract_reconstruction_t%interpolate(), "// &
+        "pressure < 0 at (i,j) = ", i, j, ' and (x,y) = ', x, y
+      write(*, '(a,4(es10.3, 1x))') "U (rho,u,v,p): ", u_tilde
+      error stop "Error in abstract_reconstruction_t%interpolate(), pressure < 0"
+    end if
+
   end function interpolate
 end module mod_abstract_reconstruction

@@ -89,28 +89,28 @@ contains
     self%hdf5_filename = trim(char_buff)//'.h5'
     self%xdmf_filename = trim(char_buff)//'.xdmf'
 
-    if(self%plot_ghost_cells) then
-      self%ilo_cell = fv_scheme%grid%ilo_bc_cell
-      self%ihi_cell = fv_scheme%grid%ihi_bc_cell
-      self%jlo_cell = fv_scheme%grid%jlo_bc_cell
-      self%jhi_cell = fv_scheme%grid%jhi_bc_cell
+    ! if(self%plot_ghost_cells) then
+    !   self%ilo_cell = fv_scheme%grid%ilo_bc_cell
+    !   self%ihi_cell = fv_scheme%grid%ihi_bc_cell
+    !   self%jlo_cell = fv_scheme%grid%jlo_bc_cell
+    !   self%jhi_cell = fv_scheme%grid%jhi_bc_cell
 
-      self%ilo_node = fv_scheme%grid%ilo_bc_node
-      self%ihi_node = fv_scheme%grid%ihi_bc_node
-      self%jlo_node = fv_scheme%grid%jlo_bc_node
-      self%jhi_node = fv_scheme%grid%jhi_bc_node
+    !   self%ilo_node = fv_scheme%grid%ilo_bc_node
+    !   self%ihi_node = fv_scheme%grid%ihi_bc_node
+    !   self%jlo_node = fv_scheme%grid%jlo_bc_node
+    !   self%jhi_node = fv_scheme%grid%jhi_bc_node
 
-    else
-      self%ilo_cell = fv_scheme%grid%ilo_cell
-      self%ihi_cell = fv_scheme%grid%ihi_cell
-      self%jlo_cell = fv_scheme%grid%jlo_cell
-      self%jhi_cell = fv_scheme%grid%jhi_cell
+    ! else
+    self%ilo_cell = fv_scheme%grid%ilo_cell
+    self%ihi_cell = fv_scheme%grid%ihi_cell
+    self%jlo_cell = fv_scheme%grid%jlo_cell
+    self%jhi_cell = fv_scheme%grid%jhi_cell
 
-      self%ilo_node = fv_scheme%grid%ilo_node
-      self%ihi_node = fv_scheme%grid%ihi_node
-      self%jlo_node = fv_scheme%grid%jlo_node
-      self%jhi_node = fv_scheme%grid%jhi_node
-    end if
+    self%ilo_node = fv_scheme%grid%ilo_node
+    self%ihi_node = fv_scheme%grid%ihi_node
+    self%jlo_node = fv_scheme%grid%jlo_node
+    self%jhi_node = fv_scheme%grid%jhi_node
+    ! end if
 
     write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)

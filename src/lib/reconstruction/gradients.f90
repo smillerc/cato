@@ -1,11 +1,12 @@
 module mod_gradients
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: equal
 
   implicit none
 
   private
-  public :: get_smoothness, green_gauss_gradient, modified_green_gauss_gradient
+  public :: get_smoothness, green_gauss_gradient, green_gauss_gradient_limited, modified_green_gauss_gradient
 contains
 
   elemental function get_smoothness(current, left, right) result(R)
@@ -66,6 +67,75 @@ contains
 
     gradient = gradient / volumes(1)
   end function green_gauss_gradient
+
+  function green_gauss_gradient_limited(prim_vars, volumes, edge_lengths, edge_normals) result(gradient)
+    !< Summary: Estimate the gradient of the cell using the standar Green-Gauss reconstruction. This only
+    !<          works well for orthogonal rectangular cells. Use the modified Green-Gauss for any other grids.
+    !< Note: In the inputs below, the current cell in question is always the first in line
+
+    real(rk), dimension(4, 5), intent(in) :: prim_vars
+    !< ((rho, u, v, p), (current cell, neighbor_cell (1-n))) primitive
+    real(rk), dimension(4), intent(in) :: edge_lengths  !< (n_edges)
+    real(rk), dimension(5), intent(in) :: volumes  !< (n_cells)
+    real(rk), dimension(2, 4), intent(in) :: edge_normals !< ((x,y), edge)
+
+    real(rk), dimension(4, 2) :: gradient ! ((rho, u, v, p), (grad x, grad y))
+    real(rk), dimension(4, 4) :: face_prim_vars !< value of the primitive variables at the edge
+
+    integer(ik), parameter :: n_faces = 4
+    integer(ik) :: i
+    logical :: underflow_mode
+
+    gradient = 0.0_rk
+
+    call ieee_get_underflow_mode(underflow_mode)
+    call ieee_set_underflow_mode(.false.)
+
+    associate(v=>volumes, U=>prim_vars, U_f=>face_prim_vars)
+      U_f(:, 1) = U(:, 1) - 0.5_rk * limit(U(:, 4) - U(:, 1), U(:, 1) - U(:, 2))  ! bottom
+      U_f(:, 3) = U(:, 1) + 0.5_rk * limit(U(:, 4) - U(:, 1), U(:, 1) - U(:, 2))  ! top
+
+      U_f(:, 4) = U(:, 1) - 0.5_rk * limit(U(:, 3) - U(:, 1), U(:, 1) - U(:, 5))  ! left
+      U_f(:, 2) = U(:, 1) + 0.5_rk * limit(U(:, 3) - U(:, 1), U(:, 1) - U(:, 5))  ! right
+    end associate
+
+    do i = 1, n_faces
+      ! Volume weighted average on the face
+      ! x-component
+      gradient(:, 1) = gradient(:, 1) + (face_prim_vars(:, i) * edge_normals(1, i) * edge_lengths(i))
+
+      ! y-component
+      gradient(:, 2) = gradient(:, 2) + (face_prim_vars(:, i) * edge_normals(2, i) * edge_lengths(i))
+    end do
+
+    gradient = gradient / volumes(1)
+
+    call ieee_set_underflow_mode(underflow_mode)
+  end function green_gauss_gradient_limited
+
+  elemental function limit(a, b) result(phi)
+    real(rk), intent(in) :: a, b
+    real(rk) :: phi
+    real(rk) :: denom
+
+    logical :: underflow_mode
+
+    ! call ieee_get_underflow_mode(underflow_mode)
+    ! call ieee_set_underflow_mode(.false.)
+    if(a > 1e-20_rk .and. b > 1e-20_rk) then
+      denom = a**2 + b**2
+    else
+      denom = 0.0_rk
+    end if
+
+    if(denom > 1e-20_rk) then
+      phi = max(a * b, 0.0_rk) * (a + b) / denom
+    else
+      phi = 0.0_rk
+    end if
+
+    ! call ieee_set_underflow_mode(underflow_mode)
+  end function
 
   function modified_green_gauss_gradient(prim_vars, centroids, volumes, &
                                          edge_lengths, edge_midpoints, edge_normals) result(gradient)

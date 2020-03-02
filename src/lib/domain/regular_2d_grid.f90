@@ -617,7 +617,7 @@ contains
     character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
     real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (tail,head), (vector1:vector4))
 
-    integer(ik) :: i, j
+    integer(ik) :: i, j, N
     real(rk), dimension(2) :: tail
 
     i = cell_ij(1)
@@ -643,15 +643,23 @@ contains
     ! For quad cells, N - corner, M - midpoint, E - edge
 
     ! Corner vector set
-    !           C3
-    !           |
-    !  (i-1,j)  |  (i,j)
-    !           |
-    ! C4-------C0--------C2
-    !           |
-    ! (i-1,j-1) |  (i,j-1)
-    !           |
-    !          C1
+    !       cell 4                   cell 3
+    !      (i-1,j)                   (i,j)
+    !  N4----M3----N3    P3   N4----M3----N3
+    !  |            |    |    |            |
+    !  M4    C4    M2    |    M4    C3    M2
+    !  |            |    |    |            |
+    !  N1----M1----N2    |    N1----M1----N2
+    !                    |
+    !  P4----------------O-----------------P2
+    !                    |
+    !  N4----M3----N3    |    N4----M3----N3
+    !  |            |    |    |            |
+    !  M4    C1    M2    |    M4    C2    M2
+    !  |            |    |    |            |
+    !  N1----M1----N2    P1   N1----M1----N2
+    !      cell 1                  cell 2
+    !     (i-1,j-1)               (i,j-1)
 
     ! self%cell_node_xy indexing convention
     !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
@@ -660,34 +668,18 @@ contains
     tail = self%cell_node_xy(:, 1, 1, i, j)
     select case(trim(corner))
     case('lower-left')
-      ! vectors = reshape([tail, &                            ! (x,y) tail, vector 1
-      !                    self%cell_node_xy(:, 1, 1, i, j - 1), &  ! (x,y) head, vector 1
-      !                    tail, &                            ! (x,y) tail, vector 2
-      !                    self%cell_node_xy(:, 2, 1, i, j), &    ! (x,y) head, vector 2
-      !                    tail, &                            ! (x,y) tail, vector 3
-      !                    self%cell_node_xy(:, 4, 1, i, j), &    ! (x,y) head, vector 3
-      !                    tail, &                            ! (x,y) tail, vector 4
-      !                    self%cell_node_xy(:, 1, 1, i - 1, j) &   ! (x,y) head, vector 4
-      !                    ], shape=[2, 2, 4])
+      N = 1
       vectors(:, 1, 1) = tail
-      vectors(:, 2, 1) = self%cell_node_xy(:, 1, 1, i, j - 1)  ! vector 1
-
       vectors(:, 1, 2) = tail
-      vectors(:, 2, 2) = self%cell_node_xy(:, 2, 1, i, j)      ! vector 3
-
       vectors(:, 1, 3) = tail
-      vectors(:, 2, 3) = self%cell_node_xy(:, 4, 1, i, j)      ! vector 3
-
       vectors(:, 1, 4) = tail
-      vectors(:, 2, 4) = self%cell_node_xy(:, 1, 1, i - 1, j)  ! vector 4
-      ! = reshape([
-      !                  , &    ! (x,y) head, vector 2
-      !                  , &    ! (x,y) head, vector 3
-      !                   &   ! (x,y) head, vector 4
-      !                  ], shape=[2, 2, 4])
-      ! case ('lower-right')
-      ! case ('upper-right')
-      ! case ('upper-left')
+
+      vectors(:, 2, 1) = self%cell_node_xy(:, 2, N, i - 1, j - 1)  ! vector 1
+      vectors(:, 2, 4) = self%cell_node_xy(:, 4, N, i - 1, j - 1)  ! vector 4
+
+      vectors(:, 2, 2) = self%cell_node_xy(:, 2, N, i, j)      ! vector 2
+      vectors(:, 2, 3) = self%cell_node_xy(:, 4, N, i, j)      ! vector 3
+
     case default
       error stop "Invalid location for midpoint edge vector request"
     end select

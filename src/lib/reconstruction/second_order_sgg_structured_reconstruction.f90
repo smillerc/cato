@@ -1,4 +1,4 @@
-module mod_second_order_sgg_reconstruction
+module mod_second_order_sgg_structured_reconstruction
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
@@ -8,16 +8,16 @@ module mod_second_order_sgg_reconstruction
   use mod_input, only: input_t
   use mod_eos, only: eos
   use mod_floating_point_utils, only: equal
-  use mod_gradients, only: green_gauss_gradient, get_smoothness
+  use mod_gradients, only: green_gauss_gradient_limited, get_smoothness
 
   implicit none
 
   private
-  public :: second_order_sgg_reconstruction_t
+  public :: second_order_sgg_structured_reconstruction_t
 
-  type, extends(abstract_reconstruction_t) :: second_order_sgg_reconstruction_t
-    !< Implementation of a 2nd order piecewise-linear reconstruction operator. The
-    !< "sgg" just means that it uses the standard Green-Gauss gradient form.
+  type, extends(abstract_reconstruction_t) :: second_order_sgg_structured_reconstruction_t
+    !< Implementation of a 2nd order piecewise-linear reconstruction operator described
+    !< in the original FVLEG paper
   contains
     procedure, public :: initialize
     procedure, public :: reconstruct_domain
@@ -30,15 +30,15 @@ module mod_second_order_sgg_reconstruction
 contains
 
   subroutine initialize(self, input, grid_target)
-    !< Construct the second_order_sgg_reconstruction_t type
+    !< Construct the second_order_sgg_structured_reconstruction_t type
 
-    class(second_order_sgg_reconstruction_t), intent(inout) :: self
+    class(second_order_sgg_structured_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid_target
 
     integer(ik) :: alloc_status
 
-    call debug_print('Initializing second_order_sgg_reconstruction_t', __FILE__, __LINE__)
+    call debug_print('Initializing second_order_sgg_structured_reconstruction_t', __FILE__, __LINE__)
 
     self%order = 2
     self%name = 'piecewise_linear_reconstruction'
@@ -52,7 +52,7 @@ contains
 
       allocate(self%cell_gradient(4, 2, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) then
-        error stop "Unable to allocate second_order_sgg_reconstruction_t%cell_gradient"
+        error stop "Unable to allocate second_order_sgg_structured_reconstruction_t%cell_gradient"
       end if
       self%cell_gradient = 0.0_rk
     end associate
@@ -60,27 +60,27 @@ contains
   end subroutine initialize
 
   subroutine finalize(self)
-    !< Finalize the second_order_sgg_reconstruction_t type
-    type(second_order_sgg_reconstruction_t), intent(inout) :: self
+    !< Finalize the second_order_sgg_structured_reconstruction_t type
+    type(second_order_sgg_structured_reconstruction_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    call debug_print('Running second_order_sgg_reconstruction_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running second_order_sgg_structured_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
     if(associated(self%primitive_vars)) nullify(self%primitive_vars)
     if(allocated(self%cell_gradient)) then
       deallocate(self%cell_gradient, stat=alloc_status)
       if(alloc_status /= 0) then
-        error stop "Unable to deallocate second_order_sgg_reconstruction_t%cell_gradient"
+        error stop "Unable to deallocate second_order_sgg_structured_reconstruction_t%cell_gradient"
       end if
     end if
   end subroutine finalize
 
   subroutine copy(out_recon, in_recon)
     class(abstract_reconstruction_t), intent(in) :: in_recon
-    class(second_order_sgg_reconstruction_t), intent(inout) :: out_recon
+    class(second_order_sgg_structured_reconstruction_t), intent(inout) :: out_recon
 
-    call debug_print('Running second_order_sgg_reconstruction_t%copy()', __FILE__, __LINE__)
+    call debug_print('Running second_order_sgg_structured_reconstruction_t%copy()', __FILE__, __LINE__)
 
     if(associated(out_recon%grid)) nullify(out_recon%grid)
     out_recon%grid => in_recon%grid
@@ -102,16 +102,24 @@ contains
     !< Reconstruct the value of the primitive variables (U) at location (x,y)
     !< withing a cell (i,j)
 
-    class(second_order_sgg_reconstruction_t), intent(in) :: self
+    class(second_order_sgg_structured_reconstruction_t), intent(in) :: self
     real(rk), dimension(2), intent(in) :: xy !< where should V_bar be reconstructed at?
     integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
     real(rk), dimension(4) :: V_bar  !< V_bar = reconstructed [rho, u, v, p]
-    real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
+    ! real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
     integer(ik) :: i, j
 
     i = cell_ij(1); j = cell_ij(2)
     ! centroid_xy = self%grid%get_cell_centroid_xy(i, j)
     V_bar = self%interpolate(i=i, j=j, x=xy(1), y=xy(2))
+    ! if (i == 601 .or. i == 602) then
+    ! print*, 'reconstructing point, ij:', cell_ij
+    ! print*, 'reconstructing point, xy:', xy
+    ! print*, 'grad_u(:,1)', self%cell_gradient(:,1,i,j)
+    ! print*, 'grad_u(:,2)', self%cell_gradient(:,2,i,j)
+    ! print*, 'cell_ave:', self%primitive_vars(:,i,j)
+    ! print*, 'V_bar:', V_bar
+    ! end if
   end function reconstruct_point
 
   subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
@@ -120,7 +128,7 @@ contains
     !< based on the chosen reconstruction order, e.g. using a piecewise-linear function based on the
     !< selected cell and it's neighbors. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
-    class(second_order_sgg_reconstruction_t), intent(inout) :: self
+    class(second_order_sgg_structured_reconstruction_t), intent(inout) :: self
     integer(ik), dimension(5), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
                         lbounds(4):, lbounds(5):), intent(out) :: reconstructed_domain
@@ -147,8 +155,6 @@ contains
 
     ! Bounds do not include ghost cells. Ghost cells get their
     ! reconstructed values and gradients from the boundary conditions
-    phi = ubound(reconstructed_domain, dim=2)
-    nhi = ubound(reconstructed_domain, dim=3)
     ilo = lbound(reconstructed_domain, dim=4) + 1
     ihi = ubound(reconstructed_domain, dim=4) - 1
     jlo = lbound(reconstructed_domain, dim=5) + 1
@@ -156,56 +162,8 @@ contains
 
     ! Find the unlimited gradients sets the self%cell_gradients array
     call self%estimate_gradients()
-
-    !  Reconstruction points for each cell (corners and mid-points)
-    !  C4---M3---C3
-    !  |         |
-    !  M4   x    M2
-    !  |         |
-    !  C1---M1---C2
-
     do j = jlo, jhi
       do i = ilo, ihi
-
-        do concurrent(l=1:4)
-          U_cell_ave_max(l) = maxval(self%primitive_vars(l, i - 1:i + 1, j - 1:j + 1))
-          U_cell_ave_min(l) = minval(self%primitive_vars(l, i - 1:i + 1, j - 1:j + 1))
-        end do
-
-        ! First, find the unlimited interpolated values for each corner and midpoint
-        do n = 1, 2 ! First do corners, then to midpoints
-          do p = 1, 4 ! Loop through each point (N1-N4, and M1-M4)
-            associate(x=>self%grid%cell_node_xy(1, p, n, i, j), &
-                      y=>self%grid%cell_node_xy(2, p, n, i, j))
-              reconstructed_cell(:, p, n) = self%interpolate(i, j, x, y)
-            end associate
-          end do
-        end do
-
-        do concurrent(l=1:4)
-          U_recon_max(l) = maxval(reconstructed_cell(l, :, :))
-          U_recon_min(l) = minval(reconstructed_cell(l, :, :))
-        end do
-
-        associate(U_ave=>self%primitive_vars(:, i, j))
-          beta_min = 0.0_rk
-          beta_max = 0.0_rk
-          do concurrent(l=1:4)
-            if(abs(U_recon_min(l) - U_ave(l)) > 0.0_rk) then
-              beta_min(l) = max(0.0_rk,(U_cell_ave_min(l) - U_ave(l)) / (U_recon_min(l) - U_ave(l)))
-            end if
-            if(abs(U_recon_max(l) - U_ave(l)) > 0.0_rk) then
-              beta_max(l) = max(0.0_rk,(U_cell_ave_max(l) - U_ave(l)) / (U_recon_max(l) - U_ave(l)))
-            end if
-            phi_lim(l) = min(1.0_rk, beta_min(l), beta_max(l))
-
-          end do
-        end associate
-
-        do concurrent(l=1:4)
-          self%cell_gradient(l, :, i, j) = phi_lim(l) * self%cell_gradient(l, :, i, j)
-        end do
-
         ! Now reinterpolate with the limited gradient
         do n = 1, 2 ! First do corners, then to midpoints
           do p = 1, 4 ! Loop through each point (N1-N4, and M1-M4)
@@ -225,7 +183,7 @@ contains
   subroutine estimate_gradients(self)
     !< Estimate the slope-limited gradient of the primitive variables in the cell (i,j). This assumes
     !< a quadrilateral structured grid
-    class(second_order_sgg_reconstruction_t), intent(inout) :: self
+    class(second_order_sgg_structured_reconstruction_t), intent(inout) :: self
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
 
@@ -272,9 +230,9 @@ contains
         edge_normals(:, 3) = self%grid%cell_edge_norm_vectors(:, 3, i, j + 1)  ! top
         edge_normals(:, 4) = self%grid%cell_edge_norm_vectors(:, 4, i - 1, j)  ! left
 
-        self%cell_gradient(:, :, i, j) = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
+        self%cell_gradient(:, :, i, j) = green_gauss_gradient_limited(prim_vars, volumes, edge_lengths, edge_normals)
       end do
     end do
   end subroutine estimate_gradients
 
-end module mod_second_order_sgg_reconstruction
+end module mod_second_order_sgg_structured_reconstruction

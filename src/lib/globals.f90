@@ -1,10 +1,13 @@
 module mod_globals
-  use iso_fortran_env, only: compiler_options, compiler_version, std_out => output_unit
+  use iso_fortran_env, only: compiler_options, compiler_version, std_out => output_unit, &
+                             ik => int32, rk => real64
 
   implicit none
 
   logical, parameter :: enable_debug_print = .false.
   logical, parameter :: enable_file_and_line_stats = .false.
+
+  real(rk), parameter :: TINY_DIST = 5e-16_rk
 
   logical :: globals_set = .false.
   character(:), allocatable :: compiler_flags_str
@@ -67,4 +70,146 @@ contains
     end if
   end subroutine
 
+  subroutine print_evolved_cell_data(primitive_variable, i, j, corners, updown_midoints, leftright_midpoints, primitive_vars)
+
+    integer(ik), intent(in) :: i, j
+    real(rk), intent(in), dimension(:, :, :) :: corners
+    real(rk), intent(in), dimension(:, :, :) :: updown_midoints
+    real(rk), intent(in), dimension(:, :, :) :: leftright_midpoints
+    real(rk), intent(in), dimension(:, 0:, 0:) :: primitive_vars
+    character(len=*) :: primitive_variable
+    integer(ik) :: l
+
+    select case(trim(primitive_variable))
+    case('rho', 'density')
+      l = 1
+    case('u', 'x velocity')
+      l = 2
+    case('l', 'y velocity')
+      l = 3
+    case('p', 'pressure')
+      l = 4
+    case default
+      error stop 'Invalid primitive variable name'
+    end select
+
+    associate(cell_ave=>primitive_vars(l, i, j), &
+              C1=>corners(l, i, j), &
+              C2=>corners(l, i + 1, j), &
+              C3=>corners(l, i + 1, j + 1), &
+              C4=>corners(l, i, j + 1), &
+              M1=>leftright_midpoints(l, i, j), &
+              M2=>updown_midoints(l, i + 1, j), &
+              M3=>leftright_midpoints(l, i, j + 1), &
+              M4=>updown_midoints(l, i, j))
+
+      write(*, '(a)') "*********************************************"
+      write(*, '(a)') "Evolved state for: "//trim(primitive_variable)
+      write(*, '(a)') "*********************************************"
+      write(*, *)
+      write(*, '(16x,es11.3)') M3
+      write(*, '(2(es11.3,a))') C4, " C4--------M3--------C3", C3
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
+      write(*, '(2(es11.3,a))') M4, " M4       (i,j)      M2", M2
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, '(2(es11.3,a))') C1, " C1--------M1--------C2", C2
+      write(*, '(16x,es11.3)') M1
+      write(*, *)
+    end associate
+
+    associate(V=>primitive_vars)
+      write(*, *) "Cell neighbors: ", trim(primitive_variable)
+      write(*, *) "   (i-1,j+1)  |    (i,j+1)   |   (i+1,j+1)"
+      write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j + 1), "   |", V(l, i, j + 1), "  |", V(l, i + 1, j + 1)
+      write(*, *) "              |              |"
+      write(*, *) "--------------------------------------------"
+      write(*, '(a,i0,",",i0,a)') &
+        "   (i-1,j)    |    (", i, j, ")     |   (i+1,j)  "
+      write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j), "   |", V(l, i, j), "  |", V(l, i + 1, j)
+      write(*, *) "              |              |"
+      write(*, *) "--------------------------------------------"
+      write(*, *) "   (i-1,j-1)  |    (i,j-1)   |   (i+1,j-1)"
+      write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j - 1), "   |", V(l, i, j - 1), "  |", V(l, i + 1, j - 1)
+      write(*, *) "              |              |"
+    end associate
+
+  end subroutine print_evolved_cell_data
+
+  subroutine print_recon_data(primitive_variable, i, j, reconstructed_domain, primitive_vars)
+
+    integer(ik), intent(in) :: i, j
+    real(rk), intent(in), dimension(:, :, :, 0:, 0:) :: reconstructed_domain
+    real(rk), intent(in), dimension(:, 0:, 0:), optional :: primitive_vars
+    character(len=*) :: primitive_variable
+    integer(ik) :: l
+    real(rk) :: cell_ave
+
+    select case(trim(primitive_variable))
+    case('rho', 'density')
+      l = 1
+    case('u', 'x velocity')
+      l = 2
+    case('l', 'y velocity')
+      l = 3
+    case('p', 'pressure')
+      l = 4
+    case default
+      error stop 'Invalid primitive variable name'
+    end select
+
+    if(present(primitive_vars)) then
+      cell_ave = primitive_vars(l, i, j)
+    end if
+
+    associate(C1=>reconstructed_domain(l, 1, 1, i, j), &
+              C2=>reconstructed_domain(l, 2, 1, i, j), &
+              C3=>reconstructed_domain(l, 3, 1, i, j), &
+              C4=>reconstructed_domain(l, 4, 1, i, j), &
+              M1=>reconstructed_domain(l, 1, 2, i, j), &
+              M2=>reconstructed_domain(l, 2, 2, i, j), &
+              M3=>reconstructed_domain(l, 3, 2, i, j), &
+              M4=>reconstructed_domain(l, 4, 2, i, j))
+
+      write(*, '(a)') "*********************************************"
+      write(*, '(a)') "Reconstructed state for: "//trim(primitive_variable)
+      write(*, '(a)') "*********************************************"
+      write(*, *)
+      write(*, '(16x,es11.3)') M3
+      write(*, '(2(es11.3,a))') C4, " C4--------M3--------C3", C3
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
+      write(*, '(es11.3,a,i6,",",i6,a,es11.3)') &
+        M4, " M4 (", i, j, ")  M2", M2
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, '(2(es11.3,a))') C1, " C1--------M1--------C2", C2
+      write(*, '(16x,es11.3)') M1
+      write(*, *)
+    end associate
+
+    if(present(primitive_vars)) then
+      associate(V=>primitive_vars)
+        write(*, *) "Cell neighbors: ", trim(primitive_variable)
+        write(*, *) "   (i-1,j+1)  |    (i,j+1)   |   (i+1,j+1)"
+        write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j + 1), "   |", V(l, i, j + 1), "  |", V(l, i + 1, j + 1)
+        write(*, *) "              |              |"
+        write(*, *) "--------------------------------------------"
+        write(*, '(a,i0,",",i0,a)') &
+          "   (i-1,j)     |   (", i, j, ")    |   (i+1,j)  "
+        write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j), "   |", V(l, i, j), "  |", V(l, i + 1, j)
+        write(*, *) "              |              |"
+        write(*, *) "--------------------------------------------"
+        write(*, *) "   (i-1,j-1)  |    (i,j-1)   |   (i+1,j-1)"
+        write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j - 1), "   |", V(l, i, j - 1), "  |", V(l, i + 1, j - 1)
+        write(*, *) "              |              |"
+      end associate
+    end if
+
+  end subroutine print_recon_data
 end module mod_globals

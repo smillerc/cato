@@ -1,7 +1,7 @@
 module mod_local_evo_operator
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, &
                                                                               std_err => error_unit, std_out => output_unit
-  use mod_globals, only: debug_print
+  use mod_globals, only: debug_print, print_recon_data
 
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: near_zero, equal
@@ -87,9 +87,6 @@ contains
 
     integer(ik), dimension(3), intent(in) :: lbounds
     integer(ik), intent(out) :: error_code
-    ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
-    !< ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint on the left/right edges
-
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
     !< ((rho, u, v, p), i, j); Reconstructed U at each midpoint on the left/right edges
 
@@ -141,7 +138,7 @@ contains
 
     do j = jlo, jhi
       do i = ilo, ihi
-
+        ! print*, i, j
         neighbor_cell_indices(:, 1) = [i, j]     ! above
         neighbor_cell_indices(:, 2) = [i, j - 1] ! below
 
@@ -159,12 +156,21 @@ contains
         point_idx = 3
         reconstructed_midpoint_state(:, 2) = self%reconstructed_state(:, point_idx, midpoint_idx, i, j - 1)
 
+        ! if (minval(reconstructed_midpoint_state(4,:)) < 0.0_rk) then
+        !   call print_recon_data('p', i, j, self%reconstructed_state)
+        ! end if
+
         mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
                              reconstructed_state=reconstructed_midpoint_state, &
-                             cell_indices=neighbor_cell_indices)
+                             cell_indices=neighbor_cell_indices, &
+                             cone_location='left/right midpoint')
 
         ! Set the evolved state at the midpoint
-        call self%e0_operator(mach_cone, evolved_primitive_vars, error_code)
+        call self%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_leftright_midpoints', error_code)
+        ! if(i == 601 .and. j == 1) then
+        !   print *, mach_cone
+        !   print *, 'evolved_primitive_vars (601,1): ', evolved_primitive_vars
+        ! end if
         if(error_code /= 0) then
           write(std_out, '(a)') 'The E0 operator returned an error in '// &
             'local_evo_operator_t%evolve_leftright_midpoints(), check cato.error for details'
@@ -187,9 +193,6 @@ contains
 
     integer(ik), dimension(3), intent(in) :: lbounds
     integer(ik), intent(out) :: error_code
-    ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
-    ! < ((rho, u, v, p), i, j); Reference state (tilde) at each midpoint on the left/right edges
-
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
     !< ((rho, u, v, p), i, j); Evolved U at each midpoint on the left/right edges
 
@@ -229,6 +232,7 @@ contains
 
     do j = jlo, jhi
       do i = ilo, ihi
+        ! print*, i,j
 
         ! cell ordering is 1) left, 2) right
         neighbor_cell_indices(:, 1) = [i - 1, j] ! left
@@ -245,10 +249,16 @@ contains
         reconstructed_midpoint_state(:, 2) = self%reconstructed_state(:, point_idx, midpoint_idx, i, j)
         mach_cone = new_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
                              reconstructed_state=reconstructed_midpoint_state, &
-                             cell_indices=neighbor_cell_indices)
+                             cell_indices=neighbor_cell_indices, &
+                             cone_location='down/up midpoint')
 
         ! Set the evolved state at the midpoint
-        call self%e0_operator(mach_cone, evolved_primitive_vars, error_code)
+        call self%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+        ! if(i == 200 .and. j == 1) then
+        !   print *, mach_cone
+        !   print *, 'evolved_primitive_vars down/up (601,1): ', evolved_primitive_vars
+        ! !   ! error stop
+        ! end if
         if(error_code /= 0) then
           write(std_out, '(a)') 'The E0 operator returned an error in '// &
             'local_evo_operator_t%evolve_downup_midpoints(), check cato.error for details'
@@ -270,9 +280,6 @@ contains
 
     integer(ik), dimension(3), intent(in) :: lbounds
     integer(ik), intent(out) :: error_code
-    ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
-    !< ((rho, u, v, p), i, j); Reference state (tilde) at each corner
-
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
     !< ((rho, u, v, p), i, j); Reconstructed U at each corner
 
@@ -336,27 +343,24 @@ contains
         !< ((rho, u ,v, p), point, node/midpoint, i, j);
 
         ! Cell 1: lower left cell -> corner is in the upper right (N3) of its parent cell
-        point_idx = 3
-        reconstructed_corner_state(:, 1) = self%reconstructed_state(:, point_idx, corner_idx, i - 1, j - 1)
+        reconstructed_corner_state(:, 1) = self%reconstructed_state(:, 3, corner_idx, i - 1, j - 1)
 
         ! Cell 2: lower right cell -> corner is in the upper left (N4) of its parent cell
-        point_idx = 4
-        reconstructed_corner_state(:, 2) = self%reconstructed_state(:, point_idx, corner_idx, i, j - 1)
+        reconstructed_corner_state(:, 2) = self%reconstructed_state(:, 4, corner_idx, i, j - 1)
 
         ! Cell 3: upper right cell-> corner is in the lower left (N1) of its parent cell
-        point_idx = 1
-        reconstructed_corner_state(:, 3) = self%reconstructed_state(:, point_idx, corner_idx, i, j)
+        reconstructed_corner_state(:, 3) = self%reconstructed_state(:, 1, corner_idx, i, j)
 
         ! Cell 4: upper left cell -> corner is in the lower right (N2) of its parent cell
-        point_idx = 2
-        reconstructed_corner_state(:, 4) = self%reconstructed_state(:, point_idx, corner_idx, i - 1, j)
+        reconstructed_corner_state(:, 4) = self%reconstructed_state(:, 2, corner_idx, i - 1, j)
 
         mach_cone = new_cone(tau=self%tau, edge_vectors=corner_edge_vectors, &
                              reconstructed_state=reconstructed_corner_state, &
-                             cell_indices=neighbor_cell_indices)
+                             cell_indices=neighbor_cell_indices, &
+                             cone_location='corner')
 
         ! Set the evolved state at the midpoint
-        call self%e0_operator(mach_cone, evolved_primitive_vars, error_code)
+        call self%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
         if(error_code /= 0) then
           write(std_out, '(a)') 'The E0 operator returned an error in '// &
             'local_evo_operator_t%evolve_corners(), check cato.error for details'
@@ -369,50 +373,33 @@ contains
     end do
   end subroutine evolve_corners
 
-  subroutine e0_operator(self, mach_cone, primitive_variables, error_code)
+  subroutine e0_operator(self, mach_cone, primitive_variables, calling_routine, error_code)
     use mod_eos, only: eos
     class(local_evo_operator_t), intent(in) :: self
     class(cone_t), intent(in) :: mach_cone
+    character(len=*), intent(in) :: calling_routine
     integer(ik), intent(out) :: error_code
     real(rk), dimension(4), intent(out) :: primitive_variables
 
     real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
-    real(rk) :: cone_density_term, pressure, density, u, v
+    real(rk) :: pressure, density, u, v
     real(rk) :: eps
     integer(ik) :: i
-    real(rk) :: p_tilde, rho_tilde, a_tilde
-    real(rk), dimension(4) :: ref_state
 
     error_code = 0 ! All ok at first
 
-    primitive_variables = 0.0_rk
-    p_prime_prim_vars = 0.0_rk
-    if(count(mach_cone%p_prime_in_cell) > 1) then
-      do i = 1, 4
-        if(mach_cone%p_prime_in_cell(i)) then
-          p_prime_prim_vars = p_prime_prim_vars + self%reconstruction_operator%reconstruct_point( &
-                              xy=mach_cone%p_prime_xy, &
-                              cell_ij=mach_cone%p_prime_ij(:, i))
-        end if
-      end do
-      p_prime_prim_vars = p_prime_prim_vars / count(mach_cone%p_prime_in_cell)
-    else
-      do i = 1, 4
-        if(mach_cone%p_prime_in_cell(i)) then
-          p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
-                              xy=mach_cone%p_prime_xy, &
-                              cell_ij=mach_cone%p_prime_ij(:, i))
-        end if
-      end do
-    end if
-
-    ref_state = mach_cone%get_better_ref_state()
-    p_tilde = ref_state(4)
-    rho_tilde = ref_state(1)
-    a_tilde = eos%sound_speed(pressure=p_tilde, density=rho_tilde)
+    do i = 1, 4
+      if(mach_cone%p_prime_in_cell(i)) then
+        p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
+                            xy=mach_cone%p_prime_xy, &
+                            cell_ij=mach_cone%p_prime_ij(:, i))
+      end if
+    end do
 
     associate(theta_ie=>mach_cone%theta_ie, &
               theta_ib=>mach_cone%theta_ib, &
+              rho_tilde=>mach_cone%reference_density, &
+              a_tilde=>mach_cone%reference_sound_speed, &
               rho_p_prime=>p_prime_prim_vars(1), &
               pressure_p_prime=>p_prime_prim_vars(4), &
               u_i=>mach_cone%arc_primitive_vars(2, :, :), &
@@ -424,6 +411,17 @@ contains
                      + rho_tilde * a_tilde * v_i * (cos(theta_ie) - cos(theta_ib))) / (2.0_rk * pi)
 
       density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
+      ! if(abs(pressure - pressure_p_prime) > 0.0_rk) then
+      !   ! print*, 'supersonic!'
+      !   print *, "rho(P')", rho_p_prime
+      !   print *, "rho(P)", density
+      !   print *, "p(P)", pressure
+      !   print *, "p(P')", pressure_p_prime
+      !   print *, "p(P) - p(P')", pressure - pressure_p_prime
+      !   print *, "p_i / (rho_tilde * a_tilde)", p_i / (rho_tilde * a_tilde)
+      !   print *
+      !   ! error stop
+      ! end if
 
       u = sum((-p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) &
               + u_i * ( &
@@ -441,9 +439,17 @@ contains
               ) &
               ) / pi
 
+      if(abs(u) < 1.0e-15_rk) u = 0.0_rk
+      if(abs(v) < 1.0e-15_rk) v = 0.0_rk
       primitive_variables = [density, u, v, pressure]
 
       if(density < 0.0_rk .or. pressure < 0.0_rk) then
+
+        print *, "Density or pressure is negative, called by: ", trim(calling_routine)
+        write(*, *) mach_cone
+        write(*, *) 'radius', mach_cone%radius
+        print *, 'Primitive variables ', primitive_variables
+
         write(std_err, '(a)') 'Error in local_evo_operator_t%e0_operator():'
         write(std_err, '(a)') 'This may just be a problem during a stage in '// &
           'time-integration, but just to be explicit, here it is...'
@@ -456,10 +462,8 @@ contains
         write(std_err, '(a, es15.8)') "p(P) - p(P')/a^2:",((pressure - pressure_p_prime) / a_tilde**2)
         write(std_err, '(a, es15.8)') 'X Velocity:      ', u
         write(std_err, '(a, es15.8)') 'Y Velocity:      ', v
-        ! write(std_err, *) 'Reference state [rho, u, v, a]:', ref_state
         write(std_err, '(a, es15.8)') '=========================='
-        write(std_err, *) mach_cone
-        ! error_code = 1
+        error stop "Density or pressure is negative"
       end if
 
     end associate
