@@ -82,19 +82,19 @@ contains
 
     call self%set_time(time)
     input_energy = self%get_desired_source_value()
-    index_ranges = self%get_application_bounds(lbounds=lbound(conserved_vars), &
-                                               ubounds=ubound(conserved_vars))
-    ilo = index_ranges(1)
-    ihi = index_ranges(2)
-    jlo = index_ranges(3)
-    jhi = index_ranges(4)
-
     if(input_energy > 0.0_rk) then
+      index_ranges = self%get_application_bounds(lbounds=lbound(conserved_vars), &
+                                                 ubounds=ubound(conserved_vars))
+      ilo = index_ranges(1)
+      ihi = index_ranges(2)
+      jlo = index_ranges(3)
+      jhi = index_ranges(4)
+
       allocate(new_energy(ilo:ihi, jlo:jhi))
       ! Get the energy from the conserved variable array (convert from rho E to E)
       new_energy = conserved_vars(4, ilo:ihi, jlo:jhi) / conserved_vars(1, ilo:ihi, jlo:jhi)
 
-      ! Add the new amound of desired energy
+      ! Add the new amount of desired energy
       new_energy = new_energy + input_energy
 
       conserved_vars(4, ilo:ihi, jlo:jhi) = new_energy * conserved_vars(1, ilo:ihi, jlo:jhi)
