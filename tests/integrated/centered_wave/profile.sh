@@ -1,16 +1,9 @@
-#!/bin/bash
+source /software/intel/advisor/advixe-vars.sh intel64
 
-export GMON_OUT_PREFIX 'gmon.out'
+opts="--project-dir=./advi --search-dir all:=../src/ -- ./cato.x input.ini"
 
-BUILD_DIR=../../../build
+# Collect the data
+advixe-cl --collect=survey ${opts}
 
-rm cato.x
-rm -rf step*
-cd ${BUILD_DIR} &&\
-make -j &&\
-cd - &&\
-cp ${BUILD_DIR}/bin/cato.x . && ./cato.x input.ini
-
-# Profile
-gprof -A cato.x gmon.out > line_profile_results.txt
-gprof cato.x gmon.out > flat_profile_results.txt
+# Save the results
+advixe-cl --report=survey --project-dir=./advi --format=text --report-output=./out/survey.txt
