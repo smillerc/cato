@@ -10,6 +10,7 @@ module mod_source
   type, abstract :: source_t
     character(len=:), allocatable :: source_type
     real(rk), private :: time = 0.0_rk ! Solution time (for time dependent bc's)
+    real(rk), private :: max_time = 0.0_rk !< Max time in source (e.g. stop after this)
     integer(ik) :: ilo = 0 !< Index to apply source term at
     integer(ik) :: jlo = 0 !< Index to apply source term at
     integer(ik) :: ihi = 0 !< Index to apply source term at
@@ -114,6 +115,8 @@ contains
     end do
     close(input_unit)
 
+    self%max_time = maxval(time)
+
     ! Initialize the linear interpolated data object so we can query the pressure at any time
     call self%temporal_source_input%initialize(time, source_data, interp_status)
     if(interp_status /= 0) error stop "Error initializing pressure_source_t%temporal_source_input"
@@ -132,14 +135,18 @@ contains
     if(self%constant_source) then
       source_value = self%source_input
     else
-      call self%temporal_source_input%evaluate(x=self%get_time(), &
-                                               f=source_value, &
-                                               istat=interp_stat)
-      if(interp_stat /= 0) then
-        write(std_out, '(a)') "Unable to interpolate value within "// &
-          "source_t%get_desired_source_value()"
-        error stop "Unable to interpolate value within "// &
-          "source_t%get_desired_source_value()"
+      if(self%get_time() <= self%max_time) then
+        call self%temporal_source_input%evaluate(x=self%get_time(), &
+                                                 f=source_value, &
+                                                 istat=interp_stat)
+        if(interp_stat /= 0) then
+          write(std_out, '(a)') "Unable to interpolate value within "// &
+            "source_t%get_desired_source_value()"
+          error stop "Unable to interpolate value within "// &
+            "source_t%get_desired_source_value()"
+        end if
+      else
+        source_value = 0.0_rk
       end if
     end if
 
