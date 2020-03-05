@@ -57,8 +57,6 @@ contains
       total_valid_intersections(:, i) = valid_intersections
     end do
 
-    ! print*, 'total_valid_intersections', total_valid_intersections
-    ! print*, 'intersection_angles', rad2deg(intersection_angles)
     ! Find arc starting and ending angles
     call get_theta_start_end(thetas=intersection_angles, origin_in_cell=origin_in_cell, &
                              valid_intersections=total_valid_intersections, &
@@ -66,6 +64,69 @@ contains
                              theta_start_end=arc_segments, n_arcs=n_arcs)
     ! print*, 'theta_start_end', rad2deg(arc_segments)
   end subroutine get_arc_segments
+
+pure subroutine get_arc_segments_new(origin, vec_1_head, vec_2_head, origin_in_cell, circle_xy, circle_radius, arc_segments, n_arcs)
+    !< Given 2 lines and a circle, find their intersections and starting/ending angles for each arc
+
+    ! Input
+    ! real(rk), dimension(2, 2, 2), intent(in) :: lines
+    !< ((x,y), (tail,head), (line_1:line_2)); set of vectors that define the lines to intersect with the circle
+
+    real(rk), dimension(2), intent(in) :: origin     !< (x,y) origin of both vectors
+    real(rk), dimension(2), intent(in) :: vec_1_head !< (x,y) head of the 1st vector
+    real(rk), dimension(2), intent(in) :: vec_2_head !< (x,y) head of the 2nd vector
+
+    logical, intent(in) :: origin_in_cell  !< is the circle origin in the cell defined by the two lines?
+    real(rk), dimension(2), intent(in) :: circle_xy       !< (x,y) origin of the circle
+    real(rk), intent(in) :: circle_radius                 !< radius of the circle
+
+    ! Output
+    real(rk), dimension(2, 2), intent(out):: arc_segments !< ((start,end), (arc1, arc2))
+    integer(ik), intent(out) :: n_arcs !< Number of arcs with a valid start and end angle
+
+    ! Dummy
+    integer(ik) :: n_intersections_per_line !< # intersections for a single line
+    integer(ik), dimension(2) :: n_intersections !< # intersections for all lines
+    real(rk), dimension(2, 2) :: line !< ((x,y), (tail,head)); Single line point locations
+    real(rk), dimension(2) :: intersection_angles_per_line !< intersection angles
+    real(rk), dimension(2, 2) :: intersection_angles !< intersection angles for all lines
+    integer(ik) :: i
+    logical, dimension(2) :: valid_intersections
+    logical, dimension(2, 2) :: total_valid_intersections !< ((intersection 1, intersection 2), (line 1, line 2)); valid intersections for each line
+
+    valid_intersections = .false.
+    total_valid_intersections = .false.
+    n_intersections_per_line = 0
+    n_intersections = 0
+    intersection_angles_per_line = 0.0_rk
+    intersection_angles = 0.0_rk
+
+    line(:, 1) = origin ! both lines share the same origin, so only do this once
+
+    ! Line 1
+    line(:, 2) = vec_1_head
+    ! For a given line & circle intersection, find the angle with respect to the x-axis for each intersection point
+    call get_intersection_angles(line_xy=line, circle_xy=circle_xy, circle_radius=circle_radius, &
+                                 arc_angles=intersection_angles_per_line, valid_intersections=valid_intersections)
+    intersection_angles(1, :) = intersection_angles_per_line
+    n_intersections(1) = count(valid_intersections)
+    total_valid_intersections(:, 1) = valid_intersections
+
+    ! Line 2
+    line(:, 2) = vec_2_head
+    ! For a given line & circle intersection, find the angle with respect to the x-axis for each intersection point
+    call get_intersection_angles(line_xy=line, circle_xy=circle_xy, circle_radius=circle_radius, &
+                                 arc_angles=intersection_angles_per_line, valid_intersections=valid_intersections)
+    intersection_angles(2, :) = intersection_angles_per_line
+    n_intersections(2) = count(valid_intersections)
+    total_valid_intersections(:, 2) = valid_intersections
+
+    ! Find arc starting and ending angles
+    call get_theta_start_end(thetas=intersection_angles, origin_in_cell=origin_in_cell, &
+                             valid_intersections=total_valid_intersections, &
+                             n_intersections=n_intersections, &
+                             theta_start_end=arc_segments, n_arcs=n_arcs)
+  end subroutine get_arc_segments_new
 
   pure subroutine get_theta_start_end(thetas, origin_in_cell, valid_intersections, n_intersections, theta_start_end, n_arcs)
     !< Find the starting and ending angle of the arc
@@ -119,8 +180,6 @@ contains
         if(thetas(2, 2) < thetas(1, 2)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
 
       else if(n1 == 2 .and. n2 == 2) then
-        ! print*, rad2deg(thetas(:,1))
-        ! print*, rad2deg(thetas(:,2))
         n_arcs = 2
 
         theta_ib(1) = thetas(2, 1)
@@ -131,21 +190,6 @@ contains
             theta_ie(1) = theta_ie(1) + 2 * pi
           end if
         end if
-
-        ! if(theta_ie(1) < theta_ib(1)) then
-        !   print*, 'a'
-        !   if(theta_ie(1) < 0.0_rk) then
-        !     theta_ib(1) = theta_ie(1)
-        !     theta_ie(1) = theta_ie(1) + 2*pi
-        !   end if
-        ! end if
-
-        ! if(thetas(2, 1) < thetas(1, 1)) then
-        !   ! if(thetas(2, 1) < 0.0_rk .or. thetas(1, 1) < 0.0_rk) then
-        !     theta_ib(1) = thetas(2, 1)
-        !     theta_ie(1) = thetas(1, 1)
-        !   ! end if
-        ! end if
 
         theta_ib(2) = thetas(1, 2)
         theta_ie(2) = thetas(2, 2)
@@ -244,7 +288,9 @@ contains
     valid_intersection = .false.
     if(discriminiant > 0.0_rk) then
       do i = 1, 2 ! TODO: Can we use a where block?
-        if(t(i) >= 0.0_rk .and. t(i) <= 1.0_rk) then
+        if(t(i) < 0.0_rk .or. t(i) > 1.0_rk) then
+          valid_intersection(i) = .false.
+        else
           valid_intersection(i) = .true.
         end if
       end do
@@ -252,13 +298,14 @@ contains
 
     intersection_xy = 0.0_rk
     if(discriminiant > 0.0_rk) then
-      do i = 1, 2
-        associate(x0=>line_xy(1, 1), x1=>line_xy(1, 2), y0=>line_xy(2, 1), y1=>line_xy(2, 2), &
-                  x_t=>intersection_xy(1, i), y_t=>intersection_xy(2, i))
-          x_t = (x1 - x0) * t(i) + x0
-          y_t = (y1 - y0) * t(i) + y0
-        end associate
-      end do
+      associate(x0=>line_xy(1, 1), x1=>line_xy(1, 2), &
+                y0=>line_xy(2, 1), y1=>line_xy(2, 2))
+        ! x_t
+        intersection_xy(1, :) = (x1 - x0) * t + x0
+
+        ! y_t
+        intersection_xy(2, :) = (y1 - y0) * t + y0
+      end associate
     end if
   end subroutine find_line_circle_intersections
 
