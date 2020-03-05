@@ -25,7 +25,8 @@ target_link_libraries(utilities PUBLIC globals)
 
 add_library(
   geometry
-  lib/geometry/cone.f90
+  lib/geometry/mach_cone.f90
+  # lib/geometry/cone.f90
   lib/geometry/geometry.f90
   lib/domain/grid_type.f90
   lib/domain/regular_2d_grid.f90

@@ -3,7 +3,6 @@ module mod_abstract_evo_operator
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  use mod_cone, only: cone_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
 

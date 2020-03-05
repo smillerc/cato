@@ -114,19 +114,19 @@ contains
     edge_vector_ordering = 0
     single_cell_edge_vectors = 0.0_rk
     n_total_vectors = size(edge_vectors, dim=3)
-    new_cone%tau = tau
 
+    new_cone%tau = tau
     new_cone%p_xy = [edge_vectors(1, 1, 1), edge_vectors(2, 1, 1)]
 
     allocate(new_cone%edge_vectors, mold=edge_vectors)
     new_cone%edge_vectors = edge_vectors
     new_cone%cone_location = trim(cone_location)
 
-    if(any(reconstructed_state(1, :) < 0.0_rk)) then
-      write(*, *) "Error in cone_t initialization, density in the reconstructed state is < 0"
-      write(*, '(a, 4(es10.3,1x))') 'Reconstructed density states (cell_1:cell_n)', reconstructed_state(1, :)
-      error stop
-    end if
+    ! if(any(reconstructed_state(1, :) < 0.0_rk)) then
+    !   write(*, *) "Error in cone_t initialization, density in the reconstructed state is < 0"
+    !   write(*, '(a, 4(es10.3,1x))') 'Reconstructed density states (cell_1:cell_n)', reconstructed_state(1, :)
+    !   error stop
+    ! end if
 
     if(any(reconstructed_state(4, :) < 0.0_rk)) then
       write(*, *) "Error in cone_t initialization, pressure in the reconstructed state is < 0"
@@ -139,6 +139,7 @@ contains
     if(new_cone%cone_is_transonic) then
       call new_cone%get_transonic_cone_extents(origin=new_cone%p_prime_xy, &
                                                radius=new_cone%radius)
+      new_cone%reference_sound_speed = new_cone%radius / new_cone%tau
     else
       call new_cone%get_cone_extents(x_vel=new_cone%reference_u, &
                                      y_vel=new_cone%reference_v, &
@@ -183,16 +184,16 @@ contains
 
       if(n_arcs > 0) then
         do arc = 1, n_arcs
-          new_cone%arc_primitive_vars(:, arc, neighbor_cell) = reconstructed_state(:, neighbor_cell)
+          new_cone%arc_primitive_vars(:, arc, neighbor_cell) = new_cone%recon_state(:, neighbor_cell)
 
-          ! Small number fix
-          if(new_cone%arc_primitive_vars(2, arc, neighbor_cell) < 5e-16_rk) then
-            new_cone%arc_primitive_vars(2, arc, neighbor_cell) = 0.0_rk
-          end if
+          ! ! Small number fix
+          ! if(new_cone%arc_primitive_vars(2, arc, neighbor_cell) < 1e-12_rk) then
+          !   new_cone%arc_primitive_vars(2, arc, neighbor_cell) = 0.0_rk
+          ! end if
 
-          if(new_cone%arc_primitive_vars(3, arc, neighbor_cell) < 5e-16_rk) then
-            new_cone%arc_primitive_vars(3, arc, neighbor_cell) = 0.0_rk
-          end if
+          ! if(new_cone%arc_primitive_vars(3, arc, neighbor_cell) < 1e-12_rk) then
+          !   new_cone%arc_primitive_vars(3, arc, neighbor_cell) = 0.0_rk
+          ! end if
         end do
       end if
 
@@ -301,16 +302,39 @@ contains
     real(rk) :: ave_p
     real(rk) :: mach_number, sound_speed
     integer(ik) :: i
+    ! real(rk) :: u, v
 
     self%n_neighbor_cells = size(reconstructed_state, dim=2)
 
     allocate(self%recon_state, mold=reconstructed_state)
     self%recon_state = reconstructed_state
 
-    associate(rho=>reconstructed_state(1, :), &
-              u=>reconstructed_state(2, :), &
-              v=>reconstructed_state(3, :), &
-              p=>reconstructed_state(4, :), &
+    ! do i = 1, self%n_neighbor_cells
+    !   if (abs(reconstructed_state(1,i)) < 0.005_rk) then
+    !     self%recon_state(1,i) = 0.005_rk
+    !   else
+    !     self%recon_state(1,i) = reconstructed_state(1,i)
+    !   end if
+
+    !   ! if (abs(reconstructed_state(2,i)) < 1e-10_rk) then
+    !   !   self%recon_state(2,i) = 0.0_rk
+    !   ! else
+    !     self%recon_state(2,i) = reconstructed_state(2,i)
+    !   ! end if
+
+    !   ! if (abs(reconstructed_state(3,i)) < 1e-10_rk) then
+    !   !   self%recon_state(3,i) = 0.0_rk
+    !   ! else
+    !     self%recon_state(3,i) = reconstructed_state(3,i)
+    !   ! end if
+
+    !   self%recon_state(4,i) = reconstructed_state(4,i)
+    ! end do
+
+    associate(rho=>self%recon_state(1, :), &
+              u=>self%recon_state(2, :), &
+              v=>self%recon_state(3, :), &
+              p=>self%recon_state(4, :), &
               n=>self%n_neighbor_cells)
 
       do i = 1, n
@@ -322,8 +346,6 @@ contains
         else
           self%cell_is_supersonic(i) = .false.
         end if
-        ! print*, i, 'self%cell_is_supersonic(i)', self%cell_is_supersonic(i)
-
       end do
 
       ! The cone is transonic if there is a combo of super/subsonic cells
@@ -351,9 +373,9 @@ contains
       ! end if
     end associate
 
-    ! Tiny velocity fix
-    if(abs(self%reference_u) < TINY_DIST) self%reference_u = 0.0_rk
-    if(abs(self%reference_v) < TINY_DIST) self%reference_v = 0.0_rk
+    ! ! Tiny velocity fix
+    ! if(abs(self%reference_u) < 1e-10_rk) self%reference_u = 0.0_rk
+    ! if(abs(self%reference_v) < 1e-10_rk) self%reference_v = 0.0_rk
 
     self%reference_mach_number = sqrt(self%reference_u**2 + self%reference_v**2) / &
                                  self%reference_sound_speed

@@ -1,6 +1,7 @@
 module test_mach_cone_geometry
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_cone
+  ! use mod_cone
+  use mod_mach_cone
   use math_constants, only: pi, rad2deg
   ! use mod_mach_geometry, only: cone_t => mach_geometry_t, new_cone
   use funit
@@ -38,12 +39,12 @@ contains
     !  |  cell 2  |
     !  | (i,j-1)  |
 
-    type(cone_t) :: mach_cone
+    type(midpoint_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     integer(ik) :: i, j
-    real(rk), dimension(2, 4) :: theta
+    real(rk), dimension(2, 2) :: theta
 
     i = 1
     j = 1
@@ -62,17 +63,17 @@ contains
     midpoint_state(:, 1) = [1.0_rk, 0.0_rk, 4.0_rk, 1.0_rk]
     midpoint_state(:, 2) = [1.0_rk, 0.0_rk, 4.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=midpoint_edge_vectors, &
-                         reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=midpoint_edge_vectors, &
+                              reconstructed_state=midpoint_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='left/right midpoint')
 
     ! print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.0_rk, -0.04_rk], mach_cone%p_prime_xy)
-    @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([.false., .true.], mach_cone%p_prime_in_cell)
     ! @assertEqual([i, j - 1], mach_cone%p_prime_ij)
 
     ! mach_cone%theta_ib -> ((arc_1, arc_2), (cell_1:cell_2))
@@ -98,12 +99,12 @@ contains
     !  |  cell 2  |
     !  | (i,j-1)  |
 
-    type(cone_t) :: mach_cone
+    type(midpoint_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     integer(ik) :: i, j
-    real(rk), dimension(2, 4) :: theta
+    real(rk), dimension(2, 2) :: theta
 
     i = 1
     j = 1
@@ -122,17 +123,17 @@ contains
     midpoint_state(:, 1) = [1.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
     midpoint_state(:, 2) = [1.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=midpoint_edge_vectors, &
-                         reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=midpoint_edge_vectors, &
+                              reconstructed_state=midpoint_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='left/right midpoint')
 
     ! print *, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.0_rk, -0.01_rk], mach_cone%p_prime_xy)
-    @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([.false., .true.], mach_cone%p_prime_in_cell)
     ! @assertEqual([i, j - 1], mach_cone%p_prime_ij)
 
     theta = 0.0_rk
@@ -159,12 +160,12 @@ contains
     !  | (i,j-1)  |
     !  |          |
 
-    type(cone_t) :: mach_cone
+    type(midpoint_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     integer(ik) :: i, j
-    real(rk), dimension(2, 4) :: theta
+    real(rk), dimension(2, 2) :: theta
     real(rk) :: theta_11, theta_12
 
     i = 1
@@ -184,17 +185,17 @@ contains
     midpoint_state(:, 1) = [1.0_rk, 0.0_rk, -1.0_rk, 1.0_rk]
     midpoint_state(:, 2) = [1.0_rk, 0.0_rk, -1.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=midpoint_edge_vectors, &
-                         reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=midpoint_edge_vectors, &
+                              reconstructed_state=midpoint_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='left/right midpoint')
 
     ! print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.0_rk, 0.01_rk], mach_cone%p_prime_xy)
-    @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([.true., .false.], mach_cone%p_prime_in_cell)
     ! @assertEqual([i, j], mach_cone%p_prime_ij)
 
     ! arc begin angles
@@ -225,12 +226,12 @@ contains
     !  |         |          |
     !  |         C1         |
 
-    type(cone_t) :: mach_cone
+    type(midpoint_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     integer(ik) :: i, j
-    real(rk), dimension(2, 4) :: theta
+    real(rk), dimension(2, 2) :: theta
 
     i = 1
     j = 1
@@ -249,15 +250,15 @@ contains
     midpoint_state(:, 1) = [1.0_rk, -4.0_rk, 0.0_rk, 1.0_rk]
     midpoint_state(:, 2) = [1.0_rk, -4.0_rk, 0.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=midpoint_edge_vectors, &
-                         reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=midpoint_edge_vectors, &
+                              reconstructed_state=midpoint_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='down/up midpoint')
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.04_rk, 0.0_rk], mach_cone%p_prime_xy)
-    @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([.false., .true.], mach_cone%p_prime_in_cell)
     ! @assertEqual([i, j], mach_cone%p_prime_ij)
 
     ! arc begin angles
@@ -284,12 +285,12 @@ contains
     !  |         |          |
     !  |         C1         |
 
-    type(cone_t) :: mach_cone
+    type(midpoint_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     integer(ik) :: i, j
-    real(rk), dimension(2, 4) :: theta
+    real(rk), dimension(2, 2) :: theta
     real(rk) :: theta_11, theta_12
 
     i = 1
@@ -308,17 +309,17 @@ contains
     midpoint_state(:, 1) = [1.0_rk, 1.0_rk, 0.0_rk, 1.0_rk]
     midpoint_state(:, 2) = [1.0_rk, 1.0_rk, 0.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=midpoint_edge_vectors, &
-                         reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=midpoint_edge_vectors, &
+                              reconstructed_state=midpoint_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='down/up midpoint')
 
     ! print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([-0.01_rk, 0.0_rk], mach_cone%p_prime_xy)
-    @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([.true., .false.], mach_cone%p_prime_in_cell)
     ! @assertEqual([i - 1, j], mach_cone%p_prime_ij)
 
     ! arc begin angles
@@ -351,7 +352,7 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(cone_t) :: mach_cone
+    type(quad_corner_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
@@ -383,16 +384,16 @@ contains
     corner_state(:, 3) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
     corner_state(:, 4) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=corner_edge_vectors, &
-                         reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=corner_edge_vectors, &
+                              reconstructed_state=corner_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='corner')
 
     ! print *, mach_cone
 
     ! P' should be in the cell below the midpoint
-    @assertEqual([1, 1, 1, 1], mach_cone%n_arcs)
+    @assertEqual([1, 1, 1, 1], mach_cone%n_arcs_per_cell)
     @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy)
     @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
     ! @assertEqual([1, 1], mach_cone%p_prime_ij)
@@ -428,7 +429,7 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(cone_t) :: mach_cone
+    type(quad_corner_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
@@ -462,15 +463,15 @@ contains
     corner_state(:, 3) = [1.0_rk, -1.0_rk, -1.0_rk, 1.0_rk]
     corner_state(:, 4) = [1.0_rk, -1.0_rk, -1.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=corner_edge_vectors, &
-                         reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=corner_edge_vectors, &
+                              reconstructed_state=corner_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='corner')
     ! print*, mach_cone
 
     ! P' should be in the cell below the midpoint
-    ! @assertEqual([0, 1, 2, 1], mach_cone%n_arcs)
+    ! @assertEqual([0, 1, 2, 1], mach_cone%n_arcs_per_cell)
     @assertEqual([0.01_rk, 0.01_rk], mach_cone%p_prime_xy)
     @assertEqual([.false., .false., .true., .false.], mach_cone%p_prime_in_cell)
     ! @assertEqual([i, j], mach_cone%p_prime_ij)
@@ -515,7 +516,7 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(cone_t) :: mach_cone
+    type(quad_corner_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
@@ -549,11 +550,11 @@ contains
     corner_state(:, 3) = [1.0_rk, -1.0_rk, 1.0_rk, 1.0_rk]
     corner_state(:, 4) = [1.0_rk, -1.0_rk, 1.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=corner_edge_vectors, &
-                         reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=corner_edge_vectors, &
+                              reconstructed_state=corner_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='corner')
 
     ! print*, mach_cone
 
@@ -602,7 +603,7 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(cone_t) :: mach_cone
+    type(quad_corner_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
@@ -636,11 +637,11 @@ contains
     corner_state(:, 3) = [1.0_rk, -0.5_rk, 0.5_rk, 1.0_rk]
     corner_state(:, 4) = [1.0_rk, -0.5_rk, 0.5_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=corner_edge_vectors, &
-                         reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=corner_edge_vectors, &
+                              reconstructed_state=corner_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='corner')
 
     ! print*, mach_cone
 
@@ -689,7 +690,7 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(cone_t) :: mach_cone
+    type(quad_corner_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
@@ -723,11 +724,11 @@ contains
     corner_state(:, 3) = [1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk]
     corner_state(:, 4) = [1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=corner_edge_vectors, &
-                         reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=corner_edge_vectors, &
+                              reconstructed_state=corner_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='corner')
 
     ! print*, mach_cone
 
@@ -776,7 +777,7 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(cone_t) :: mach_cone
+    type(quad_corner_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
@@ -810,11 +811,11 @@ contains
     corner_state(:, 3) = [1.0_rk, 1.0_rk, -1.0_rk, 1.0_rk]
     corner_state(:, 4) = [1.0_rk, 1.0_rk, -1.0_rk, 1.0_rk]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=corner_edge_vectors, &
-                         reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=corner_edge_vectors, &
+                              reconstructed_state=corner_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='corner')
 
     ! print*, mach_cone
 
@@ -861,12 +862,12 @@ contains
     !  |         |          |
     !  |         C1         |
 
-    type(cone_t) :: mach_cone
+    type(midpoint_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors
     real(rk), dimension(4, 2) :: midpoint_state
     integer(ik), dimension(2, 2) :: neighbor_cell_indices
     integer(ik) :: i, j
-    real(rk), dimension(2, 4) :: theta
+    real(rk), dimension(2, 2) :: theta
     real(rk) :: theta_11, theta_12
     real(rk) :: pressure
 
@@ -893,16 +894,16 @@ contains
     ! Right cell state (supersonic cell)
     midpoint_state(:, 2) = [1.0_rk, 2.0_rk, 0.0_rk, pressure]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=midpoint_edge_vectors, &
-                         reconstructed_state=midpoint_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='down/up midpoint')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=midpoint_edge_vectors, &
+                              reconstructed_state=midpoint_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='down/up midpoint')
 
     ! print*, mach_cone
     @assertEqual([-1.45e-2_rk, 0.0_rk], mach_cone%p_prime_xy)
     @assertEqual(1.55e-2_rk, mach_cone%radius)
-    @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
+    @assertEqual([.true., .false.], mach_cone%p_prime_in_cell)
 
     ! arc begin angles
     theta = 0.0_rk
@@ -917,7 +918,7 @@ contains
     theta(1, 1) = theta_12 + 2 * pi ! cell 1 (left)
     theta(1, 2) = theta_11 ! cell 2 (right)
     @assertEqual(theta, mach_cone%theta_ie, 1e-8_rk)
-  end subroutine
+  end subroutine test_transonic_du_midpoint
 
   @test
   subroutine test_transonic_corner()
@@ -934,7 +935,7 @@ contains
     !   cell 1  |   cell 2
     !          C1
 
-    type(cone_t) :: mach_cone
+    type(quad_corner_mach_cone_t) :: mach_cone
     real(rk), dimension(2, 2, 4) :: corner_edge_vectors
     real(rk), dimension(4, 4) :: corner_state
     integer(ik), dimension(2, 4) :: neighbor_cell_indices
@@ -971,13 +972,13 @@ contains
     corner_state(:, 3) = [1.0_rk, -1.1_rk, 1.1_rk, pressure]
     corner_state(:, 4) = [1.0_rk, 1.1_rk, 1.1_rk, pressure]
 
-    mach_cone = new_cone(tau=1.0e-2_rk, &
-                         edge_vectors=corner_edge_vectors, &
-                         reconstructed_state=corner_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='corner')
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=corner_edge_vectors, &
+                              reconstructed_state=corner_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='corner')
 
-    print *, mach_cone
+    ! print *, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy)

@@ -12,7 +12,7 @@ module test_evo_operator
   use mod_grid, only: grid_t
   use mod_eos
   use mod_local_evo_operator
-  use mod_cone
+  use mod_mach_cone
   use math_constants, only: pi, rad2deg
   use funit
 
@@ -85,7 +85,7 @@ contains
   subroutine test_simple_updown()
 
     ! Locals
-    type(cone_t) :: mach_cone
+    type(midpoint_mach_cone_t) :: mach_cone
     integer(ik) :: i, j
     integer(ik), parameter :: midpoint_idx = 2 !< used to select the midpoint in the reconstructed_state
     integer(ik) :: point_idx  !< used to select the edge in the reconstructed_state
@@ -117,10 +117,10 @@ contains
     ! Cell 2: cell to the right -> use M4 from the right cell
     point_idx = 4
     reconstructed_midpoint_state(:, 2) = E0%reconstructed_state(:, point_idx, midpoint_idx, i, j)
-    mach_cone = new_cone(tau=tau, edge_vectors=midpoint_edge_vectors, &
-                         reconstructed_state=reconstructed_midpoint_state, &
-                         cell_indices=neighbor_cell_indices, &
-                         cone_location='down/up midpoint')
+    call mach_cone%initialize(tau=tau, edge_vectors=midpoint_edge_vectors, &
+                              reconstructed_state=reconstructed_midpoint_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='down/up midpoint')
 
     ! Use original reference state
     select type(E0)
@@ -163,7 +163,7 @@ contains
   subroutine test_simple_corner()
 
     ! Locals
-    type(cone_t) :: mach_cone
+    type(quad_corner_mach_cone_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
     integer(ik) :: i, j
@@ -213,10 +213,10 @@ contains
         point_idx = 2
         reconstructed_corner_state(:, 4) = E0%reconstructed_state(:, point_idx, corner_idx, i - 1, j)
 
-        mach_cone = new_cone(tau=tau, edge_vectors=corner_edge_vectors, &
-                             reconstructed_state=reconstructed_corner_state, &
-                             cell_indices=neighbor_cell_indices, &
-                             cone_location='corner')
+        call mach_cone%initialize(tau=tau, edge_vectors=corner_edge_vectors, &
+                                  reconstructed_state=reconstructed_corner_state, &
+                                  cell_indices=neighbor_cell_indices, &
+                                  cone_location='corner')
 
         ! Use original reference state
         select type(E0)

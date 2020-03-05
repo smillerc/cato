@@ -20,6 +20,7 @@ contains
     circle_xy = [0.0_rk, 0.0_rk]
     circle_radius = 1e-5_rk
 
+    print *, "Running test_intersection_points()"
     ! Exactly 2 intersections on a small circle at the origin
     line_xy(:, 1) = [-1.0_rk, 0.0_rk]
     line_xy(:, 2) = [1.0_rk, 0.0_rk]
