@@ -165,13 +165,6 @@ contains
     real(rk) :: desired_boundary_pressure, boundary_density
     real(rk), dimension(:), allocatable :: edge_pressure
 
-    integer(ik) :: imin, imax, jmin, jmax
-
-    imin = lbound(primitive_vars, dim=2)
-    imax = ubound(primitive_vars, dim=2)
-    jmin = lbound(primitive_vars, dim=3)
-    jmax = ubound(primitive_vars, dim=3)
-
     left_ghost = lbound(primitive_vars, dim=2)
     right_ghost = ubound(primitive_vars, dim=2)
     bottom_ghost = lbound(primitive_vars, dim=3)
@@ -196,51 +189,56 @@ contains
       call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
       if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
-      allocate(self%edge_primitive_vars(4, jmin:jmax))
-      allocate(edge_pressure(jmin:jmax))
+      allocate(self%edge_primitive_vars(4, bottom_ghost:top_ghost))
+      self%edge_primitive_vars = 0.0_rk
+
+      allocate(edge_pressure(bottom:top))
 
       ! Zero-gradient in velocity
-      self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
-      self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
+      self%edge_primitive_vars(2, bottom:top) = primitive_vars(2, right, bottom:top)
+      self%edge_primitive_vars(3, bottom:top) = primitive_vars(3, right, bottom:top)
 
       desired_boundary_pressure = self%get_desired_pressure()
       if(desired_boundary_pressure <= 0.0_rk) then
         ! Default to zero-gradient if the input pressure goes <= 0
-        self%edge_primitive_vars(1, :) = primitive_vars(1, right, :)
-        self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
-        self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
-        self%edge_primitive_vars(4, :) = primitive_vars(4, right, :)
+        self%edge_primitive_vars(1, bottom:top) = primitive_vars(1, right, bottom:top)
+        self%edge_primitive_vars(2, bottom:top) = primitive_vars(2, right, bottom:top)
+        self%edge_primitive_vars(3, bottom:top) = primitive_vars(3, right, bottom:top)
+        self%edge_primitive_vars(4, bottom:top) = primitive_vars(4, right, bottom:top)
       else
         ! Pressure on the right-most column of fluid cells
-        edge_pressure = primitive_vars(4, right, :)
+        edge_pressure(bottom:top) = primitive_vars(4, right, bottom:top)
 
         ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
         associate(rho_1=>primitive_vars(1, right, :), &
-                  P_1=>edge_pressure, &
+                  P_1=>edge_pressure(bottom:top), &
                   gamma=>eos%get_gamma(), &
                   P_2=>desired_boundary_pressure)
 
+          ! write(*,'(a, es14.3)') 'edge_pressure:             ', P_1
+          ! write(*,'(a, es14.3)') 'desired_boundary_pressure: ', desired_boundary_pressure
+
           if(desired_boundary_pressure < minval(edge_pressure)) then
-            self%edge_primitive_vars(1, :) = primitive_vars(1, right, :)
-            self%edge_primitive_vars(4, :) = edge_pressure
+            self%edge_primitive_vars(1, bottom:top) = primitive_vars(1, right, bottom:top)
+            self%edge_primitive_vars(4, bottom:top) = edge_pressure
 
           else
-            self%edge_primitive_vars(1, :) = rho_1 * (P_2 / P_1)**(gamma - 1)
-            self%edge_primitive_vars(4, :) = desired_boundary_pressure
+            self%edge_primitive_vars(1, bottom:top) = rho_1 * (P_2 / P_1)**(gamma - 1.0_rk)
+            self%edge_primitive_vars(4, bottom:top) = desired_boundary_pressure
           end if
         end associate
 
-        ! self%edge_primitive_vars(1, :) = eos%calc_density_from_isentropic_press( &
-        !                                  p_1=edge_pressure, &
-        !                                  rho_1=primitive_vars(1, right, :), &
-        !                                  p_2=desired_boundary_pressure)
-
-        self%edge_primitive_vars(2, :) = primitive_vars(2, right, :)
-        self%edge_primitive_vars(3, :) = primitive_vars(3, right, :)
+        self%edge_primitive_vars(2, bottom:top) = primitive_vars(2, right, bottom:top)
+        self%edge_primitive_vars(3, bottom:top) = primitive_vars(3, right, bottom:top)
 
       end if
 
-      primitive_vars(:, right_ghost, :) = self%edge_primitive_vars
+      primitive_vars(:, right_ghost, bottom:top) = self%edge_primitive_vars(:, bottom:top)
+      ! write(*,'(a, 3(es14.4, 1x))') 'edge rho', self%edge_primitive_vars(1, :)
+      ! write(*,'(a, 3(es14.4, 1x))') 'edge u  ', self%edge_primitive_vars(2, :)
+      ! write(*,'(a, 3(es14.4, 1x))') 'edge v  ', self%edge_primitive_vars(3, :)
+      ! write(*,'(a, 3(es14.4, 1x))') 'edge p  ', self%edge_primitive_vars(4, :)
+      ! print*
       ! case('-x')
       !   ! primitive_vars(:, left_ghost, :) = primitive_vars(:, right, bottom)
       ! case('+y')
