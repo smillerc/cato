@@ -73,7 +73,7 @@ program cato
 
     max_cs = U%get_max_sound_speed()
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
-    write(*, '(2(a, 1x, es10.3))') 'Time =', time, ', delta t = ', delta_t
+    write(*, '(2(a, es10.3), a)') 'Time =', time, ' [s], Delta t =', delta_t, ' [s]'
 
     call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
                                lbounds=lbound(U%conserved_vars))

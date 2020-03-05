@@ -10,6 +10,13 @@ module mod_globals
   real(rk), parameter :: TINY_DIST = 5e-16_rk
 
   logical :: globals_set = .false.
+
+  character(len=5), protected :: global_dimensionality
+  logical, protected :: is_1d = .false.
+  logical, protected :: is_1d_in_x = .false.
+  logical, protected :: is_1d_in_y = .false.
+  logical, protected :: is_2d = .true.
+
   character(:), allocatable :: compiler_flags_str
   character(:), allocatable :: compiler_version_str
   character(:), allocatable :: git_hash
@@ -30,6 +37,30 @@ contains
       compiler_version_str = compiler_version()
     end if
   end subroutine set_global_options
+
+  subroutine set_domain_dimensionality(dimensionality)
+    !< Set the global dimensionality of the domain. This helps the code
+    !< make shortcuts elsewhere
+    character(len=4), intent(in) :: dimensionality
+
+    select case(trim(dimensionality))
+    case('1D_X')
+      is_1d = .true.
+      is_1d_in_x = .true.
+      is_1d_in_y = .false.
+      is_2d = .false.
+    case('1D_Y')
+      is_1d = .true.
+      is_1d_in_x = .false.
+      is_1d_in_y = .true.
+      is_2d = .false.
+    case('2D_XY')
+      is_1d = .false.
+      is_1d_in_x = .true.
+      is_1d_in_y = .false.
+      is_2d = .true.
+    end select
+  end subroutine set_domain_dimensionality
 
   subroutine print_version_stats()
     call set_global_options()
