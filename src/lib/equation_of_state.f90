@@ -155,13 +155,18 @@ contains
     primitive_vars(3, :, :) = conserved_vars(3, :, :) / conserved_vars(1, :, :)
 
     ! pressure
-    associate(gamma=>self%gamma, E=>conserved_vars(4, :, :) / conserved_vars(1, :, :), &
-              rho=>conserved_vars(1, :, :), &
-              u=>primitive_vars(2, :, :), &
-              v=>primitive_vars(3, :, :))
+    ! primitive_vars(4, :, :) = rho * (gamma - 1.0_rk) * (E - ((u**2 + v**2) / 2.0_rk))
+    primitive_vars(4, :, :) = conserved_vars(1, :, :) * (self%gamma - 1.0_rk) * &
+                              ((conserved_vars(4, :, :) / conserved_vars(1, :, :)) - &
+                               ((primitive_vars(2, :, :)**2 + primitive_vars(3, :, :)**2) / 2.0_rk))
 
-      primitive_vars(4, :, :) = rho * (gamma - 1.0_rk) * (E - ((u**2 + v**2) / 2.0_rk))
-    end associate
+    ! associate(gamma=>self%gamma, E=>conserved_vars(4, :, :) / conserved_vars(1, :, :), &
+    !           rho=>conserved_vars(1, :, :), &
+    !           u=>primitive_vars(2, :, :), &
+    !           v=>primitive_vars(3, :, :))
+
+    !   primitive_vars(4, :, :) = rho * (gamma - 1.0_rk) * (E - ((u**2 + v**2) / 2.0_rk))
+    ! end associate
 
     call ieee_set_underflow_mode(underflow_mode)
   end subroutine conserved_to_primitive
@@ -187,14 +192,19 @@ contains
     ! rho v
     conserved_vars(3, :, :) = primitive_vars(3, :, :) * conserved_vars(1, :, :)
 
-    associate(gamma=>self%gamma, &
-              rho=>primitive_vars(1, :, :), &
-              p=>primitive_vars(4, :, :), &
-              u=>primitive_vars(2, :, :), &
-              v=>primitive_vars(3, :, :))
-      ! rho E
-      conserved_vars(4, :, :) = (p / (self%gamma - 1.0_rk)) + rho * ((u**2 + v**2) / 2.0_rk)
-    end associate
+    ! rho E
+    conserved_vars(4, :, :) = (primitive_vars(4, :, :) / (self%gamma - 1.0_rk)) + &
+                              primitive_vars(1, :, :) * &
+                              ((primitive_vars(2, :, :)**2 + primitive_vars(3, :, :)**2) / 2.0_rk)
+
+    ! associate(gamma=>self%gamma, &
+    !           rho=>primitive_vars(1, :, :), &
+    !           p=>primitive_vars(4, :, :), &
+    !           u=>primitive_vars(2, :, :), &
+    !           v=>primitive_vars(3, :, :))
+    !   ! rho E
+    !   conserved_vars(4, :, :) = (p / (self%gamma - 1.0_rk)) + rho * ((u**2 + v**2) / 2.0_rk)
+    ! end associate
 
     call ieee_set_underflow_mode(underflow_mode)
   end subroutine primitive_to_conserved
