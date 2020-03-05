@@ -140,7 +140,7 @@ contains
     integer(ik), parameter :: c = 1 !< corner index
     integer(ik), parameter :: m = 2 !< midpoint index
 
-    call debug_print('Running abstract_reconstruction_t%find_extrema()', __FILE__, __LINE__)
+    ! call debug_print('Running abstract_reconstruction_t%find_extrema()', __FILE__, __LINE__)
 
     ! Find the extrema at each node point
     associate(U=>self%primitive_vars)
@@ -225,19 +225,19 @@ contains
       u_tilde = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
     end associate
 
-    if(u_tilde(1) < 0.0_rk) then
-      write(*, '(a,i0,", ",i0,a,2(es10.3,1x))') "Error in abstract_reconstruction_t%interpolate(), "// &
-        "density < 0 at (i,j) = ", i, j, ' and (x,y) = ', x, y
-      write(*, '(a,4(es10.3, 1x))') "U (rho,u,v,p): ", u_tilde
-      error stop "Error in abstract_reconstruction_t%interpolate(), density < 0"
-    end if
+    ! if(u_tilde(1) < 0.0_rk) then
+    !   write(*, '(a,i0,", ",i0,a,2(es10.3,1x))') "Error in abstract_reconstruction_t%interpolate(), "// &
+    !     "density < 0 at (i,j) = ", i, j, ' and (x,y) = ', x, y
+    !   write(*, '(a,4(es10.3, 1x))') "U (rho,u,v,p): ", u_tilde
+    !   error stop "Error in abstract_reconstruction_t%interpolate(), density < 0"
+    ! end if
 
-    if(u_tilde(4) < 0.0_rk) then
-      write(*, '(a,i0,", ",i0,a,2(es10.3,1x))') "Error in abstract_reconstruction_t%interpolate(), "// &
-        "pressure < 0 at (i,j) = ", i, j, ' and (x,y) = ', x, y
-      write(*, '(a,4(es10.3, 1x))') "U (rho,u,v,p): ", u_tilde
-      error stop "Error in abstract_reconstruction_t%interpolate(), pressure < 0"
-    end if
+    ! if(u_tilde(4) < 0.0_rk) then
+    !   write(*, '(a,i0,", ",i0,a,2(es10.3,1x))') "Error in abstract_reconstruction_t%interpolate(), "// &
+    !     "pressure < 0 at (i,j) = ", i, j, ' and (x,y) = ', x, y
+    !   write(*, '(a,4(es10.3, 1x))') "U (rho,u,v,p): ", u_tilde
+    !   error stop "Error in abstract_reconstruction_t%interpolate(), pressure < 0"
+    ! end if
 
   end function interpolate
 end module mod_abstract_reconstruction

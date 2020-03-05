@@ -452,70 +452,70 @@ contains
     jlo = lbound(self%conserved_vars, dim=3) + 1
     jhi = ubound(self%conserved_vars, dim=3) - 1
 
-    do j = jlo, jhi
-      do i = ilo, ihi
-        associate(rho=>primitive_vars(1, :, :), &
-                  u=>primitive_vars(2, :, :), &
-                  v=>primitive_vars(3, :, :), &
-                  p=>primitive_vars(4, :, :))
+    ! do j = jlo, jhi
+    !   do i = ilo, ihi
+    !     associate(rho=>primitive_vars(1, :, :), &
+    !               u=>primitive_vars(2, :, :), &
+    !               v=>primitive_vars(3, :, :), &
+    !               p=>primitive_vars(4, :, :))
 
-          eps = (2.0e-5_rk / rho(i, j))  ! smoother
-          if(i > ilo .and. i < ihi .and. j > jlo .and. j < jhi) then ! center
-            rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       eps = (2.0e-5_rk / rho(i, j))  ! smoother
+    !       if(i > ilo .and. i < ihi .and. j > jlo .and. j < jhi) then ! center
+    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
 
-          else if(i == ilo .and. j > jlo .and. j < jhi) then ! left (w/o corners)
-            rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       else if(i == ilo .and. j > jlo .and. j < jhi) then ! left (w/o corners)
+    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
 
-          else if(i == ihi .and. j > jlo .and. j < jhi) then ! right (w/o corners)
-            rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       else if(i == ihi .and. j > jlo .and. j < jhi) then ! right (w/o corners)
+    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
 
-          else if(i > ilo .and. i < ihi .and. j == jlo) then ! bottom (w/o corners)
-            rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       else if(i > ilo .and. i < ihi .and. j == jlo) then ! bottom (w/o corners)
+    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
 
-          else if(i > ilo .and. i < ihi .and. j == jhi) then ! top (w/o corners)
-            rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       else if(i > ilo .and. i < ihi .and. j == jhi) then ! top (w/o corners)
+    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
 
-          else if(i == ilo .and. j == jlo) then ! bottom left corner
-            rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       else if(i == ilo .and. j == jlo) then ! bottom left corner
+    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
 
-          else if(i == ilo .and. j == jhi) then ! top left corner
-            rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-          else if(i == ihi .and. j == jlo) then ! bottom right corner
-            rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-          else if(i == ihi .and. j == jhi) then ! top right corner
-            rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-            u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-            v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-            p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-          end if
+    !       else if(i == ilo .and. j == jhi) then ! top left corner
+    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       else if(i == ihi .and. j == jlo) then ! bottom right corner
+    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       else if(i == ihi .and. j == jhi) then ! top right corner
+    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
+    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
+    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
+    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
+    !       end if
 
-        end associate
-      end do
-    end do
+    !     end associate
+    !   end do
+    ! end do
 
     call eos%primitive_to_conserved(primitive_vars, self%conserved_vars)
     deallocate(primitive_vars)
@@ -527,6 +527,7 @@ contains
     !< Implementation of the (-) operator for the fluid type
     class(fluid_t), intent(in) :: lhs
     class(integrand_t), intent(in) :: rhs
+    integer(ik):: ilo, ihi, jlo, jhi, i, j
 
     class(integrand_t), allocatable :: difference
     type(fluid_t), allocatable :: local_difference

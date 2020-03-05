@@ -181,8 +181,8 @@ contains
     real(rk), dimension(4, 4, 2) :: U_max
     real(rk), dimension(4, 4, 2) :: U_min
     real(rk), dimension(4) :: U_tilde
-    real(rk), dimension(4) :: f_x, f_x_top, f_x_bottom
-    real(rk), dimension(4) :: f_y, f_y_left, f_y_right
+    real(rk), dimension(4) :: f_x
+    real(rk), dimension(4) :: f_y
     real(rk), dimension(4) :: f_xy
     real(rk), dimension(4) :: top_right, top_left, bottom_right, bottom_left
 
@@ -213,34 +213,13 @@ contains
 
         ! Note: this only works for uniform grids!!!
         associate(U=>self%primitive_vars, grid=>self%grid, v=>self%grid%cell_volume)
-
-          ! top_right = (U(:, i, j) * v(i, j) + U(:, i, j+1) * v(i, j+1) + U(:, i+1, j+1) * v(i+1, j+1) + U(:, i+1, j) * v(i+1, j)) / &
-          !             (v(i, j) + v(i, j+1) + v(i+1, j+1) + v(i+1, j))
-
-          ! top_left = (U(:, i, j) * v(i, j) + U(:, i, j+1) * v(i, j+1) + U(:, i-1, j+1) * v(i-1, j+1) + U(:, i-1, j) * v(i-1, j)) / &
-          !            (v(i, j) + v(i, j+1) + v(i-1, j+1) + v(i-1, j))
-
-          ! bottom_left = (U(:, i, j) * v(i, j) + U(:, i, j-1) * v(i, j-1) + U(:, i-1, j-1) * v(i-1, j-1) + U(:, i-1, j) * v(i-1, j)) / &
-          !               (v(i, j) + v(i, j-1) + v(i-1, j-1) + v(i-1, j))
-
-          ! bottom_right = (U(:, i, j) * v(i, j) + U(:, i, j-1) * v(i, j-1) + U(:, i+1, j-1) * v(i+1, j-1) + U(:, i+1, j) * v(i+1, j)) / &
-          !                (v(i, j) + v(i, j-1) + v(i+1, j-1) + v(i+1, j))
-
           h = (grid%min_dx + grid%max_dx) / 2.0_rk
           k = (grid%min_dy + grid%max_dy) / 2.0_rk
           ! Cell centered version
           f_x = (U(:, i + 1, j) - U(:, i - 1, j)) / (2.0_rk * h)
           f_y = (U(:, i, j + 1) - U(:, i, j - 1)) / (2.0_rk * k)
           f_xy = (U(:, i + 1, j + 1) - U(:, i + 1, j - 1) - U(:, i - 1, j + 1) + U(:, i - 1, j - 1)) / (4.0_rk * h * k)
-          ! f_x_top = (top_right - top_left) / (2.0_rk * h)
-          ! f_x_bottom = (bottom_right - bottom_left) / (2.0_rk * h)
-          ! f_x = (f_x_top + f_x_bottom) / 2.0_rk
 
-          ! f_y_left = (top_left - bottom_left) / (2.0_rk * k)
-          ! f_y_right = (top_right - bottom_right) / (2.0_rk * k)
-          ! f_y = (f_y_left + f_y_right) / 2.0_rk
-
-          ! f_xy = (top_right - bottom_right - top_left + bottom_left) / (4.0_rk * h * k)
         end associate
 
         node_pos = self%grid%cell_node_xy(:, :, :, i, j) !< (x,y), (p1,p2,p3,p4), (node/midpoint),
@@ -254,18 +233,8 @@ contains
                       U=>self%primitive_vars, x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
 
               U_tilde = (x - x_ij) * f_x + (y - y_ij) * f_y + (x - x_ij) * (y - y_ij) * f_xy
-
-              ! write(*, '(a, 4(i3, 1x))') 'i, j, n, p: ', i, j, n, p
-              ! write(*, '(a, f8.3)') 'U center: ', U(1, i, j)
-              ! write(*, '(a, f8.3)') 'U_tilde : ', U_tilde(1)
-              ! write(*, '(a, f8.3)') 'U_max   : ', U_max(1, p, n)
-              ! write(*, '(a, f8.3)') 'U_min   : ', U_min(1, p, n)
               phi_lim = self%limit(u_ij=U(:, i, j), u_tilde=U(:, i, j) + U_tilde, u_max=U_max(:, p, n), u_min=U_min(:, p, n))
-              ! write(*,'(a, f8.3)') 'phi_lim : ', phi_lim(1)
               reconstructed_domain(:, p, n, i, j) = U(:, i, j) + phi_lim * U_tilde
-              ! write(*,'(a, f8.3)') 'U_recon : ', reconstructed_domain(1, p, n, i, j)
-              ! print*
-              ! if (i == 2 .and. j == 2 .and. n == 1 .and. p == 3) error stop "Stopping!"
             end associate
           end do
         end do
