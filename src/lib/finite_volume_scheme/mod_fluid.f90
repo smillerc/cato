@@ -42,6 +42,7 @@ module mod_fluid
     procedure, pass(rhs), public :: real_mul_type => real_mul_fluid
     procedure, pass(lhs), public :: assign => assign_fluid
     procedure, public :: force_finalization
+    procedure, private, nopass :: add_fields
     final :: finalize
   end type fluid_t
 
@@ -354,7 +355,7 @@ contains
     real(rk), dimension(:, grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: dU_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: i, j
+    integer(ik) :: i, j, edge, xy
     real(rk), dimension(4) :: top_left_corner, top_right_corner, bottom_left_corner, bottom_right_corner
     real(rk), dimension(4) :: bottom_midpoint, right_midpoint, top_midpoint, left_midpoint
     real(rk), dimension(2, 4) :: n_hat
@@ -385,7 +386,6 @@ contains
 
     call debug_print('Running fluid_t%flux_edges()', __FILE__, __LINE__)
 
-    dU_dt = 0.0_rk
     do j = jlo, jhi
       do i = ilo, ihi
 
@@ -398,7 +398,12 @@ contains
         right_midpoint = evolved_downup_midpoints_state(:, i + 1, j)
         left_midpoint = evolved_downup_midpoints_state(:, i, j)
         delta_l = grid%cell_edge_lengths(:, i, j)
-        n_hat = grid%cell_edge_norm_vectors(:, :, i, j)
+
+        do concurrent(edge=1:4)
+          do concurrent(xy=1:2)
+            n_hat(xy, edge) = grid%cell_edge_norm_vectors(xy, edge, i, j)
+          end do
+        end do
 
         ! Edge 1 (bottom)
         bottom_flux = ( &
@@ -527,7 +532,6 @@ contains
     !< Implementation of the (-) operator for the fluid type
     class(fluid_t), intent(in) :: lhs
     class(integrand_t), intent(in) :: rhs
-    integer(ik):: ilo, ihi, jlo, jhi, i, j
 
     class(integrand_t), allocatable :: difference
     type(fluid_t), allocatable :: local_difference
@@ -537,7 +541,8 @@ contains
     select type(rhs)
     class is(fluid_t)
       allocate(local_difference, source=lhs)
-      local_difference%conserved_vars = lhs%conserved_vars - rhs%conserved_vars
+      ! local_difference%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
+      call add_fields(a=lhs%conserved_vars, b=rhs%conserved_vars, c=local_difference%conserved_vars) ! c=a-b
     class default
       error stop 'fluid_t%subtract_fluid: unsupported rhs class'
     end select
@@ -559,7 +564,8 @@ contains
     select type(rhs)
     class is(fluid_t)
       allocate(local_sum, source=lhs)
-      local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
+      ! local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
+      call add_fields(a=lhs%conserved_vars, b=rhs%conserved_vars, c=local_sum%conserved_vars) ! c=a+b
     class default
       error stop 'fluid_t%add_fluid: unsupported rhs class'
     end select
@@ -568,6 +574,70 @@ contains
     call move_alloc(local_sum, sum)
     call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
   end function add_fluid
+
+  pure subroutine add_fields(a, b, c)
+    !< Dumb routine for a vectorized version of c = a + b
+    real(rk), dimension(:, :, :), intent(in), contiguous :: a
+    real(rk), dimension(:, :, :), intent(in), contiguous :: b
+    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
+    integer(ik) :: i, j, k
+
+    do k = lbound(a, dim=3), ubound(a, dim=3)
+      do j = lbound(a, dim=2), ubound(a, dim=2)
+        do i = lbound(a, dim=1), ubound(a, dim=1)
+          c(i, j, k) = a(i, j, k) + b(i, j, k)
+        end do
+      end do
+    end do
+  end subroutine add_fields
+
+  pure subroutine subtract_fields(a, b, c)
+    !< Dumb routine for a vectorized version of c = a - b
+    real(rk), dimension(:, :, :), intent(in), contiguous :: a
+    real(rk), dimension(:, :, :), intent(in), contiguous :: b
+    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
+    integer(ik) :: i, j, k
+
+    do k = lbound(a, dim=3), ubound(a, dim=3)
+      do j = lbound(a, dim=2), ubound(a, dim=2)
+        do i = lbound(a, dim=1), ubound(a, dim=1)
+          c(i, j, k) = a(i, j, k) - b(i, j, k)
+        end do
+      end do
+    end do
+  end subroutine subtract_fields
+
+  pure subroutine mult_fields(a, b, c)
+    !< Dumb routine for a vectorized version of c = a * b
+    real(rk), dimension(:, :, :), intent(in), contiguous :: a
+    real(rk), dimension(:, :, :), intent(in), contiguous :: b
+    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
+    integer(ik) :: i, j, k
+
+    do k = lbound(a, dim=3), ubound(a, dim=3)
+      do j = lbound(a, dim=2), ubound(a, dim=2)
+        do i = lbound(a, dim=1), ubound(a, dim=1)
+          c(i, j, k) = a(i, j, k) * b(i, j, k)
+        end do
+      end do
+    end do
+  end subroutine mult_fields
+
+  pure subroutine mult_field_by_real(a, b, c)
+    !< Dumb routine for a vectorized version of c = a * b
+    real(rk), dimension(:, :, :), intent(in), contiguous :: a
+    real(rk), intent(in) :: b
+    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
+    integer(ik) :: i, j, k
+
+    do k = lbound(a, dim=3), ubound(a, dim=3)
+      do j = lbound(a, dim=2), ubound(a, dim=2)
+        do i = lbound(a, dim=1), ubound(a, dim=1)
+          c(i, j, k) = a(i, j, k) * b
+        end do
+      end do
+    end do
+  end subroutine mult_field_by_real
 
   function fluid_mul_real(lhs, rhs) result(product)
     !< Implementation of the fluid * real operation
@@ -583,7 +653,8 @@ contains
     allocate(local_product, source=lhs, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
 
-    local_product%conserved_vars = lhs%conserved_vars * rhs
+    ! local_product%conserved_vars = lhs%conserved_vars * rhs
+    call mult_field_by_real(a=lhs%conserved_vars, b=rhs, c=local_product%conserved_vars)
 
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
@@ -604,7 +675,8 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%real_mul_fluid"
 
     local_product%time_integrator = rhs%time_integrator
-    local_product%conserved_vars = rhs%conserved_vars * lhs
+    ! local_product%conserved_vars = rhs%conserved_vars * lhs
+    call mult_field_by_real(a=rhs%conserved_vars, b=lhs, c=local_product%conserved_vars)
 
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)

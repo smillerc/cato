@@ -8,7 +8,9 @@ module mod_local_evo_operator
   use math_constants, only: pi, rad2deg
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_input, only: input_t
-  use mod_mach_cone, only: mach_cone_base_t, midpoint_mach_cone_t, quad_corner_mach_cone_t
+  use mod_corner_mach_cone, only: corner_mach_cone_t, new_corner_cone
+  use mod_midpoint_mach_cone, only: midpoint_mach_cone_t, new_midpoint_cone
+
   use mod_grid, only: grid_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
@@ -25,7 +27,8 @@ module mod_local_evo_operator
     procedure, public :: evolve_leftright_midpoints
     procedure, public :: evolve_downup_midpoints
     procedure, public :: evolve_corners
-    procedure, public :: e0_operator
+    procedure, public :: e0_operator_corner
+    procedure, public :: e0_operator_midpoint
     procedure, public :: copy
     final :: finalize
   end type local_evo_operator_t
@@ -160,13 +163,13 @@ contains
         !   call print_recon_data('p', i, j, self%reconstructed_state)
         ! end if
 
-        call mach_cone%initialize(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
-                                  reconstructed_state=reconstructed_midpoint_state, &
-                                  cell_indices=neighbor_cell_indices, &
-                                  cone_location='left/right midpoint')
+        mach_cone = new_midpoint_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
+                                      reconstructed_state=reconstructed_midpoint_state, &
+                                      cell_indices=neighbor_cell_indices, &
+                                      cone_location='left/right midpoint')
 
         ! Set the evolved state at the midpoint
-        call self%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_leftright_midpoints', error_code)
+        call self%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_leftright_midpoints', error_code)
         ! if(i == 601 .and. j == 1) then
         !   print *, mach_cone
         !   print *, 'evolved_primitive_vars (601,1): ', evolved_primitive_vars
@@ -246,13 +249,13 @@ contains
         ! Cell 2: cell to the right -> use M4 from the right cell
         point_idx = 4
         reconstructed_midpoint_state(:, 2) = self%reconstructed_state(:, point_idx, midpoint_idx, i, j)
-        call mach_cone%initialize(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
-                                  reconstructed_state=reconstructed_midpoint_state, &
-                                  cell_indices=neighbor_cell_indices, &
-                                  cone_location='down/up midpoint')
+        mach_cone = new_midpoint_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
+                                      reconstructed_state=reconstructed_midpoint_state, &
+                                      cell_indices=neighbor_cell_indices, &
+                                      cone_location='down/up midpoint')
 
         ! Set the evolved state at the midpoint
-        call self%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+        call self%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
 
         if(error_code /= 0) then
           write(std_out, '(a)') 'The E0 operator returned an error in '// &
@@ -279,7 +282,7 @@ contains
     !< ((rho, u, v, p), i, j); Reconstructed U at each corner
 
     ! Locals
-    type(quad_corner_mach_cone_t) :: mach_cone
+    type(corner_mach_cone_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
     integer(ik) :: i, j
@@ -349,13 +352,13 @@ contains
         ! Cell 4: upper left cell -> corner is in the lower right (N2) of its parent cell
         reconstructed_corner_state(:, 4) = self%reconstructed_state(:, 2, corner_idx, i - 1, j)
 
-        call mach_cone%initialize(tau=self%tau, edge_vectors=corner_edge_vectors, &
-                                  reconstructed_state=reconstructed_corner_state, &
-                                  cell_indices=neighbor_cell_indices, &
-                                  cone_location='corner')
+        mach_cone = new_corner_cone(tau=self%tau, edge_vectors=corner_edge_vectors, &
+                                    reconstructed_state=reconstructed_corner_state, &
+                                    cell_indices=neighbor_cell_indices, &
+                                    cone_location='corner')
 
         ! Set the evolved state at the midpoint
-        call self%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+        call self%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
         if(error_code /= 0) then
           write(std_out, '(a)') 'The E0 operator returned an error in '// &
             'local_evo_operator_t%evolve_corners(), check cato.error for details'
@@ -368,20 +371,34 @@ contains
     end do
   end subroutine evolve_corners
 
-  subroutine e0_operator(self, mach_cone, primitive_variables, calling_routine, error_code)
+  subroutine e0_operator_corner(self, mach_cone, primitive_variables, calling_routine, error_code)
+    !< E0 operator for 4-cell corner nodes
+
     use mod_eos, only: eos
     class(local_evo_operator_t), intent(in) :: self
-    class(mach_cone_base_t), intent(in) :: mach_cone
+    type(corner_mach_cone_t), intent(in) :: mach_cone
     character(len=*), intent(in) :: calling_routine
     integer(ik), intent(out) :: error_code
     real(rk), dimension(4), intent(out) :: primitive_variables
 
+    integer(ik), parameter :: N_CELLS = 4
+
     real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
     real(rk) :: pressure, density, u, v
-    real(rk) :: eps
-    integer(ik) :: i
+    real(rk), dimension(2, N_CELLS) :: sin_theta_ib, cos_theta_ib
+    real(rk), dimension(2, N_CELLS) :: sin_theta_ie, cos_theta_ie
+    real(rk), dimension(2, N_CELLS) :: sin_dtheta, cos_dtheta
+    real(rk), dimension(2, N_CELLS) :: sin_d2theta, cos_d2theta
+    real(rk), dimension(2, N_CELLS) :: dtheta
+    real(rk) :: rho_a_tilde
+    integer(ik) :: i, arc, max_n_arcs
 
     error_code = 0 ! All ok at first
+    dtheta = 0.0_rk
+    sin_theta_ib = 0.0_rk
+    cos_theta_ib = 0.0_rk
+    sin_theta_ie = 0.0_rk
+    cos_theta_ie = 0.0_rk
 
     do i = 1, mach_cone%n_neighbor_cells
       if(mach_cone%p_prime_in_cell(i)) then
@@ -391,78 +408,166 @@ contains
       end if
     end do
 
-    associate(theta_ie=>mach_cone%theta_ie, &
-              theta_ib=>mach_cone%theta_ib, &
-              rho_tilde=>mach_cone%reference_density, &
-              a_tilde=>mach_cone%reference_sound_speed, &
+    ! Precompute for a bit of speed
+    max_n_arcs = maxval(mach_cone%n_arcs_per_cell)
+
+    if(max_n_arcs == 1) then ! most cells will only have 1 arc in each
+      do i = 1, N_CELLS
+        dtheta(1, i) = mach_cone%theta_ie(1, i) - mach_cone%theta_ib(1, i)
+        sin_theta_ib(1, i) = sin(mach_cone%theta_ib(1, i))
+        cos_theta_ib(1, i) = cos(mach_cone%theta_ib(1, i))
+        sin_theta_ie(1, i) = sin(mach_cone%theta_ie(1, i))
+        cos_theta_ie(1, i) = cos(mach_cone%theta_ie(1, i))
+      end do
+    else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
+      do i = 1, N_CELLS
+        do arc = 1, max_n_arcs
+          dtheta(arc, i) = mach_cone%theta_ie(arc, i) - mach_cone%theta_ib(arc, i)
+          sin_theta_ib(arc, i) = sin(mach_cone%theta_ib(arc, i))
+          cos_theta_ib(arc, i) = cos(mach_cone%theta_ib(arc, i))
+          sin_theta_ie(arc, i) = sin(mach_cone%theta_ie(arc, i))
+          cos_theta_ie(arc, i) = cos(mach_cone%theta_ie(arc, i))
+        end do
+      end do
+    end if
+
+    ! dtheta = mach_cone%theta_ie - mach_cone%theta_ib
+    ! sin_theta_ib = sin(mach_cone%theta_ib)
+    ! cos_theta_ib = cos(mach_cone%theta_ib)
+    ! sin_theta_ie = sin(mach_cone%theta_ie)
+    ! cos_theta_ie = cos(mach_cone%theta_ie)
+
+    sin_dtheta = sin_theta_ie - sin_theta_ib
+    cos_dtheta = cos_theta_ie - cos_theta_ib
+    ! sin_d2theta = sin(2.0_rk * mach_cone%theta_ie) - sin(2.0_rk * mach_cone%theta_ib)
+    sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
+    ! cos_d2theta = cos(2.0_rk * mach_cone%theta_ie) - cos(2.0_rk * mach_cone%theta_ib)
+    cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
+    rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
+
+    associate(a_tilde=>mach_cone%reference_sound_speed, &
               rho_p_prime=>p_prime_prim_vars(1), &
               pressure_p_prime=>p_prime_prim_vars(4), &
               u_i=>mach_cone%arc_primitive_vars(2, :, :), &
               v_i=>mach_cone%arc_primitive_vars(3, :, :), &
               p_i=>mach_cone%arc_primitive_vars(4, :, :))
 
-      pressure = sum(p_i * (theta_ie - theta_ib) &
-                     - rho_tilde * a_tilde * u_i * (sin(theta_ie) - sin(theta_ib)) &
-                     + rho_tilde * a_tilde * v_i * (cos(theta_ie) - cos(theta_ib))) / (2.0_rk * pi)
+      pressure = sum(p_i * dtheta &
+                     - rho_a_tilde * u_i * sin_dtheta &
+                     + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
 
       density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
-      ! if(abs(pressure - pressure_p_prime) > 0.0_rk) then
-      !   ! print*, 'supersonic!'
-      !   print *, "rho(P')", rho_p_prime
-      !   print *, "rho(P)", density
-      !   print *, "p(P)", pressure
-      !   print *, "p(P')", pressure_p_prime
-      !   print *, "p(P) - p(P')", pressure - pressure_p_prime
-      !   print *, "p_i / (rho_tilde * a_tilde)", p_i / (rho_tilde * a_tilde)
-      !   print *
-      !   ! error stop
-      ! end if
 
-      u = sum((-p_i / (rho_tilde * a_tilde)) * (sin(theta_ie) - sin(theta_ib)) &
-              + u_i * ( &
-              ((theta_ie - theta_ib) / 2.0_rk) &
-              + ((sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)) / 4.0_rk) &
-              ) &
-              - v_i * ((cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)) / 4.0_rk) &
-              ) / pi
+      u = sum((-p_i / rho_a_tilde) * sin_dtheta &
+              + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+              - v_i * (cos_d2theta / 4.0_rk)) / pi
 
-      v = sum((p_i / (rho_tilde * a_tilde)) * (cos(theta_ie) - cos(theta_ib)) &
-              - u_i * ((cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)) / 4.0_rk) &
-              + v_i * ( &
-              ((theta_ie - theta_ib) / 2.0_rk) &
-              - ((sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)) / 4.0_rk) &
-              ) &
-              ) / pi
-
-      ! if(abs(u) < 1.0e-10_rk) u = 0.0_rk
-      ! if(abs(v) < 1.0e-10_rk) v = 0.0_rk
-      ! if(density < 0.005_rk) density = 0.005_rk
-      primitive_variables = [density, u, v, pressure]
-
-      ! if(density < 0.0_rk .or. pressure < 0.0_rk) then
-
-      !   print *, "Density or pressure is negative, called by: ", trim(calling_routine)
-      !   write(*, *) mach_cone
-      !   write(*, *) 'radius', mach_cone%radius
-      !   print *, 'Primitive variables ', primitive_variables
-
-      !   write(std_err, '(a)') 'Error in local_evo_operator_t%e0_operator():'
-      !   write(std_err, '(a)') 'This may just be a problem during a stage in '// &
-      !     'time-integration, but just to be explicit, here it is...'
-      !   write(std_err, '(a, es15.8)') 'Density(P):      ', density
-      !   write(std_err, '(a, es15.8)') "Density(P'):     ", rho_p_prime
-      !   write(std_err, '(a, es15.8)') "p(P)/a_tilde^2:  ", pressure / a_tilde**2
-      !   write(std_err, '(a, es15.8)') "Pressure(P'):    ", pressure_p_prime
-      !   write(std_err, '(a, es15.8)') 'Pressure(P):     ', pressure
-      !   write(std_err, '(a, es15.8)') "a_tilde:         ", a_tilde
-      !   write(std_err, '(a, es15.8)') "p(P) - p(P')/a^2:",((pressure - pressure_p_prime) / a_tilde**2)
-      !   write(std_err, '(a, es15.8)') 'X Velocity:      ', u
-      !   write(std_err, '(a, es15.8)') 'Y Velocity:      ', v
-      !   write(std_err, '(a, es15.8)') '=========================='
-      !   error stop "Density or pressure is negative"
-      ! end if
+      v = sum((p_i / rho_a_tilde) * cos_dtheta &
+              - u_i * (cos_d2theta / 4.0_rk) &
+              + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
     end associate
-  end subroutine e0_operator
+    primitive_variables = [density, u, v, pressure]
+  end subroutine e0_operator_corner
+
+  subroutine e0_operator_midpoint(self, mach_cone, primitive_variables, calling_routine, error_code)
+    !< E0 operator for 2-cell midpoint nodes
+
+    use mod_eos, only: eos
+    class(local_evo_operator_t), intent(in) :: self
+    type(midpoint_mach_cone_t), intent(in) :: mach_cone
+
+    character(len=*), intent(in) :: calling_routine
+    integer(ik), intent(out) :: error_code
+    real(rk), dimension(4), intent(out) :: primitive_variables
+
+    integer(ik), parameter :: N_CELLS = 2
+
+    real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
+    real(rk) :: pressure, density, u, v
+    real(rk), dimension(2, N_CELLS) :: sin_theta_ib, cos_theta_ib
+    real(rk), dimension(2, N_CELLS) :: sin_theta_ie, cos_theta_ie
+    real(rk), dimension(2, N_CELLS) :: sin_dtheta, cos_dtheta
+    real(rk), dimension(2, N_CELLS) :: sin_d2theta, cos_d2theta
+    real(rk), dimension(2, N_CELLS) :: dtheta
+    real(rk) :: rho_a_tilde
+    integer(ik) :: i, arc, max_n_arcs
+
+    error_code = 0 ! All ok at first
+    dtheta = 0.0_rk
+    sin_theta_ib = 0.0_rk
+    cos_theta_ib = 0.0_rk
+    sin_theta_ie = 0.0_rk
+    cos_theta_ie = 0.0_rk
+
+    do i = 1, N_CELLS
+      if(mach_cone%p_prime_in_cell(i)) then
+        p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
+                            xy=mach_cone%p_prime_xy, &
+                            cell_ij=mach_cone%p_prime_ij(:, i))
+      end if
+    end do
+
+    ! Precompute for a bit of speed
+    max_n_arcs = maxval(mach_cone%n_arcs_per_cell)
+
+    if(max_n_arcs == 1) then ! most cells will only have 1 arc in each
+      do i = 1, N_CELLS
+        dtheta(1, i) = mach_cone%theta_ie(1, i) - mach_cone%theta_ib(1, i)
+        sin_theta_ib(1, i) = sin(mach_cone%theta_ib(1, i))
+        cos_theta_ib(1, i) = cos(mach_cone%theta_ib(1, i))
+        sin_theta_ie(1, i) = sin(mach_cone%theta_ie(1, i))
+        cos_theta_ie(1, i) = cos(mach_cone%theta_ie(1, i))
+      end do
+    else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
+      do i = 1, N_CELLS
+        do arc = 1, max_n_arcs
+          dtheta(arc, i) = mach_cone%theta_ie(arc, i) - mach_cone%theta_ib(arc, i)
+          sin_theta_ib(arc, i) = sin(mach_cone%theta_ib(arc, i))
+          cos_theta_ib(arc, i) = cos(mach_cone%theta_ib(arc, i))
+          sin_theta_ie(arc, i) = sin(mach_cone%theta_ie(arc, i))
+          cos_theta_ie(arc, i) = cos(mach_cone%theta_ie(arc, i))
+        end do
+      end do
+    end if
+
+    ! dtheta = mach_cone%theta_ie - mach_cone%theta_ib
+    ! sin_theta_ib = sin(mach_cone%theta_ib)
+    ! cos_theta_ib = cos(mach_cone%theta_ib)
+    ! sin_theta_ie = sin(mach_cone%theta_ie)
+    ! cos_theta_ie = cos(mach_cone%theta_ie)
+
+    sin_dtheta = sin_theta_ie - sin_theta_ib
+    cos_dtheta = cos_theta_ie - cos_theta_ib
+    ! sin_d2theta = sin(2.0_rk * mach_cone%theta_ie) - sin(2.0_rk * mach_cone%theta_ib)
+    sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
+    ! cos_d2theta = cos(2.0_rk * mach_cone%theta_ie) - cos(2.0_rk * mach_cone%theta_ib)
+    cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
+    rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
+
+    associate(a_tilde=>mach_cone%reference_sound_speed, &
+              rho_p_prime=>p_prime_prim_vars(1), &
+              pressure_p_prime=>p_prime_prim_vars(4), &
+              u_i=>mach_cone%arc_primitive_vars(2, :, :), &
+              v_i=>mach_cone%arc_primitive_vars(3, :, :), &
+              p_i=>mach_cone%arc_primitive_vars(4, :, :))
+
+      pressure = sum(p_i * dtheta &
+                     - rho_a_tilde * u_i * sin_dtheta &
+                     + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
+
+      density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
+
+      u = sum((-p_i / rho_a_tilde) * sin_dtheta &
+              + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+              - v_i * (cos_d2theta / 4.0_rk)) / pi
+
+      v = sum((p_i / rho_a_tilde) * cos_dtheta &
+              - u_i * (cos_d2theta / 4.0_rk) &
+              + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+
+    end associate
+    primitive_variables = [density, u, v, pressure]
+  end subroutine e0_operator_midpoint
 
 end module mod_local_evo_operator

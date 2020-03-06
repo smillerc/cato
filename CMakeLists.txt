@@ -98,13 +98,13 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     list(
       APPEND
         CMAKE_Fortran_FLAGS
-        "-fpp -stand f15 -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
+        "-fpp -stand f15 -assume contiguous_assumed_shape -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
     )
   else()
     list(
       APPEND
         CMAKE_Fortran_FLAGS
-        "-fpp -stand f18 -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
+        "-fpp -stand f18 -assume contiguous_assumed_shape -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
     )
   endif()
 

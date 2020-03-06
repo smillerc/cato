@@ -79,42 +79,6 @@ module mod_mach_cone
 
 contains
 
-  ! function new_cone(tau, edge_vectors, reconstructed_state, cell_indices, cone_location) result(cone)
-
-  !   class(mach_cone_base_t), pointer :: cone
-
-  !   !< Constructor for the Mach cone type
-  !   real(rk), intent(in) :: tau  !< time increment, tau -> 0 (very small number)
-  !   character(len=*), intent(in) :: cone_location !< corner, down/up midpoint, left/right midpoint
-
-  !   real(rk), dimension(:, :, :), intent(in) :: edge_vectors
-  !   !< ((x,y), (tail,head), (vector_1:vector_n)); set of vectors that define the cell edges
-
-  !   integer(ik), dimension(:, :), intent(in) :: cell_indices
-  !   !< ((i,j), cell_1:cell_n); set of indices for the neighboring cells -> needed to find P' i,j index
-
-  !   real(rk), dimension(:, :), intent(in) :: reconstructed_state
-  !   !< ((rho,u,v,p), cell); reconstructed state for point P.
-  !   !< P has a different reconstruction for each cell
-
-  !   class(quad_corner_mach_cone_t), allocatable, target :: corner_cone
-  !   class(midpoint_mach_cone_t), allocatable, target :: midpoint_cone
-
-  !   select case(trim(cone_location))
-  !   case ('down/up midpoint', 'left/right midpoint')
-  !     allocate(midpoint_cone)
-  !     call midpoint_cone%initialize(tau, edge_vectors, reconstructed_state, cell_indices, cone_location)
-  !     cone => midpoint_cone
-  !   case ('corner', 'quad corner')
-  !     allocate(corner_cone)
-  !     call corner_cone%initialize(tau, edge_vectors, reconstructed_state, cell_indices, cone_location)
-  !     cone => corner_cone
-  !   case default
-  !     error stop "Error in mod_mach_cone, new_cone: Unknown cone location type"
-  !   end select
-
-  ! end function
-
   subroutine init_midpoint_cone(self, tau, edge_vectors, reconstructed_state, cell_indices, cone_location)
     class(midpoint_mach_cone_t), intent(inout) :: self
     real(rk), intent(in) :: tau  !< time increment, tau -> 0 (very small number)
@@ -128,7 +92,7 @@ contains
     real(rk), dimension(4, 2), intent(in) :: reconstructed_state  !< ((rho,u,v,p), cell); reconstructed state for point P.
 
     ! Locals
-    integer(ik) :: i  !< index for looping through neighbor cells
+    integer(ik) :: l, i  !< index for looping through neighbor cells
     integer(ik) :: arc  !< index for looping through the # arcs in each neighbor cell
     integer(ik) :: n_arcs
     type(vector_t) :: p_prime_vector
@@ -146,6 +110,14 @@ contains
     self%p_xy = [edge_vectors(1, 1, 1), edge_vectors(2, 1, 1)]
     self%cone_location = trim(cone_location)
     self%edge_vectors = edge_vectors
+    self%n_neighbor_cells = size(reconstructed_state, dim=2)
+
+    do i = 1, 2
+      do l = 1, 4
+        self%recon_state(l, i) = reconstructed_state(l, i)
+      end do
+    end do
+
     call self%get_reference_state(reconstructed_state)
 
     if(any(reconstructed_state(1, :) < 0.0_rk)) then
@@ -679,30 +651,34 @@ contains
 
     integer(ik) :: ref_state_cell
     real(rk) :: ave_p
-    real(rk), dimension(:), allocatable :: mach_number, sound_speed
+    real(rk), dimension(:), allocatable, contiguous :: mach_number, sound_speed
     integer(ik) :: i
-    ! real(rk) :: u, v
-
-    self%n_neighbor_cells = size(reconstructed_state, dim=2)
-    self%recon_state = reconstructed_state
+    real(rk) :: gamma
 
     allocate(mach_number(self%n_neighbor_cells))
     allocate(sound_speed(self%n_neighbor_cells))
 
-    sound_speed = eos%sound_speed(pressure=self%recon_state(4, :), density=self%recon_state(1, :))
-    mach_number = sqrt(self%recon_state(2, :)**2 + self%recon_state(3, :)**2) / sound_speed
+    ! sound_speed = eos%sound_speed(pressure=self%recon_state(4, :), density=self%recon_state(1, :))
+    ! mach_number = sqrt(self%recon_state(2, :)**2 + self%recon_state(3, :)**2) / sound_speed
+    gamma = eos%get_gamma()
+    do i = 1, self%n_neighbor_cells
+      sound_speed(i) = sqrt(gamma * self%recon_state(4, i) / self%recon_state(1, i))
+    end do
+    do i = 1, self%n_neighbor_cells
+      mach_number(i) = sqrt(self%recon_state(2, i)**2 + self%recon_state(3, i)**2) / sound_speed(i)
+    end do
 
     associate(rho=>self%recon_state(1, :), &
               u=>self%recon_state(2, :), &
               v=>self%recon_state(3, :), &
               p=>self%recon_state(4, :), &
-              n=>self%n_neighbor_cells)
+              n=>real(self%n_neighbor_cells, rk))
 
       where(mach_number > 1.0_rk) self%cell_is_supersonic = .true.
 
       ! The cone is transonic if there is a combo of super/subsonic cells
-      if(count(self%cell_is_supersonic(1:n)) == n .or. &
-         count(self%cell_is_supersonic(1:n)) == 0) then
+      if(count(self%cell_is_supersonic(1:self%n_neighbor_cells)) == n .or. &
+         count(self%cell_is_supersonic(1:self%n_neighbor_cells)) == 0) then
         self%cone_is_transonic = .false.
       else
         self%cone_is_transonic = .true.
