@@ -18,14 +18,19 @@ from generate_initial_grids import (
 )
 
 cells_per_micron = 10
+gamma = 5.0 / 3.0
+rho_shell = 1.0  # g/cc
+v_shell = np.sqrt(2.0 / (gamma + 1.0) * 1e10 / rho_shell)
+# v_shell = -2.6e6
+# print('V shell: ', v_shell)
 
-layer_thicknesses = [10, 40, 10, 30] * ureg("um")
+layer_thicknesses = [10, 40, 10, 80] * ureg("um")
 layer_n_cells = (layer_thicknesses.m * cells_per_micron).astype(np.int)
-# layer_n_cells = [10 , 50, 80, 10]
-layer_density = [0.01, 0.24, 1.0, 1e-4, 1e-4] * ureg("g/cc")
-layer_u = [0, 0, 0, 0, 0] * ureg("cm/s")
-layer_v = [0, 0, 0, 0, 0] * ureg("cm/s")
-layer_pressure = [1e9, 1e9, 1e9, 1e10, 1e10] * ureg("barye")
+layer_density = [0.01, 0.24, 1.0, 0.005] * ureg("g/cc")
+layer_u = [0, 0, 0, v_shell] * ureg("cm/s")
+layer_v = [0, 0, 0, 0] * ureg("cm/s")
+layer_pressure = [1e9, 1e9, 1e9, 1e10] * ureg("barye")
+
 
 domain = make_1d_layered_grid(
     layer_thicknesses, layer_n_cells, layer_density, layer_u, layer_v, layer_pressure
