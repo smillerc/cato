@@ -28,7 +28,12 @@ target_link_libraries(utilities PUBLIC globals)
 
 add_library(
   geometry
-  lib/geometry/cone.f90
+  lib/geometry/mach_cone.f90
+  lib/geometry/mach_cone_utilities.f90
+  lib/geometry/midpoint_mach_cone.f90
+  lib/geometry/corner_mach_cone.f90
+  # lib/geometry/cone.f90
+  lib/geometry/geometry.f90
   lib/domain/grid_type.f90
   lib/domain/regular_2d_grid.f90
   lib/domain/grid_factory.f90
@@ -47,22 +52,29 @@ add_library(
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/reflection_bc.f90
-  lib/boundary_conditions/symmetry_bc.f90
   lib/boundary_conditions/bc_factory.f90
+  lib/source_terms/source_factory.f90
+  lib/source_terms/mod_source.f90
+  lib/source_terms/energy_source.f90
   lib/domain/fluxes.f90
   lib/evolution_operator/abstract_evo_operator.f90
   lib/evolution_operator/local_evo_operator.f90
   lib/evolution_operator/evo_operator_factory.f90
+  lib/reconstruction/gradients.f90
   lib/reconstruction/abstract_reconstruction.f90
   lib/reconstruction/first_order_reconstruction.f90
-  lib/reconstruction/second_order_reconstruction.f90
+  lib/reconstruction/second_order_sgg_reconstruction.f90
+  lib/reconstruction/second_order_sgg_structured_reconstruction.f90
+  lib/reconstruction/second_order_dbl_reconstruction.f90
   lib/reconstruction/reconstruction_factory.f90
   lib/finite_volume_scheme/fv_scheme.f90
   lib/integrand.f90
   lib/integrators/strategy.f90
   lib/integrators/surrogate.f90
   lib/integrators/time_integrator_factory.f90
-  lib/integrators/runge_kutta_2nd_order.f90)
+  lib/integrators/heun_2nd_order.f90
+  lib/integrators/ssp_runge_kutta_3rd_order.f90
+  lib/integrators/ralston_2nd_order.f90)
 
 # target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(

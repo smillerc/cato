@@ -10,20 +10,22 @@ sys.path.append(os.path.abspath("../../../scripts"))
 from generate_initial_grids import make_1d_in_x_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
-shock_tube = make_1d_in_x_uniform_grid(n_nodes=1000, limits=(0, 1.0))
+shock_tube = make_1d_in_x_uniform_grid(n_cells=400, limits=(0, 1.0))
 
 # Set the initial conditions
 shock_tube["u"] = shock_tube["u"] * 0.0
 shock_tube["v"] = shock_tube["v"] * 0.0
-
+gamma = 1.4
 x = shock_tube["xc"]
 y = shock_tube["yc"]
 
 for i in range(y.shape[0]):
     for j in range(y.shape[1]):
+        # Left State
         if x[i, j] <= 0.5:
             shock_tube["p"][i, j] = 1.0
             shock_tube["rho"][i, j] = 1.0
+        # Right state
         else:
             shock_tube["p"][i, j] = 0.1
             shock_tube["rho"][i, j] = 0.125

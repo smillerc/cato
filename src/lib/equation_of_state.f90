@@ -1,7 +1,7 @@
-#undef pure
 module mod_eos
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: ieee_arithmetic
   use mod_input, only: input_t
   implicit none
 
@@ -14,14 +14,17 @@ module mod_eos
   contains
     procedure, public :: get_gamma
     procedure, public :: set_gamma
-    procedure, public :: calc_pressure_from_dens_and_internal_energy
-    procedure, public :: calc_internal_energy_from_press_and_dens
-    procedure, public :: calc_total_energy
-    procedure, public :: calc_sound_speed
+    procedure, public :: calculate_total_energy
+    procedure, public :: sound_speed
+    procedure, public :: sound_speed_from_primitive
+    procedure, public :: sound_speed_from_conserved
+    procedure, public :: conserved_to_primitive
+    procedure, public :: primitive_to_conserved
+    procedure, public :: total_energy_to_pressure
     procedure, public :: calc_density_from_isentropic_press
   end type eos_t
 
-  interface eos_t
+  interface new_eos
     module procedure :: constructor
   end interface
 
@@ -32,71 +35,77 @@ contains
     !< Constructor for the equation of state type
     class(input_t), intent(in) :: input
     call eq_of_state%set_gamma(input%polytropic_index)
-  end function
+  end function constructor
 
   subroutine set_gamma(self, gamma)
     class(eos_t), intent(inout) :: self
     real(rk), intent(in) :: gamma
     self%gamma = gamma
-  end subroutine
+  end subroutine set_gamma
 
   real(rk) pure function get_gamma(self) result(gamma)
     class(eos_t), intent(in) :: self
     gamma = self%gamma
-  end function
+  end function get_gamma
 
   subroutine set_equation_of_state(input)
     class(input_t), intent(in) :: input
     eos = constructor(input)
-  end subroutine
+  end subroutine set_equation_of_state
 
-  elemental function calc_pressure_from_dens_and_internal_energy(self, density, internal_energy) result(pressure)
-    !< Ideal gas law -> P = (1-gamma)*rho*e
-    class(eos_t), intent(in) :: self
-    real(rk) :: pressure
-    real(rk), intent(in) :: density
-    real(rk), intent(in) :: internal_energy
-
-    pressure = (1.0_rk - self%gamma) * density * internal_energy
-  end function
-
-  elemental function calc_internal_energy_from_press_and_dens(self, pressure, density) result(internal_energy)
-    !< Calculate internal energy
-    class(eos_t), intent(in) :: self
-    real(rk), intent(in) :: pressure
-    real(rk), intent(in) :: density
-    real(rk) :: internal_energy
-
-    internal_energy = (pressure / density) / (self%gamma - 1.0_rk)
-  end function
-
-  elemental function calc_total_energy(self, internal_energy, density, x_velocity, y_velocity) result(total_energy)
+  elemental real(rk) function calculate_total_energy(self, pressure, density, x_velocity, y_velocity) result(total_energy)
     !< Calculate total energy
     class(eos_t), intent(in) :: self
-    real(rk), intent(in) :: internal_energy
     real(rk), intent(in) :: density
+    real(rk), intent(in) :: pressure
     real(rk), intent(in) :: x_velocity
     real(rk), intent(in) :: y_velocity
-    real(rk) :: total_energy
 
-    total_energy = density * (internal_energy + 0.5_rk * (x_velocity**2 + y_velocity**2))
-  end function
+    total_energy = (pressure / (density * (self%gamma - 1.0_rk))) + ((x_velocity**2 + y_velocity**2) / 2.0_rk)
+  end function calculate_total_energy
 
-  elemental function calc_sound_speed(self, pressure, density) result(sound_speed)
+  elemental real(rk) function sound_speed(self, pressure, density)
     !< Calculate sound speed
     class(eos_t), intent(in) :: self
     real(rk), intent(in) :: pressure
     real(rk), intent(in) :: density
-    real(rk) :: sound_speed
 
-    real(rk) :: sqrt_term
+    ! if(pressure < 0) error stop "Pressure is < 0 in eos_t%sound_speed"
+    ! if(density < 0) error stop "Density is < 0 in eos_t%sound_speed"
+    sound_speed = sqrt(self%gamma * abs(pressure / density))
+  end function sound_speed
 
-    if(pressure < 0) error stop "Pressure is < 0 in eos_t%calc_sound_speed"
-    if(density < 0) error stop "Density is < 0 in eos_t%calc_sound_speed"
+  subroutine sound_speed_from_primitive(self, primitive_vars, sound_speed)
+    !< Calculate sound speed using the primitive variables [rho, u, v, p]
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :, :), intent(in) :: primitive_vars
+    real(rk), dimension(:, :), intent(out) :: sound_speed
 
-    sqrt_term = self%gamma * pressure / density
-    sound_speed = sqrt(sqrt_term)
-  end function
+    ! if(minval(primitive_vars(4, :, :)) < 0.0_rk) then
+    !   print*, 'minloc(primitive_vars(4, :, :))', minloc(primitive_vars(4, :, :))
+    !   error stop "Pressure is < 0 in eos_t%calc_sound_speed_from_primitive()"
+    ! end if
+
+    ! if(minval(primitive_vars(1, :, :)) < 0.0_rk) then
+    !   print*, 'minloc(primitive_vars(1, :, :))', minloc(primitive_vars(1, :, :))
+    !   error stop "Density is < 0 in eos_t%calc_sound_speed_from_primitive()"
+    ! end if
+
+    sound_speed = sqrt(self%gamma * abs(primitive_vars(4, :, :) / primitive_vars(1, :, :)))
+  end subroutine sound_speed_from_primitive
+
+  subroutine sound_speed_from_conserved(self, conserved_vars, sound_speed)
+    !< Calculate the sound speed using the conserved variables [rho, rho u, rho v, rho E]
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
+    real(rk), dimension(:, :), intent(out) :: sound_speed
+    real(rk), dimension(:, :, :), allocatable :: primitive_vars
+
+    allocate(primitive_vars, mold=conserved_vars)
+    call self%conserved_to_primitive(conserved_vars, primitive_vars)
+    call self%sound_speed_from_primitive(primitive_vars, sound_speed)
+    deallocate(primitive_vars)
+  end subroutine
 
   elemental function calc_density_from_isentropic_press(self, P_1, P_2, rho_1) result(rho_2)
     !< Calculate the isentropic density based on a given pressure ratio and initial density
@@ -106,6 +115,98 @@ contains
     real(rk), intent(in) :: rho_1
     real(rk) :: rho_2
 
+    if(P_1 <= 0.0_rk) error stop "Error in eos_t%calc_density_from_isentropic_press(): P_1 <= 0"
+    if(P_2 <= 0.0_rk) error stop "Error in eos_t%calc_density_from_isentropic_press(): P_2 <= 0"
+    if(rho_1 <= 0.0_rk) error stop "Error in eos_t%calc_density_from_isentropic_press(): rho_1 <= 0"
     rho_2 = rho_1 * (P_2 / P_1)**(self%gamma - 1)
-  end function
+  end function calc_density_from_isentropic_press
+
+  elemental real(rk) function total_energy_to_pressure(self, total_energy, rho, u, v) result(pressure)
+    class(eos_t), intent(in) :: self
+    real(rk), intent(in) :: total_energy
+    real(rk), intent(in) :: rho
+    real(rk), intent(in) :: u
+    real(rk), intent(in) :: v
+
+    ! pressure = (self%gamma - 1.0_rk) * (total_energy - (rho / 2.0_rk) * (u**2 + v**2))
+    pressure = rho * (self%gamma - 1.0_rk) * (total_energy - ((u**2 + v**2) / 2.0_rk))
+  end function total_energy_to_pressure
+
+  subroutine conserved_to_primitive(self, conserved_vars, primitive_vars)
+    !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
+    !< is in the EOS class due to requirement of converting energy into pressure
+
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
+    real(rk), dimension(:, :, :), intent(out) :: primitive_vars
+
+    logical :: underflow_mode
+
+    call ieee_get_underflow_mode(underflow_mode)
+    call ieee_set_underflow_mode(.false.)
+
+    ! rho
+    primitive_vars(1, :, :) = conserved_vars(1, :, :)
+
+    ! u
+    primitive_vars(2, :, :) = conserved_vars(2, :, :) / conserved_vars(1, :, :)
+
+    ! v
+    primitive_vars(3, :, :) = conserved_vars(3, :, :) / conserved_vars(1, :, :)
+
+    ! pressure
+    ! primitive_vars(4, :, :) = rho * (gamma - 1.0_rk) * (E - ((u**2 + v**2) / 2.0_rk))
+    primitive_vars(4, :, :) = conserved_vars(1, :, :) * (self%gamma - 1.0_rk) * &
+                              ((conserved_vars(4, :, :) / conserved_vars(1, :, :)) - &
+                               ((primitive_vars(2, :, :)**2 + primitive_vars(3, :, :)**2) / 2.0_rk))
+
+    ! associate(gamma=>self%gamma, E=>conserved_vars(4, :, :) / conserved_vars(1, :, :), &
+    !           rho=>conserved_vars(1, :, :), &
+    !           u=>primitive_vars(2, :, :), &
+    !           v=>primitive_vars(3, :, :))
+
+    !   primitive_vars(4, :, :) = rho * (gamma - 1.0_rk) * (E - ((u**2 + v**2) / 2.0_rk))
+    ! end associate
+
+    call ieee_set_underflow_mode(underflow_mode)
+  end subroutine conserved_to_primitive
+
+  subroutine primitive_to_conserved(self, primitive_vars, conserved_vars)
+    !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
+    !< is in the EOS class due to requirement of converting energy into pressure
+
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :, :), intent(out) :: conserved_vars
+    real(rk), dimension(:, :, :), intent(in) :: primitive_vars
+
+    logical :: underflow_mode
+
+    call ieee_get_underflow_mode(underflow_mode)
+    call ieee_set_underflow_mode(.false.)
+    ! rho
+    conserved_vars(1, :, :) = primitive_vars(1, :, :)
+
+    ! rho u
+    conserved_vars(2, :, :) = primitive_vars(2, :, :) * conserved_vars(1, :, :)
+
+    ! rho v
+    conserved_vars(3, :, :) = primitive_vars(3, :, :) * conserved_vars(1, :, :)
+
+    ! rho E
+    conserved_vars(4, :, :) = (primitive_vars(4, :, :) / (self%gamma - 1.0_rk)) + &
+                              primitive_vars(1, :, :) * &
+                              ((primitive_vars(2, :, :)**2 + primitive_vars(3, :, :)**2) / 2.0_rk)
+
+    ! associate(gamma=>self%gamma, &
+    !           rho=>primitive_vars(1, :, :), &
+    !           p=>primitive_vars(4, :, :), &
+    !           u=>primitive_vars(2, :, :), &
+    !           v=>primitive_vars(3, :, :))
+    !   ! rho E
+    !   conserved_vars(4, :, :) = (p / (self%gamma - 1.0_rk)) + rho * ((u**2 + v**2) / 2.0_rk)
+    ! end associate
+
+    call ieee_set_underflow_mode(underflow_mode)
+  end subroutine primitive_to_conserved
+
 end module mod_eos

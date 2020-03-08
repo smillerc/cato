@@ -5,7 +5,10 @@ module mod_reconstruction_factory
   use mod_input, only: input_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_first_order_reconstruction, only: first_order_reconstruction_t
-  use mod_second_order_reconstruction, only: second_order_reconstruction_t
+  ! use mod_second_order_mgg_reconstruction, only: second_order_mgg_reconstruction_t
+  use mod_second_order_sgg_reconstruction, only: second_order_sgg_reconstruction_t
+  use mod_second_order_dbl_reconstruction, only: second_order_dbl_reconstruction_t
+  use mod_second_order_sgg_structured_reconstruction, only: second_order_sgg_structured_reconstruction_t
   use mod_grid, only: grid_t
 
   implicit none
@@ -26,16 +29,23 @@ contains
     call debug_print('Making a "'//recon_type//'" reconstruction operator', __FILE__, __LINE__)
 
     select case(recon_type)
-    case('piecewise_linear')
-      allocate(second_order_reconstruction_t :: operator)
+    case('discontinuous_bilinear')
+      allocate(second_order_dbl_reconstruction_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target)
+    case('piecewise_linear_sgg')
+      allocate(second_order_sgg_reconstruction_t :: operator)
+      call operator%initialize(input=input, grid_target=grid_target)
+    case('piecewise_linear_sgg_structured')
+      allocate(second_order_sgg_structured_reconstruction_t :: operator)
+      call operator%initialize(input=input, grid_target=grid_target)
+      ! case('piecewise_linear_mgg')
+      !   allocate(second_order_mgg_reconstruction_t :: operator)
+      !   call operator%initialize(input=input, grid_target=grid_target)
     case('cell_average')
       allocate(first_order_reconstruction_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target)
     case default
-      ! if(this_image() == 1) then
       error stop "Error in reconstruction_factory_t, unrecognizable reconstruction type"
-      ! end if
     end select
   end function
 

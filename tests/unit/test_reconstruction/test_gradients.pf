@@ -1,0 +1,115 @@
+module test_gradients
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_gradients
+  use funit
+
+  implicit none
+
+  integer(ik), parameter :: ni_nodes = 4
+  integer(ik), parameter :: nj_nodes = 4
+  integer(ik), parameter :: ni_cells = ni_nodes - 1
+  integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik) :: alloc_status
+
+contains
+
+  @test
+  subroutine test_smoothness()
+    real(rk) :: current = 1.0_rk
+    real(rk) :: left = 5.0_rk
+    real(rk) :: right = 3.0_rk
+    real(rk) :: smoothness = 0.0_rk
+
+    smoothness = get_smoothness(current, left, right)
+    @assertEqual(-0.5_rk, smoothness)
+  end subroutine test_smoothness
+
+  @test
+  subroutine test_sgg_gradient()
+    real(rk), dimension(4, 2) :: gradient
+    real(rk), dimension(4, 5) :: prim_vars  !< primitive variables of current and neighbor cells
+    real(rk), dimension(5) :: volumes  !< volume of each cell
+    real(rk), dimension(4) :: edge_lengths  !< length of each face
+    real(rk), dimension(2, 4) :: edge_normals  !< normal vectors of each face
+
+    write(*, *) "Testing the standard Green-Gauss gradient reconstruction"
+
+    volumes = 1.0_rk
+    edge_lengths = 1.0_rk
+    edge_normals(:, 1) = [0.0_rk, -1.0_rk]
+    edge_normals(:, 2) = [1.0_rk, 0.0_rk]
+    edge_normals(:, 3) = [0.0_rk, 1.0_rk]
+    edge_normals(:, 4) = [-1.0_rk, 0.0_rk]
+
+    !           Domain           -->     Primitive Variable (v)
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,3) | (2,3) | (3,3) |  -->  |   1   |   2   |   3   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,2) | (2,2) | (3,2) |  -->  |   1   |   2   |   3   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,1) | (2,1) | (3,1) |  -->  |   1   |   2   |   3   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+
+    prim_vars(:, 1) = 2.0_rk  ! (2,2)
+    prim_vars(:, 2) = 2.0_rk  ! (2,1)
+    prim_vars(:, 3) = 3.0_rk  ! (3,2)
+    prim_vars(:, 4) = 2.0_rk  ! (2,3)
+    prim_vars(:, 5) = 1.0_rk  ! (1,2)
+
+    gradient = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
+
+    ! dU/dx
+    @assertEqual(1.0_rk, gradient(:, 1))
+
+    ! dU/dy
+    @assertEqual(0.0_rk, gradient(:, 2))
+
+    !           Domain           -->     Primitive Variable (v)
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,3) | (2,3) | (3,3) |  -->  |   1   |   1   |   1   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,2) | (2,2) | (3,2) |  -->  |   1   |   1   |   2   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,1) | (2,1) | (3,1) |  -->  |   1   |   2   |   2   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+
+    prim_vars(:, 1) = 1.0_rk  ! (2,2)
+    prim_vars(:, 2) = 2.0_rk  ! (2,1)
+    prim_vars(:, 3) = 2.0_rk  ! (3,2)
+    prim_vars(:, 4) = 1.0_rk  ! (2,3)
+    prim_vars(:, 5) = 1.0_rk  ! (1,2)
+
+    gradient = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
+
+    ! dU/dx
+    @assertEqual(0.5_rk, gradient(:, 1))
+
+    ! dU/dy
+    @assertEqual(-0.5_rk, gradient(:, 2))
+
+    !           Domain           -->     Primitive Variable (v)
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,3) | (2,3) | (3,3) |  -->  |   1   |   1   |   1   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,2) | (2,2) | (3,2) |  -->  |   1   |   2   |   1   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! | (1,1) | (2,1) | (3,1) |  -->  |   1   |   1   |   1   |
+    ! |-------|-------|-------|  -->  |-------|-------|-------|
+
+    prim_vars(:, 1) = 2.0_rk  ! (2,2)
+    prim_vars(:, 2) = 1.0_rk  ! (2,1)
+    prim_vars(:, 3) = 1.0_rk  ! (3,2)
+    prim_vars(:, 4) = 1.0_rk  ! (2,3)
+    prim_vars(:, 5) = 1.0_rk  ! (1,2)
+
+    gradient = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
+
+    ! dU/dx
+    @assertEqual(0.0_rk, gradient(:, 1))
+
+    ! dU/dy
+    @assertEqual(0.0_rk, gradient(:, 2))
+
+  end subroutine test_sgg_gradient
+
+end module test_gradients

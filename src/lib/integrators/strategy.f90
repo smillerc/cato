@@ -23,13 +23,10 @@ module mod_strategy
       import :: rk
       import :: finite_volume_scheme_t
       class(surrogate), intent(inout) :: U
-      class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
-      real(rk), intent(in) :: dt !< time step size
+      class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
+      real(rk), intent(inout) :: dt !< time step size
     end subroutine
   end interface
 contains
-  ! subroutine write_residuals(U_initial, U_final)
-  !   class(surrogate), intent(in) :: U_initial
-  !   class(surrogate), intent(in) :: U_final
-  ! end subroutine
+
 end module

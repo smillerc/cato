@@ -1,11 +1,5 @@
-#ifdef __DEBUG__
-#define debug_write write
-#else
-#define debug_write ! write
-#endif
-
 module mod_first_order_reconstruction
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use mod_globals, only: debug_print
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_grid, only: grid_t
@@ -51,10 +45,10 @@ contains
     type(first_order_reconstruction_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    call debug_print('Calling first_order_reconstruction_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running first_order_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
-    if(associated(self%conserved_vars)) nullify(self%conserved_vars)
+    if(associated(self%primitive_vars)) nullify(self%primitive_vars)
     if(allocated(self%cell_gradient)) then
       deallocate(self%cell_gradient, stat=alloc_status)
       if(alloc_status /= 0) then
@@ -67,13 +61,13 @@ contains
     class(abstract_reconstruction_t), intent(in) :: in_recon
     class(first_order_reconstruction_t), intent(inout) :: out_recon
 
-    call debug_print('Calling first_order_reconstruction_t%copy()', __FILE__, __LINE__)
+    call debug_print('Running first_order_reconstruction_t%copy()', __FILE__, __LINE__)
 
     if(associated(out_recon%grid)) nullify(out_recon%grid)
     out_recon%grid => in_recon%grid
 
-    if(associated(out_recon%conserved_vars)) nullify(out_recon%conserved_vars)
-    out_recon%conserved_vars => in_recon%conserved_vars
+    if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
+    out_recon%primitive_vars => in_recon%primitive_vars
 
     if(allocated(out_recon%name)) deallocate(out_recon%name)
     allocate(out_recon%name, source=in_recon%name)
@@ -81,7 +75,7 @@ contains
   end subroutine
 
   pure function reconstruct_point(self, xy, cell_ij) result(U_bar)
-    !< Reconstruct the value of the conserved variables (U) at location (x,y)
+    !< Reconstruct the value of the primitive variables (U) at location (x,y)
     !< withing a cell (i,j)
 
     class(first_order_reconstruction_t), intent(in) :: self
@@ -91,18 +85,18 @@ contains
     integer(ik) :: i, j
 
     i = cell_ij(1); j = cell_ij(2)
-    U_bar = self%conserved_vars(:, i, j)
+    U_bar = self%primitive_vars(:, i, j)
 
   end function reconstruct_point
 
-  pure subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
+  subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
+
     class(first_order_reconstruction_t), intent(inout) :: self
     integer(ik), dimension(5), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
                         lbounds(4):, lbounds(5):), intent(out) :: reconstructed_domain
-
     !< ((rho, u ,v, p), point, node/midpoint, i, j);
     !< The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints
@@ -121,22 +115,11 @@ contains
     jlo = lbound(reconstructed_domain, dim=5) + 1
     jhi = ubound(reconstructed_domain, dim=5) - 1
 
-    do concurrent(j=jlo:jhi)
-      do concurrent(i=ilo:ihi)
-        do concurrent(n=1:nhi)  ! First do corners, then to midpoints
-          do concurrent(p=1:phi)  ! Loop through each point (N1-N4, and M1-M4)
-            reconstructed_domain(:, p, n, i, j) = self%conserved_vars(:, i, j)
-
-            if(reconstructed_domain(1, p, n, i, j) < 0) then
-              !  debug_write(*, '(a, 4(", ", i0), a, 4(es10.3, 1x))') 'Density -> @ (1', p, n, i, j, ') = ', reconstructed_domain(:, p, n, i, j)
-              error stop "Density <= 0 in first_order_reconstruction_t%reconstruct_domain"
-            end if
-
-            if(reconstructed_domain(4, p, n, i, j) < 0) then
-              ! debug_write(*, '(a, 4(", ", i0), a, 4(es10.3, 1x))') 'Pressure -> @ (1', p, n, i, j, ') = ', reconstructed_domain(:, p, n, i, j)
-              error stop "Pressure <= 0 in first_order_reconstruction_t%reconstruct_domain"
-            end if
-
+    do j = jlo, jhi
+      do i = ilo, ihi
+        do n = 1, nhi ! First do corners, then to midpoints
+          do p = 1, phi  ! Loop through each point (N1-N4, and M1-M4)
+            reconstructed_domain(:, p, n, i, j) = self%primitive_vars(:, i, j)
           end do
         end do
       end do

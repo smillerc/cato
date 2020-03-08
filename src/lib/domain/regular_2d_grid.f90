@@ -5,6 +5,7 @@ module mod_regular_2d_grid
   use mod_input, only: input_t
   use hdf5_interface, only: hdf5_file
   use mod_globals, only: debug_print
+  use mod_floating_point_utils, only: equal
 
   implicit none
 
@@ -146,7 +147,7 @@ contains
     class(grid_t), intent(in) :: in_grid
     class(regular_2d_grid_t), intent(inout) :: out_grid
 
-    call debug_print('Calling regular_2d_grid_t%copy()', __FILE__, __LINE__)
+    call debug_print('Running regular_2d_grid_t%copy()', __FILE__, __LINE__)
 
     out_grid%ilo_bc_node = in_grid%ilo_bc_node
     out_grid%jlo_bc_node = in_grid%jlo_bc_node
@@ -241,11 +242,18 @@ contains
 
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
+    logical :: file_exists
 
     real(rk), dimension(:, :), allocatable :: x
     real(rk), dimension(:, :), allocatable :: y
 
-    integer(ik) :: i, j
+    file_exists = .false.
+    inquire(file=trim(input%initial_condition_file), exist=file_exists)
+
+    if(.not. file_exists) then
+      error stop 'Error in regular_2d_grid_t%initialize_from_hdf5(); initial conditions file not found, exiting...'
+    end if
+
     call h5%initialize(filename=input%initial_condition_file, status='old', action='r')
     call h5%get('/x', x)
     call h5%get('/y', y)
@@ -425,6 +433,18 @@ contains
       end do
     end do
 
+    ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
+    if(equal(minval(self%cell_volume), maxval(self%cell_volume), epsilon=1e-8_rk)) then
+      self%cell_volume = (maxval(self%cell_volume) + minval(self%cell_volume)) / 2.0_rk
+    end if
+
+    ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
+    if(equal(minval(self%cell_edge_lengths), maxval(self%cell_edge_lengths), epsilon=1e-3_rk)) then
+      ! print*, 'assdflkasdjf;saldkfj', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
+      ! error stop
+      self%cell_edge_lengths = (maxval(self%cell_edge_lengths) + minval(self%cell_edge_lengths)) / 2.0_rk
+    end if
+
   end subroutine
 
   subroutine force_finalization(self)
@@ -436,7 +456,7 @@ contains
     class(regular_2d_grid_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    call debug_print('Calling regular_2d_grid_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running regular_2d_grid_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%cell_volume)) then
       deallocate(self%cell_volume, stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volume"
@@ -597,7 +617,7 @@ contains
     character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
     real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (tail,head), (vector1:vector4))
 
-    integer(ik) :: i, j
+    integer(ik) :: i, j, N
     real(rk), dimension(2) :: tail
 
     i = cell_ij(1)
@@ -623,15 +643,23 @@ contains
     ! For quad cells, N - corner, M - midpoint, E - edge
 
     ! Corner vector set
-    !           C3
-    !           |
-    !  (i-1,j)  |  (i,j)
-    !           |
-    ! C4-------C0--------C2
-    !           |
-    ! (i-1,j-1) |  (i,j-1)
-    !           |
-    !          C1
+    !       cell 4                   cell 3
+    !      (i-1,j)                   (i,j)
+    !  N4----M3----N3    P3   N4----M3----N3
+    !  |            |    |    |            |
+    !  M4    C4    M2    |    M4    C3    M2
+    !  |            |    |    |            |
+    !  N1----M1----N2    |    N1----M1----N2
+    !                    |
+    !  P4----------------O-----------------P2
+    !                    |
+    !  N4----M3----N3    |    N4----M3----N3
+    !  |            |    |    |            |
+    !  M4    C1    M2    |    M4    C2    M2
+    !  |            |    |    |            |
+    !  N1----M1----N2    P1   N1----M1----N2
+    !      cell 1                  cell 2
+    !     (i-1,j-1)               (i,j-1)
 
     ! self%cell_node_xy indexing convention
     !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
@@ -640,34 +668,18 @@ contains
     tail = self%cell_node_xy(:, 1, 1, i, j)
     select case(trim(corner))
     case('lower-left')
-      ! vectors = reshape([tail, &                            ! (x,y) tail, vector 1
-      !                    self%cell_node_xy(:, 1, 1, i, j - 1), &  ! (x,y) head, vector 1
-      !                    tail, &                            ! (x,y) tail, vector 2
-      !                    self%cell_node_xy(:, 2, 1, i, j), &    ! (x,y) head, vector 2
-      !                    tail, &                            ! (x,y) tail, vector 3
-      !                    self%cell_node_xy(:, 4, 1, i, j), &    ! (x,y) head, vector 3
-      !                    tail, &                            ! (x,y) tail, vector 4
-      !                    self%cell_node_xy(:, 1, 1, i - 1, j) &   ! (x,y) head, vector 4
-      !                    ], shape=[2, 2, 4])
+      N = 1
       vectors(:, 1, 1) = tail
-      vectors(:, 2, 1) = self%cell_node_xy(:, 1, 1, i, j - 1)  ! vector 1
-
       vectors(:, 1, 2) = tail
-      vectors(:, 2, 2) = self%cell_node_xy(:, 2, 1, i, j)      ! vector 3
-
       vectors(:, 1, 3) = tail
-      vectors(:, 2, 3) = self%cell_node_xy(:, 4, 1, i, j)      ! vector 3
-
       vectors(:, 1, 4) = tail
-      vectors(:, 2, 4) = self%cell_node_xy(:, 1, 1, i - 1, j)  ! vector 4
-      ! = reshape([
-      !                  , &    ! (x,y) head, vector 2
-      !                  , &    ! (x,y) head, vector 3
-      !                   &   ! (x,y) head, vector 4
-      !                  ], shape=[2, 2, 4])
-      ! case ('lower-right')
-      ! case ('upper-right')
-      ! case ('upper-left')
+
+      vectors(:, 2, 1) = self%cell_node_xy(:, 2, N, i - 1, j - 1)  ! vector 1
+      vectors(:, 2, 4) = self%cell_node_xy(:, 4, N, i - 1, j - 1)  ! vector 4
+
+      vectors(:, 2, 2) = self%cell_node_xy(:, 2, N, i, j)      ! vector 2
+      vectors(:, 2, 3) = self%cell_node_xy(:, 4, N, i, j)      ! vector 3
+
     case default
       error stop "Invalid location for midpoint edge vector request"
     end select

@@ -45,6 +45,7 @@ papers/~$method_explanation.pptx
 # test details
 tests/**/cato.x
 tests/**/*.txt
+tests/**/*.error
 *.h5
 *.xdmf
 
@@ -57,3 +58,10 @@ tests/**/*.txt
 *.avi
 scripts/sandbox.ipynb
 tests/integrated/double_shear_2/memcheck.sh
+misc/~$grid_layout.pptx
+scripts/mach_cone_testing.ipynb
+scripts/reconstruction_testing.ipynb
+
+# Ignore Intel advisor results
+tests/integrated/*/advi
+tests/integrated/*/out

@@ -30,10 +30,24 @@ module mod_input
     real(rk) :: init_pressure = 0.0_rk   !< Initial condition for the pressure field (useful only for testing)
 
     ! boundary conditions
+    character(:), allocatable :: bc_pressure_input_file
+    logical :: apply_constant_bc_pressure = .false.
+    real(rk) :: constant_bc_pressure_value = 0.0_rk
     character(len=32) ::  plus_x_bc = 'periodic' !< Boundary condition at +x
     character(len=32) :: minus_x_bc = 'periodic' !< Boundary condition at -x
     character(len=32) ::  plus_y_bc = 'periodic' !< Boundary condition at +y
     character(len=32) :: minus_y_bc = 'periodic' !< Boundary condition at -y
+
+    ! source inputs (i.e. energy source injection at a grid location)
+    logical :: enable_source_terms = .false.
+    character(len=32) :: source_term_type = 'energy'
+    logical :: apply_constant_source = .false.
+    character(:), allocatable :: source_file
+    real(rk) :: constant_source_value = 0.0_rk
+    integer(ik) :: source_ilo = 0
+    integer(ik) :: source_ihi = 0
+    integer(ik) :: source_jlo = 0
+    integer(ik) :: source_jhi = 0
 
     ! io
     character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
@@ -168,6 +182,52 @@ contains
     self%plus_y_bc = trim(char_buffer)
     call cfg%get("boundary_conditions", "minus_y", char_buffer, 'periodic')
     self%minus_y_bc = trim(char_buffer)
+
+    if(self%plus_x_bc == 'pressure_input' .or. &
+       self%minus_x_bc == 'pressure_input' .or. &
+       self%plus_y_bc == 'pressure_input' .or. &
+       self%minus_y_bc == 'pressure_input') then
+
+      call cfg%get("boundary_conditions", "apply_constant_bc_pressure", self%apply_constant_bc_pressure, .false.)
+
+      if(self%apply_constant_bc_pressure) then
+        call cfg%get("boundary_conditions", "constant_bc_pressure_value", self%constant_bc_pressure_value)
+      else
+        call cfg%get("boundary_conditions", "bc_pressure_input_file", char_buffer)
+        self%bc_pressure_input_file = trim(char_buffer)
+      end if
+    end if
+
+    ! Source terms
+    call cfg%get('source_terms', 'enable_source_terms', self%enable_source_terms, .false.)
+
+    if(self%enable_source_terms) then
+      call cfg%get('source_terms', 'apply_constant_source', self%apply_constant_source, .false.)
+      call cfg%get('source_terms', 'source_file', char_buffer)
+      self%source_file = trim(char_buffer)
+
+      call cfg%get('source_terms', 'source_term_type', char_buffer)
+      self%source_term_type = trim(char_buffer)
+
+      call cfg%get('source_terms', 'constant_source_value', self%constant_source_value, 0.0_rk)
+      call cfg%get('source_terms', 'ilo', self%source_ilo, 0)
+      call cfg%get('source_terms', 'ihi', self%source_ihi, 0)
+      call cfg%get('source_terms', 'jlo', self%source_jlo, 0)
+      call cfg%get('source_terms', 'jhi', self%source_jhi, 0)
+
+      if(self%source_ilo == 0 .and. &
+         self%source_ihi == 0 .and. &
+         self%source_jlo == 0 .and. &
+         self%source_jhi == 0) then
+        error stop "All of the (i,j) ranges in source_terms are 0"
+      end if
+
+      if(self%source_ilo > self%source_ihi) then
+        error stop "source_terms%ilo > source_terms%ihi"
+      else if(self%source_jlo > self%source_jhi) then
+        error stop "source_terms%jlo > source_terms%jhi"
+      end if
+    end if
 
     ! Input/Output
     call cfg%get("io", "format", char_buffer, 'xdmf')

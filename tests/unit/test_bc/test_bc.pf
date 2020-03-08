@@ -114,15 +114,15 @@ contains
       reconstructed_domain(:, :, :, right, top) = 3.0_rk         ! "3" cells in cartoon
     end associate
 
-    call bc_plus_x%apply_conserved_var_bc(conserved_vars=U)
-    call bc_plus_y%apply_conserved_var_bc(conserved_vars=U)
-    call bc_minus_x%apply_conserved_var_bc(conserved_vars=U)
-    call bc_minus_y%apply_conserved_var_bc(conserved_vars=U)
+    call bc_plus_x%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
+    call bc_plus_y%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
+    call bc_minus_x%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
+    call bc_minus_y%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
 
-    call bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain)
-    call bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain)
-    call bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain)
-    call bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain)
+    call bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
+    call bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
+    call bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
+    call bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
 
     associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
               bottom=>grid%jlo_cell, top=>grid%jhi_cell, &

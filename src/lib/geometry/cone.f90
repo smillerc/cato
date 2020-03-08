@@ -1,20 +1,21 @@
 module mod_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi, rad2deg
+  use mod_globals, only: TINY_DIST
   use mod_floating_point_utils, only: near_zero, equal
   use mod_eos, only: eos
   use mod_vector, only: vector_t, operator(.unitnorm.), operator(.dot.), operator(.cross.), angle_between
+  use mod_geometry
 
   implicit none
 
   type :: cone_t
     !< Type to encapsulate and calculate the geometry of the mach cone for the evolution operators
+    real(rk), dimension(2, 4) :: theta_ie = 0.0_rk
+    !< ((arc_1, arc_2), (cell_1:cell_4)); arc end angle
 
-    real(rk), dimension(4, 2) :: theta_ie = 0.0_rk
-    !< ((cell_1:cell_4), (arc_1, arc_2)); arc end angle
-
-    real(rk), dimension(4, 2) :: theta_ib = 0.0_rk
-    !< ((cell_1:cell_4), (arc_1, arc_2)); arc begin angle
+    real(rk), dimension(2, 4) :: theta_ib = 0.0_rk
+    !< ((arc_1, arc_2), (cell_1:cell_4)); arc begin angle
 
     real(rk), dimension(2) :: p_prime_xy = 0.0_rk
     !< (x,y); Location of P'
@@ -22,14 +23,16 @@ module mod_cone
     real(rk), dimension(2) :: p_xy = 0.0_rk
     !< (x,y); Location of P
 
-    integer(ik), dimension(2) :: p_prime_ij = 0
-    !< x,y location of P' or the apex of the Mach cone (global, not relative to P0)
+    integer(ik), dimension(2, 4) :: p_prime_ij = 0
+    !< ((i,j), cell_1:cell_4) i,j location of P' or the apex of the Mach cone (global, not relative to P0)
 
     integer(ik) :: n_neighbor_cells = 0
     !< How many cells influence this cone (up to 4 for now)
 
-    real(rk) :: radius = 0.0_rk
+    real(rk) :: radius = -1.0_rk
     !< Radius of the cone
+
+    real(rk), dimension(:, :, :), allocatable :: edge_vectors
 
     integer(ik), dimension(4) :: n_arcs = 0
     !< (cell_1:cell_4); Number of arcs that each cell contributes (0, 1, or 2)
@@ -37,30 +40,47 @@ module mod_cone
     logical, dimension(4) :: p_prime_in_cell = .false.
     !< (cell_1:cell_4); is P' inside the control volume?
 
-    real(rk), dimension(4, 2, 4) :: cell_conserved_vars = 0.0_rk
+    real(rk), dimension(4, 2, 4) :: arc_primitive_vars = 0.0_rk
     !< ((rho,u,v,p), (arc_1, arc_2), cell_1:cell_n)
 
-    real(rk), dimension(4) :: reference_state = 0.0_rk
-    !< (rho,u,v,a); Reference state (local cell average of U)
+    real(rk) :: reference_density = 0.0_rk
+    real(rk) :: reference_u = 0.0_rk
+    real(rk) :: reference_v = 0.0_rk
+    real(rk) :: reference_sound_speed = 0.0_rk
+    real(rk) :: reference_mach_number = 0.0_rk
 
-    real(rk) :: tau = 0.0_rk
+    real(rk) :: tau = 1.0e-10_rk
     !< Time evolution increment
 
-    real(rk), dimension(4, 4) :: reconstructed_state = 0.0_rk
-    !< ((rho,u,v,p), (cell_1:cell_4))
+    logical, dimension(4) :: cell_is_supersonic
+    !< Is each neighbor cell supersonic or not? This is needed for transonic mach cones in
+    !< order to apply an entropy fix for transonic rarefaction regions.
 
+    logical :: cone_is_transonic = .false.
+
+    real(rk), dimension(:, :), allocatable :: recon_state
+    !< ((rho, u, v, p), neighbor cell 1 - 4); Reconstructed value of U at P for each neighbor cell
+
+    character(len=32) :: cone_location
   contains
     procedure, nopass, private :: determine_if_p_prime_is_in_cell
+    procedure, private :: determine_p_prime_cell
+    procedure, private :: sanity_checks
+    procedure, private :: get_transonic_cone_extents
+    procedure, private :: get_cone_extents
+    procedure, private :: get_reference_state
     procedure, pass :: write => write_cone
     generic, public :: write(formatted) => write
   end type
 
 contains
 
-  pure type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, reference_state, cell_indices)
+  type(cone_t) function new_cone(tau, edge_vectors, reconstructed_state, cell_indices, cone_location)
     !< Constructor for the Mach cone type
     real(rk), intent(in) :: tau
     !< time increment, tau -> 0 (very small number)
+
+    character(len=*), intent(in) :: cone_location !< corner, down/up midpoint, left/right midpoint
 
     real(rk), dimension(:, :, :), intent(in) :: edge_vectors
     !< ((x,y), (tail,head), (vector_1:vector_n)); set of vectors that define the cell edges
@@ -72,9 +92,6 @@ contains
     !< ((rho,u,v,p), cell); reconstructed state for point P.
     !< P has a different reconstruction for each cell
 
-    real(rk), dimension(4), intent(in) :: reference_state  !< (rho, u, v, p)
-    !< (rho, u, v, p); reference state of the point P
-
     integer(ik) :: n_total_vectors  !< number of edge vectors (should be 2 or 4)
     integer(ik) :: neighbor_cell  !< index for looping through neighbor cells
     integer(ik), dimension(2, 4) :: edge_vector_ordering  !< index order for each set of vectors
@@ -82,9 +99,11 @@ contains
 
     type(vector_t) :: p_prime_vector
     logical :: p_prime_in_cell
-    integer(ik) :: n_arcs
+    integer(ik) :: n_arcs, arc
     integer(ik), dimension(2) :: cell_ij
     real(rk), dimension(2, 2) :: theta_ib_ie
+
+    integer(ik) :: tilde_i
 
     p_prime_in_cell = .false.
     n_arcs = 0
@@ -95,17 +114,39 @@ contains
     edge_vector_ordering = 0
     single_cell_edge_vectors = 0.0_rk
     n_total_vectors = size(edge_vectors, dim=3)
-    new_cone%tau = tau
 
-    ! In the cone reference state, index 4 is sound speed rather than pressure
-    !< (rho, u, v, a) vs  !< (rho, u, v, p)
-    new_cone%reference_state = reference_state
-    ! //TODO: Move speed of sound calculation to the EOS module
-    associate(a=>new_cone%reference_state(4), rho=>reference_state(1), &
-              p=>reference_state(4))
-      a = eos%calc_sound_speed(pressure=p, density=rho)
-      new_cone%radius = a * tau
-    end associate
+    new_cone%tau = tau
+    new_cone%p_xy = [edge_vectors(1, 1, 1), edge_vectors(2, 1, 1)]
+
+    allocate(new_cone%edge_vectors, mold=edge_vectors)
+    new_cone%edge_vectors = edge_vectors
+    new_cone%cone_location = trim(cone_location)
+
+    ! if(any(reconstructed_state(1, :) < 0.0_rk)) then
+    !   write(*, *) "Error in cone_t initialization, density in the reconstructed state is < 0"
+    !   write(*, '(a, 4(es10.3,1x))') 'Reconstructed density states (cell_1:cell_n)', reconstructed_state(1, :)
+    !   error stop
+    ! end if
+
+    if(any(reconstructed_state(4, :) < 0.0_rk)) then
+      write(*, *) "Error in cone_t initialization, pressure in the reconstructed state is < 0"
+      write(*, '(a, 4(es10.3,1x))') 'Reconstructed pressure states (cell_1:cell_n): ', reconstructed_state(4, :)
+      error stop
+    end if
+
+    call new_cone%get_reference_state(reconstructed_state)
+
+    if(new_cone%cone_is_transonic) then
+      call new_cone%get_transonic_cone_extents(origin=new_cone%p_prime_xy, &
+                                               radius=new_cone%radius)
+      new_cone%reference_sound_speed = new_cone%radius / new_cone%tau
+    else
+      call new_cone%get_cone_extents(x_vel=new_cone%reference_u, &
+                                     y_vel=new_cone%reference_v, &
+                                     sound_speed=new_cone%reference_sound_speed, &
+                                     origin=new_cone%p_prime_xy, &
+                                     radius=new_cone%radius)
+    end if
 
     ! the order of the vectors matters, mainly for the cross product to determine
     ! if P' is in the neighboring cell or not
@@ -120,19 +161,6 @@ contains
       error stop 'Code not set up yet to handle mach cones with other than 2 or 4 edge vectors'
     end select
 
-    new_cone%p_prime_xy = 0.0_rk
-    ! All the edge vectors take the point P as the origin (or tail) of their vectors
-    associate(x=>edge_vectors(1, 1, 1), y=>edge_vectors(2, 1, 1), &
-              u_tilde=>new_cone%reference_state(2), v_tilde=>new_cone%reference_state(3))
-
-      ! This defines P' (x,y) globally, not with respect to P
-      new_cone%p_xy = [x, y]
-      new_cone%p_prime_xy = [x - u_tilde * tau, y - v_tilde * tau]
-      ! debug_write(*,*) x, u_tilde, tau, y, v_tilde
-    end associate
-
-    ! The P' vector points from P (tail), to P' (head)
-    ! debug_write(*,*) "P'", new_cone%p_prime_xy
     p_prime_vector = vector_t(x=[edge_vectors(1, 1, 1), new_cone%p_prime_xy(1)], &
                               y=[edge_vectors(2, 1, 1), new_cone%p_prime_xy(2)])
 
@@ -146,40 +174,323 @@ contains
       single_cell_edge_vectors(:, :, 1) = edge_vectors(:, :, edge_vector_ordering(1, neighbor_cell))
       single_cell_edge_vectors(:, :, 2) = edge_vectors(:, :, edge_vector_ordering(2, neighbor_cell))
 
-      ! P' can only be in 1 cell
       p_prime_in_cell = determine_if_p_prime_is_in_cell(single_cell_edge_vectors, p_prime_vector)
-      if(.not. any(new_cone%p_prime_in_cell)) then
-        new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
-        if(p_prime_in_cell) new_cone%p_prime_ij = cell_ij
-      end if
+      new_cone%p_prime_in_cell(neighbor_cell) = p_prime_in_cell
+      if(p_prime_in_cell) new_cone%p_prime_ij(:, neighbor_cell) = cell_ij
 
       call get_arc_segments(lines=single_cell_edge_vectors, origin_in_cell=p_prime_in_cell, &
                             circle_xy=new_cone%p_prime_xy, circle_radius=new_cone%radius, &
                             arc_segments=theta_ib_ie, n_arcs=n_arcs)
 
-      new_cone%cell_conserved_vars(:, 1, neighbor_cell) = reconstructed_state(:, neighbor_cell)
-      new_cone%cell_conserved_vars(:, 2, neighbor_cell) = reconstructed_state(:, neighbor_cell)
+      if(n_arcs > 0) then
+        do arc = 1, n_arcs
+          new_cone%arc_primitive_vars(:, arc, neighbor_cell) = new_cone%recon_state(:, neighbor_cell)
+
+          ! ! Small number fix
+          ! if(new_cone%arc_primitive_vars(2, arc, neighbor_cell) < 1e-12_rk) then
+          !   new_cone%arc_primitive_vars(2, arc, neighbor_cell) = 0.0_rk
+          ! end if
+
+          ! if(new_cone%arc_primitive_vars(3, arc, neighbor_cell) < 1e-12_rk) then
+          !   new_cone%arc_primitive_vars(3, arc, neighbor_cell) = 0.0_rk
+          ! end if
+        end do
+      end if
 
       ! If all the arcs already add up to 2pi, then skip the remaining neighbor cells
       if(equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) exit
       ! //TODO: test the above statement in unit testing
       new_cone%n_arcs(neighbor_cell) = n_arcs
-      new_cone%theta_ib(neighbor_cell, :) = theta_ib_ie(1, :)
-      new_cone%theta_ie(neighbor_cell, :) = theta_ib_ie(2, :)
+      new_cone%theta_ib(:, neighbor_cell) = theta_ib_ie(1, :)
+      new_cone%theta_ie(:, neighbor_cell) = theta_ib_ie(2, :)
 
     end do
 
-    if(count(new_cone%n_arcs >= 2) > 1) then
+    call new_cone%determine_p_prime_cell()
+    call new_cone%sanity_checks()
+
+    ! if (new_cone%cone_is_transonic) print*, new_cone
+  end function new_cone
+
+  subroutine determine_p_prime_cell(self)
+    !< Sometimes when u and v tilde (reference velocities) are 0, P' and P are collocated. When this
+    !< is the case, P' needs to be chosen from one of the neighbor cells. This subroutine scans all
+    !< the neighbor cells and picks the one with the highest pressure (if any). If not, then it juse
+    !< choses the first cell from the list of cells that "contain" P'
+
+    class(cone_t), intent(inout) :: self
+    integer(ik) :: p_prime_cell, i
+    real(rk) :: max_p
+    integer(ik) :: max_p_idx
+    integer(ik), dimension(2) :: p_prime_ij
+
+    max_p = 0.0_rk
+    p_prime_ij = [0, 0]
+
+    if(count(self%p_prime_in_cell) > 1) then
+      do i = 1, self%n_neighbor_cells
+        if(self%p_prime_in_cell(i)) then
+          if(self%recon_state(4, i) > max_p) then
+            max_p = self%recon_state(4, i)
+            p_prime_ij = self%p_prime_ij(:, i)
+            p_prime_cell = i
+          end if
+        end if
+      end do
+
+      self%p_prime_in_cell = .false.
+      self%p_prime_in_cell(p_prime_cell) = .true.
+    end if
+  end subroutine determine_p_prime_cell
+
+  subroutine sanity_checks(self)
+    !< Do some sanity checks to make sure the mach cone is valid
+    class(cone_t), intent(in) :: self
+
+    if(count(self%n_arcs >= 2) > 1) then
       error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
     end if
 
-    if(.not. equal(sum(new_cone%theta_ie - new_cone%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
-      ! print *, 'sum(new_cone%theta_ie - new_cone%theta_ib)', sum(new_cone%theta_ie - new_cone%theta_ib) - 2.0_rk * pi
-      ! write(*, *) new_cone
-      ! debug_write(*, *) new_cone
+    if(.not. equal(sum(self%theta_ie - self%theta_ib), 2.0_rk * pi, epsilon=1e-10_rk)) then
+      print *, "Cone arcs do not add up to 2pi: ", sum(self%theta_ie - self%theta_ib)
+      print *, self
       error stop "Cone arcs do not add up to 2pi"
     end if
-  end function
+
+    if(self%radius < 0.0_rk) then
+      write(*, *) "Error: cone radius < 0"
+      error stop "Error: cone radius < 0"
+    end if
+
+  end subroutine sanity_checks
+
+  pure subroutine get_cone_extents(self, x_vel, y_vel, sound_speed, origin, radius)
+    !< Given a velocity and sound speed, determine the extents of the mach cone
+
+    class(cone_t), intent(in) :: self
+    real(rk), intent(in) :: x_vel        !< x velocity
+    real(rk), intent(in) :: y_vel        !< y velocity
+    real(rk), intent(in) :: sound_speed  !< sound speed
+    real(rk), dimension(2), intent(out) :: origin      !< origin of the cone/circle
+    real(rk), intent(out) :: radius      !< radius of the cone/circle
+
+    ! Locals
+    real(rk) :: velocity !< Magnitude of the velocity vector
+
+    velocity = sqrt(x_vel**2 + y_vel**2)
+
+    associate(x=>self%p_xy(1), y=>self%p_xy(2), &
+              u=>x_vel, v=>y_vel, tau=>self%tau)
+      origin = [x - tau * u, y - tau * v]
+      radius = sound_speed * tau
+
+      ! For very small distances, just make it coincide with P
+      if(abs(origin(1) - x) < TINY_DIST) origin(1) = x
+      if(abs(origin(2) - y) < TINY_DIST) origin(2) = y
+    end associate
+  end subroutine get_cone_extents
+
+  subroutine get_reference_state(self, reconstructed_state)
+    !< Find the reference state of the cone only based on the cells that are touched by the cone.
+    !< Sometimes when a cone is near a large density jump, a skewed reference state can cause
+    !< negative densities and pressures. This aims to alleviate that problem...
+
+    class(cone_t), intent(inout) :: self
+    real(rk), dimension(:, :), intent(in) :: reconstructed_state !< [rho, u, v, a]
+
+    integer(ik) :: ref_state_cell
+    real(rk) :: ave_p
+    real(rk) :: mach_number, sound_speed
+    integer(ik) :: i
+    ! real(rk) :: u, v
+
+    self%n_neighbor_cells = size(reconstructed_state, dim=2)
+
+    allocate(self%recon_state, mold=reconstructed_state)
+    self%recon_state = reconstructed_state
+
+    ! do i = 1, self%n_neighbor_cells
+    !   if (abs(reconstructed_state(1,i)) < 0.005_rk) then
+    !     self%recon_state(1,i) = 0.005_rk
+    !   else
+    !     self%recon_state(1,i) = reconstructed_state(1,i)
+    !   end if
+
+    !   ! if (abs(reconstructed_state(2,i)) < 1e-10_rk) then
+    !   !   self%recon_state(2,i) = 0.0_rk
+    !   ! else
+    !     self%recon_state(2,i) = reconstructed_state(2,i)
+    !   ! end if
+
+    !   ! if (abs(reconstructed_state(3,i)) < 1e-10_rk) then
+    !   !   self%recon_state(3,i) = 0.0_rk
+    !   ! else
+    !     self%recon_state(3,i) = reconstructed_state(3,i)
+    !   ! end if
+
+    !   self%recon_state(4,i) = reconstructed_state(4,i)
+    ! end do
+
+    associate(rho=>self%recon_state(1, :), &
+              u=>self%recon_state(2, :), &
+              v=>self%recon_state(3, :), &
+              p=>self%recon_state(4, :), &
+              n=>self%n_neighbor_cells)
+
+      do i = 1, n
+        sound_speed = eos%sound_speed(pressure=p(i), density=rho(i))
+        mach_number = sqrt(u(i)**2 + v(i)**2) / sound_speed
+
+        if(mach_number >= 1.0_rk) then
+          self%cell_is_supersonic(i) = .true.
+        else
+          self%cell_is_supersonic(i) = .false.
+        end if
+      end do
+
+      ! The cone is transonic if there is a combo of super/subsonic cells
+      if(count(self%cell_is_supersonic(1:n)) == n .or. &
+         count(self%cell_is_supersonic(1:n)) == 0) then
+        self%cone_is_transonic = .false.
+      else
+        self%cone_is_transonic = .true.
+      end if
+
+      ! if (self%cone_is_transonic) then
+      !   self%reference_density = maxval(rho)
+      !   self%reference_u = maxval(u)
+      !   self%reference_v = maxval(v)
+      !   ave_p = maxval(p)
+      !   self%reference_sound_speed = eos%sound_speed(pressure=ave_p, &
+      !                                            density=self%reference_density)
+      ! else
+      self%reference_density = sum(rho) / n
+      self%reference_u = sum(u) / n
+      self%reference_v = sum(v) / n
+      ave_p = sum(p) / n
+      self%reference_sound_speed = eos%sound_speed(pressure=ave_p, &
+                                                   density=self%reference_density)
+      ! end if
+    end associate
+
+    ! ! Tiny velocity fix
+    ! if(abs(self%reference_u) < 1e-10_rk) self%reference_u = 0.0_rk
+    ! if(abs(self%reference_v) < 1e-10_rk) self%reference_v = 0.0_rk
+
+    self%reference_mach_number = sqrt(self%reference_u**2 + self%reference_v**2) / &
+                                 self%reference_sound_speed
+  end subroutine get_reference_state
+
+  subroutine get_transonic_cone_extents(self, origin, radius)
+    !< If the set of neighbor cells are transonic (some supersonic, some subsonic),
+    !< then the cone needs to be extended so that it encorporates both supersonic and subsonic cells.
+
+    class(cone_t), intent(inout) :: self
+    real(rk), dimension(2), intent(out) :: origin  !< origin of the new cone
+    real(rk), intent(out) :: radius                !< radius of the new cone
+
+    real(rk), dimension(2) :: origin_1v3, origin_2v4
+    real(rk) :: radius_1v3, radius_2v4
+    real(rk), dimension(2, 2) :: origins_to_compare
+    real(rk), dimension(2) :: radii_to_compare
+
+    integer(ik) :: i
+    real(rk) :: sound_speed
+    logical :: is_inside
+    integer(ik) :: largest_cone_idx
+    !< index of the cone with the largets radius
+
+    real(rk), dimension(:), allocatable :: cone_radii
+    !< (cell); radius of each cone based on the neighbor cell state
+
+    real(rk), dimension(:, :), allocatable :: cone_origins
+    !< ((x,y), cell); origin of each cone based on the neighbor cell state
+
+    associate(rho=>self%recon_state(1, :), &
+              u=>self%recon_state(2, :), &
+              v=>self%recon_state(3, :), &
+              p=>self%recon_state(4, :), &
+              n=>self%n_neighbor_cells)
+
+      allocate(cone_radii(n))
+      allocate(cone_origins(2, n))
+
+      ! print*, 'Getting transonic cone extents'
+      ! Get the cone size based on each neighbor cell's state
+      do i = 1, n
+        sound_speed = eos%sound_speed(pressure=p(i), density=rho(i))
+        call self%get_cone_extents(x_vel=u(i), y_vel=v(i), sound_speed=sound_speed, &
+                                   origin=cone_origins(:, i), radius=cone_radii(i))
+        ! print*, "Cell: ", i, "Cs:", sound_speed, "V: ", sqrt(u(i)**2 + v(i)**2), "Supersonic", self%cell_is_supersonic(i)
+      end do
+    end associate
+    select case(self%n_neighbor_cells)
+    case(2)  ! 2 circles to compare
+
+      ! print*, 'cone_origins', cone_origins
+      ! print*, 'cone_radii', cone_radii
+      call super_circle(origins=cone_origins, radii=cone_radii, &
+                        new_origin=origin, new_radius=radius)
+      ! print*, 'new cone_origins', origin
+      ! print*, 'new cone_radii', radius
+      ! error stop
+    case(4)  ! 4 circles to compare
+
+      ! Since the circle comparison is only 2 at a time, this
+      ! does the diagonal cells first (1v3 and 2v4) then then
+      ! compares the results from those for the final circle
+
+      ! Compare cells 1 and 3
+      ! print*, 'cone_origins', cone_origins
+      ! print*, 'cone_radii', cone_radii
+      origins_to_compare(:, 1) = cone_origins(:, 1)
+      origins_to_compare(:, 2) = cone_origins(:, 3)
+      radii_to_compare = [cone_radii(1), cone_radii(3)]
+      call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
+                        new_origin=origin_1v3, new_radius=radius_1v3)
+      ! print*, 'origin_1v3', origin_1v3
+      ! print*, 'radius_1v3', radius_1v3
+
+      ! Compare cells 2 and 4
+      origins_to_compare(:, 1) = cone_origins(:, 2)
+      origins_to_compare(:, 2) = cone_origins(:, 4)
+      radii_to_compare = [cone_radii(2), cone_radii(4)]
+      call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
+                        new_origin=origin_2v4, new_radius=radius_2v4)
+      ! print*, 'origin_2v4', origin_2v4
+      ! print*, 'radius_2v4', radius_2v4
+
+      ! Compare result from 1 vs 3 and 2 vs 4
+      origins_to_compare(:, 1) = origin_1v3
+      origins_to_compare(:, 2) = origin_2v4
+      radii_to_compare = [radius_1v3, radius_2v4]
+      call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
+                        new_origin=origin, new_radius=radius)
+
+      ! print*, 'origins', origin
+      ! print*, 'radius', radius
+    end select
+
+    deallocate(cone_origins)
+    deallocate(cone_radii)
+  end subroutine get_transonic_cone_extents
+
+  subroutine find_p_prime_cell(self)
+    class(cone_t), intent(inout) :: self
+    real(rk) :: u_tilde, v_tilde
+
+    u_tilde = self%reference_u
+    v_tilde = self%reference_v
+
+    select case(trim(self%cone_location))
+    case('left/right midpoint')
+    case('down/up midpoint')
+    case('corner')
+    case default
+      error stop "Unknown cone_location in cone_t%find_p_prime_cell()"
+    end select
+
+  end subroutine find_p_prime_cell
 
   subroutine write_cone(self, unit, iotype, v_list, iostat, iomsg)
     !< Implementation of `write(*,*) vector_t`
@@ -197,51 +508,67 @@ contains
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Mach Cone Details'//new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) '================='//new_line('a')
 
-    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Tau: ", self%tau, new_line('a')
-    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "Radius: ", self%radius, new_line('a')
-    write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) "P (x,y): (", self%p_xy, ")"//new_line('a')
-    write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) "P'(x,y): (", self%p_prime_xy, ")"//new_line('a')
-    write(unit, '(a, 2(es10.3,1x), a)', iostat=iostat, iomsg=iomsg) &
-      "P'(x,y) - P(x,y): (", self%p_prime_xy - self%p_xy, ")"//new_line('a')
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) "location = '"//trim(self%cone_location)//"'"//new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "tau = ", self%tau, new_line('a')
+    write(unit, '(a, es14.6, a)', iostat=iostat, iomsg=iomsg) "radius = ", self%radius, new_line('a')
+    write(unit, '(a, es14.6, ",", es14.6, a)', iostat=iostat, iomsg=iomsg) 'cone["P (x,y)"] = [', self%p_xy, "]"//new_line('a')
+    write(unit, '(a, es14.6, ",", es14.6, a)', iostat=iostat, iomsg=iomsg) 'cone["P'//"'(x,y)"//'"] = [', self%p_prime_xy, "]"//new_line('a')
+    write(unit, '(a, es14.6, ",", es14.6, a)', iostat=iostat, iomsg=iomsg) &
+      "dist = [", self%p_prime_xy - self%p_xy, "]"//new_line('a')
 
-    write(unit, '(a, 2(i7,1x), a)', iostat=iostat, iomsg=iomsg) "P'(i,j): (", self%p_prime_ij, ")"//new_line('a')
+    do i = 1, 4
+      write(unit, '(a, i7,",",i7, a, i0, a)', iostat=iostat, iomsg=iomsg) &
+        'cone["P'//"'(i,j)"//'"] = [', self%p_prime_ij(:, i), "] # Cell: ", i, new_line('a')
+    end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference density:     ", self%reference_state(1), new_line('a')
-    write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference x velocity:  ", self%reference_state(2), new_line('a')
-    write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference y velocity:  ", self%reference_state(3), new_line('a')
-    write(unit, '(a, f0.3, a)', iostat=iostat, iomsg=iomsg) "Reference sound speed: ", self%reference_state(4), new_line('a')
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) "# Edge Vectors: tail (x,y) -> head (x,y)"//new_line('a')
+
+    do i = 1, self%n_neighbor_cells
+      write(unit, '(a, i0, a, 2(es10.3, ", ", es10.3, a))', iostat=iostat, iomsg=iomsg) "vector_", i, " = [[", &
+        self%edge_vectors(:, 1, i), "], [", self%edge_vectors(:, 2, i), "] ]"//new_line('a')
+    end do
+
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_density =     ", self%reference_density, new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_x_velocity =  ", self%reference_u, new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_y_velocity =  ", self%reference_v, new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_sound_speed = ", self%reference_sound_speed, new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_mach_Number = ", self%reference_mach_number, new_line('a')
 
     write(unit, '(a)', iostat=iostat) new_line('a')
-    write(unit, '(a, 4(i0, 1x),a)', iostat=iostat) '# of valid arcs in each cell: [', self%n_arcs, ']'
+    write(unit, '(a, 4(i0, 1x),a)', iostat=iostat) '# Valid arcs in each cell: [', self%n_arcs, ']'
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [deg]     Theta_ie [deg]'//new_line('a')
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) '# Angles:       Theta_ib [deg]         Theta_ie [deg]'//new_line('a')
     do i = 1, 4
-      write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', rad2deg(self%theta_ib(i, :)), &
-        '], [ ', rad2deg(self%theta_ie(i, :)), '], delta theta = ', &
-        rad2deg(self%theta_ie(i, :) - self%theta_ib(i, :)), ' '//new_line('a')
+      write(unit, '(a, i0, 4(a,f9.5, ",",f9.5), a )', iostat=iostat, iomsg=iomsg) &
+        'angles[:,', i, &
+        '] = [[ ', rad2deg(self%theta_ib(:, i)), &
+        '], [ ', rad2deg(self%theta_ie(:, i)), &
+        ']]'//new_line('a')
     end do
-    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'sum(arc delta theta) = ', &
+    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'arc_length_sum = ', &
       rad2deg(sum(self%theta_ie - self%theta_ib)), ' '//new_line('a')
 
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:  Theta_ib [rad]     Theta_ie [rad]'//new_line('a')
-    do i = 1, 4
-      write(unit, '(a, i0, 2(a,2(f7.2, 1x)), 2(a,2(f7.2, 1x)), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', self%theta_ib(i, :), &
-        '], [ ', self%theta_ie(i, :), '], delta theta = ', self%theta_ie(i, :) - self%theta_ib(i, :), ' '//new_line('a')
-    end do
-    write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) &
-      'sum(arc delta theta) = ', sum(self%theta_ie - self%theta_ib), ' '//new_line('a')
+    ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
+    ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Angles:       Theta_ib [rad]         Theta_ie [rad]'//new_line('a')
+    ! do i = 1, 4
+    !   write(unit, '(a, i0, 4(a,f9.4, ",",f9.4), a )', iostat=iostat, iomsg=iomsg) &
+    !     'angles[:,', i, &
+    !     '] = [[ ', self%theta_ib(:, i), &
+    !     '], [ ', self%theta_ie(:, i), &
+    !     ']]'//new_line('a')
+    ! end do
+    ! write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'arc_length_sum = ', &
+    !   sum(self%theta_ie - self%theta_ib), ' '//new_line('a')
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Conserved Vars state [rho,u,v,p]'//new_line('a')
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) 'Cell Primitive Vars State [rho,u,v,p]'//new_line('a')
     do i = 1, 4
       write(unit, '(a, i0, a, 4(es10.3, 1x), a)', iostat=iostat, iomsg=iomsg) &
-        'Cell: ', i, ' [ ', self%cell_conserved_vars(:, 1, i), '] (arc 1)'//new_line('a')
+        'Cell: ', i, ' [ ', self%arc_primitive_vars(:, 1, i), '] (arc 1)'//new_line('a')
       write(unit, '(a, 4(es10.3, 1x), a)', iostat=iostat, iomsg=iomsg) &
-        '        [ ', self%cell_conserved_vars(:, 2, i), '] (arc 2)'//new_line('a')
+        '        [ ', self%arc_primitive_vars(:, 2, i), '] (arc 2)'//new_line('a')
     end do
 
     ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
@@ -252,15 +579,20 @@ contains
     ! end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    write(unit, '(a)', iostat=iostat, iomsg=iomsg) "P' in cell?"//new_line('a')
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) "# P' in cell?"//new_line('a')
     do i = 1, 4
       write(unit, '(a, i0, a, l2, a)', iostat=iostat, iomsg=iomsg) 'Cell: ', i, ' [', self%p_prime_in_cell(i), ' ]'//new_line('a')
     end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
-    ! write(unit, '(a, (f0.4))', iostat=iostat) 'Theta_ib', self%theta_ib
-    ! write(unit, '((a,f0.4))', iostat=iostat) 'Theta_ie', self%theta_ie
-    ! write(unit, '((a,f0.4))', iostat=iostat) 'Theta_ie'
+
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) '# Neighbor cells contributing to the mach cone '//new_line('a')
+    write(unit, '(a, i0, a)', iostat=iostat, iomsg=iomsg) 'neighbor_cells = ', self%n_neighbor_cells, new_line('a')
+    do i = 1, ubound(self%recon_state, dim=2)
+      write(unit, '(a, i0, " = [", 3(es10.3, ","), es10.3,"]", a)', iostat=iostat, iomsg=iomsg) 'cell_', i, self%recon_state(:, i), new_line('a')
+    end do
+
+    write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
   end subroutine write_cone
 
   pure logical function determine_if_p_prime_is_in_cell(edge_vectors, p_prime_vector) result(in_cell)
@@ -294,274 +626,4 @@ contains
     end if
   end function determine_if_p_prime_is_in_cell
 
-  pure subroutine get_arc_segments(lines, origin_in_cell, circle_xy, circle_radius, arc_segments, n_arcs)
-    !< Given 2 lines and a circle, find their intersections and starting/ending angles for each arc
-
-    ! Input
-    real(rk), dimension(2, 2, 2), intent(in) :: lines
-    !< ((x,y), (tail,head), (line_1:line_2)); set of vectors that define the lines to intersect with the circle
-    logical, intent(in) :: origin_in_cell  !< is the circle origin in the cell defined by the two lines?
-    real(rk), dimension(2), intent(in) :: circle_xy       !< (x,y) origin of the circle
-    real(rk), intent(in) :: circle_radius                 !< radius of the circle
-
-    ! Output
-    real(rk), dimension(2, 2), intent(out):: arc_segments !< ((start,end), (arc1, arc2))
-    integer(ik), intent(out) :: n_arcs !< Number of arcs with a valid start and end angle
-
-    ! Dummy
-    integer(ik) :: n_intersections_per_line !< # intersections for a single line
-    integer(ik), dimension(2) :: n_intersections !< # intersections for all lines
-    real(rk), dimension(2, 2) :: line !< ((x,y), (tail,head)); Single line point locations
-    real(rk), dimension(2) :: intersection_angles_per_line !< intersection angles
-    real(rk), dimension(2, 2) :: intersection_angles !< intersection angles for all lines
-    integer(ik) :: i
-    logical, dimension(2) :: valid_intersections
-    logical, dimension(2, 2) :: total_valid_intersections !< ((intersection 1, intersection 2), (line 1, line 2)); valid intersections for each line
-
-    valid_intersections = .false.
-    total_valid_intersections = .false.
-    n_intersections_per_line = 0
-    n_intersections = 0
-    line = 0.0_rk
-    intersection_angles_per_line = 0.0_rk
-    intersection_angles = 0.0_rk
-
-    do i = 1, 2
-      line = lines(:, :, i)
-
-      ! For a given line & circle intersection, find the angle with respect to the x-axis for each
-      ! intersection point
-      call get_intersection_angles(line_xy=line, circle_xy=circle_xy, circle_radius=circle_radius, &
-                                   arc_angles=intersection_angles_per_line, valid_intersections=valid_intersections)
-      intersection_angles(i, :) = intersection_angles_per_line
-      n_intersections(i) = count(valid_intersections)
-      total_valid_intersections(:, i) = valid_intersections
-    end do
-    ! print*, 'total_valid_intersections', total_valid_intersections
-    ! print*, 'intersection_angles', rad2deg(intersection_angles)
-    ! Find arc starting and ending angles
-    call get_theta_start_end(thetas=intersection_angles, origin_in_cell=origin_in_cell, &
-                             valid_intersections=total_valid_intersections, &
-                             n_intersections=n_intersections, &
-                             theta_start_end=arc_segments, n_arcs=n_arcs)
-    ! print*, 'theta_start_end', rad2deg(arc_segments)
-  end subroutine
-
-  pure subroutine get_theta_start_end(thetas, origin_in_cell, valid_intersections, n_intersections, theta_start_end, n_arcs)
-    !< Find the starting and ending angle of the arc
-
-    ! Input
-    real(rk), dimension(2, 2), intent(in) :: thetas  !< ((intersection 1, intersection 2), (line 1, line 2))
-    logical, intent(in) :: origin_in_cell  !< is the circle center in the cell?
-    logical, dimension(2, 2), intent(in) :: valid_intersections
-    integer(ik), dimension(2), intent(in) :: n_intersections
-
-    ! Output
-    real(rk), dimension(2, 2), intent(out) :: theta_start_end  !< ((start, end), (arc1, arc2))
-    integer(ik), intent(out) :: n_arcs
-
-    n_arcs = 0
-    theta_start_end = 0.0_rk
-
-    associate(theta_ib=>theta_start_end(1, :), theta_ie=>theta_start_end(2, :), &
-              n1=>n_intersections(1), n2=>n_intersections(2))
-
-      if(origin_in_cell) then
-        if(n1 == 0 .and. n2 == 0) then
-          n_arcs = 1
-          theta_ib(1) = 0.0_rk
-          theta_ie(1) = 2.0_rk * pi
-        end if
-      else ! origin not in cell
-        if(n1 == 0 .and. n2 == 0) then
-          n_arcs = 0
-          theta_ib = 0.0_rk
-          theta_ie = 0.0_rk
-        end if
-      end if
-
-      if(n1 == 0 .and. n2 == 2) then
-        n_arcs = 1
-        theta_ib(1) = thetas(2, 1)
-        theta_ie(1) = thetas(2, 2)
-        if(thetas(2, 2) < thetas(2, 1)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
-
-      else if(n1 == 2 .and. n2 == 0) then
-        n_arcs = 1
-        theta_ib(1) = thetas(1, 2)
-        theta_ie(1) = thetas(1, 1)
-        if(thetas(1, 1) < thetas(1, 2)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
-
-      else if(n1 == 1 .and. n2 == 1) then
-        n_arcs = 1
-        theta_ib(1) = thetas(1, 2)
-        theta_ie(1) = thetas(2, 2)
-        if(thetas(2, 2) < thetas(1, 2)) theta_ie(1) = theta_ie(1) + 2.0_rk * pi
-
-      else if(n1 == 2 .and. n2 == 2) then
-        ! print*, rad2deg(thetas(:,1))
-        ! print*, rad2deg(thetas(:,2))
-        n_arcs = 2
-
-        theta_ib(1) = thetas(2, 1)
-        theta_ie(1) = thetas(1, 1)
-
-        if(theta_ie(1) < theta_ib(1)) then
-          if(theta_ie(1) < 0.0_rk) then
-            theta_ie(1) = theta_ie(1) + 2 * pi
-          end if
-        end if
-
-        ! if(theta_ie(1) < theta_ib(1)) then
-        !   print*, 'a'
-        !   if(theta_ie(1) < 0.0_rk) then
-        !     theta_ib(1) = theta_ie(1)
-        !     theta_ie(1) = theta_ie(1) + 2*pi
-        !   end if
-        ! end if
-
-        ! if(thetas(2, 1) < thetas(1, 1)) then
-        !   ! if(thetas(2, 1) < 0.0_rk .or. thetas(1, 1) < 0.0_rk) then
-        !     theta_ib(1) = thetas(2, 1)
-        !     theta_ie(1) = thetas(1, 1)
-        !   ! end if
-        ! end if
-
-        theta_ib(2) = thetas(1, 2)
-        theta_ie(2) = thetas(2, 2)
-
-        if(theta_ie(2) < theta_ib(2)) then
-          if(theta_ie(2) < 0.0_rk) then
-            theta_ie(2) = theta_ie(2) + 2 * pi
-          end if
-        end if
-
-      end if ! if there are intersections
-
-    end associate
-  end subroutine
-
-  pure subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections)
-    !< Given a arbitrary line from (x1,y1) to (x2,y2) and a circle at (x,y) with a given radius, find
-    !< the angle that a the vector from the circle's center to the intersection point(s) has with respect
-    !< to the x-axis
-
-    ! Input
-    real(rk), dimension(2, 2), intent(in) :: line_xy !< ((x,y), (point_1, point_2))
-    real(rk), dimension(2), intent(in) :: circle_xy !< (x,y)
-    real(rk), intent(in) :: circle_radius
-
-    ! Output
-    logical, dimension(2), intent(out) :: valid_intersections !< (point_1, point_2); .true. or .false.
-    real(rk), dimension(2), intent(out):: arc_angles
-
-    ! Dummy
-    integer(ik) :: i
-    real(rk), dimension(2, 2) :: intersection_xy !< ((x,y), (point_1, point_2))
-
-    intersection_xy = 0.0_rk
-    valid_intersections = .false.
-
-    ! Find the intersection (x,y) locations (if any)
-    call find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersections)
-
-    arc_angles = 0.0_rk
-    do i = 1, 2
-      if(valid_intersections(i)) then
-        arc_angles(i) = intersection_angle_from_x_axis(circle_xy, intersection_xy(:, i))
-      end if
-    end do
-  end subroutine
-
-  pure subroutine find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
-    !< Find the intersections between an arbitrary line and circle. There can be 0, 1, or 2 intersections.
-
-    ! Input
-    real(rk), dimension(2, 2), intent(in) :: line_xy !< ((x,y) (point_1, point_2)); Line location
-    real(rk), dimension(2), intent(in) :: circle_xy !< (x,y); Circle origin
-    real(rk), intent(in) :: circle_radius !< Radius of the circle (duh)
-
-    ! Output
-    real(rk), dimension(2, 2), intent(out) :: intersection_xy !< ((x,y), (point_1, point_2)); Intersection point
-    logical, dimension(2), intent(out) :: valid_intersection !< (point_1, point_2); Is there an intersection or not?
-
-    ! Dummy
-    real(rk) :: discriminiant  !< term under the square root in the quadratic formula
-    real(rk) :: sqrt_discriminiant  !< term under the square root in the quadratic formula
-    integer(ik) :: i
-    real(rk), dimension(2) :: t !< scale factor (should be between 0 and 1) of where the intersection point is along the line
-    real(rk) :: a, b, c  !< quadratic formula variables
-
-    t = 0.0_rk
-    discriminiant = 0.0_rk
-    a = 0.0_rk
-    b = 0.0_rk
-    c = 0.0_rk
-
-    associate(x0=>line_xy(1, 1), x1=>line_xy(1, 2), y0=>line_xy(2, 1), y1=>line_xy(2, 2), &
-              r=>circle_radius, h=>circle_xy(1), k=>circle_xy(2))
-      a = (x1 - x0)**2 + (y1 - y0)**2
-      b = 2 * (x1 - x0) * (x0 - h) + 2 * (y1 - y0) * (y0 - k)
-      c = (x0 - h)**2 + (y0 - k)**2 - r**2
-    end associate
-
-    discriminiant = b**2 - 4 * a * c
-
-    if(discriminiant > 0.0_rk) then
-      sqrt_discriminiant = sqrt(discriminiant)
-
-      ! This used the alternative quadratic formula better suited for floating point operations
-      if(near_zero(-b + sqrt_discriminiant)) then
-        t(1) = 0.0_rk ! t_1 -> 0 when intersection is at the vector start point
-      else
-        t(1) = (2 * c) / (-b + sqrt_discriminiant)
-      end if
-
-      if(near_zero(-b - sqrt_discriminiant)) then
-        t(2) = 1.0_rk  ! t_2 -> 1 when intersection is at the vector end point
-      else
-        t(2) = (2 * c) / (-b - sqrt_discriminiant)
-      end if
-    end if
-
-    ! The scale factor t must be between 0 and 1, otherwise there is no intersection
-    valid_intersection = .false.
-    if(discriminiant > 0.0_rk) then
-      do i = 1, 2
-        if(t(i) >= 0.0_rk .and. t(i) <= 1.0_rk) then
-          valid_intersection(i) = .true.
-        end if
-      end do
-    end if
-
-    intersection_xy = 0.0_rk
-    if(discriminiant > 0.0_rk) then
-      do i = 1, 2
-        associate(x0=>line_xy(1, 1), x1=>line_xy(1, 2), y0=>line_xy(2, 1), y1=>line_xy(2, 2), &
-                  x_t=>intersection_xy(1, i), y_t=>intersection_xy(2, i))
-          x_t = (x1 - x0) * t(i) + x0
-          y_t = (y1 - y0) * t(i) + y0
-        end associate
-      end do
-    end if
-  end subroutine
-
-  pure real(rk) function intersection_angle_from_x_axis(circle_origin_xy, intersection_xy) result(angle)
-    !< Given the the intersection point and origin of the circle it intersected, determine the
-    !< angle with respect to the x axis from 0 to 2pi
-
-    real(rk), dimension(2), intent(in) :: circle_origin_xy !< (x,y)
-    real(rk), dimension(2), intent(in) :: intersection_xy !< ((x,y)
-
-    angle = atan2(y=intersection_xy(2) - circle_origin_xy(2), &
-                  x=intersection_xy(1) - circle_origin_xy(1))
-
-    ! if(angle < 0.0_rk) angle = angle + 2.0_rk * pi
-  end function
-
-  pure subroutine set_arc_segments(theta_ib, theta_ie)
-    !< Sometimes, especially with cells that contain 2 arcs
-    real(rk), dimension(4, 2), intent(inout) :: theta_ib
-    real(rk), dimension(4, 2), intent(inout) :: theta_ie
-  end subroutine
 end module mod_cone

@@ -1,6 +1,6 @@
 module test_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_cone
+  use mod_geometry
   use funit
 
   implicit none
@@ -20,6 +20,7 @@ contains
     circle_xy = [0.0_rk, 0.0_rk]
     circle_radius = 1e-5_rk
 
+    print *, "Running test_intersection_points()"
     ! Exactly 2 intersections on a small circle at the origin
     line_xy(:, 1) = [-1.0_rk, 0.0_rk]
     line_xy(:, 2) = [1.0_rk, 0.0_rk]

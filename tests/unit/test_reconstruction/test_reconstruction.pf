@@ -3,7 +3,8 @@ module test_reconstruction
   use mod_input, only: input_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
-  use mod_second_order_reconstruction, only: second_order_reconstruction_t
+  use mod_second_order_sgg_reconstruction, only: second_order_sgg_reconstruction_t
+  use mod_second_order_dbl_reconstruction, only: second_order_dbl_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
@@ -18,80 +19,18 @@ module test_reconstruction
   integer(ik) :: alloc_status
 
 contains
-
-  ! @test
-  subroutine test_first_order()
-    class(abstract_reconstruction_t), pointer :: reconstruction_operator
-
-    type(input_t) :: input
-    class(grid_t), pointer :: grid => null()
-    real(rk), dimension(:, :, :), allocatable :: U
-    real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
-
-    write(*, *) 'Testing 1st order reconstruction'
-    input = input_t(reconstruction_type='cell_average', &
-                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-                    read_init_cond_from_file=.false., &
-                    xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
-
-    grid => grid_factory(input)
-
-    ! These are normally handled by the cato puppeteer, but for now we make them ourselves
-    associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
-              jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
-
-      allocate(U(4, imin:imax, jmin:jmax), stat=alloc_status)
-      U = 0.0_rk
-      ! ((rho,u,v,p),i,j) Conserved variables for each cell
-      if(alloc_status /= 0) error stop "Unable to allocate U"
-
-      allocate(reconstructed_domain(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
-      reconstructed_domain = 0.0_rk
-      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
-      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
-    end associate
-
-    input%slope_limiter = 'upwind'
-    reconstruction_operator => reconstruction_factory(input=input, grid_target=grid)
-    call reconstruction_operator%set_conserved_vars_pointer(conserved_vars=U, lbounds=lbound(U))
-    call reconstruction_operator%set_grid_pointer(grid=grid)
-
-    @assertEqual(1, reconstruction_operator%order)
-
-    U(1, :, :) = 1.0_rk  ! rho
-    U(2, :, :) = -2.0_rk  ! u
-    U(3, :, :) = 3.0_rk  ! v
-    U(4, :, :) = 4.0_rk  ! p
-    call reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_domain, lbounds=lbound(reconstructed_domain))
-    @assertEqual(1.0_rk, reconstructed_domain(1, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
-    @assertEqual(-2.0_rk, reconstructed_domain(2, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
-    @assertEqual(3.0_rk, reconstructed_domain(3, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
-    @assertEqual(4.0_rk, reconstructed_domain(4, :, :, grid%ilo_cell:grid%ihi_cell, grid%jlo_cell:grid%jhi_cell))
-
-    ! U = 2.0_rk
-    ! call reconstruction_operator%reconstruct_domain(conserved_vars=U, reconstructed_domain=reconstructed_domain)
-    ! @assertEqual(2.0_rk, reconstructed_domain)
-
-    ! @assertEqual(2.0_rk, reconstruction_operator%grid%get_cell_volumes(1, 1))
-    ! @assertEqual([ni_cells, nj_cells], shape(reconstruction_operator%grid%cell_volume))
-    ! @assertEqual([4, ni_cells, nj_cells], shape(reconstruction_operator%conserved_vars))
-
-    deallocate(reconstruction_operator)
-    deallocate(grid)
-    deallocate(U)
-    deallocate(reconstructed_domain)
-  end subroutine
-
   @test
-  subroutine test_second_order()
+  subroutine test_piecewise_linear_sgg()
 
     class(abstract_reconstruction_t), pointer :: reconstruction_operator
 
     type(input_t) :: input
     class(grid_t), pointer :: grid => null()
-    real(rk), dimension(:, :, :), allocatable :: U
+    real(rk) :: cell_average
+    real(rk), dimension(:, :, :), allocatable :: prim_vars
     real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
     integer(ik) :: i, j
+    real(rk), dimension(4) :: point_value
     integer(ik) :: m, c
     integer(ik) :: v
 
@@ -99,10 +38,14 @@ contains
     c = 1 ! corner index
 
     write(*, *) 'Testing 2nd order reconstruction'
-    input = input_t(reconstruction_type='piecewise_linear', &
+    ! input = input_t(reconstruction_type='discontinuous_bilinear', &
+    !                 ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+    !                 read_init_cond_from_file=.false., &
+    !                 xmin=0.0_rk, xmax=6.0_rk, ymin=0.0_rk, ymax=6.0_rk)
+    input = input_t(reconstruction_type='piecewise_linear_sgg', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
-                    xmin=0.0_rk, xmax=6.0_rk, ymin=0.0_rk, ymax=6.0_rk)
+                    xmin=0.0_rk, xmax=3.0_rk, ymin=0.0_rk, ymax=3.0_rk)
 
     grid => grid_factory(input)
 
@@ -110,10 +53,10 @@ contains
     associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
               jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
 
-      allocate(U(4, imin:imax, jmin:jmax), stat=alloc_status)
-      U = 0.0_rk
+      allocate(prim_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
+      prim_vars = 0.0_rk
       ! ((rho,u,v,p),i,j) Conserved variables for each cell
-      if(alloc_status /= 0) error stop "Unable to allocate U"
+      if(alloc_status /= 0) error stop "Unable to allocate prim_vars"
 
       allocate(reconstructed_domain(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
       reconstructed_domain = 0.0_rk
@@ -121,86 +64,72 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
     end associate
 
-    input%slope_limiter = 'upwind'
+    input%slope_limiter = 'minmod'
     reconstruction_operator => reconstruction_factory(input=input, grid_target=grid)
-    call reconstruction_operator%set_conserved_vars_pointer(conserved_vars=U, lbounds=lbound(U))
     call reconstruction_operator%set_grid_pointer(grid=grid)
 
     @assertEqual(2, reconstruction_operator%order)
 
-    ! Test the basic slope limiter
-    write(*, *) "Testing the upwind slope limiter"
-    @assertEqual(2.0_rk, reconstruction_operator%limiter%limit(2.0_rk, 2.0_rk))
-    @assertEqual(0.0_rk, reconstruction_operator%limiter%limit(-2.0_rk, 2.0_rk))
+    !           Domain (including ghost)           -->         Primitive Variable (density)
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   1   |   1   |   1   |   1   |   1  |
+    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   1   |   1   |   2   |   1   |   1   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   1   |   2   |   3   |   2   |   1   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   1   |   1   |   2   |   1   |   1   |
+    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   1   |   1   |   1   |   1   |   1   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    prim_vars(1, :, :) = 1.0_rk
+    prim_vars(1, 2, 1) = 2.0_rk
+    prim_vars(1, 1, 2) = 2.0_rk
+    prim_vars(1, 2, 3) = 2.0_rk
+    prim_vars(1, 3, 2) = 2.0_rk
+    prim_vars(1, 2, 2) = 3.0_rk
 
-    !           Domain           -->    Primitive Variable (v)
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,3) | (2,3) | (3,3) |  -->  |   1   |   2   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,2) | (2,2) | (3,2) |  -->  |   1   |   2   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,1) | (2,1) | (3,1) |  -->  |   1   |   2   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    !           Domain (including ghost)           -->        Primitive Variable (x velocity)
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   0   |   0   |   0   |   0   |   0  |
+    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   0   |  -1   |   0   |   1   |   0   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   0   |  -2   |   0   |   2   |   0   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   0   |  -1   |   0   |   1   |   0   |
+    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   0   |   0   |   0   |   0   |   0   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    prim_vars(2, :, :) = 0.0_rk
+    prim_vars(2, 1, 1) = -1.0_rk
+    prim_vars(2, 1, 2) = -2.0_rk
+    prim_vars(2, 1, 3) = -1.0_rk
+    prim_vars(2, 3, 1) = 1.0_rk
+    prim_vars(2, 3, 2) = 2.0_rk
+    prim_vars(2, 3, 3) = 1.0_rk
 
-    !  Reconstruction points for each cell (corners and mid-points)
-    !  C4---M3---C3
-    !  |         |
-    !  M4   x    M2
-    !  |         |
-    !  C1---M1---C2
-    do v = 1, 1 ! loop through v = [rho, u, v, and p]
-      U = 0.0_rk
-      U(v, 1, :) = 1.0_rk  ! rho
-      U(v, 2, :) = 2.0_rk  ! rho
-      U(v, 3, :) = 3.0_rk  ! rho
+    !           Domain (including ghost)           -->        Primitive Variable (y velocity)
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   0   |   0   |   0   |   0   |   0  |
+    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   0   |   1   |   2   |   1   |   0   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   0   |   0   |   0   |   0   |   0   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   0   |  -1   |  -2   |  -1   |   0   |
+    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   0   |   0   |   0   |   0   |   0   |
+    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    prim_vars(3, :, :) = 0.0_rk
+    prim_vars(3, 1, 3) = 1.0_rk
+    prim_vars(3, 2, 3) = 2.0_rk
+    prim_vars(3, 3, 3) = 1.0_rk
+    prim_vars(3, 1, 1) = -1.0_rk
+    prim_vars(3, 2, 1) = -2.0_rk
+    prim_vars(3, 3, 1) = -1.0_rk
 
-      write(*, *) 'Calling reconstruction_operator%reconstruct_domain()'
-      call reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_domain, &
-                                                      lbounds=lbound(reconstructed_domain))
-
-      i = 2
-      j = 2
-
-      write(*, '(3(f6.2))') reconstructed_domain(v, 4, c, i, j), &
-        reconstructed_domain(v, 3, m, i, j), reconstructed_domain(v, 3, c, i, j)
-      write(*, '(3(f6.2))') reconstructed_domain(v, 4, m, i, j), U(v, i, j), reconstructed_domain(v, 2, m, i, j)
-      write(*, '(3(f6.2))') reconstructed_domain(v, 1, c, i, j), &
-        reconstructed_domain(v, 1, m, i, j), reconstructed_domain(v, 2, c, i, j)
-
-      ! error stop
-      ! indexing for reconstructed_domain is ((rho, u ,v, p), point, corner/midpoint, i, j);
-      ! LHS of the cell should be density = 1.5 (halfway between 1 and 2)
-      ! Corner C1
-      @assertEqual(1.5_rk, reconstructed_domain(v, 1, c, i, j))
-      ! Midpoint M4
-      @assertEqual(1.5_rk, reconstructed_domain(v, 4, m, i, j))
-      ! Corner C4
-      @assertEqual(1.5_rk, reconstructed_domain(v, 4, c, i, j))
-
-      ! Middle of the cell should be density = 2.0
-      ! Midpoint M1
-      @assertEqual(2.0_rk, reconstructed_domain(v, 1, m, i, j))
-      ! Midpoint M3
-      @assertEqual(2.0_rk, reconstructed_domain(v, 3, m, i, j))
-
-      ! RHS of the cell should be density = 2.5 (halfway between 2 and 3)
-      ! Corner C3
-      @assertEqual(2.5_rk, reconstructed_domain(v, 3, c, i, j))
-      ! Midpoint M2
-      @assertEqual(2.5_rk, reconstructed_domain(v, 2, m, i, j))
-      ! Corner C2
-      @assertEqual(2.5_rk, reconstructed_domain(v, 2, c, i, j))
-    end do
-
-    !           Domain           -->  Primitive Variable (v)
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,3) | (2,3) | (3,3) |  -->  |   1   |   1   |   1   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,2) | (2,2) | (3,2) |  -->  |   2   |   2   |   2   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,1) | (2,1) | (3,1) |  -->  |   3   |   3   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-
+    ! The real domain goes from i=1,3 and j=1,3, the ghost layers are i=0,4 and j=0,4
     !  Reconstruction points for each cell (corners and mid-points)
     !  C4---M3---C3
     !  |         |
@@ -208,93 +137,87 @@ contains
     !  |         |
     !  C1---M1---C2
 
-    do v = 1, 1
-      U = 0.0_rk
-      U(v, :, 1) = 3.0_rk
-      U(v, :, 2) = 2.0_rk
-      U(v, :, 3) = 1.0_rk
+    call reconstruction_operator%set_primitive_vars_pointer(primitive_vars=prim_vars, lbounds=lbound(prim_vars))
+    write(*, '(a)') 'Calling reconstruction_operator%reconstruct_domain()'
+    call reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_domain, &
+                                                    lbounds=lbound(reconstructed_domain))
 
-      write(*, *) 'Calling reconstruction_operator%reconstruct_domain()'
-      call reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_domain, &
-                                                      lbounds=lbound(reconstructed_domain))
+    do v = 1, 3 ! loop through v = [rho, u, v]
+      do i = 1, 3
+        do j = 1, 3
+          ! The cell average should be recovered
+          cell_average = sum(reconstructed_domain(v, :, :, i, j)) / 8.0_rk
+          ! @assertEqual(cell_average, prim_vars(:, i, j))
+          print *, 'v,i,j', v, i, j
+          write(*, '(3(f6.2))') reconstructed_domain(v, 4, c, i, j), reconstructed_domain(v, 3, m, i, j), &
+            reconstructed_domain(v, 3, c, i, j)
+          write(*, '(3(f6.2))') reconstructed_domain(v, 4, m, i, j), prim_vars(v, i, j), &
+            reconstructed_domain(v, 2, m, i, j)
+          write(*, '(3(f6.2))') reconstructed_domain(v, 1, c, i, j), reconstructed_domain(v, 1, m, i, j), &
+            reconstructed_domain(v, 2, c, i, j)
+          print *, 'Cell average: ', cell_average
+          print *
+        end do
+      end do
 
-      i = 2
-      j = 2
-      ! indexing for reconstructed_domain is ((rho, u ,v, p), point, corner/midpoint, i, j);
-      ! Top of the cell should be density = 1.5 (halfway between 1 and 2)
-      ! Corner C4
-      @assertEqual(1.5_rk, reconstructed_domain(v, 4, c, i, j))
-      ! Midpoint M3
-      @assertEqual(1.5_rk, reconstructed_domain(v, 3, m, i, j))
-      ! Corner C3
-      @assertEqual(1.5_rk, reconstructed_domain(v, 3, c, i, j))
+      i = 2; j = 1
+      point_value = reconstruction_operator%reconstruct_point(xy=[1.5_rk, 0.0_rk], cell_ij=[i, j])
+      print *, 'xy=[1.5_rk, 0.0_rk], cell_ij=[2, 1] point_value(v): ', point_value(v)
+      ! @assertEqual(1.50_rk, point_value(1))
 
-      ! Middle of the cell should be density = 2.0
-      ! Midpoint M2
-      @assertEqual(2.0_rk, reconstructed_domain(v, 2, m, i, j))
-      ! Midpoint M3
-      @assertEqual(2.0_rk, reconstructed_domain(v, 4, m, i, j))
+      ! point_value = reconstruction_operator%reconstruct_point(xy=[1.0_rk, 0.25_rk], cell_ij=[i, j])
+      ! print*, 'xy=[1.0_rk, 0.25_rk], cell_ij=[2, 1] point_value(1): ', point_value(1)
+      ! @assertEqual(1.75_rk, point_value(1))
 
-      ! Bottom of the cell should be density = 2.5 (halfway between 2 and 3)
-      ! Corner C1
-      @assertEqual(2.5_rk, reconstructed_domain(v, 1, c, i, j))
-      ! Midpoint M1
-      @assertEqual(2.5_rk, reconstructed_domain(v, 1, m, i, j))
-      ! Corner C2
-      @assertEqual(2.5_rk, reconstructed_domain(v, 2, c, i, j))
-    end do
+      ! point_value = reconstruction_operator%reconstruct_point(xy=[1.75_rk, 0.75_rk], cell_ij=[i, j])
+      ! print*, 'xy=[1.75_rk, 1.0_rk], cell_ij=[2, 1] point_value(1): ', point_value(1)
+      ! @assertEqual(2.25_rk, point_value(1))
 
-    !           Domain           -->  Primitive Variable (v)
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,3) | (2,3) | (3,3) |  -->  |   3   |   3   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,2) | (2,2) | (3,2) |  -->  |   3   |   6   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,1) | (2,1) | (3,1) |  -->  |   3   |   3   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
+      ! i = 3; j = 2
+      ! point_value = reconstruction_operator%reconstruct_point(xy=[2.0_rk, 2.0_rk], cell_ij=[i, j])
+      ! print*, 'xy=[2.0_rk, 2.0_rk], cell_ij=[3, 2] point_value(1): ', point_value(1)
+      ! @assertEqual(2.50_rk, point_value(1))
 
-    !  Reconstruction points for each cell (corners and mid-points)
-    !  C4---M3---C3
-    !  |         |
-    !  M4   x    M2
-    !  |         |
-    !  C1---M1---C2
+      ! point_value = reconstruction_operator%reconstruct_point(xy=[2.75_rk, 2.0_rk], cell_ij=[i, j])
+      ! print*, 'xy=[2.75_rk, 2.0_rk], cell_ij=[3, 2] point_value(1): ', point_value(1)
+      ! @assertEqual(1.75_rk, point_value(1))
 
-    do v = 1, 3
-      U = 3.0_rk
-      U(v, 2, 2) = 6.0_rk
+      ! point_value = reconstruction_operator%reconstruct_point(xy=[2.75_rk, 1.25_rk], cell_ij=[i, j])
+      ! print*, 'xy=[1.25_rk, 2.75_rk], cell_ij=[3, 2] point_value(1): ', point_value(1)
+      ! @assertEqual(1.75_rk, point_value(1))
 
-      write(*, *) 'Calling reconstruction_operator%reconstruct_domain() 3'
-      print *, lbound(reconstructed_domain)
-      print *, ubound(reconstructed_domain)
+      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 1, 1))
+      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 1, 3))
+      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 3, 3))
+      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 3, 1))
 
-      call reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_domain, &
-                                                      lbounds=lbound(reconstructed_domain))
-      i = 2; j = 2
+      ! i = 2; j = 1;
+      ! ! indexing for reconstructed_domain is ((rho, u ,v, p), point, corner/midpoint, i, j);
+      ! ! Corner C4
+      ! @assertEqual(2.5_rk, reconstructed_domain(v, 4, c, i, j))
+      ! ! Midpoint M3
+      ! @assertEqual(2.5_rk, reconstructed_domain(v, 3, m, i, j))
+      ! ! Corner C3
+      ! @assertEqual(2.5_rk, reconstructed_domain(v, 3, c, i, j))
 
-      write(*, '(3(f6.2))') reconstructed_domain(v, 4, c, i, j), &
-        reconstructed_domain(v, 3, m, i, j), reconstructed_domain(v, 3, c, i, j)
-      write(*, '(3(f6.2))') reconstructed_domain(v, 4, m, i, j), U(v, i, j), reconstructed_domain(v, 2, m, i, j)
-      write(*, '(3(f6.2))') reconstructed_domain(v, 1, c, i, j), &
-        reconstructed_domain(v, 1, m, i, j), reconstructed_domain(v, 2, c, i, j)
+      ! ! Midpoint M4
+      ! @assertEqual(2.0_rk, reconstructed_domain(v, 4, m, i, j))
+      ! ! Midpoint M2
+      ! @assertEqual(2.0_rk, reconstructed_domain(v, 2, m, i, j))
 
-      i = 1; j = 2
-      write(*, '(3(f6.2))') reconstructed_domain(v, 4, c, i, j), &
-        reconstructed_domain(v, 3, m, i, j), reconstructed_domain(v, 3, c, i, j)
-      write(*, '(3(f6.2))') reconstructed_domain(v, 4, m, i, j), U(v, i, j), reconstructed_domain(v, 2, m, i, j)
-      write(*, '(3(f6.2))') reconstructed_domain(v, 1, c, i, j), &
-        reconstructed_domain(v, 1, m, i, j), reconstructed_domain(v, 2, c, i, j)
-
-      ! indexing for reconstructed_domain is ((rho, u ,v, p), point, corner/midpoint, i, j);
-      i = 2; j = 2
-      @assertEqual(6.0_rk, reconstructed_domain(v, :, :, i, j))
+      ! ! Corner C1
+      ! @assertEqual(1.5_rk, reconstructed_domain(v, 1, c, i, j))
+      ! ! Midpoint M1
+      ! @assertEqual(1.5_rk, reconstructed_domain(v, 1, m, i, j))
+      ! ! Corner C2
+      ! @assertEqual(1.5_rk, reconstructed_domain(v, 2, c, i, j))
 
     end do
 
     deallocate(reconstruction_operator)
     deallocate(grid)
-    deallocate(U)
+    deallocate(prim_vars)
     deallocate(reconstructed_domain)
-  end subroutine
+  end subroutine test_piecewise_linear_sgg
 
 end module test_reconstruction

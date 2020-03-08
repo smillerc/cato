@@ -1,5 +1,6 @@
 module mod_flux_tensor
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: ieee_arithmetic
   use mod_vector, only: vector_t
   use mod_eos, only: eos
 
@@ -8,8 +9,11 @@ module mod_flux_tensor
   private
   public :: flux_tensor_t, operator(.dot.) !, operator(*), operator(-), operator(+)
 
+  real(rk), parameter :: TINY_VEL = 1e-30_rk
+
   type flux_tensor_t
-    real(rk), dimension(2, 4) :: state
+    real(rk), dimension(4, 2) :: state  !< ((i,j), conserved_quantites)
+    !< TODO: fix the stride to (4,2) for better access
   contains
     procedure, pass(lhs), private :: assign_from_flux
     procedure, pass(flux) :: real_mul_flux
@@ -42,31 +46,38 @@ contains
     !< Implementation of the flux tensor (H) construction. This requires the primitive variables
     real(rk), dimension(4), intent(in) :: primitive_variables !< [rho, u, v, p]
 
-    real(rk) :: total_energy
+    real(rk) :: u, v, total_energy !< total energy
 
-    associate(rho=>primitive_variables(1), &
-              u=>primitive_variables(2), v=>primitive_variables(3), &
-              p=>primitive_variables(4), gamma=>eos%get_gamma())
+    if(abs(primitive_variables(2)) < TINY_VEL) then
+      u = 0.0_rk
+    else
+      u = primitive_variables(2)
+    end if
 
-      total_energy = 0.5_rk * rho * (u**2 + v**2) + (p / (gamma - 1.0_rk))
-    end associate
+    if(abs(primitive_variables(3)) < TINY_VEL) then
+      v = 0.0_rk
+    else
+      v = primitive_variables(3)
+    end if
 
     ! The flux tensor is H = Fi + Gj
     associate(rho=>primitive_variables(1), &
-              u=>primitive_variables(2), v=>primitive_variables(3), &
               p=>primitive_variables(4), &
-              E=>total_energy, H=>flux_tensor%state)
+              H=>flux_tensor%state)
+
+      total_energy = eos%calculate_total_energy(pressure=p, density=rho, x_velocity=u, y_velocity=v)
+
       ! F
-      H(1, :) = [rho * u, &
+      H(:, 1) = [rho * u, &
                  rho * u**2 + p, &
                  rho * u * v, &
-                 (E + p) * u]
+                 u * (rho * total_energy + p)]
 
       ! G
-      H(2, :) = [rho * v, &
+      H(:, 2) = [rho * v, &
                  rho * u * v, &
                  rho * v**2 + p, &
-                 (E + p) * v]
+                 v * (rho * total_energy + p)]
     end associate
 
   end function
@@ -124,10 +135,9 @@ contains
     type(flux_tensor_t), intent(in) :: lhs  !< Left-hand side of the dot product
     real(rk), dimension(2), intent(in) :: vec  !< Right-hand side of the dot product
     real(rk), dimension(4) :: output
-    output(1) = dot_product(lhs%state(:, 1), vec)
-    output(2) = dot_product(lhs%state(:, 2), vec)
-    output(3) = dot_product(lhs%state(:, 3), vec)
-    output(4) = dot_product(lhs%state(:, 4), vec)
+
+    ! The flux tensor is H = Fi + Gj
+    output = lhs%state(:, 1) * vec(1) + lhs%state(:, 2) * vec(2)
   end function
 
 end module mod_flux_tensor

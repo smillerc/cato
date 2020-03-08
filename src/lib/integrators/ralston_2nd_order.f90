@@ -22,18 +22,32 @@ contains
   subroutine integrate(U, finite_volume_scheme, dt)
     !< Time integrator implementation
     class(surrogate), intent(inout) :: U
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
-    real(rk), intent(in) :: dt
-    class(integrand_t), allocatable :: U_half !< function evaluation at interval t+dt/2
+    class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
+    real(rk), intent(inout) :: dt
+    class(integrand_t), allocatable :: U_1
+    class(integrand_t), allocatable :: U_0
+    class(integrand_t), allocatable :: dU_dt
 
     call debug_print('Running ralston_2nd%integrate()', __FILE__, __LINE__)
 
     select type(U)
     class is(integrand_t)
-      allocate(U_half, source=U)
-      U_half = U + U%t(finite_volume_scheme) * dt
-      U = 0.5_rk * U + 0.5_rk * (U_half + (U_half%t(finite_volume_scheme) * dt))
-      deallocate(U_half)
+      allocate(U_1, source=U)
+      allocate(dU_dt, source=U)
+
+      ! 1st stage
+      call debug_print('Running ralston_2nd 1st stage', __FILE__, __LINE__)
+      dU_dt = U%t(finite_volume_scheme)
+      U_1 = U + (2.0_rk * dt / 3.0_rk) * dU_dt
+
+      ! Final stage
+      call debug_print('Running ralston_2nd 2nd stage', __FILE__, __LINE__)
+      U = U &
+          + (dt / 4.0_rk) * dU_dt &
+          + (3.0_rk * dt / 4.0_rk) * U_1%t(finite_volume_scheme)
+
+      deallocate(U_1)
+      deallocate(dU_dt)
     class default
       error stop 'Error in ralston_2nd%integrate - unsupported class'
     end select

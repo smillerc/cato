@@ -15,8 +15,9 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 cmake_policy(SET CMP0074 NEW)
-# cmake_policy(SET CMP0069 NEW) # Link-time optimization
-# include(CheckIPOSupported) check_ipo_supported()
+cmake_policy(SET CMP0069 NEW) # Link-time optimization
+include(CheckIPOSupported)
+check_ipo_supported()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -42,6 +43,28 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 message(STATUS "CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE}")
 
+# Profile the code?
+if(NOT ENABLE_PROFILING)
+  set(ENABLE_PROFILING Off)
+endif()
+
+# Set some debug options
+if(CMAKE_BUILD_TYPE STREQUAL Debug)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
+  message(STATUS "Debug mode, so IPO is set to OFF")
+else()
+
+endif(CMAKE_BUILD_TYPE STREQUAL Debug)
+
+message(STATUS "CMAKE_INTERPROCEDURAL_OPTIMIZATION: "
+               ${CMAKE_INTERPROCEDURAL_OPTIMIZATION})
+
+include(OptimizeForArchitecture)
+optimizeforarchitecture()
+
+message(STATUS "CMAKE_Fortran_COMPILER_VERSION: "
+               ${CMAKE_Fortran_COMPILER_VERSION})
+
 # compiler flags for gfortran
 if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
 
@@ -57,19 +80,41 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   set(CMAKE_Fortran_FLAGS_RELEASE
       "-O3 -floop-parallelize-all -ftree-parallelize-loops=6 -march=native -fcoarray=lib"
   )
+
+  if(ENABLE_PROFILING)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -pg -g")
+  endif(ENABLE_PROFILING)
+
 endif()
 
 # compiler flags for ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
-  list(
-    APPEND
-      CMAKE_Fortran_FLAGS
-      "-fpp -std18 -fp-model precise -fp-model except -check bounds -diag-disable 5268 -diag-disable 8770 -check noarg_temp_created"
-  )
+  if(CMAKE_Fortran_COMPILER_VERSION VERSION_LESS 19.0.3)
+    list(
+      APPEND
+        CMAKE_Fortran_FLAGS
+        "-fpp -stand f15 -assume contiguous_assumed_shape -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
+    )
+  else()
+    list(
+      APPEND
+        CMAKE_Fortran_FLAGS
+        "-fpp -stand f18 -assume contiguous_assumed_shape -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
+    )
+  endif()
+
+  if(ENABLE_PROFILING)
+    set(CMAKE_Fortran_FLAGS
+        "${CMAKE_Fortran_FLAGS} -p -qopt-report-phase=all -g -qopt-report-annotate=html -qopt-report-annotate-position=both -qopt-report=5"
+    )
+  endif(ENABLE_PROFILING)
+
+  check_ipo_supported()
 
   set(CMAKE_Fortran_FLAGS_DEBUG
-      "-O0 -g -warn all -debug all -traceback -fpe-all=0 -coarray=single")
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O2 -parallel -coarray")
+      "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds ")
+  set(CMAKE_Fortran_FLAGS_RELEASE
+      " -O3 -xHost -ipo -parallel -mtune=${TARGET_ARCHITECTURE}")
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
