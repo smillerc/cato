@@ -385,20 +385,10 @@ contains
 
     real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
     real(rk) :: pressure, density, u, v
-    real(rk), dimension(2, N_CELLS) :: sin_theta_ib, cos_theta_ib
-    real(rk), dimension(2, N_CELLS) :: sin_theta_ie, cos_theta_ie
-    real(rk), dimension(2, N_CELLS) :: sin_dtheta, cos_dtheta
-    real(rk), dimension(2, N_CELLS) :: sin_d2theta, cos_d2theta
-    real(rk), dimension(2, N_CELLS) :: dtheta
     real(rk) :: rho_a_tilde
     integer(ik) :: i, arc, max_n_arcs
 
     error_code = 0 ! All ok at first
-    dtheta = 0.0_rk
-    sin_theta_ib = 0.0_rk
-    cos_theta_ib = 0.0_rk
-    sin_theta_ie = 0.0_rk
-    cos_theta_ie = 0.0_rk
 
     do i = 1, mach_cone%n_neighbor_cells
       if(mach_cone%p_prime_in_cell(i)) then
@@ -408,44 +398,14 @@ contains
       end if
     end do
 
-    ! Precompute for a bit of speed
-    max_n_arcs = maxval(mach_cone%n_arcs_per_cell)
-
-    if(max_n_arcs == 1) then ! most cells will only have 1 arc in each
-      do i = 1, N_CELLS
-        dtheta(1, i) = mach_cone%theta_ie(1, i) - mach_cone%theta_ib(1, i)
-        sin_theta_ib(1, i) = sin(mach_cone%theta_ib(1, i))
-        cos_theta_ib(1, i) = cos(mach_cone%theta_ib(1, i))
-        sin_theta_ie(1, i) = sin(mach_cone%theta_ie(1, i))
-        cos_theta_ie(1, i) = cos(mach_cone%theta_ie(1, i))
-      end do
-    else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
-      do i = 1, N_CELLS
-        do arc = 1, max_n_arcs
-          dtheta(arc, i) = mach_cone%theta_ie(arc, i) - mach_cone%theta_ib(arc, i)
-          sin_theta_ib(arc, i) = sin(mach_cone%theta_ib(arc, i))
-          cos_theta_ib(arc, i) = cos(mach_cone%theta_ib(arc, i))
-          sin_theta_ie(arc, i) = sin(mach_cone%theta_ie(arc, i))
-          cos_theta_ie(arc, i) = cos(mach_cone%theta_ie(arc, i))
-        end do
-      end do
-    end if
-
-    ! dtheta = mach_cone%theta_ie - mach_cone%theta_ib
-    ! sin_theta_ib = sin(mach_cone%theta_ib)
-    ! cos_theta_ib = cos(mach_cone%theta_ib)
-    ! sin_theta_ie = sin(mach_cone%theta_ie)
-    ! cos_theta_ie = cos(mach_cone%theta_ie)
-
-    sin_dtheta = sin_theta_ie - sin_theta_ib
-    cos_dtheta = cos_theta_ie - cos_theta_ib
-    ! sin_d2theta = sin(2.0_rk * mach_cone%theta_ie) - sin(2.0_rk * mach_cone%theta_ib)
-    sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
-    ! cos_d2theta = cos(2.0_rk * mach_cone%theta_ie) - cos(2.0_rk * mach_cone%theta_ib)
-    cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
     rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
 
     associate(a_tilde=>mach_cone%reference_sound_speed, &
+              dtheta=>mach_cone%dtheta, &
+              sin_dtheta=>mach_cone%sin_dtheta, &
+              cos_dtheta=>mach_cone%cos_dtheta, &
+              sin_d2theta=>mach_cone%sin_d2theta, &
+              cos_d2theta=>mach_cone%cos_d2theta, &
               rho_p_prime=>p_prime_prim_vars(1), &
               pressure_p_prime=>p_prime_prim_vars(4), &
               u_i=>mach_cone%arc_primitive_vars(2, :, :), &
@@ -485,22 +445,12 @@ contains
 
     real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
     real(rk) :: pressure, density, u, v
-    real(rk), dimension(2, N_CELLS) :: sin_theta_ib, cos_theta_ib
-    real(rk), dimension(2, N_CELLS) :: sin_theta_ie, cos_theta_ie
-    real(rk), dimension(2, N_CELLS) :: sin_dtheta, cos_dtheta
-    real(rk), dimension(2, N_CELLS) :: sin_d2theta, cos_d2theta
-    real(rk), dimension(2, N_CELLS) :: dtheta
     real(rk) :: rho_a_tilde
     integer(ik) :: i, arc, max_n_arcs
 
     error_code = 0 ! All ok at first
-    dtheta = 0.0_rk
-    sin_theta_ib = 0.0_rk
-    cos_theta_ib = 0.0_rk
-    sin_theta_ie = 0.0_rk
-    cos_theta_ie = 0.0_rk
 
-    do i = 1, N_CELLS
+    do i = 1, mach_cone%n_neighbor_cells
       if(mach_cone%p_prime_in_cell(i)) then
         p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
                             xy=mach_cone%p_prime_xy, &
@@ -508,44 +458,14 @@ contains
       end if
     end do
 
-    ! Precompute for a bit of speed
-    max_n_arcs = maxval(mach_cone%n_arcs_per_cell)
-
-    if(max_n_arcs == 1) then ! most cells will only have 1 arc in each
-      do i = 1, N_CELLS
-        dtheta(1, i) = mach_cone%theta_ie(1, i) - mach_cone%theta_ib(1, i)
-        sin_theta_ib(1, i) = sin(mach_cone%theta_ib(1, i))
-        cos_theta_ib(1, i) = cos(mach_cone%theta_ib(1, i))
-        sin_theta_ie(1, i) = sin(mach_cone%theta_ie(1, i))
-        cos_theta_ie(1, i) = cos(mach_cone%theta_ie(1, i))
-      end do
-    else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
-      do i = 1, N_CELLS
-        do arc = 1, max_n_arcs
-          dtheta(arc, i) = mach_cone%theta_ie(arc, i) - mach_cone%theta_ib(arc, i)
-          sin_theta_ib(arc, i) = sin(mach_cone%theta_ib(arc, i))
-          cos_theta_ib(arc, i) = cos(mach_cone%theta_ib(arc, i))
-          sin_theta_ie(arc, i) = sin(mach_cone%theta_ie(arc, i))
-          cos_theta_ie(arc, i) = cos(mach_cone%theta_ie(arc, i))
-        end do
-      end do
-    end if
-
-    ! dtheta = mach_cone%theta_ie - mach_cone%theta_ib
-    ! sin_theta_ib = sin(mach_cone%theta_ib)
-    ! cos_theta_ib = cos(mach_cone%theta_ib)
-    ! sin_theta_ie = sin(mach_cone%theta_ie)
-    ! cos_theta_ie = cos(mach_cone%theta_ie)
-
-    sin_dtheta = sin_theta_ie - sin_theta_ib
-    cos_dtheta = cos_theta_ie - cos_theta_ib
-    ! sin_d2theta = sin(2.0_rk * mach_cone%theta_ie) - sin(2.0_rk * mach_cone%theta_ib)
-    sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
-    ! cos_d2theta = cos(2.0_rk * mach_cone%theta_ie) - cos(2.0_rk * mach_cone%theta_ib)
-    cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
     rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
 
     associate(a_tilde=>mach_cone%reference_sound_speed, &
+              dtheta=>mach_cone%dtheta, &
+              sin_dtheta=>mach_cone%sin_dtheta, &
+              cos_dtheta=>mach_cone%cos_dtheta, &
+              sin_d2theta=>mach_cone%sin_d2theta, &
+              cos_d2theta=>mach_cone%cos_d2theta, &
               rho_p_prime=>p_prime_prim_vars(1), &
               pressure_p_prime=>p_prime_prim_vars(4), &
               u_i=>mach_cone%arc_primitive_vars(2, :, :), &

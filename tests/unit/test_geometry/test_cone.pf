@@ -1,6 +1,6 @@
 module test_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_cone
+  use mod_geometry
   use funit
 
   implicit none

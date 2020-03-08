@@ -12,7 +12,8 @@ module test_evo_operator
   use mod_grid, only: grid_t
   use mod_eos
   use mod_local_evo_operator
-  use mod_mach_cone
+  use mod_corner_mach_cone
+  use mod_midpoint_mach_cone
   use math_constants, only: pi, rad2deg
   use funit
 
@@ -117,15 +118,15 @@ contains
     ! Cell 2: cell to the right -> use M4 from the right cell
     point_idx = 4
     reconstructed_midpoint_state(:, 2) = E0%reconstructed_state(:, point_idx, midpoint_idx, i, j)
-    call mach_cone%initialize(tau=tau, edge_vectors=midpoint_edge_vectors, &
-                              reconstructed_state=reconstructed_midpoint_state, &
-                              cell_indices=neighbor_cell_indices, &
-                              cone_location='down/up midpoint')
+    mach_cone = new_midpoint_cone(tau=tau, edge_vectors=midpoint_edge_vectors, &
+                                  reconstructed_state=reconstructed_midpoint_state, &
+                                  cell_indices=neighbor_cell_indices, &
+                                  cone_location='down/up midpoint')
 
     ! Use original reference state
     select type(E0)
     class is(local_evo_operator_t)
-      call E0%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+      call E0%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
     end select
     write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
 
@@ -134,7 +135,7 @@ contains
     mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.0_rk, density=1.0_rk)
     select type(E0)
     class is(local_evo_operator_t)
-      call E0%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+      call E0%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
     end select
     write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
 
@@ -143,7 +144,7 @@ contains
     mach_cone%reference_sound_speed = eos%sound_speed(pressure=0.1_rk, density=0.125_rk)
     select type(E0)
     class is(local_evo_operator_t)
-      call E0%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+      call E0%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
     end select
     write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
 
@@ -152,7 +153,7 @@ contains
     mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.1_rk / 2.0_rk, density=0.125_rk)
     select type(E0)
     class is(local_evo_operator_t)
-      call E0%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+      call E0%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
     end select
     write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
 
@@ -163,7 +164,7 @@ contains
   subroutine test_simple_corner()
 
     ! Locals
-    type(quad_corner_mach_cone_t) :: mach_cone
+    type(corner_mach_cone_t) :: mach_cone
     !< Mach cone used to provide angles theta_ib and theta_ie
 
     integer(ik) :: i, j
@@ -213,15 +214,15 @@ contains
         point_idx = 2
         reconstructed_corner_state(:, 4) = E0%reconstructed_state(:, point_idx, corner_idx, i - 1, j)
 
-        call mach_cone%initialize(tau=tau, edge_vectors=corner_edge_vectors, &
-                                  reconstructed_state=reconstructed_corner_state, &
-                                  cell_indices=neighbor_cell_indices, &
-                                  cone_location='corner')
+        mach_cone = new_corner_cone(tau=tau, edge_vectors=corner_edge_vectors, &
+                                    reconstructed_state=reconstructed_corner_state, &
+                                    cell_indices=neighbor_cell_indices, &
+                                    cone_location='corner')
 
         ! Use original reference state
         select type(E0)
         class is(local_evo_operator_t)
-          call E0%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+          call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
         end select
         write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (orig ref state): ", evolved_primitive_vars
 
@@ -230,7 +231,7 @@ contains
         mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.0_rk, density=1.0_rk)
         select type(E0)
         class is(local_evo_operator_t)
-          call E0%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+          call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
         end select
         write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (LHS ref state):  ", evolved_primitive_vars
 
@@ -239,7 +240,7 @@ contains
         mach_cone%reference_sound_speed = eos%sound_speed(pressure=0.1_rk, density=0.125_rk)
         select type(E0)
         class is(local_evo_operator_t)
-          call E0%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+          call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
         end select
         write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (RHS ref state):  ", evolved_primitive_vars
 
@@ -248,7 +249,7 @@ contains
         mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.1_rk / 2.0_rk, density=1.125_rk / 2.0_rk)
         select type(E0)
         class is(local_evo_operator_t)
-          call E0%e0_operator(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+          call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
         end select
         write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (ave ref state):  ", evolved_primitive_vars
 

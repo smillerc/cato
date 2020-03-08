@@ -7,7 +7,8 @@ module mod_globals
   logical, parameter :: enable_debug_print = .false.
   logical, parameter :: enable_file_and_line_stats = .false.
 
-  real(rk), parameter :: TINY_DIST = 5e-16_rk
+  real(rk), parameter :: TINY_DIST = 5.0e-16_rk
+  real(rk), parameter :: TINY_VEL = 1.0e-15_rk
 
   logical :: globals_set = .false.
 
@@ -16,6 +17,8 @@ module mod_globals
   logical, protected :: is_1d_in_x = .false.
   logical, protected :: is_1d_in_y = .false.
   logical, protected :: is_2d = .true.
+
+  logical, protected :: grid_is_orthogonal = .true.
 
   character(:), allocatable :: compiler_flags_str
   character(:), allocatable :: compiler_version_str
@@ -38,10 +41,13 @@ contains
     end if
   end subroutine set_global_options
 
-  subroutine set_domain_dimensionality(dimensionality)
+  subroutine set_domain_dimensionality(dimensionality, grid_orthogonality)
     !< Set the global dimensionality of the domain. This helps the code
     !< make shortcuts elsewhere
     character(len=4), intent(in) :: dimensionality
+    logical, intent(in) :: grid_orthogonality
+
+    grid_is_orthogonal = grid_orthogonality
 
     select case(trim(dimensionality))
     case('1D_X')

@@ -119,7 +119,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds ")
   set(CMAKE_Fortran_FLAGS_RELEASE
-      " -O3 -xHost -mtune=${TARGET_ARCHITECTURE}")
+      " -O3 -xHost -ipo -parallel -mtune=${TARGET_ARCHITECTURE}")
 endif()
 
 message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})

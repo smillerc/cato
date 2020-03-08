@@ -1,7 +1,7 @@
 module mod_grid_factory
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_globals, only: debug_print
+  use mod_globals, only: debug_print, set_domain_dimensionality
   use mod_input, only: input_t
   use mod_grid, only: grid_t
   use mod_regular_2d_grid, only: regular_2d_grid_t, new_regular_2d_grid
@@ -30,6 +30,7 @@ contains
     select case(trim(input%grid_type))
     case('2d_regular')
       grid => new_regular_2d_grid(input)
+      call set_domain_dimensionality(dimensionality='2D_XY', grid_orthogonality=.true.)
       ! call grid%initialize(input)
 
     case default

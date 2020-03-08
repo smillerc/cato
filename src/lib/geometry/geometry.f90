@@ -65,7 +65,8 @@ contains
     ! print*, 'theta_start_end', rad2deg(arc_segments)
   end subroutine get_arc_segments
 
-pure subroutine get_arc_segments_new(origin, vec_1_head, vec_2_head, origin_in_cell, circle_xy, circle_radius, arc_segments, n_arcs)
+  pure subroutine get_arc_segments_new(origin, vec_1_head, vec_2_head, origin_in_cell, &
+                                       circle_xy, circle_radius, arc_segments, n_arcs)
     !< Given 2 lines and a circle, find their intersections and starting/ending angles for each arc
 
     ! Input
