@@ -37,10 +37,6 @@ message(STATUS "HDF5_INCLUDE_DIRS: " ${HDF5_INCLUDE_DIRS})
 message(STATUS "HDF5_LIBRARIES: " ${HDF5_LIBRARIES})
 message(STATUS "HDF5_HL_LIBRARIES: " ${HDF5_HL_LIBRARIES})
 
-message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
-message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
-message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
-
 # if build type not specified, default to release
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release")
@@ -59,9 +55,6 @@ if(CMAKE_BUILD_TYPE STREQUAL Debug)
 else()
 
 endif(CMAKE_BUILD_TYPE STREQUAL Debug)
-
-message(STATUS "CMAKE_INTERPROCEDURAL_OPTIMIZATION: "
-               ${CMAKE_INTERPROCEDURAL_OPTIMIZATION})
 
 include(OptimizeForArchitecture)
 optimizeforarchitecture()
@@ -98,13 +91,13 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     list(
       APPEND
         CMAKE_Fortran_FLAGS
-        "-fpp -stand f15 -assume contiguous_assumed_shape -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
+        "-fpp -stand f15 -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
     )
   else()
     list(
       APPEND
         CMAKE_Fortran_FLAGS
-        "-fpp -stand f18 -assume contiguous_assumed_shape -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
+        "-fpp -stand f18 -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
     )
   endif()
 
@@ -122,9 +115,6 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
       " -O3 -xHost -ipo -parallel -mtune=${TARGET_ARCHITECTURE}")
 endif()
 
-message(STATUS "CMAKE_REQUIRED_FLAGS" ${CMAKE_REQUIRED_FLAGS})
-message(STATUS "CMAKE_REQUIRED_LIBRARIES" ${CMAKE_REQUIRED_LIBRARIES})
-message(STATUS "Coarray_COMPILE_OPTIONS:" ${Coarray_COMPILE_OPTIONS})
 message(STATUS "Compile Flags: " ${CMAKE_Fortran_FLAGS})
 message(STATUS "Compile Flags Debug: " ${CMAKE_Fortran_FLAGS_DEBUG})
 message(STATUS "Compile Flags Release: " ${CMAKE_Fortran_FLAGS_RELEASE})
@@ -156,6 +146,9 @@ endif()
 if(ENABLE_TESTING)
   # find_package(OpenMP)  # Sometimes pFunit need OpenMP, but iris does not
   find_package(PFUNIT REQUIRED)
+  message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
+  message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
+  message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
   enable_testing()
   add_subdirectory(tests/unit)
 endif()
