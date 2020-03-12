@@ -11,6 +11,7 @@ module mod_input
   type :: input_t
     ! general
     character(:), allocatable :: title  !< Name of the simulation
+    character(:), allocatable :: unit_system !< Type of units to output (CGS, ICF, MKS, etc...)
 
     ! grid
     character(len=32) :: grid_type = '2d_regular'  !< Structure/layout of the grid, e.g. '2d_regular'
@@ -33,6 +34,7 @@ module mod_input
     character(:), allocatable :: bc_pressure_input_file
     logical :: apply_constant_bc_pressure = .false.
     real(rk) :: constant_bc_pressure_value = 0.0_rk
+    real(rk) :: bc_pressure_scale_factor = 1.0_rk
     character(len=32) ::  plus_x_bc = 'periodic' !< Boundary condition at +x
     character(len=32) :: minus_x_bc = 'periodic' !< Boundary condition at -x
     character(len=32) ::  plus_y_bc = 'periodic' !< Boundary condition at +y
@@ -126,6 +128,9 @@ contains
     call cfg%get("general", "title", char_buffer)
     self%title = trim(char_buffer)
 
+    call cfg%get("general", "units", char_buffer, 'cgs')
+    self%unit_system = trim(char_buffer)
+
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     ! call cfg%get("time", "initial_delta_t", self%initial_delta_t)
@@ -175,13 +180,19 @@ contains
     ! Boundary conditions
     call cfg%get("boundary_conditions", "plus_x", char_buffer, 'periodic')
     self%plus_x_bc = trim(char_buffer)
+    ! write(*,'(3(a))') "self%plus_x_bc: '", self%plus_x_bc, "'"
+
     call cfg%get("boundary_conditions", "minus_x", char_buffer, 'periodic')
     self%minus_x_bc = trim(char_buffer)
+    ! write(*,'(3(a))') "self%minus_x_bc: '", self%minus_x_bc, "'"
 
     call cfg%get("boundary_conditions", "plus_y", char_buffer, 'periodic')
     self%plus_y_bc = trim(char_buffer)
+    ! write(*,'(3(a))') "self%plus_y_bc: '", self%plus_y_bc, "'"
+
     call cfg%get("boundary_conditions", "minus_y", char_buffer, 'periodic')
     self%minus_y_bc = trim(char_buffer)
+    ! write(*,'(3(a))') "self%minus_y_bc: '", self%minus_y_bc, "'"
 
     if(self%plus_x_bc == 'pressure_input' .or. &
        self%minus_x_bc == 'pressure_input' .or. &
@@ -196,6 +207,8 @@ contains
         call cfg%get("boundary_conditions", "bc_pressure_input_file", char_buffer)
         self%bc_pressure_input_file = trim(char_buffer)
       end if
+
+      call cfg%get("boundary_conditions", "bc_pressure_scale_factor", self%bc_pressure_scale_factor, 1.0_rk)
     end if
 
     ! Source terms
