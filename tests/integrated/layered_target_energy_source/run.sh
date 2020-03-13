@@ -9,10 +9,14 @@ export I_MPI_VAR_CHECK_SPELLING=0
 export FOR_COARRAY_NUM_IMAGES=1
 
 python generate_ic.py
-rm cato.x
+rm cato.x cato.error
 rm -rf step*
 cd ../../../build &&\
 make -j &&\
 cd - &&\
 cp ../../../build/bin/cato.x . &&\
 ./cato.x input.ini
+echo
+echo "Error(s) if any"
+echo
+cat cato.error
