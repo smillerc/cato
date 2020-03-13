@@ -30,6 +30,7 @@ contains
 
     energy_source%source_type = 'energy'
     energy_source%constant_source = input%apply_constant_source
+    energy_source%scale_factor = input%source_scale_factor
     if(.not. energy_source%constant_source) then
       energy_source%input_filename = trim(input%source_file)
       call energy_source%read_input_file()
@@ -93,10 +94,7 @@ contains
       allocate(new_energy(ilo:ihi, jlo:jhi))
       ! Get the energy from the conserved variable array (convert from rho E to E)
       new_energy = conserved_vars(4, ilo:ihi, jlo:jhi) / conserved_vars(1, ilo:ihi, jlo:jhi)
-
-      ! Add the new amount of desired energy
-      new_energy = new_energy + input_energy
-
+      new_energy = new_energy + (input_energy * self%scale_factor)
       conserved_vars(4, ilo:ihi, jlo:jhi) = new_energy * conserved_vars(1, ilo:ihi, jlo:jhi)
       deallocate(new_energy)
     end if

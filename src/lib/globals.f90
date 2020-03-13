@@ -7,7 +7,7 @@ module mod_globals
   logical, parameter :: enable_debug_print = .false.
   logical, parameter :: enable_file_and_line_stats = .false.
 
-  real(rk), parameter :: TINY_DIST = 5.0e-16_rk
+  real(rk), parameter :: TINY_DIST = 1.0e-15_rk
   real(rk), parameter :: TINY_VEL = 1.0e-15_rk
 
   logical :: globals_set = .false.

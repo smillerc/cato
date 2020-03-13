@@ -235,25 +235,25 @@ contains
 
     if(allocated(self%source_term)) then
 
-      if(self%source_term%ilo /= 0 .and. self%source_term%ihi /= 0) then
-        if(max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)) then
-          error stop "max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)"
-        end if
+      ! if(self%source_term%ilo /= 0 .and. self%source_term%ihi /= 0) then
+      !   if(max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)) then
+      !     error stop "max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)"
+      !   end if
 
-        if(min(self%source_term%ilo, self%source_term%ihi) < min(self%grid%ilo_cell, self%grid%ihi_cell)) then
-          error stop "min(self%source_term%ilo, self%source_term%ihi) > min(self%grid%ilo_cell, self%grid%ihi_cell)"
-        end if
-      end if
+      !   if(min(self%source_term%ilo, self%source_term%ihi) < min(self%grid%ilo_cell, self%grid%ihi_cell)) then
+      !     error stop "min(self%source_term%ilo, self%source_term%ihi) > min(self%grid%ilo_cell, self%grid%ihi_cell)"
+      !   end if
+      ! end if
 
-      if(self%source_term%jlo /= 0 .and. self%source_term%jhi /= 0) then
-        if(max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)) then
-          error stop "max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)"
-        end if
+      ! if(self%source_term%jlo /= 0 .and. self%source_term%jhi /= 0) then
+      !   if(max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)) then
+      !     error stop "max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)"
+      !   end if
 
-        if(min(self%source_term%jlo, self%source_term%jhi) < min(self%grid%jlo_cell, self%grid%jhi_cell)) then
-          error stop "min(self%source_term%jlo, self%source_term%jhi) > min(self%grid%jlo_cell, self%grid%jhi_cell)"
-        end if
-      end if
+      !   if(min(self%source_term%jlo, self%source_term%jhi) < min(self%grid%jlo_cell, self%grid%jhi_cell)) then
+      !     error stop "min(self%source_term%jlo, self%source_term%jhi) > min(self%grid%jlo_cell, self%grid%jhi_cell)"
+      !   end if
+      ! end if
 
       call self%source_term%apply_source(conserved_vars=conserved_vars, lbounds=lbound(conserved_vars), time=self%time)
     end if

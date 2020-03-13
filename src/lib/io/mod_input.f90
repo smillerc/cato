@@ -46,6 +46,7 @@ module mod_input
     logical :: apply_constant_source = .false.
     character(:), allocatable :: source_file
     real(rk) :: constant_source_value = 0.0_rk
+    real(rk) :: source_scale_factor = 1.0_rk
     integer(ik) :: source_ilo = 0
     integer(ik) :: source_ihi = 0
     integer(ik) :: source_jlo = 0
@@ -223,6 +224,7 @@ contains
       self%source_term_type = trim(char_buffer)
 
       call cfg%get('source_terms', 'constant_source_value', self%constant_source_value, 0.0_rk)
+      call cfg%get('source_terms', 'source_scale_factor', self%source_scale_factor, 1.0_rk)
       call cfg%get('source_terms', 'ilo', self%source_ilo, 0)
       call cfg%get('source_terms', 'ihi', self%source_ihi, 0)
       call cfg%get('source_terms', 'jlo', self%source_jlo, 0)
@@ -235,10 +237,10 @@ contains
         error stop "All of the (i,j) ranges in source_terms are 0"
       end if
 
-      if(self%source_ilo > self%source_ihi) then
-        error stop "source_terms%ilo > source_terms%ihi"
-      else if(self%source_jlo > self%source_jhi) then
-        error stop "source_terms%jlo > source_terms%jhi"
+      if(self%source_ilo > self%source_ihi .and. self%source_ihi /= -1) then
+        error stop "Error: Invalid source application range; source_terms%ilo > source_terms%ihi"
+      else if(self%source_jlo > self%source_jhi .and. self%source_jhi /= -1) then
+        error stop "Error: Invalid source application range; source_terms%jlo > source_terms%jhi"
       end if
     end if
 
