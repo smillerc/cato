@@ -115,6 +115,18 @@ contains
     cone%cone_location = trim(cone_location)
     cone%edge_vectors = edge_vectors
 
+    if(any(reconstructed_state(1, :) < 0.0_rk)) then
+      write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed density states (cell 1:2)', reconstructed_state(1, :)
+      write(std_err, '(a, 2("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
+      error stop "Error in midpoint_mach_cone_t initialization, density in the reconstructed state is < 0"
+    end if
+
+    if(any(reconstructed_state(4, :) < 0.0_rk)) then
+      write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed pressure states (cell 1:2): ', reconstructed_state(4, :)
+      write(std_err, '(a, 2("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
+      error stop "Error in midpoint_mach_cone_t initialization, pressure in the reconstructed state is < 0"
+    end if
+
     do i = 1, N_CELLS
       do l = 1, 4
         cone%recon_state(l, i) = reconstructed_state(l, i)
@@ -122,18 +134,6 @@ contains
     end do
 
     call cone%get_reference_state(reconstructed_state)
-
-    if(any(reconstructed_state(1, :) < 0.0_rk)) then
-      error stop "Error in midpoint_mach_cone_t initialization, density in the reconstructed state is < 0"
-      write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed density states (cell 1:2)', reconstructed_state(1, :)
-
-    end if
-
-    if(any(reconstructed_state(4, :) < 0.0_rk)) then
-      error stop "Error in midpoint_mach_cone_t initialization, pressure in the reconstructed state is < 0"
-      write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed pressure states (cell 1:2): ', reconstructed_state(4, :)
-      error stop
-    end if
 
     if(cone%cone_is_transonic) then
       call cone%get_transonic_cone_extents(origin=cone%p_prime_xy, &
@@ -527,8 +527,8 @@ contains
     end if
 
     if(.not. equal(arc_sum, 2 * pi, 1e-6_rk)) then
-      error stop "Cone arcs do not add up to 2pi"
       write(std_err, *) self
+      error stop "Cone arcs do not add up to 2pi"
     end if
 
     if(self%radius < 0.0_rk) then
