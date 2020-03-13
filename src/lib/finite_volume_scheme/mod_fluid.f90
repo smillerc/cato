@@ -727,12 +727,18 @@ contains
     !< Find the maximum sound speed in the domain
     class(fluid_t), intent(in) :: self
     real(rk), dimension(:, :), allocatable :: sound_speed
-
+    integer(ik) :: ilo, ihi, jlo, jhi
+    max_cs = 0.0_rk
     call debug_print('Running fluid_t%get_max_sound_speed()', __FILE__, __LINE__)
 
     call self%get_sound_speed(sound_speed)
-    max_cs = maxval(sound_speed)
-    ! write(*,'(a, es10.3)') 'Max sound speed: ', max_cs
+    ilo = lbound(sound_speed, dim=1) + 1
+    ihi = ubound(sound_speed, dim=1) - 1
+    jlo = lbound(sound_speed, dim=2) + 1
+    jhi = ubound(sound_speed, dim=2) - 1
+
+    max_cs = maxval(sound_speed(ilo:ihi, jlo:jhi))
+    deallocate(sound_speed)
   end function get_max_sound_speed
 
   subroutine get_primitive_vars(self, primitive_vars)

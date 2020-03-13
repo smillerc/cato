@@ -75,11 +75,8 @@ program cato
 
     max_cs = U%get_max_sound_speed()
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
-
-    ! write(*,'(a, es12.4)') "min(fv%grid%min_dx, fv%grid%min_dx)", min(fv%grid%min_dx, fv%grid%min_dx)
-    ! write(*,'(a, es12.4)') "Tau:", input%tau
-    ! error stop
-    write(*, '(2(a, es10.3), a)') 'Time =', time * io_time_units, ' '//trim(io_time_label)//', Delta t =', delta_t, ' s'
+    write(*, '(2(a, es10.3), a)') 'Time =', time * io_time_units, &
+      ' '//trim(io_time_label)//', Delta t =', delta_t, ' s'
 
     call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
                                lbounds=lbound(U%conserved_vars))
