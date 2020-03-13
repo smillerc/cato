@@ -24,7 +24,7 @@ def read_stepfile(file):
     """
     data = {}
 
-    var_list = ["x", "density", "x_velocity", "y_velocity", "pressure"]
+    var_list = ["x", "density", "x_velocity", "y_velocity", "pressure", "sound_speed"]
 
     with h5py.File(file, "r") as h5:
         # Transpose to match the index convention within the code
@@ -77,6 +77,7 @@ def read_1d_dataset(folder, units="cgs"):
         "time": np.zeros(data_dim_t),
         "density": np.zeros((data_dim_t, data_dim_x)),
         "pressure": np.zeros((data_dim_t, data_dim_x)),
+        "sound_speed": np.zeros((data_dim_t, data_dim_x)),
         "x_velocity": np.zeros((data_dim_t, data_dim_x)),
         "y_velocity": np.zeros((data_dim_t, data_dim_x)),
     }
@@ -88,10 +89,12 @@ def read_1d_dataset(folder, units="cgs"):
         data["x_velocity"][t, :] = single_step_data["x_velocity"][:, 0]
         data["y_velocity"][t, :] = single_step_data["y_velocity"][:, 0]
         data["density"][t, :] = single_step_data["density"][:, 0]
+        data["sound_speed"][t, :] = single_step_data["sound_speed"][:, 0]
         data["pressure"][t, :] = single_step_data["pressure"][:, 0]
 
     density = data["density"] * ureg("g/cc")
     pressure = data["pressure"] * ureg("barye")
+    sound_speed = data["sound_speed"] * ureg("cm/s")
     x_vel = data["x_velocity"] * ureg("cm/s")
     y_vel = data["y_velocity"] * ureg("cm/s")
     time = data["time"] * ureg("s")
@@ -117,6 +120,9 @@ def read_1d_dataset(folder, units="cgs"):
                 ("time", "x"),
                 density.to(density_units).m,
                 attrs={"units": density_units},
+            ),
+            "Sound Speed": xr.Variable(
+                ("time", "x"), sound_speed.to(vel_units).m, attrs={"units": vel_units},
             ),
             "Pressure": xr.Variable(
                 ("time", "x"),

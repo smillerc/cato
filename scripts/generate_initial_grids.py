@@ -149,10 +149,11 @@ def make_1d_layered_grid(
         p[:, s:e] = layer_pressure[l].to("barye").m
 
     # Assign ghost layer values
-    rho[:, 0] = layer_density[0].to("g/cc").m
-    p[:, 0] = layer_pressure[0].to("barye").m
-    rho[:, -1] = layer_density[-1].to("g/cc").m
-    p[:, -1] = layer_pressure[-1].to("barye").m
+    for i in [0, -1]:
+        rho[:, i] = layer_density[i].to("g/cc").m
+        u[:, i] = layer_u[i].to("cm/s").m
+        v[:, i] = layer_v[i].to("cm/s").m
+        p[:, i] = layer_pressure[i].to("barye").m
 
     # cell spacing
     dy = (np.diff(y_2d[:, 0]) / 2.0)[0]
