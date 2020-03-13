@@ -24,12 +24,8 @@ vac_press = 1e12
 rho_vac = 0.005
 v_shell = np.sqrt(2.0 / (gamma + 1.0) * vac_press / rho_shell)
 print("vshell", v_shell)
-layer_thicknesses = [1, 39, 10, 15] * ureg("um")
+layer_thicknesses = [1, 39, 10, 10] * ureg("um")
 layer_n_cells = (layer_thicknesses.m * cells_per_micron).astype(np.int)
-
-layer_n_cells[-1] = (layer_thicknesses[-1].m * 10).astype(np.int)
-
-print(layer_n_cells)
 layer_density = [0.01, 0.25, 1.0, rho_vac] * ureg("g/cc")
 layer_u = [0, 0, 0, -v_shell] * ureg("cm/s")
 layer_v = [0, 0, 0, 0] * ureg("cm/s")
