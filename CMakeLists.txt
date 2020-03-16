@@ -15,9 +15,9 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 cmake_policy(SET CMP0074 NEW)
-cmake_policy(SET CMP0069 NEW) # Link-time optimization
-include(CheckIPOSupported)
-check_ipo_supported()
+# cmake_policy(SET CMP0069 NEW) # Link-time optimization
+# include(CheckIPOSupported)
+# check_ipo_supported()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -107,7 +107,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     )
   endif(ENABLE_PROFILING)
 
-  check_ipo_supported()
+  # check_ipo_supported()
 
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds ")
