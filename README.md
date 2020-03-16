@@ -12,7 +12,11 @@ Sample install script
 ```bash
 mkdir build && cd build
 CC=gcc-9 FC=gfortran-9 cmake .. -DCMAKE_BUILD_TYPE="Debug"
+make -j
 ```
+
+## Examples
+Check out the `tests/integrated` folder for a series of different test problems. Note, not all of them are fully functioning, but the majority are.
 
 ## Physics
 This code solves the Euler fluid equations using the finite volume local evolution Galerkin method (FVLEG). The papers that describe this are listed [here](./papers/Readme.md)
