@@ -29,9 +29,11 @@ def read_stepfile(file):
     with h5py.File(file, "r") as h5:
         # Transpose to match the index convention within the code
         data["time"] = h5["/time"][()]
+        data["time_units"] = h5["/time"].attrs["units"].decode("utf-8")
         for var in var_list:
             try:
                 data[var] = h5[f"/{var}"][()].T
+                data[var + "_units"] = h5[f"/{var}"].attrs["units"].decode("utf-8")
             except Exception:
                 print(f"Unable to read {var}")
     return data
@@ -42,20 +44,16 @@ def read_1d_dataset(folder, units="cgs"):
 
     Parameters
     ----------
-    folder : [type]
-        [description]
+    folder : str
+        Folder containing the step files
     units : str, optional
-        [description], by default 'cgs'
+        Desired unit system to convert the quantities to, by default 'cgs'. 'icf' will use
+        conventions typical in the ICF community, e.g. [g/cc, um, km/s, eV]
 
     Returns
     -------
-    [type]
-        [description]
-
-    Raises
-    ------
-    Exception
-        [description]
+    xr.Dataset
+        An xarray Dataset containing the time-varying data
     """
 
     if units != "cgs" and units != "icf":
@@ -92,13 +90,13 @@ def read_1d_dataset(folder, units="cgs"):
         data["sound_speed"][t, :] = single_step_data["sound_speed"][:, 0]
         data["pressure"][t, :] = single_step_data["pressure"][:, 0]
 
-    density = data["density"] * ureg("g/cc")
-    pressure = data["pressure"] * ureg("barye")
-    sound_speed = data["sound_speed"] * ureg("cm/s")
-    x_vel = data["x_velocity"] * ureg("cm/s")
-    y_vel = data["y_velocity"] * ureg("cm/s")
-    time = data["time"] * ureg("s")
-    xc = np.cumsum(np.diff(data["x"][0])) * ureg("cm")
+    density = data["density"] * ureg(single_step_data["density_units"])
+    pressure = data["pressure"] * ureg(single_step_data["pressure_units"])
+    sound_speed = data["sound_speed"] * ureg(single_step_data["sound_speed_units"])
+    x_vel = data["x_velocity"] * ureg(single_step_data["x_velocity_units"])
+    y_vel = data["y_velocity"] * ureg(single_step_data["y_velocity_units"])
+    time = data["time"] * ureg(single_step_data["time_units"])
+    xc = np.cumsum(np.diff(data["x"][0])) * ureg(single_step_data["x_units"])
 
     if units == "cgs":
         density_units = "g/cc"
