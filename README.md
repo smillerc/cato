@@ -2,10 +2,10 @@
 
 ## Build/Install
 Requirements:
-- CMake
+- CMake (3.8+)
 - gfortran 8+ or Intel Fortran 2018+
 - OpenCoarrays ([https://github.com/sourceryinstitute/OpenCoarrays](https://github.com/sourceryinstitute/OpenCoarrays))
-- HDF5 (for I/O)
+- HDF5 using the interface provided by [https://github.com/scivision/h5fortran](https://github.com/scivision/h5fortran)
 - pFUnit (for unit testing) ([https://github.com/Goddard-Fortran-Ecosystem/pFUnit](https://github.com/Goddard-Fortran-Ecosystem/pFUnit))
 
 Sample install script
