@@ -1,4 +1,4 @@
-add_library(globals lib/hermetic.f90 lib/globals.f90 lib/math_constants.f90
+add_library(globals lib/hermetic.f90 lib/units.f90 lib/globals.f90 lib/math_constants.f90
                     lib/floating_point_utilities.f90 lib/mod_timing.f90)
 
 add_library(parallel lib/mod_parallel.f90)
@@ -28,11 +28,9 @@ target_link_libraries(utilities PUBLIC globals)
 
 add_library(
   geometry
-  lib/geometry/mach_cone.f90
   lib/geometry/mach_cone_utilities.f90
   lib/geometry/midpoint_mach_cone.f90
   lib/geometry/corner_mach_cone.f90
-  # lib/geometry/cone.f90
   lib/geometry/geometry.f90
   lib/domain/grid_type.f90
   lib/domain/regular_2d_grid.f90
@@ -49,6 +47,7 @@ add_library(
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
+  lib/boundary_conditions/vacuum_bc.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/reflection_bc.f90

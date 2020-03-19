@@ -1,6 +1,7 @@
 module mod_flux_tensor
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
+  use mod_globals, only: TINY_VEL
   use mod_vector, only: vector_t
   use mod_eos, only: eos
 
@@ -8,8 +9,6 @@ module mod_flux_tensor
 
   private
   public :: flux_tensor_t, operator(.dot.) !, operator(*), operator(-), operator(+)
-
-  real(rk), parameter :: TINY_VEL = 1e-30_rk
 
   type flux_tensor_t
     real(rk), dimension(4, 2) :: state  !< ((i,j), conserved_quantites)

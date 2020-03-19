@@ -9,6 +9,7 @@ module mod_source
 
   type, abstract :: source_t
     character(len=:), allocatable :: source_type
+    real(rk) :: scale_factor = 1.0_rk !< User scale factor do scale energy up/down
     real(rk), private :: time = 0.0_rk ! Solution time (for time dependent bc's)
     real(rk), private :: max_time = 0.0_rk !< Max time in source (e.g. stop after this)
     integer(ik) :: ilo = 0 !< Index to apply source term at
@@ -163,24 +164,31 @@ contains
 
     associate(ilo=>ranges(1), ihi=>ranges(2), &
               jlo=>ranges(3), jhi=>ranges(4))
+
+      ilo = self%ilo
+      ihi = self%ihi
+      jlo = self%jlo
+      jhi = self%jhi
+
       if(self%ilo == 0 .and. self%ihi == 0) then
         ! Apply across entire i range
         ilo = lbounds(2)
         ihi = ubounds(2)
-        jlo = self%jlo
-        jhi = self%jhi
       else if(self%jlo == 0 .and. self%jhi == 0) then
         ! Apply across entire j range
-        ilo = self%ilo
-        ihi = self%ihi
         jlo = lbounds(3)
         jhi = ubounds(3)
-      else
-        ilo = self%ilo
-        ihi = self%ihi
-        jlo = self%jlo
-        jhi = self%jhi
       end if
+
+      ! For convienence, -1 just means go to the last index, ala python
+      if(self%ihi == -1) ihi = ubounds(2)
+      if(self%jhi == -1) jhi = ubounds(3)
+
+      if(ilo > ihi .or. jlo > jhi) then
+        write(*, '(a, 4(i0, 1x), a)') "Error: Invalid source appliation range [ilo,ihi,jlo,jhi]: [", ilo, ihi, jlo, jhi, ']'
+        error stop "Error: Invalid source appliation range"
+      end if
+
     end associate
   end function get_application_bounds
 

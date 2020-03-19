@@ -26,7 +26,7 @@ vacuum_mach = 0.0
 vacuum_vel = vacuum_mach * vacuum_cs
 
 print(f"Vacuum Region Speed {vacuum_vel:.2e}")
-layer_thicknesses = [10, 5, 10] * ureg("um")
+layer_thicknesses = [10, 5, 1.5] * ureg("um")
 layer_n_cells = (layer_thicknesses.m * cells_per_micron).astype(np.int)
 layer_density = [0.25, 1.0, vacuum_dens] * ureg("g/cc")
 layer_u = [0, 0, vacuum_vel] * ureg("cm/s")

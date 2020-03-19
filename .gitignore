@@ -46,6 +46,7 @@ papers/~$method_explanation.pptx
 tests/**/cato.x
 tests/**/*.txt
 tests/**/*.error
+tests/**/*.ipynb
 *.h5
 *.xdmf
 

@@ -434,16 +434,18 @@ contains
     end do
 
     ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
-    if(equal(minval(self%cell_volume), maxval(self%cell_volume), epsilon=1e-8_rk)) then
-      self%cell_volume = (maxval(self%cell_volume) + minval(self%cell_volume)) / 2.0_rk
-    end if
+    ! if(equal(minval(self%cell_volume), maxval(self%cell_volume), epsilon=1e-3_rk)) then
+    !   print*, 'vol', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
+    !   error stop
+    !   self%cell_volume = (maxval(self%cell_volume) + minval(self%cell_volume)) / 2.0_rk
+    ! end if
 
     ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
-    if(equal(minval(self%cell_edge_lengths), maxval(self%cell_edge_lengths), epsilon=1e-3_rk)) then
-      ! print*, 'assdflkasdjf;saldkfj', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
-      ! error stop
-      self%cell_edge_lengths = (maxval(self%cell_edge_lengths) + minval(self%cell_edge_lengths)) / 2.0_rk
-    end if
+    ! if(equal(minval(self%cell_edge_lengths), maxval(self%cell_edge_lengths), epsilon=1e-3_rk)) then
+    !   print*, 'edgessss', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
+    !   error stop
+    !   self%cell_edge_lengths = (maxval(self%cell_edge_lengths) + minval(self%cell_edge_lengths)) / 2.0_rk
+    ! end if
 
   end subroutine
 

@@ -15,9 +15,9 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 cmake_policy(SET CMP0074 NEW)
-cmake_policy(SET CMP0069 NEW) # Link-time optimization
-include(CheckIPOSupported)
-check_ipo_supported()
+# cmake_policy(SET CMP0069 NEW) # Link-time optimization
+# include(CheckIPOSupported)
+# check_ipo_supported()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -56,9 +56,6 @@ else()
 
 endif(CMAKE_BUILD_TYPE STREQUAL Debug)
 
-message(STATUS "CMAKE_INTERPROCEDURAL_OPTIMIZATION: "
-               ${CMAKE_INTERPROCEDURAL_OPTIMIZATION})
-
 include(OptimizeForArchitecture)
 optimizeforarchitecture()
 
@@ -93,13 +90,13 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     list(
       APPEND
         CMAKE_Fortran_FLAGS
-        "-fpp -stand f15 -assume contiguous_assumed_shape -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
+        "-fpp -stand f15 -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
     )
   else()
     list(
       APPEND
         CMAKE_Fortran_FLAGS
-        "-fpp -stand f18 -assume contiguous_assumed_shape -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
+        "-fpp -stand f18 -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770"
     )
   endif()
 
@@ -109,7 +106,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     )
   endif(ENABLE_PROFILING)
 
-  check_ipo_supported()
+  # check_ipo_supported()
 
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds ")
@@ -153,6 +150,9 @@ endif()
 if(ENABLE_TESTING)
   # find_package(OpenMP)  # Sometimes pFunit need OpenMP, but iris does not
   find_package(PFUNIT REQUIRED)
+  message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
+  message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
+  message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
   enable_testing()
   add_subdirectory(tests/unit)
 endif()

@@ -13,6 +13,7 @@ module mod_pressure_input_bc
   type, extends(boundary_condition_t) :: pressure_input_bc_t
     logical :: constant_pressure = .false.
     real(rk) :: pressure_input = 0.0_rk
+    real(rk) :: scale_factor = 1.0_rk !< scaling factor (e.g. 1x, 2x) to scale the input up/down
 
     ! Temporal inputs
     type(linear_interp_1d) :: temporal_pressure_input
@@ -42,6 +43,7 @@ contains
     bc%location = location
 
     bc%constant_pressure = input%apply_constant_bc_pressure
+    bc%scale_factor = input%bc_pressure_scale_factor
     if(.not. bc%constant_pressure) then
       bc%input_filename = trim(input%bc_pressure_input_file)
       call bc%read_pressure_input()
@@ -104,6 +106,8 @@ contains
     end do
     close(input_unit)
 
+    self%max_time = maxval(time_sec)
+
     ! Initialize the linear interpolated data object so we can query the pressure at any time
     call self%temporal_pressure_input%initialize(time_sec, pressure_barye, interp_status)
     if(interp_status /= 0) error stop "Error initializing pressure_input_bc_t%temporal_pressure_input"
@@ -144,6 +148,8 @@ contains
         error stop "Unable to interpolate pressure within pressure_input_bc_t%get_desired_pressure()"
       end if
     end if
+
+    desired_pressure = desired_pressure * self%scale_factor
   end function get_desired_pressure
 
   subroutine apply_pressure_input_primitive_var_bc(self, primitive_vars, lbounds)
@@ -162,8 +168,10 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    real(rk) :: desired_boundary_pressure, boundary_density
+    real(rk) :: desired_boundary_pressure, boundary_density, gamma
     real(rk), dimension(:), allocatable :: edge_pressure
+
+    gamma = eos%get_gamma()
 
     left_ghost = lbound(primitive_vars, dim=2)
     right_ghost = ubound(primitive_vars, dim=2)
@@ -210,21 +218,27 @@ contains
         edge_pressure(bottom:top) = primitive_vars(4, right, bottom:top)
 
         ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
-        associate(rho_1=>primitive_vars(1, right, :), &
+        associate(rho_1=>primitive_vars(1, right, bottom:top), &
                   P_1=>edge_pressure(bottom:top), &
-                  gamma=>eos%get_gamma(), &
                   P_2=>desired_boundary_pressure)
 
-          ! write(*,'(a, es14.3)') 'edge_pressure:             ', P_1
-          ! write(*,'(a, es14.3)') 'desired_boundary_pressure: ', desired_boundary_pressure
-
-          if(desired_boundary_pressure < minval(edge_pressure)) then
+          if(self%get_time() > self%max_time) then  ! switch to a zero gradient
             self%edge_primitive_vars(1, bottom:top) = primitive_vars(1, right, bottom:top)
             self%edge_primitive_vars(4, bottom:top) = edge_pressure
-
           else
-            self%edge_primitive_vars(1, bottom:top) = rho_1 * (P_2 / P_1)**(gamma - 1.0_rk)
-            self%edge_primitive_vars(4, bottom:top) = desired_boundary_pressure
+
+            self%edge_primitive_vars(4, bottom:top) = P_2
+
+            ! Outflow
+            if(maxval(primitive_vars(2, right, bottom:top)) > 0.0_rk) then
+              associate(v=>abs(primitive_vars(2, right, bottom:top)), mach=>1.5_rk)
+                ! Set density to make the flow supersonic
+                self%edge_primitive_vars(1, bottom:top) = (gamma * P_2) / (v / mach)
+              end associate
+            else ! Inflow
+              self%edge_primitive_vars(1, bottom:top) = rho_1 * (P_2 / P_1)**(1.0_rk / gamma)
+            end if
+
           end if
         end associate
 
@@ -234,11 +248,7 @@ contains
       end if
 
       primitive_vars(:, right_ghost, bottom:top) = self%edge_primitive_vars(:, bottom:top)
-      ! write(*,'(a, 3(es14.4, 1x))') 'edge rho', self%edge_primitive_vars(1, :)
-      ! write(*,'(a, 3(es14.4, 1x))') 'edge u  ', self%edge_primitive_vars(2, :)
-      ! write(*,'(a, 3(es14.4, 1x))') 'edge v  ', self%edge_primitive_vars(3, :)
-      ! write(*,'(a, 3(es14.4, 1x))') 'edge p  ', self%edge_primitive_vars(4, :)
-      ! print*
+
       ! case('-x')
       !   ! primitive_vars(:, left_ghost, :) = primitive_vars(:, right, bottom)
       ! case('+y')
@@ -320,6 +330,10 @@ contains
                         lbounds(4):), intent(inout) :: cell_gradient
     !< ((rho, u ,v, p), (d/dx, d/dy), i, j); Gradient of each cell's primitive variables
 
+    integer(ik) :: left         !< Min i real cell index
+    integer(ik) :: right        !< Max i real cell index
+    integer(ik) :: bottom       !< Min j real cell index
+    integer(ik) :: top          !< Max j real cell index
     integer(ik) :: left_ghost   !< Min i ghost cell index
     integer(ik) :: right_ghost  !< Max i ghost cell index
     integer(ik) :: bottom_ghost !< Min j ghost cell index
@@ -329,11 +343,18 @@ contains
     right_ghost = ubound(cell_gradient, dim=3)
     bottom_ghost = lbound(cell_gradient, dim=4)
     top_ghost = ubound(cell_gradient, dim=4)
+    left = left_ghost + 1
+    right = right_ghost - 1
+    bottom = bottom_ghost + 1
+    top = top_ghost - 1
 
     select case(self%location)
     case('+x')
       call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() +x', __FILE__, __LINE__)
       cell_gradient(:, :, right_ghost, :) = 0.0_rk
+      ! cell_gradient(1, :, right_ghost, :) = -cell_gradient(1, :, right, :)
+      ! cell_gradient(2:3, :, right_ghost, :) = 0.0_rk !cell_gradient(2:3, :, right, :)
+      ! cell_gradient(4, :, right_ghost, :) = -cell_gradient(4, :, right, :)
     case('-x')
       call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() -x', __FILE__, __LINE__)
       cell_gradient(:, :, right_ghost, :) = 0.0_rk
