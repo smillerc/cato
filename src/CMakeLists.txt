@@ -43,7 +43,8 @@ target_link_libraries(geometry PUBLIC globals io eos)
 
 add_library(
   cato
-  lib/finite_volume_scheme/mod_fluid.f90
+  lib/finite_volume_scheme/global_fluid.f90
+  lib/finite_volume_scheme/local_fluid.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90

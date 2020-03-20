@@ -1,20 +1,16 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
+  use mod_parallel, only: num_tiles, tile_indices, tile_neighbors_1d, tile_neighbors_2d, sync_edges
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
-  use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
-  use mod_surrogate, only: surrogate
-  use mod_boundary_conditions, only: boundary_condition_t
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
-  use mod_surrogate, only: surrogate
   use mod_grid, only: grid_t
   use mod_input, only: input_t
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
-  use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use mod_time_integrator_factory, only: time_integrator_factory
 
@@ -24,14 +20,13 @@ module mod_fluid
   public :: fluid_t, new_fluid
 
   type, extends(integrand_t) :: fluid_t
-    real(rk), dimension(:, :, :), allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
+    real(rk), dimension(:, :, :), codimension[:], allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
     procedure, private :: initialize_from_hdf5
     procedure, public :: t => time_derivative
     procedure, public :: get_sound_speed
-    procedure, public :: residual_smoother
     procedure, public :: get_max_sound_speed
     procedure, public :: get_primitive_vars
     procedure, public :: sanity_check
@@ -187,6 +182,23 @@ contains
 
   end subroutine initialize_from_ini
 
+  subroutine synchronize()
+    !< Syncronize with the neighboring images
+
+    integer(ik) :: left, right, up, down !< left/right/up/down neighbor images
+    ! if (num_images()>1) then
+    !   associate(me=>this_image(),first_image=>1,last_image=>num_images())
+    !     left_neighbor = merge(last_image,me-1,me==first_image)
+    !     right_neighbor = merge(first_image,me+1,me==last_image)
+    !     if (left_neighbor==right_neighbor) then ! occurs if num_images()==2
+    !       sync images([left_neighbor])
+    !     else
+    sync images([left, right, up, down])
+    !     end if
+    !   end associate
+    ! end if
+  end subroutine synchronize
+
   subroutine force_finalization(self)
     class(fluid_t), intent(inout) :: self
 
@@ -214,22 +226,22 @@ contains
     type(fluid_t), allocatable :: local_d_dt !< dU/dt
     integer(ik) :: alloc_status, error_code
 
-    real(rk), dimension(:, :, :), allocatable :: primitive_vars
+    real(rk), dimension(:, :, :), codimension[:], allocatable :: primitive_vars
     !< ((rho, u, v, p), i, j); Primitive variables at each cell center
 
-    real(rk), dimension(:, :, :), allocatable :: evolved_corner_state
+    real(rk), dimension(:, :, :), codimension[:], allocatable :: evolved_corner_state
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each corner
 
     ! Indexing the midpoints is a pain, so they're split by the up/down edges and left/right edges
-    real(rk), dimension(:, :, :), allocatable :: evolved_downup_midpoints_state
+    real(rk), dimension(:, :, :), codimension[:], allocatable :: evolved_downup_midpoints_state
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go up/down
     !< (edges 2 (right edge) and 4 (left edge))
 
-    real(rk), dimension(:, :, :), allocatable :: evolved_leftright_midpoints_state
+    real(rk), dimension(:, :, :), codimension[:], allocatable :: evolved_leftright_midpoints_state
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go left/right
     !< (edges 1 (bottom edge) and 3 (top edge))
 
-    real(rk), dimension(:, :, :, :, :), allocatable, target :: reconstructed_state
+    real(rk), dimension(:, :, :, :, :), codimension[:], allocatable, target :: reconstructed_state
     !< (((rho, u, v, p)), point, node/midpoint, i, j); The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints. Note, this DOES repeat nodes, since corners and midpoints are
     !< shared by neighboring cells, but each point has its own reconstructed value based on the parent cell's state
@@ -239,7 +251,7 @@ contains
     associate(imin=>fv%grid%ilo_bc_cell, imax=>fv%grid%ihi_bc_cell, &
               jmin=>fv%grid%jlo_bc_cell, jmax=>fv%grid%jhi_bc_cell)
 
-      allocate(reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
+      allocate(reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)[*]
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state in fluid_t%time_derivative()"
     end associate
 
@@ -249,15 +261,15 @@ contains
               jmin_cell=>fv%grid%jlo_cell, jmax_cell=>fv%grid%jhi_cell)
 
       ! corners
-      allocate(evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
+      allocate(evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)[*]
       if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state in fluid_t%time_derivative()"
 
       ! left/right midpoints
-      allocate(evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
+      allocate(evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)[*]
       if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state in fluid_t%time_derivative()"
 
       ! down/up midpoints
-      allocate(evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
+      allocate(evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)[*]
       if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state"
 
     end associate
@@ -318,12 +330,6 @@ contains
       fv%error_code = error_code
     end if
 
-    ! call print_evolved_cell_data('rho', 601, 1, evolved_corner_state, &
-    !                              evolved_downup_midpoints_state, evolved_leftright_midpoints_state, primitive_vars)
-    ! call print_evolved_cell_data('p', 601, 1, evolved_corner_state, &
-    !                              evolved_downup_midpoints_state, evolved_leftright_midpoints_state, primitive_vars)
-
-    ! error stop
     nullify(fv%reconstruction_operator%primitive_vars)
     nullify(fv%evolution_operator%reconstructed_state)
 
@@ -442,100 +448,6 @@ contains
       end do ! i
     end do ! j
   end subroutine flux_edges
-
-  subroutine residual_smoother(self)
-    class(fluid_t), intent(inout) :: self
-
-    integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: i, j
-    real(rk) :: eps
-    real(rk), dimension(:, :, :), allocatable :: primitive_vars
-
-    logical :: underflow_mode
-
-    call ieee_get_underflow_mode(underflow_mode)
-    call ieee_set_underflow_mode(.false.)
-
-    allocate(primitive_vars, mold=self%conserved_vars)
-    primitive_vars = 1.0_rk
-    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
-    call self%get_primitive_vars(primitive_vars)
-
-    ilo = lbound(self%conserved_vars, dim=2) + 1
-    ihi = ubound(self%conserved_vars, dim=2) - 1
-    jlo = lbound(self%conserved_vars, dim=3) + 1
-    jhi = ubound(self%conserved_vars, dim=3) - 1
-
-    ! do j = jlo, jhi
-    !   do i = ilo, ihi
-    !     associate(rho=>primitive_vars(1, :, :), &
-    !               u=>primitive_vars(2, :, :), &
-    !               v=>primitive_vars(3, :, :), &
-    !               p=>primitive_vars(4, :, :))
-
-    !       eps = (2.0e-5_rk / rho(i, j))  ! smoother
-    !       if(i > ilo .and. i < ihi .and. j > jlo .and. j < jhi) then ! center
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j > jlo .and. j < jhi) then ! left (w/o corners)
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ihi .and. j > jlo .and. j < jhi) then ! right (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i > ilo .and. i < ihi .and. j == jlo) then ! bottom (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i > ilo .and. i < ihi .and. j == jhi) then ! top (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j == jlo) then ! bottom left corner
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j == jhi) then ! top left corner
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       else if(i == ihi .and. j == jlo) then ! bottom right corner
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       else if(i == ihi .and. j == jhi) then ! top right corner
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       end if
-
-    !     end associate
-    !   end do
-    ! end do
-
-    call eos%primitive_to_conserved(primitive_vars, self%conserved_vars)
-    deallocate(primitive_vars)
-    call ieee_set_underflow_mode(underflow_mode)
-
-  end subroutine
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
