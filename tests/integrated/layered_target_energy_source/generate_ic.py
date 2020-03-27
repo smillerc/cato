@@ -18,43 +18,40 @@ ureg = pint.UnitRegistry()
 
 cells_per_micron = 20
 gamma = 5.0 / 3.0
-vacuum_press = 5e8
-vacuum_dens = 5.0e-4
+rho_shell = 1.0
+vacuum_press = 1e8
+vacuum_dens = 1.0e-5
 vacuum_cs = np.sqrt(gamma * vacuum_press / vacuum_dens)
 vacuum_mach = 0.0
 
 vacuum_vel = vacuum_mach * vacuum_cs
+vacuum_vel = np.sqrt(2.0 / (gamma + 1.0) * vacuum_press / rho_shell)
 
 print(f"Vacuum Region Speed {vacuum_vel:.2e}")
-layer_thicknesses = [10, 5, 10] * ureg("um")
+layer_thicknesses = [1, 39, 10, 20] * ureg("um")
 layer_n_cells = (layer_thicknesses.m * cells_per_micron).astype(np.int)
-layer_density = [0.25, 1.0, vacuum_dens] * ureg("g/cc")
-layer_u = [0, 0, vacuum_vel] * ureg("cm/s")
-layer_v = [0, 0, 0] * ureg("cm/s")
-layer_pressure = [1e9, 1e9, vacuum_press] * ureg("barye")
+layer_n_cells[-1] = (layer_thicknesses[-1].m * 1).astype(np.int)
+layer_density = [0.01, 0.25, 1.0, vacuum_dens] * ureg("g/cc")
+layer_u = [0, 0, 0, vacuum_vel] * ureg("cm/s")
+layer_v = [0, 0, 0, 0] * ureg("cm/s")
+layer_pressure = [1e9, 1e9, 1e9, vacuum_press] * ureg("barye")
 
 layered_target = make_1d_layered_grid(
     layer_thicknesses, layer_n_cells, layer_density, layer_u, layer_v, layer_pressure
 )
 
-bc_dict = {"+x": "periodic", "+y": "periodic", "-x": "periodic", "-y": "periodic"}
+last_shell_layer_index = sum(layer_thicknesses[:2]).m * cells_per_micron
+print("last_shell_layer_index", last_shell_layer_index)
+layered_target["rho"][last_shell_layer_index, :] *= 1.001
 
-write_initial_hdf5(
-    filename="layered_target",
-    initial_condition_dict=layered_target,
-    boundary_conditions_dict=bc_dict,
-)
+write_initial_hdf5(filename="layered_target", initial_condition_dict=layered_target)
 
 # Plot the results
-fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
+fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
+for ax, v in zip([ax1, ax2], ["rho", "u"]):
+    # vc = ax.plot(layered_target["xc"][:, 1], layered_target[v][:, 1])
+    vc = ax.plot(layered_target[v][:, 1])
+    ax.set_ylabel(v)
+    ax.set_xlabel("X")
 
-vc = ax1.plot(layered_target["rho"][1, :])
-ax1.set_xlabel("Array Index (i)")
-ax1.set_ylabel("Density [g/cc]")
-
-ax2 = ax1.twinx()
-ax2.yaxis.set_major_formatter(FormatStrFormatter("%.1e"))
-vc = ax2.plot(layered_target["u"][1, :], "--", color="k")
-ax2.set_ylabel("Velocity [cm/s]")
-plt.title("Initial Conditions")
 plt.show()
