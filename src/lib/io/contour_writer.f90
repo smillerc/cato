@@ -191,6 +191,15 @@ contains
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
+    dataset_name = '/total_energy'
+    associate(rhoE=>fluid%conserved_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), &
+              rho=>fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+      call self%hdf5_file%add(trim(dataset_name),(rhoE / rho) * io_energy_units)
+    end associate
+
+    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
+    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
+
     dataset_name = '/sound_speed'
     call fluid%get_sound_speed(sound_speed)
     call self%hdf5_file%add(trim(dataset_name), sound_speed(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
@@ -269,6 +278,12 @@ contains
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Pressure '//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/pressure</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    unit_label = "["//trim(io_energy_label)//"]"
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Total Energy '//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     unit_label = "["//trim(io_velocity_label)//"]"
