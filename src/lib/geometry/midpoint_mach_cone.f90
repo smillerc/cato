@@ -77,7 +77,7 @@ module mod_midpoint_mach_cone
     !< Flag signifying if P and P' are collocated -> allows for simplified angles/trig
     !< so a bunch of functions can be skipped for speed (no need to find line/circle intersections)
 
-    character(len=32) :: cone_location = ''       !< Corner or midpoint cone?
+    character(len=32) :: cone_location = 'midpoint'       !< Corner or midpoint cone?
   contains
     procedure, private :: get_reference_state
     procedure, private :: determine_p_prime_cell
@@ -580,7 +580,7 @@ contains
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_x_velocity =  ", self%reference_u, new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_y_velocity =  ", self%reference_v, new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_sound_speed = ", self%reference_sound_speed, new_line('a')
-    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_mach_Number = ", self%reference_mach_number, new_line('a')
+    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_mach_number = ", self%reference_mach_number, new_line('a')
 
     write(unit, '(a)', iostat=iostat) new_line('a')
     write(unit, '(a, 2(i0, 1x),a)', iostat=iostat) '# Valid arcs in each cell: [', self%n_arcs_per_cell, ']'
