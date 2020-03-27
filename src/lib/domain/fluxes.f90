@@ -47,17 +47,17 @@ contains
 
     real(rk) :: u, v, total_energy !< total energy
 
-    if(abs(primitive_variables(2)) < TINY_VEL) then
-      u = 0.0_rk
-    else
-      u = primitive_variables(2)
-    end if
+    ! if(abs(primitive_variables(2)) < TINY_VEL) then
+    !   u = 0.0_rk
+    ! else
+    u = primitive_variables(2)
+    ! end if
 
-    if(abs(primitive_variables(3)) < TINY_VEL) then
-      v = 0.0_rk
-    else
-      v = primitive_variables(3)
-    end if
+    ! if(abs(primitive_variables(3)) < TINY_VEL) then
+    !   v = 0.0_rk
+    ! else
+    v = primitive_variables(3)
+    ! end if
 
     ! The flux tensor is H = Fi + Gj
     associate(rho=>primitive_variables(1), &
