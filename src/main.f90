@@ -1,6 +1,6 @@
 program cato
 
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, output_unit, std_error => error_unit
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit, std_error => error_unit
   use mod_contour_writer, only: contour_writer_t
   use mod_globals, only: print_version_stats
   use mod_units, only: set_output_unit_system, io_time_label, io_time_units
@@ -16,6 +16,7 @@ program cato
 
   character(150) :: command_line_arg
   character(50) :: input_filename
+  integer(ik) :: error_code = 0
   type(input_t) :: input
   class(finite_volume_scheme_t), pointer :: fv
   class(fluid_t), pointer :: U
@@ -33,14 +34,14 @@ program cato
   open(std_error, file='cato.error')
 
   ! ascii art for the heck of it :)
-  write(output_unit, '(a)')
-  write(output_unit, '(a)') "  ______      ___   .___________.  ______  "
-  write(output_unit, '(a)') " /      |    /   \  |           | /  __  \ "
-  write(output_unit, '(a)') "|  ,----'   /  ^  \ `---|  |----`|  |  |  |"
-  write(output_unit, '(a)') "|  |       /  /_\  \    |  |     |  |  |  |"
-  write(output_unit, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
-  write(output_unit, '(a)') " \______|/__/     \__\  |__|      \______/ "
-  write(output_unit, '(a)')
+  write(std_out, '(a)')
+  write(std_out, '(a)') "  ______      ___   .___________.  ______  "
+  write(std_out, '(a)') " /      |    /   \  |           | /  __  \ "
+  write(std_out, '(a)') "|  ,----'   /  ^  \ `---|  |----`|  |  |  |"
+  write(std_out, '(a)') "|  |       /  /_\  \    |  |     |  |  |  |"
+  write(std_out, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
+  write(std_out, '(a)') " \______|/__/     \__\  |__|      \______/ "
+  write(std_out, '(a)')
 
   call print_version_stats()
 
@@ -50,7 +51,7 @@ program cato
   inquire(file=trim(input_filename), exist=file_exists)
 
   if(.not. file_exists) then
-    error stop 'Error in main(), CATO input (*.ini) file not found, exiting...'
+    error stop 'Error in main(), CATO input (std_out.ini) file not found, exiting...'
   end if
 
   call input%read_from_ini(input_filename)
@@ -64,9 +65,9 @@ program cato
   call contour_writer%write_contour(U, fv, time, iteration)
 
   print *
-  write(*, '(a)') '--------------------------------------------'
-  write(*, '(a)') ' Starting time loop:'
-  write(*, '(a)') '--------------------------------------------'
+  write(std_out, '(a)') '--------------------------------------------'
+  write(std_out, '(a)') ' Starting time loop:'
+  write(std_out, '(a)') '--------------------------------------------'
   print *
 
   call timer%start()
@@ -75,13 +76,19 @@ program cato
 
     max_cs = U%get_max_sound_speed()
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
-    write(*, '(2(a, es10.3), a)') 'Time =', time * io_time_units, &
+    write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units, &
       ' '//trim(io_time_label)//', Delta t =', delta_t, ' s'
 
     call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
                                lbounds=lbound(U%conserved_vars))
     ! Integrate in time
-    call U%integrate(fv, delta_t)
+    call U%integrate(fv, delta_t, error_code)
+    if(error_code /= 0) then
+      write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
+      write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
+      call contour_writer%write_contour(U, fv, time, iteration)
+      error stop
+    end if
 
     time = time + delta_t
     iteration = iteration + 1
@@ -90,7 +97,7 @@ program cato
     ! I/O
     if(time >= next_output_time) then
       next_output_time = next_output_time + input%contour_interval_dt
-      write(*, '(a, es10.3)') 'Saving Contour, Next Output Time: ', next_output_time * io_time_units
+   write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', next_output_time * io_time_units, ' '//trim(io_time_label)
       call contour_writer%write_contour(U, fv, time, iteration)
     end if
 

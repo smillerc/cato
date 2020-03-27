@@ -780,12 +780,16 @@ contains
     end if
   end subroutine get_primitive_vars
 
-  subroutine sanity_check(self)
+  subroutine sanity_check(self, error_code)
     !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.
     class(fluid_t), intent(in) :: self
     integer(ik) :: i, j, ilo, jlo, ihi, jhi
-    logical :: invalid_numbers
+    logical :: invalid_numbers, negative_numbers
+    integer(ik), intent(out) :: error_code
 
+    error_code = 0
+
+    negative_numbers = .false.
     invalid_numbers = .false.
 
     ilo = lbound(self%conserved_vars, dim=2)
@@ -808,25 +812,22 @@ contains
       end do
     end do
 
-    if(invalid_numbers) then
-      write(std_out, '(a)') "Invalid numbers in the conserved variables [rho, rho u, rho v, rho E]"
-      error stop "Invalid numbers in the conserved variables [rho, rho u, rho v, rho E]"
-    end if
-
     if(minval(self%conserved_vars(1, :, :)) < 0.0_rk) then
-      write(std_out, '(a, 2(i0, 1x))') "Error: Negative density at fluid_t%conserved_vars(1,i,j): ", &
-        minloc(self%conserved_vars(1, :, :))
       write(std_err, '(a, 2(i0, 1x), a, es10.3)') "Error: Negative density at fluid_t%conserved_vars(1,i,j): (", &
         minloc(self%conserved_vars(1, :, :)), ") density = ", minval(self%conserved_vars(1, :, :))
-      error stop "Error in fluid_t%sanity_checks(): Negative density"
+      negative_numbers = .true.
     end if
 
     if(minval(self%conserved_vars(4, :, :)) < 0.0_rk) then
-      write(std_out, '(a, 2(i0, 1x))') "Error: Negative rho E (density * total energy) at fluid_t%conserved_vars(4,i,j): ", &
-        minloc(self%conserved_vars(4, :, :))
       write(std_err, '(a, 2(i0, 1x))') "Error: Negative rho E (density * total energy) at fluid_t%conserved_vars(4,i,j): ", &
         minloc(self%conserved_vars(4, :, :))
-      error stop "Error in fluid_t%sanity_checks(): Negative density"
+      negative_numbers = .true.
+    end if
+
+    if(invalid_numbers .or. negative_numbers) then
+      write(std_out, '(a)') "Invalid or negative numbers in the conserved variables [rho, rho u, rho v, rho E]"
+      write(std_err, '(a)') "Invalid or negative numbers in the conserved variables [rho, rho u, rho v, rho E]"
+      error_code = 1
     end if
 
   end subroutine sanity_check
