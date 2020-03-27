@@ -15,6 +15,7 @@ module mod_boundary_conditions
     real(rk), private :: time = 0.0_rk ! Solution time (for time dependent bc's)
     real(rk) :: max_time = 0.0_rk !< Max time in source (e.g. stop after this)
     integer(ik) :: priority !< Certain b.c.'s take priority over others in terms of when they are applied (periodic is last)
+    integer(ik) :: io_unit
   contains
     procedure, public :: set_time
     procedure, public :: get_time

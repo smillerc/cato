@@ -3,6 +3,8 @@ module mod_vacuum_bc
   use mod_globals, only: debug_print
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
+  use mod_eos, only: eos
+  use mod_floating_point_utils, only: near_zero
 
   implicit none
 
@@ -10,8 +12,10 @@ module mod_vacuum_bc
   public :: vacuum_bc_t, vacuum_bc_constructor
 
   type, extends(boundary_condition_t) :: vacuum_bc_t
-    real(rk) :: vacuum_density = 1e-3_rk
-    real(rk) :: vacuum_pressure = 1e8 ! approx 1 atmosphere
+    real(rk) :: vacuum_density = 1e-5_rk
+    real(rk) :: vacuum_pressure = 1e3 ! approx 1 atmosphere
+
+    real(rk), dimension(:, :), allocatable :: edge_primitive_vars
   contains
     procedure, public :: apply_primitive_var_bc => apply_vacuum_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_vacuum_reconstructed_state_bc
@@ -54,6 +58,13 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
+    integer(ik) :: i
+    real(rk) :: gamma, cs, mach
+    real(rk), dimension(:), allocatable :: edge_velocity
+    real(rk), dimension(:), allocatable :: edge_density
+
+    gamma = eos%get_gamma()
+
     left_ghost = lbound(primitive_vars, dim=2)
     right_ghost = ubound(primitive_vars, dim=2)
     bottom_ghost = lbound(primitive_vars, dim=3)
@@ -67,43 +78,64 @@ contains
     case('+x')
       call debug_print('Running vacuum_bc_t%apply_vacuum_primitive_var_bc() +x', __FILE__, __LINE__)
 
-      ! min_density = min(minval(primitive_vars(1, right-5:right, bottom:top)), self%vacuum_density)
-      ! self%vacuum_density = min_density
-      ! if (self%vacuum_density < 1e-4_rk) self%vacuum_density = 1e-4_rk
+      ! Get the density (will be overwitten below)
+      allocate(self%edge_primitive_vars(4, bottom_ghost:top_ghost))
+      allocate(edge_velocity(bottom:top))
+      allocate(edge_density(bottom:top))
 
-      min_pressure = min(minval(primitive_vars(4, right - 5:right, bottom:top)), self%vacuum_pressure)
-      self%vacuum_pressure = min_pressure
-      ! write(*,'(a, 1(es12.3))') "Vacuum pressure: ", self%vacuum_pressure
+      self%edge_primitive_vars(1, bottom:top) = self%vacuum_density ! primitive_vars(1, right, bottom:top)
 
-      if(self%vacuum_pressure < 1e8_rk) then
-        self%vacuum_pressure = 1e8_rk
-        primitive_vars(1, right:right_ghost, :) = self%vacuum_density
-        primitive_vars(2:3, right_ghost, :) = primitive_vars(2:3, right, :)
-        primitive_vars(4, right:right_ghost, :) = self%vacuum_pressure
-      else
-        primitive_vars(1, right_ghost, :) = primitive_vars(1, right, :)
-        primitive_vars(2:3, right_ghost, :) = primitive_vars(2:3, right, :)
-        primitive_vars(4, right_ghost, :) = self%vacuum_pressure
-      end if
+      ! Zero-gradient in velocity
+      self%edge_primitive_vars(2, bottom:top) = primitive_vars(2, right, bottom:top)
+      self%edge_primitive_vars(3, bottom:top) = primitive_vars(3, right, bottom:top)
 
-      ! write(*,'(a, 2(es12.3))') "Vacuum density, pressure: ", self%vacuum_density, self%vacuum_pressure
-      ! primitive_vars(1, right_ghost, :) = self%vacuum_density
-      primitive_vars(1, right_ghost, :) = primitive_vars(1, right, :)
-      primitive_vars(2:3, right_ghost, :) = primitive_vars(2:3, right, :)
-      primitive_vars(4, right_ghost, :) = self%vacuum_pressure
-      ! case('-x')
-      !   call debug_print('Running vacuum_bc_t%apply_vacuum_primitive_var_bc() -x', __FILE__, __LINE__)
-      !   primitive_vars(:, left_ghost, :) = primitive_vars(:, left, :)
-      ! case('+y')
-      !   call debug_print('Running vacuum_bc_t%apply_vacuum_primitive_var_bc() +y', __FILE__, __LINE__)
-      !   primitive_vars(:, :, top_ghost) = primitive_vars(:, :, top)
-      ! case('-y')
-      !   call debug_print('Running vacuum_bc_t%apply_vacuum_primitive_var_bc() -y', __FILE__, __LINE__)
-      !   primitive_vars(:, :, bottom_ghost) = primitive_vars(:, :, bottom)
+      ! Set the edge pressure to "vacuum"
+      self%edge_primitive_vars(4, bottom:top) = self%vacuum_pressure ! primitive_vars(4, right, bottom:top)
+
+      ! associate(u=>primitive_vars(2, right, bottom:top), &
+      !           v=>primitive_vars(3, right, bottom:top), &
+      !           desired_mach=>2.5_rk, P => self%vacuum_pressure)
+
+      ! Set the edge density (if the density is greater than the imposed "vacuum" value)
+      ! do i = bottom, top
+
+      ! edge_velocity(i) = sqrt(u(i)**2 + v(i)**2)
+      ! cs = eos%sound_speed(pressure=primitive_vars(4, right, i), density=primitive_vars(1, right, i))
+      ! mach = abs(edge_velocity(i)) / cs
+      ! ! print*, i, bottom, top, edge_velocity(i), cs, mach
+
+      ! ! Make it supersonic
+      ! if (mach < desired_mach .and. .not. near_zero(edge_velocity(i))) then
+      !   ! print*, 'Attempting to make the bc supersonic'
+      !   ! Set density to make the flow supersonic
+      !   if (abs(edge_velocity(i)) > 0.0_rk) then
+      !     edge_density(i) = abs((gamma * P) / (edge_velocity(i) / desired_mach))
+      !   end if
+
+      !   if (self%edge_primitive_vars(1, i) > edge_density(i)) then
+      !     self%edge_primitive_vars(1, i) = edge_density(i)
+      !   end if
+
+      !   self%edge_primitive_vars(4, i) = self%vacuum_pressure
+
+      ! ! else ! the edge is already supersonic, so make it zero gradient
+      ! !   print*, 'bc is already supersonic, Mach=', mach
+      ! end if
+      ! end do
+      ! end associate
+
+      ! Now apply the final values to the ghost region
+      primitive_vars(:, right_ghost, bottom:top) = self%edge_primitive_vars(:, bottom:top)
+      ! print*, 'rho', primitive_vars(1, right_ghost, bottom:top)
+      ! print*, 'u',   primitive_vars(2, right_ghost, bottom:top)
+      ! print*, 'v',   primitive_vars(3, right_ghost, bottom:top)
+      ! print*, 'p',   primitive_vars(4, right_ghost, bottom:top)
     case default
       error stop "Unsupported location to apply the bc at in vacuum_bc_t%apply_vacuum_cell_gradient_bc()"
     end select
 
+    if(allocated(edge_velocity)) deallocate(edge_velocity)
+    if(allocated(edge_density)) deallocate(edge_density)
   end subroutine apply_vacuum_primitive_var_bc
 
   subroutine apply_vacuum_reconstructed_state_bc(self, reconstructed_state, lbounds)
@@ -123,7 +155,9 @@ contains
     integer(ik) :: right_ghost  !< Max i ghost cell index
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
+    integer(ik) :: n, p, n_points
 
+    n_points = ubound(reconstructed_state, dim=2)
     left_ghost = lbound(reconstructed_state, dim=4)
     right_ghost = ubound(reconstructed_state, dim=4)
     bottom_ghost = lbound(reconstructed_state, dim=5)
@@ -136,14 +170,11 @@ contains
     select case(self%location)
     case('+x')
       call debug_print('Running vacuum_bc_t%apply_vacuum_reconstructed_state_bc() +x', __FILE__, __LINE__)
-      ! reconstructed_state(1, :, :, right_ghost, :) = self%vacuum_density
-      if(self%vacuum_pressure < 1e-8_rk) then
-        reconstructed_state(:, :, :, right_ghost, :) = reconstructed_state(:, :, :, right, :)
-      else
-        reconstructed_state(1, :, :, right_ghost, :) = reconstructed_state(1, :, :, right, :)
-        reconstructed_state(2:3, :, :, right_ghost, :) = reconstructed_state(2:3, :, :, right, :)
-        reconstructed_state(4, :, :, right_ghost, :) = self%vacuum_pressure
-      end if
+      do n = 1, 2
+        do p = 1, n_points
+          reconstructed_state(:, p, n, right_ghost, :) = self%edge_primitive_vars
+        end do
+      end do
 
       ! case('-x')
       !   call debug_print('Running vacuum_bc_t%apply_vacuum_reconstructed_state_bc() -x', __FILE__, __LINE__)
@@ -158,6 +189,7 @@ contains
       error stop "Unsupported location to apply the bc at in vacuum_bc_t%apply_vacuum_reconstructed_state_bc()"
     end select
 
+    if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
   end subroutine apply_vacuum_reconstructed_state_bc
 
   subroutine apply_vacuum_cell_gradient_bc(self, cell_gradient, lbounds)

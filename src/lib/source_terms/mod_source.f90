@@ -3,6 +3,7 @@ module mod_source
   !< "source term" into the domain, e.g. energy, pressure, etc...
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit
+  use mod_units
   use linear_interpolation_module, only: linear_interp_1d
 
   implicit none
@@ -16,6 +17,7 @@ module mod_source
     integer(ik) :: jlo = 0 !< Index to apply source term at
     integer(ik) :: ihi = 0 !< Index to apply source term at
     integer(ik) :: jhi = 0 !< Index to apply source term at
+    integer(ik) :: io_unit !< file that the source value is written out to (time,source) pairs
 
     logical :: constant_source = .false.
     real(rk) :: source_input = 0.0_rk
@@ -132,14 +134,17 @@ contains
 
     class(source_t), intent(inout) :: self
     integer(ik) :: interp_stat
+    real(rk) :: t
 
+    t = self%get_time()
     if(self%constant_source) then
       source_value = self%source_input
     else
-      if(self%get_time() <= self%max_time) then
-        call self%temporal_source_input%evaluate(x=self%get_time(), &
+      if(t <= self%max_time) then
+        call self%temporal_source_input%evaluate(x=t, &
                                                  f=source_value, &
                                                  istat=interp_stat)
+
         if(interp_stat /= 0) then
           write(std_out, '(a)') "Unable to interpolate value within "// &
             "source_t%get_desired_source_value()"
@@ -151,7 +156,12 @@ contains
       end if
     end if
 
+    source_value = source_value * self%scale_factor
+
     if(source_value > 0.0_rk) write(*, '(a, es10.3)') 'Applying source term of: ', source_value
+
+    write(self%io_unit, '(2(es14.5, 1x))') t * io_time_units, source_value
+
   end function get_desired_source_value
 
   function get_application_bounds(self, lbounds, ubounds) result(ranges)
