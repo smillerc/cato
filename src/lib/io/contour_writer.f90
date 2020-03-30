@@ -122,8 +122,9 @@ contains
     real(rk), intent(in) :: time
     character(32) :: dataset_name
 
+    integer(ik) :: ilo, ihi, jlo, jhi
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
-    real(rk), dimension(:, :), allocatable :: sound_speed
+    real(rk), dimension(:, :), allocatable :: io_data_buffer
 
     allocate(primitive_vars, mold=fluid%conserved_vars)
     call fluid%get_primitive_vars(primitive_vars)
@@ -132,6 +133,7 @@ contains
                                    status='new', action='w', comp_lvl=6)
 
     ! Header info
+    call self%hdf5_file%add('/')
     call self%hdf5_file%add('/title', fv_scheme%title)
 
     call self%hdf5_file%add('/iteration', iteration)
@@ -148,7 +150,7 @@ contains
 
     ! Version info
     if(.not. globals_set) call set_global_options()
-    call self%hdf5_file%add('/')
+
     call self%hdf5_file%writeattr('/', 'compiler_flags', compiler_flags_str)
     call self%hdf5_file%writeattr('/', 'compiler_version', compiler_version_str)
     call self%hdf5_file%writeattr('/', 'git_hast', git_hash)
@@ -159,61 +161,92 @@ contains
     call self%hdf5_file%writeattr('/', 'compile_os', compile_os)
     call self%hdf5_file%writeattr('/', 'build_type', build_type)
 
-    ! Grid
+    ! Node Data
+    ilo = self%ilo_node
+    ihi = self%ihi_node
+    jlo = self%jlo_node
+    jhi = self%jhi_node
+    allocate(io_data_buffer(ilo:ihi, jlo:jhi))
+
     dataset_name = '/x'
-    call self%hdf5_file%add(trim(dataset_name), fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node) * io_length_units)
+    io_data_buffer = fv_scheme%grid%node_x(ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_length_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'X Coordinate')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
     dataset_name = '/y'
-    call self%hdf5_file%add(trim(dataset_name), fv_scheme%grid%node_y(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node) * io_length_units)
+    io_data_buffer = fv_scheme%grid%node_y(ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_length_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Y Coordinate')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
+    deallocate(io_data_buffer)
+
+    ! Cell Data
+    ilo = self%ilo_cell
+    ihi = self%ihi_cell
+    jlo = self%jlo_cell
+    jhi = self%jhi_cell
+    allocate(io_data_buffer(ilo:ihi, jlo:jhi))
+
     ! Primitive Variables
     dataset_name = '/density'
-    call self%hdf5_file%add(trim(dataset_name), primitive_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_density_units)
+    io_data_buffer = primitive_vars(1, ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_density_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    call self%hdf5_file%add(trim(dataset_name), primitive_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
+    io_data_buffer = primitive_vars(2, ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_velocity_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    call self%hdf5_file%add(trim(dataset_name), primitive_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
+    io_data_buffer = primitive_vars(3, ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_velocity_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    call self%hdf5_file%add(trim(dataset_name), primitive_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_pressure_units)
+    io_data_buffer = primitive_vars(4, ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_pressure_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
     dataset_name = '/total_energy'
-    associate(rhoE=>fluid%conserved_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell), &
-              rho=>fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
-      call self%hdf5_file%add(trim(dataset_name),(rhoE / rho) * io_energy_units)
+    associate(rhoE=>fluid%conserved_vars(4, ilo:ihi, jlo:jhi), &
+              rho=>fluid%conserved_vars(1, ilo:ihi, jlo:jhi))
+      io_data_buffer = rhoE / rho
     end associate
-
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
+    io_data_buffer = io_data_buffer * io_pressure_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Total Energy')
+    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_energy_label))
 
     dataset_name = '/sound_speed'
-    call fluid%get_sound_speed(sound_speed)
-    call self%hdf5_file%add(trim(dataset_name), sound_speed(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
+    call fluid%get_sound_speed(io_data_buffer)
+    io_data_buffer = io_data_buffer * io_velocity_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     ! Volume
     dataset_name = '/volume'
-    call self%hdf5_file%add(trim(dataset_name), fv_scheme%grid%cell_volume(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
+    io_data_buffer = fv_scheme%grid%cell_volume(ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_volume_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     deallocate(primitive_vars)
-    deallocate(sound_speed)
+    deallocate(io_data_buffer)
     call self%hdf5_file%finalize()
   end subroutine
 
