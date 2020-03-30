@@ -97,7 +97,8 @@ program cato
     ! I/O
     if(time >= next_output_time) then
       next_output_time = next_output_time + input%contour_interval_dt
-   write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', next_output_time * io_time_units, ' '//trim(io_time_label)
+      write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
+        next_output_time * io_time_units, ' '//trim(io_time_label)
       call contour_writer%write_contour(U, fv, time, iteration)
     end if
 
