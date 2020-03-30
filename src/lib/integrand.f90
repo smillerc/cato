@@ -114,6 +114,7 @@ contains
     call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
+      call model%residual_smoother()
       call model%sanity_check(error_code)
     else
       error stop 'Error: No integration procedure available in integrand_t%integrate()'

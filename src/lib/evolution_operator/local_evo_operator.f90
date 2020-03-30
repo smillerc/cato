@@ -1,7 +1,7 @@
 module mod_local_evo_operator
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, &
                                                                               std_err => error_unit, std_out => output_unit
-  use mod_globals, only: debug_print, print_recon_data
+  use mod_globals, only: debug_print, print_recon_data, TINY_VEL
 
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: near_zero, equal
@@ -427,6 +427,8 @@ contains
               + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
     end associate
+    if(abs(u) < TINY_VEL) u = 0.0_rk
+    if(abs(v) < TINY_VEL) v = 0.0_rk
     primitive_variables = [density, u, v, pressure]
   end subroutine e0_operator_corner
 
@@ -487,6 +489,8 @@ contains
               + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
     end associate
+    if(abs(u) < TINY_VEL) u = 0.0_rk
+    if(abs(v) < TINY_VEL) v = 0.0_rk
     primitive_variables = [density, u, v, pressure]
   end subroutine e0_operator_midpoint
 

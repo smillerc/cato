@@ -5,7 +5,7 @@ module mod_abstract_reconstruction
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
-  use mod_globals, only: debug_print
+  use mod_globals, only: debug_print, TINY_VEL
 
   implicit none
 
@@ -225,19 +225,8 @@ contains
       u_tilde = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
     end associate
 
-    ! if(u_tilde(1) < 0.0_rk) then
-    !   write(*, '(a,i0,", ",i0,a,2(es10.3,1x))') "Error in abstract_reconstruction_t%interpolate(), "// &
-    !     "density < 0 at (i,j) = ", i, j, ' and (x,y) = ', x, y
-    !   write(*, '(a,4(es10.3, 1x))') "U (rho,u,v,p): ", u_tilde
-    !   error stop "Error in abstract_reconstruction_t%interpolate(), density < 0"
-    ! end if
-
-    ! if(u_tilde(4) < 0.0_rk) then
-    !   write(*, '(a,i0,", ",i0,a,2(es10.3,1x))') "Error in abstract_reconstruction_t%interpolate(), "// &
-    !     "pressure < 0 at (i,j) = ", i, j, ' and (x,y) = ', x, y
-    !   write(*, '(a,4(es10.3, 1x))') "U (rho,u,v,p): ", u_tilde
-    !   error stop "Error in abstract_reconstruction_t%interpolate(), pressure < 0"
-    ! end if
+    if(abs(u_tilde(2)) < TINY_VEL .and. abs(u_tilde(2)) > 0.0_rk) u_tilde(2) = 0.0_rk
+    if(abs(u_tilde(3)) < TINY_VEL .and. abs(u_tilde(3)) > 0.0_rk) u_tilde(3) = 0.0_rk
 
   end function interpolate
 end module mod_abstract_reconstruction

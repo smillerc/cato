@@ -1,7 +1,7 @@
 module mod_corner_mach_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use math_constants, only: pi, rad2deg
-  use mod_globals, only: TINY_DIST, TINY_VEL, grid_is_orthogonal
+  use mod_globals, only: TINY_VEL, grid_is_orthogonal
   use mod_floating_point_utils, only: near_zero, equal
   use mod_eos, only: eos
   use mod_vector, only: vector_t
@@ -132,6 +132,9 @@ contains
       do l = 1, 4
         cone%recon_state(l, i) = reconstructed_state(l, i)
       end do
+      ! Tiny velocity fix to reduce noise
+      if(abs(cone%recon_state(2, i)) < TINY_VEL) cone%recon_state(2, i) = 0.0_rk
+      if(abs(cone%recon_state(3, i)) < TINY_VEL) cone%recon_state(3, i) = 0.0_rk
     end do
 
     call cone%get_reference_state(reconstructed_state)

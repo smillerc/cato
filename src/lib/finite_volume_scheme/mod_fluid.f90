@@ -1,7 +1,7 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_VEL
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -440,91 +440,28 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
     real(rk) :: eps
-    real(rk), dimension(:, :, :), allocatable :: primitive_vars
+    real(rk) :: u, v
+    ! real(rk), dimension(:, :, :), allocatable :: primitive_vars
 
     logical :: underflow_mode
 
-    call ieee_get_underflow_mode(underflow_mode)
-    call ieee_set_underflow_mode(.false.)
+    ilo = lbound(self%conserved_vars, dim=2)
+    ihi = ubound(self%conserved_vars, dim=2)
+    jlo = lbound(self%conserved_vars, dim=3)
+    jhi = ubound(self%conserved_vars, dim=3)
 
-    allocate(primitive_vars, mold=self%conserved_vars)
-    primitive_vars = 1.0_rk
-    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
-    call self%get_primitive_vars(primitive_vars)
-
-    ilo = lbound(self%conserved_vars, dim=2) + 1
-    ihi = ubound(self%conserved_vars, dim=2) - 1
-    jlo = lbound(self%conserved_vars, dim=3) + 1
-    jhi = ubound(self%conserved_vars, dim=3) - 1
-
-    ! do j = jlo, jhi
-    !   do i = ilo, ihi
-    !     associate(rho=>primitive_vars(1, :, :), &
-    !               u=>primitive_vars(2, :, :), &
-    !               v=>primitive_vars(3, :, :), &
-    !               p=>primitive_vars(4, :, :))
-
-    !       eps = (2.0e-5_rk / rho(i, j))  ! smoother
-    !       if(i > ilo .and. i < ihi .and. j > jlo .and. j < jhi) then ! center
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j > jlo .and. j < jhi) then ! left (w/o corners)
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ihi .and. j > jlo .and. j < jhi) then ! right (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i > ilo .and. i < ihi .and. j == jlo) then ! bottom (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i > ilo .and. i < ihi .and. j == jhi) then ! top (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j == jlo) then ! bottom left corner
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j == jhi) then ! top left corner
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       else if(i == ihi .and. j == jlo) then ! bottom right corner
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       else if(i == ihi .and. j == jhi) then ! top right corner
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       end if
-
-    !     end associate
-    !   end do
-    ! end do
-
-    call eos%primitive_to_conserved(primitive_vars, self%conserved_vars)
-    deallocate(primitive_vars)
-    call ieee_set_underflow_mode(underflow_mode)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
+        v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
+        if(abs(u) < TINY_VEL) then
+          self%conserved_vars(2, i, j) = 0.0_rk
+        end if
+        if(abs(v) < TINY_VEL) then
+          self%conserved_vars(3, i, j) = 0.0_rk
+        end if
+      end do
+    end do
 
   end subroutine
 
@@ -715,7 +652,7 @@ contains
     jlo = lbound(self%conserved_vars, dim=3)
     jhi = ubound(self%conserved_vars, dim=3)
 
-    allocate(sound_speed(ilo:ihi, jlo:jhi))
+    if(.not. allocated(sound_speed)) allocate(sound_speed(ilo:ihi, jlo:jhi))
 
     call debug_print('Running fluid_t%calculate_sound_speed()', __FILE__, __LINE__)
 
@@ -760,24 +697,15 @@ contains
     jhi = ubound(primitive_vars, dim=3)
     do j = jlo, jhi
       do i = ilo, ihi
-        if(.not. any(ieee_is_finite(primitive_vars(:, i, j)))) then
-          write(std_err, '(2(a,i0), a, 4(es10.3))') 'Infinite numbers in primitive_vars(:, ', i, ', ', j, ')', &
-            primitive_vars(:, i, j)
-          invalid_numbers = .true.
+        if(abs(primitive_vars(2, i, j)) < TINY_VEL) then
+          primitive_vars(2, i, j) = 0.0_rk
         end if
-
-        if(any(ieee_is_nan(primitive_vars(:, i, j)))) then
-          write(std_err, '(2(a,i0), a, 4(es10.3))') 'NaNs in primitive_vars(:, ', i, ', ', j, ')', &
-            primitive_vars(:, i, j)
-          invalid_numbers = .true.
+        if(abs(primitive_vars(3, i, j)) < TINY_VEL) then
+          primitive_vars(3, i, j) = 0.0_rk
         end if
       end do
     end do
 
-    if(invalid_numbers) then
-      write(*, *) "Invalid numbers in primitive_vars"
-      error stop "Invalid numbers in primitive_vars"
-    end if
   end subroutine get_primitive_vars
 
   subroutine sanity_check(self, error_code)

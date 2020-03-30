@@ -8,7 +8,7 @@ module mod_globals
   logical, parameter :: enable_file_and_line_stats = .false.
 
   real(rk), parameter :: TINY_DIST = 1.0e-20_rk ! cm
-  real(rk), parameter :: TINY_VEL = 1.0e-20_rk ! cm/s
+  real(rk), parameter :: TINY_VEL = 0.1_rk ! cm/s; 0.1 cm/s is 1e-6 km/s
 
   logical :: globals_set = .false.
 
