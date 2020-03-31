@@ -86,7 +86,7 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%time_integrator"
     deallocate(time_integrator)
 
-    if(input%read_init_cond_from_file) then
+    if(input%read_init_cond_from_file .or. input%restart_from_file) then
       call self%initialize_from_hdf5(input, finite_volume_scheme)
     else
       call self%initialize_from_ini(input)
@@ -114,6 +114,8 @@ contains
     class(input_t), intent(in) :: input
     class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     type(hdf5_file) :: h5
+    logical :: file_exists
+    character(:), allocatable :: filename
 
     real(rk), dimension(:, :), allocatable :: density
     real(rk), dimension(:, :), allocatable :: x_velocity
@@ -121,7 +123,23 @@ contains
     real(rk), dimension(:, :), allocatable :: pressure
 
     call debug_print('Initializing fluid_t from hdf5', __FILE__, __LINE__)
-    call h5%initialize(filename=input%initial_condition_file, status='old', action='r')
+
+    if(input%restart_from_file) then
+      filename = trim(input%restart_file)
+    else
+      filename = trim(input%initial_condition_file)
+    end if
+
+    file_exists = .false.
+    inquire(file=filename, exist=file_exists)
+
+    if(.not. file_exists) then
+      write(*, '(a)') 'Error in finite_volume_scheme_t%initialize_from_hdf5(); file not found: "'//filename//'"'
+      error stop 'Error in finite_volume_scheme_t%initialize_from_hdf5(); file not found, exiting...'
+    end if
+
+    call h5%initialize(filename=filename, status='old', action='r')
+
     call h5%get('/density', density)
     call h5%get('/x_velocity', x_velocity)
     call h5%get('/y_velocity', y_velocity)

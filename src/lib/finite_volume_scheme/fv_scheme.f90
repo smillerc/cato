@@ -107,11 +107,17 @@ contains
     class(grid_t), pointer :: grid => null()
     class(abstract_reconstruction_t), pointer :: r_omega => null()
     class(abstract_evo_operator_t), pointer :: E0 => null()
-
+    type(hdf5_file) :: h5
     integer(ik) :: alloc_status
     alloc_status = 0
 
     call debug_print('Initializing finite_volume_scheme_t', __FILE__, __LINE__)
+
+    if(input%restart_from_file) then
+      call h5%initialize(filename=trim(input%restart_file), status='old', action='r')
+      call h5%get('/time', self%time)
+      call h5%finalize()
+    end if
 
     self%title = trim(input%title)
 

@@ -24,7 +24,7 @@ program cato
   type(contour_writer_t) :: contour_writer
   type(timer_t) :: timer
   real(rk) :: time = 0.0_rk
-  real(rk) :: delta_t
+  real(rk) :: delta_t = 0.0_rk
   real(rk) :: max_cs = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
@@ -60,9 +60,14 @@ program cato
 
   fv => make_fv_scheme(input)
   U => new_fluid(input, fv)
-
   contour_writer = contour_writer_t(input=input)
-  call contour_writer%write_contour(U, fv, time, iteration)
+
+  if(input%restart_from_file) then
+    time = fv%time
+    iteration = fv%iteration
+  else
+    call contour_writer%write_contour(U, fv, time, iteration)
+  end if
 
   print *
   write(std_out, '(a)') '--------------------------------------------'
@@ -75,6 +80,9 @@ program cato
   do while(time < input%max_time .and. iteration < input%max_iterations)
 
     max_cs = U%get_max_sound_speed()
+    print *, 'min(fv%grid%min_dx, fv%grid%min_dx)', min(fv%grid%min_dx, fv%grid%min_dx)
+    print *, 'input%cfl, max_cs', input%cfl, max_cs
+    print *, 'shape(U%conserved_vars)', shape(U%conserved_vars)
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
     write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units, &
       ' '//trim(io_time_label)//', Delta t =', delta_t, ' s'
@@ -93,6 +101,7 @@ program cato
     time = time + delta_t
     iteration = iteration + 1
     call fv%set_time(time, delta_t, iteration)
+    call timer%log_time(iteration, delta_t)
 
     ! I/O
     if(time >= next_output_time) then

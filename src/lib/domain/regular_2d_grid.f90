@@ -104,7 +104,7 @@ contains
     self%ilo_bc_cell = 0
     self%jlo_bc_cell = 0
 
-    if(input%read_init_cond_from_file) then
+    if(input%read_init_cond_from_file .or. input%restart_from_file) then
       call self%initialize_from_hdf5(input)
     else
       call self%initialize_from_ini(input)
@@ -243,18 +243,26 @@ contains
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
     logical :: file_exists
+    character(:), allocatable :: filename
 
     real(rk), dimension(:, :), allocatable :: x
     real(rk), dimension(:, :), allocatable :: y
 
-    file_exists = .false.
-    inquire(file=trim(input%initial_condition_file), exist=file_exists)
-
-    if(.not. file_exists) then
-      error stop 'Error in regular_2d_grid_t%initialize_from_hdf5(); initial conditions file not found, exiting...'
+    if(input%restart_from_file) then
+      filename = trim(input%restart_file)
+    else
+      filename = trim(input%initial_condition_file)
     end if
 
-    call h5%initialize(filename=input%initial_condition_file, status='old', action='r')
+    file_exists = .false.
+    inquire(file=filename, exist=file_exists)
+
+    if(.not. file_exists) then
+      write(*, '(a)') 'Error in regular_2d_grid_t%initialize_from_hdf5(); file not found: "'//filename//'"'
+      error stop 'Error in regular_2d_grid_t%initialize_from_hdf5(); file not found, exiting...'
+    end if
+
+    call h5%initialize(filename=filename, status='old', action='r')
     call h5%get('/x', x)
     call h5%get('/y', y)
     call h5%finalize()
