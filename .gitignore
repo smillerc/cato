@@ -47,6 +47,7 @@ tests/**/cato.x
 tests/**/*.txt
 tests/**/*.error
 tests/**/*.ipynb
+tests/**/*/timing.csv
 *.h5
 *.xdmf
 

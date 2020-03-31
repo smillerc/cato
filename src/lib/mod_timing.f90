@@ -9,6 +9,7 @@ module mod_timing
 
   type :: timer_t
     private
+    integer(ik) :: log_file
     integer(int64) :: count_start = 0
     integer(int64) :: count_end = 0
     integer(int64) :: count_rate = 0
@@ -23,12 +24,17 @@ module mod_timing
     procedure :: start
     procedure :: stop
     procedure :: output_stats
+    procedure :: log_time
   end type
 
 contains
 
   subroutine start(self)
     class(timer_t), intent(inout) :: self
+
+    open(newunit=self%log_file, file='timing.csv')
+
+    write(self%log_file, '(a)') 'iteration, elapsed_wall_time[sec], elapsed_cpu_time[sec], timestep[sec]'
     call cpu_time(self%start_cputime)
 
     ! Initialize the clock
@@ -39,6 +45,29 @@ contains
     ! Start the clock
     call system_clock(count=self%count_start)
   end subroutine
+
+  subroutine log_time(self, iteration, timestep)
+    !< Keep a running log of the timings and save it to a csv file
+    class(timer_t), intent(inout) :: self
+    integer(ik), intent(in) :: iteration
+    real(rk), intent(in) :: timestep
+
+    integer(int64) :: count_end
+    real(rk) :: elapsed_walltime
+    real(rk) :: elapsed_cputime, end_cputim
+    real(rk) :: end_cputime
+
+    call cpu_time(end_cputime)
+    call system_clock(count=count_end)
+
+    elapsed_walltime = (count_end - self%count_start) / self%counter_rate
+    elapsed_cputime = end_cputime - self%start_cputime
+
+    ! header is 'iteration elapsed_wall_time[sec] elapsed_cpu_time[sec] timestep[sec]'
+    write(self%log_file, '(i0, 3(", ", es14.4))') &
+      iteration, elapsed_walltime, elapsed_cputime, timestep
+
+  end subroutine log_time
 
   subroutine stop(self)
     class(timer_t), intent(inout) :: self
