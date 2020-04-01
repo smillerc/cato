@@ -5,7 +5,7 @@ module mod_abstract_reconstruction
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
-  use mod_globals, only: debug_print, TINY_VEL
+  use mod_globals, only: debug_print
 
   implicit none
 
@@ -225,8 +225,8 @@ contains
       u_tilde = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
     end associate
 
-    if(abs(u_tilde(2)) < TINY_VEL .and. abs(u_tilde(2)) > 0.0_rk) u_tilde(2) = 0.0_rk
-    if(abs(u_tilde(3)) < TINY_VEL .and. abs(u_tilde(3)) > 0.0_rk) u_tilde(3) = 0.0_rk
+    ! if(abs(u_tilde(2)) < TINY_VEL .and. abs(u_tilde(2)) > 0.0_rk) u_tilde(2) = 0.0_rk
+    ! if(abs(u_tilde(3)) < TINY_VEL .and. abs(u_tilde(3)) > 0.0_rk) u_tilde(3) = 0.0_rk
 
   end function interpolate
 end module mod_abstract_reconstruction
