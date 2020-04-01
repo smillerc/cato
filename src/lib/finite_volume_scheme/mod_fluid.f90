@@ -1,7 +1,7 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_VEL
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -463,23 +463,23 @@ contains
 
     logical :: underflow_mode
 
-    ilo = lbound(self%conserved_vars, dim=2)
-    ihi = ubound(self%conserved_vars, dim=2)
-    jlo = lbound(self%conserved_vars, dim=3)
-    jhi = ubound(self%conserved_vars, dim=3)
+    ! ilo = lbound(self%conserved_vars, dim=2)
+    ! ihi = ubound(self%conserved_vars, dim=2)
+    ! jlo = lbound(self%conserved_vars, dim=3)
+    ! jhi = ubound(self%conserved_vars, dim=3)
 
-    do j = jlo, jhi
-      do i = ilo, ihi
-        u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
-        v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
-        if(abs(u) < TINY_VEL) then
-          self%conserved_vars(2, i, j) = 0.0_rk
-        end if
-        if(abs(v) < TINY_VEL) then
-          self%conserved_vars(3, i, j) = 0.0_rk
-        end if
-      end do
-    end do
+    ! do j = jlo, jhi
+    !   do i = ilo, ihi
+    !     u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
+    !     v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
+    !     if(abs(u) < TINY_VEL) then
+    !       self%conserved_vars(2, i, j) = 0.0_rk
+    !     end if
+    !     if(abs(v) < TINY_VEL) then
+    !       self%conserved_vars(3, i, j) = 0.0_rk
+    !     end if
+    !   end do
+    ! end do
 
   end subroutine
 
@@ -709,20 +709,20 @@ contains
     call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
     call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
 
-    ilo = lbound(primitive_vars, dim=2)
-    ihi = ubound(primitive_vars, dim=2)
-    jlo = lbound(primitive_vars, dim=3)
-    jhi = ubound(primitive_vars, dim=3)
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(abs(primitive_vars(2, i, j)) < TINY_VEL) then
-          primitive_vars(2, i, j) = 0.0_rk
-        end if
-        if(abs(primitive_vars(3, i, j)) < TINY_VEL) then
-          primitive_vars(3, i, j) = 0.0_rk
-        end if
-      end do
-    end do
+    ! ilo = lbound(primitive_vars, dim=2)
+    ! ihi = ubound(primitive_vars, dim=2)
+    ! jlo = lbound(primitive_vars, dim=3)
+    ! jhi = ubound(primitive_vars, dim=3)
+    ! do j = jlo, jhi
+    !   do i = ilo, ihi
+    !     if(abs(primitive_vars(2, i, j)) < TINY_VEL) then
+    !       primitive_vars(2, i, j) = 0.0_rk
+    !     end if
+    !     if(abs(primitive_vars(3, i, j)) < TINY_VEL) then
+    !       primitive_vars(3, i, j) = 0.0_rk
+    !     end if
+    !   end do
+    ! end do
 
   end subroutine get_primitive_vars
 
