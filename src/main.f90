@@ -80,9 +80,6 @@ program cato
   do while(time < input%max_time .and. iteration < input%max_iterations)
 
     max_cs = U%get_max_sound_speed()
-    print *, 'min(fv%grid%min_dx, fv%grid%min_dx)', min(fv%grid%min_dx, fv%grid%min_dx)
-    print *, 'input%cfl, max_cs', input%cfl, max_cs
-    print *, 'shape(U%conserved_vars)', shape(U%conserved_vars)
     delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
     write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units, &
       ' '//trim(io_time_label)//', Delta t =', delta_t, ' s'
