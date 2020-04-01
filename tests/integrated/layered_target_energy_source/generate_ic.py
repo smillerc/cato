@@ -16,41 +16,71 @@ from generate_initial_grids import (
 
 ureg = pint.UnitRegistry()
 
-cells_per_micron = 20
+# Physics
 gamma = 5.0 / 3.0
-rho_shell = 1.0
-vacuum_press = 1e8
-vacuum_dens = 1.0e-5
-vacuum_cs = np.sqrt(gamma * vacuum_press / vacuum_dens)
-vacuum_mach = 0.0
+init_pressure = 1e9 * ureg("barye")
 
-vacuum_vel = vacuum_mach * vacuum_cs
-vacuum_vel = np.sqrt(2.0 / (gamma + 1.0) * vacuum_press / rho_shell)
+void_density = 0.01 * ureg("g/cc")
+void_thickness = 1 * ureg("um")
 
-print(f"Vacuum Region Speed {vacuum_vel:.2e}")
-layer_thicknesses = [1, 39, 10, 20] * ureg("um")
-layer_n_cells = (layer_thicknesses.m * cells_per_micron).astype(np.int)
-layer_n_cells[-1] = (layer_thicknesses[-1].m * 1).astype(np.int)
-layer_density = [0.01, 0.25, 1.0, vacuum_dens] * ureg("g/cc")
-layer_u = [0, 0, 0, vacuum_vel] * ureg("cm/s")
+ice_density = 0.25 * ureg("g/cc")
+ice_thickness = 39 * ureg("um")
+
+shell_density = 1.0 * ureg("g/cc")
+shell_thickness = 10 * ureg("um")
+
+vacuum_pressure = 1e8 * ureg("barye")
+vacuum_density = 1e-5 * ureg("g/cc")
+vacuum_thickness = 20 * ureg("um")
+vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s")
+
+# Mesh
+cells_per_micron = 5 * ureg("1/um")  # all but the corona
+vacuum_feathering = 1.08
+y_thickness = 15 * ureg("um")
+# dy = 0.1 * ureg("um")
+dy = None  # will use smallest dx if None
+
+layer_thicknesses = [
+    void_thickness.to("cm").m,
+    ice_thickness.to("cm").m,
+    shell_thickness.to("cm").m,
+    vacuum_thickness.to("cm").m,
+] * ureg("cm")
+
+layer_spacing = ["constant", "constant", "constant", "linear"]
+layer_n_cells = [int(l * cells_per_micron) for l in layer_thicknesses]
+layer_density = [void_density, ice_density, shell_density, vacuum_density]
+layer_u = [0, 0, 0, vacuum_u.to("cm/s").m] * ureg("cm/s")
 layer_v = [0, 0, 0, 0] * ureg("cm/s")
-layer_pressure = [1e9, 1e9, 1e9, vacuum_press] * ureg("barye")
+layer_pressure = [init_pressure, init_pressure, init_pressure, vacuum_pressure]
 
 layered_target = make_1d_layered_grid(
-    layer_thicknesses, layer_n_cells, layer_density, layer_u, layer_v, layer_pressure
+    layer_thicknesses,
+    layer_n_cells,
+    layer_density,
+    layer_u,
+    layer_v,
+    layer_pressure,
+    layer_spacing=layer_spacing,
+    spacing_scale_factor=vacuum_feathering,
 )
-
-last_shell_layer_index = sum(layer_thicknesses[:2]).m * cells_per_micron
-print("last_shell_layer_index", last_shell_layer_index)
-layered_target["rho"][last_shell_layer_index, :] *= 1.001
 
 write_initial_hdf5(filename="layered_target", initial_condition_dict=layered_target)
 
 # Plot the results
 fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
 for ax, v in zip([ax1, ax2], ["rho", "u"]):
-    # vc = ax.plot(layered_target["xc"][:, 1], layered_target[v][:, 1])
-    vc = ax.plot(layered_target[v][:, 1])
+    vc = ax.plot(layered_target[v][:, 1], "o-")
+    ax.set_ylabel(v)
+    ax.set_xlabel("Grid Index (i)")
+
+plt.show()
+
+# Plot the results
+fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
+for ax, v in zip([ax1, ax2], ["rho", "u"]):
+    vc = ax.plot(layered_target["xc"][:, 1].to("um"), layered_target[v][:, 1], "o-")
     ax.set_ylabel(v)
     ax.set_xlabel("X")
 
