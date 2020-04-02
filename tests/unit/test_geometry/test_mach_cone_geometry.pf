@@ -47,6 +47,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta
 
+    print*, "test_midpoint_leftright_p_prime_below_no_intersections"
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -70,7 +71,7 @@ contains
                                   cell_indices=neighbor_cell_indices, &
                                   cone_location='left/right midpoint')
 
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.0_rk, -0.04_rk], mach_cone%p_prime_xy)
@@ -107,6 +108,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta
 
+    print*, "test_midpoint_leftright_p_prime_below_with_intersections"
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -169,6 +171,7 @@ contains
     real(rk), dimension(2, 2) :: theta
     real(rk) :: theta_11, theta_12
 
+    print*, "test_midpoint_leftright_p_prime_above"
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -192,7 +195,7 @@ contains
                                   cell_indices=neighbor_cell_indices, &
                                   cone_location='left/right midpoint')
 
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.0_rk, 0.01_rk], mach_cone%p_prime_xy)
@@ -234,6 +237,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta
 
+    print*, "test_midpoint_downup_p_prime_right_no_intersections"
     i = 1
     j = 1
 
@@ -294,6 +298,7 @@ contains
     real(rk), dimension(2, 2) :: theta
     real(rk) :: theta_11, theta_12
 
+    print*, "test_midpoint_downup_p_prime_left"
     i = 1
     j = 1
     midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
@@ -316,7 +321,7 @@ contains
                                   cell_indices=neighbor_cell_indices, &
                                   cone_location='down/up midpoint')
 
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([-0.01_rk, 0.0_rk], mach_cone%p_prime_xy)
@@ -358,6 +363,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta_ie, theta_ib
 
+    print*, "test_midpoint_downup_collocated"
     i = 1
     j = 1
     midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
@@ -424,6 +430,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta_ib, theta_ie
 
+    print*, "test_midpoint_leftright_collocated"
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -446,7 +453,7 @@ contains
                                   reconstructed_state=midpoint_state, &
                                   cell_indices=neighbor_cell_indices, &
                                   cone_location='left/right midpoint')
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy)
@@ -492,6 +499,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 4) :: theta_ib, theta_ie
 
+    print*, "test_corner_p_prime_at_corner"
     i = 2
     j = 2
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -523,7 +531,7 @@ contains
                                 cell_indices=neighbor_cell_indices, &
                                 cone_location='corner')
 
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([1, 1, 1, 1], mach_cone%n_arcs_per_cell)
@@ -605,7 +613,7 @@ contains
                                 reconstructed_state=corner_state, &
                                 cell_indices=neighbor_cell_indices, &
                                 cone_location='corner')
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     ! @assertEqual([0, 1, 2, 1], mach_cone%n_arcs_per_cell)
@@ -693,7 +701,7 @@ contains
                                 cell_indices=neighbor_cell_indices, &
                                 cone_location='corner')
 
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.01_rk, -0.01_rk], mach_cone%p_prime_xy)
@@ -780,7 +788,7 @@ contains
                                 cell_indices=neighbor_cell_indices, &
                                 cone_location='corner')
 
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.005_rk, -0.005_rk], mach_cone%p_prime_xy)
@@ -867,7 +875,7 @@ contains
                                 cell_indices=neighbor_cell_indices, &
                                 cone_location='corner')
 
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([-0.01_rk, -0.01_rk], mach_cone%p_prime_xy)
@@ -954,7 +962,7 @@ contains
                                 cell_indices=neighbor_cell_indices, &
                                 cone_location='corner')
 
-    ! print*, mach_cone
+    !print*, mach_cone
 
     ! P' should be in the cell below the midpoint
     @assertEqual([-0.01_rk, 0.01_rk], mach_cone%p_prime_xy)
@@ -1037,7 +1045,7 @@ contains
                                   cell_indices=neighbor_cell_indices, &
                                   cone_location='down/up midpoint')
 
-    ! print*, mach_cone
+    !print*, mach_cone
     @assertEqual([-1.45e-2_rk, 0.0_rk], mach_cone%p_prime_xy)
     @assertEqual(1.55e-2_rk, mach_cone%radius)
     @assertEqual([.true., .false.], mach_cone%p_prime_in_cell)
@@ -1059,8 +1067,7 @@ contains
 
   @test
   subroutine test_transonic_corner()
-    !< Test at a corner node where P' is in the upper right. The corner is situated
-    !< at the origin with each vector having a length of 3 in the cardinal directions.
+    !< Test at a corner node where the neighboring cells are transonic.
 
     !           C3
     !   cell 4  |   cell 3
@@ -1115,10 +1122,10 @@ contains
                                 cell_indices=neighbor_cell_indices, &
                                 cone_location='corner')
 
-    ! print *, mach_cone
+    print *, mach_cone
 
     ! P' should be in the cell below the midpoint
-    @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy)
+    @assertEqual([0.0_rk, 0.0_rk], mach_cone%p_prime_xy, 1e-10_rk)
     @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell)
 
     theta = 0.0_rk

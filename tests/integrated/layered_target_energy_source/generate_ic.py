@@ -35,7 +35,7 @@ vacuum_thickness = 20 * ureg("um")
 vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s")
 
 # Mesh
-cells_per_micron = 5 * ureg("1/um")  # all but the corona
+cells_per_micron = 15 * ureg("1/um")  # all but the corona
 vacuum_feathering = 1.08
 y_thickness = 15 * ureg("um")
 # dy = 0.1 * ureg("um")
