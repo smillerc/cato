@@ -173,29 +173,37 @@ def load_1d_dataset(folder, units="cgs"):
         ]
     )
     data = read_stepfile(step_files[0])
-    data_dim_x = data["density"].shape[0]
+    cell_dims = data["density"].shape
+    nx_cells = cell_dims[0] - 2
+    nx_nodes = nx_cells + 1
+    ny_cells = cell_dims[1] - 2
     data_dim_t = len(step_files)
 
     data = {
         "name": str(folder).split("/")[-1],
-        "x": np.zeros((data_dim_t, data_dim_x + 1)),
+        "x": np.zeros((data_dim_t, nx_nodes)),
         "time": np.zeros(data_dim_t),
-        "density": np.zeros((data_dim_t, data_dim_x)),
-        "pressure": np.zeros((data_dim_t, data_dim_x)),
-        "sound_speed": np.zeros((data_dim_t, data_dim_x)),
-        "velocity": np.zeros((data_dim_t, data_dim_x)),
-        # "y_velocity": np.zeros((data_dim_t, data_dim_x)),
+        "density": np.zeros((data_dim_t, nx_cells)),
+        "pressure": np.zeros((data_dim_t, nx_cells)),
+        "sound_speed": np.zeros((data_dim_t, nx_cells)),
+        "velocity": np.zeros((data_dim_t, nx_cells)),
+        # "y_velocity": np.zeros((data_dim_t, nx_cells)),
     }
 
+    # for 1D CATO simulations, the data is actually 3 cells wide (2 ghost), so
+    # the data is actually along j = 1 (in python indexing)
+    j = 1
+    ilo = 1
+    ihi = nx_cells + 1
     for t, f in enumerate(step_files):
         single_step_data = read_stepfile(f)
-        data["x"][t, :] = single_step_data["x"][:, 0]
+        data["x"][t, :] = single_step_data["x"][ilo : nx_nodes + 1, j]
         data["time"][t] = single_step_data["time"]
-        data["velocity"][t, :] = single_step_data["x_velocity"][:, 0]
-        # data["y_velocity"][t, :] = single_step_data["y_velocity"][:, 0]
-        data["density"][t, :] = single_step_data["density"][:, 0]
-        data["sound_speed"][t, :] = single_step_data["sound_speed"][:, 0]
-        data["pressure"][t, :] = single_step_data["pressure"][:, 0]
+        data["velocity"][t, :] = single_step_data["x_velocity"][ilo:ihi, j]
+        # data["y_velocity"][t, :] = single_step_data["y_velocity"][ilo:ihi, j]
+        data["density"][t, :] = single_step_data["density"][ilo:ihi, j]
+        data["sound_speed"][t, :] = single_step_data["sound_speed"][ilo:ihi, j]
+        data["pressure"][t, :] = single_step_data["pressure"][ilo:ihi, j]
 
     data["density"] = data["density"] * ureg(single_step_data["density_units"])
     data["pressure"] = data["pressure"] * ureg(single_step_data["pressure_units"])
@@ -221,7 +229,7 @@ def load_1d_dataset(folder, units="cgs"):
 
         # Read the pulse input
         pulse = np.loadtxt(pulse_file, skiprows=1)
-        pulse_t = pulse[:, 0] * ureg("s")
+        pulse_t = pulse[ilo:ihi, j] * ureg("s")
         pulse_p = pulse[:, 1] * ureg("barye")
 
         # Interpolate the pulse to the dataset time
