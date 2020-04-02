@@ -1,7 +1,8 @@
 module mod_local_evo_operator
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, &
-                                                                              std_err => error_unit, std_out => output_unit
-  use mod_globals, only: debug_print, print_recon_data, TINY_VEL
+                                                                              std_err => error_unit, &
+                                                                              std_out => output_unit
+  use mod_globals, only: debug_print, print_recon_data
 
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: near_zero, equal
@@ -384,8 +385,8 @@ contains
     integer(ik), parameter :: N_CELLS = 4
 
     real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
-    real(rk) :: pressure, density, u, v
-    real(rk) :: rho_a_tilde
+    real(rk) :: pressure, density, u, v, u1, v1
+    real(rk) :: rho_a_tilde, rho_a_tilde_sq, p_star
     integer(ik) :: i, arc, max_n_arcs
 
     error_code = 0 ! All ok at first
@@ -399,8 +400,10 @@ contains
     end do
 
     rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
+    rho_a_tilde_sq = mach_cone%reference_density * mach_cone%reference_sound_speed**2
 
     associate(a_tilde=>mach_cone%reference_sound_speed, &
+              rho_tilde=>mach_cone%reference_density, &
               dtheta=>mach_cone%dtheta, &
               sin_dtheta=>mach_cone%sin_dtheta, &
               cos_dtheta=>mach_cone%cos_dtheta, &
@@ -408,27 +411,40 @@ contains
               cos_d2theta=>mach_cone%cos_d2theta, &
               rho_p_prime=>p_prime_prim_vars(1), &
               pressure_p_prime=>p_prime_prim_vars(4), &
+              u_i_star=>mach_cone%normed_arc_primitive_vars(2, :, :), &
+              v_i_star=>mach_cone%normed_arc_primitive_vars(3, :, :), &
+              p_i_star=>mach_cone%normed_arc_primitive_vars(4, :, :), &
               u_i=>mach_cone%arc_primitive_vars(2, :, :), &
               v_i=>mach_cone%arc_primitive_vars(3, :, :), &
               p_i=>mach_cone%arc_primitive_vars(4, :, :))
 
-      pressure = sum(p_i * dtheta &
-                     - rho_a_tilde * u_i * sin_dtheta &
-                     + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
+      ! pressure = sum(p_i * dtheta &
+      !                - rho_a_tilde * u_i * sin_dtheta &
+      !                + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
 
-      density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
+      pressure = sum(p_i_star * dtheta - u_i_star * sin_dtheta - v_i_star * cos_dtheta) * (rho_a_tilde_sq / (2.0_rk * pi))
 
-      u = sum((-p_i / rho_a_tilde) * sin_dtheta &
-              + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
-              - v_i * (cos_d2theta / 4.0_rk)) / pi
+      ! ! Note: the a_tilde**2 term is not combined on purpose, so that floating point subtraction is more accurate
+      density = rho_p_prime + (pressure / a_tilde**2) - (pressure_p_prime / a_tilde**2)
+      ! ! density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
 
-      v = sum((p_i / rho_a_tilde) * cos_dtheta &
-              - u_i * (cos_d2theta / 4.0_rk) &
-              + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+      ! u = sum((-p_i / rho_a_tilde) * sin_dtheta &
+      !         + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+      !         - v_i * (cos_d2theta / 4.0_rk)) / pi
+
+      u = (a_tilde / pi) * sum(-p_i_star * sin_dtheta &
+                               + u_i_star * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+                               - v_i_star * (cos_d2theta / 4.0_rk))
+
+      ! v = sum((p_i / rho_a_tilde) * cos_dtheta &
+      !         - u_i * (cos_d2theta / 4.0_rk) &
+      !         + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+
+      v = (a_tilde / pi) * sum(p_i_star * cos_dtheta &
+                               - u_i_star * (cos_d2theta / 4.0_rk) &
+                               + v_i_star * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
     end associate
-    if(abs(u) < TINY_VEL) u = 0.0_rk
-    if(abs(v) < TINY_VEL) v = 0.0_rk
     primitive_variables = [density, u, v, pressure]
   end subroutine e0_operator_corner
 
@@ -447,7 +463,7 @@ contains
 
     real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
     real(rk) :: pressure, density, u, v
-    real(rk) :: rho_a_tilde
+    real(rk) :: rho_a_tilde, rho_a_tilde_sq
     integer(ik) :: i, arc, max_n_arcs
 
     error_code = 0 ! All ok at first
@@ -461,8 +477,10 @@ contains
     end do
 
     rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
+    rho_a_tilde_sq = mach_cone%reference_density * mach_cone%reference_sound_speed**2
 
     associate(a_tilde=>mach_cone%reference_sound_speed, &
+              rho_tilde=>mach_cone%reference_density, &
               dtheta=>mach_cone%dtheta, &
               sin_dtheta=>mach_cone%sin_dtheta, &
               cos_dtheta=>mach_cone%cos_dtheta, &
@@ -470,27 +488,40 @@ contains
               cos_d2theta=>mach_cone%cos_d2theta, &
               rho_p_prime=>p_prime_prim_vars(1), &
               pressure_p_prime=>p_prime_prim_vars(4), &
+              u_i_star=>mach_cone%normed_arc_primitive_vars(2, :, :), &
+              v_i_star=>mach_cone%normed_arc_primitive_vars(3, :, :), &
+              p_i_star=>mach_cone%normed_arc_primitive_vars(4, :, :), &
               u_i=>mach_cone%arc_primitive_vars(2, :, :), &
               v_i=>mach_cone%arc_primitive_vars(3, :, :), &
               p_i=>mach_cone%arc_primitive_vars(4, :, :))
 
-      pressure = sum(p_i * dtheta &
-                     - rho_a_tilde * u_i * sin_dtheta &
-                     + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
+      ! pressure = sum(p_i * dtheta &
+      !                - rho_a_tilde * u_i * sin_dtheta &
+      !                + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
 
-      density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
+      pressure = sum(p_i_star * dtheta - u_i_star * sin_dtheta - v_i_star * cos_dtheta) * (rho_a_tilde_sq / (2.0_rk * pi))
 
-      u = sum((-p_i / rho_a_tilde) * sin_dtheta &
-              + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
-              - v_i * (cos_d2theta / 4.0_rk)) / pi
+      ! ! Note: the a_tilde**2 term is not combined on purpose, so that floating point subtraction is more accurate
+      density = rho_p_prime + (pressure / a_tilde**2) - (pressure_p_prime / a_tilde**2)
+      ! ! density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
 
-      v = sum((p_i / rho_a_tilde) * cos_dtheta &
-              - u_i * (cos_d2theta / 4.0_rk) &
-              + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+      ! u = sum((-p_i / rho_a_tilde) * sin_dtheta &
+      !         + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+      !         - v_i * (cos_d2theta / 4.0_rk)) / pi
+
+      u = (a_tilde / pi) * sum(-p_i_star * sin_dtheta &
+                               + u_i_star * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+                               - v_i_star * (cos_d2theta / 4.0_rk))
+
+      ! v = sum((p_i / rho_a_tilde) * cos_dtheta &
+      !         - u_i * (cos_d2theta / 4.0_rk) &
+      !         + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+
+      v = (a_tilde / pi) * sum(p_i_star * cos_dtheta &
+                               - u_i_star * (cos_d2theta / 4.0_rk) &
+                               + v_i_star * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
     end associate
-    if(abs(u) < TINY_VEL) u = 0.0_rk
-    if(abs(v) < TINY_VEL) v = 0.0_rk
     primitive_variables = [density, u, v, pressure]
   end subroutine e0_operator_midpoint
 

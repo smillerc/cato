@@ -238,9 +238,7 @@ contains
                     edge_rho=>primitive_vars(1, right, j), &
                     edge_u=>primitive_vars(2, right, j), &
                     edge_v=>primitive_vars(3, right, j), &
-                    edge_vel=>sqrt(edge_u**2 + edge_v**2), &
-                    edge_p=>primitive_vars(4, right, j), &
-                    edge_cs=>sqrt(gamma * edge_p / edge_rho))
+                    edge_p=>primitive_vars(4, right, j))
 
             if(edge_u < 0.0_rk) then ! Inflow
 
@@ -250,26 +248,15 @@ contains
               self%edge_primitive_vars(3, j) = -edge_v ! cancel out y component
               self%edge_primitive_vars(4, j) = ghost_p
             else ! Outflow
-              ! Set the density in the ghost layer to that the sound speed
-              ! is the same as the fluid layer's based on the desired ghost pressure
-              ! self%edge_primitive_vars(1, j) = gamma * ghost_p / edge_cs**2
-              ! self%edge_primitive_vars(1, j) = ((gamma / edge_cs**2) * (ghost_p + edge_p)) - edge_rho
-              ! self%edge_primitive_vars(1, j) = edge_rho
               ghost_rho = (gamma * ghost_p) / (edge_u / mach)!**2
               self%edge_primitive_vars(1, j) = ghost_rho
 
               ! This is the tricky part... set the velocities in the ghost layer so that
               ! the mach cone is entirely in the ghost layer, thereby makeing the fluid
               ! layer entirely dependent on the state of the ghost layer
-              ! self%edge_primitive_vars(2, j) = 2.0_rk * mach * edge_cs - edge_u
               self%edge_primitive_vars(2, j) = edge_u * 1.75_rk !mach * edge_cs
-
-              ! write(*, '(4(es10.3, 1x))') edge_u, mach, edge_cs, (mach * edge_cs) * sign(1.0_rk, edge_u)
               self%edge_primitive_vars(3, j) = -edge_v
-
-              ! Set the edge pressure
               self%edge_primitive_vars(4, j) = ghost_p
-              ! self%edge_primitive_vars(4, j) = (edge_rho / gamma) * (abs(edge_u)/mach)**2
             end if
           end associate
         end do
@@ -349,28 +336,14 @@ contains
                       mach=>1.5_rk, &
                       edge_rho=>reconstructed_state(1, p, n, right, j), &
                       edge_p=>reconstructed_state(4, p, n, right, j), &
-                      edge_cs=>sqrt(gamma * edge_p / edge_rho), &
                       edge_u=>reconstructed_state(2, p, n, right, j), &
                       edge_v=>reconstructed_state(3, p, n, right, j))
 
-              ! print*, edge_rho, edge_p
-              ! print*, gamma, ghost_p, edge_cs, edge_u
-              ! reconstructed_state(1, p, n, right_ghost, j) = gamma * ghost_p / edge_cs**2
-              ! reconstructed_state(1, p, n, right_ghost, j) = ((gamma / edge_cs**2) * (ghost_p + edge_p)) - edge_rho
               reconstructed_state(1, p, n, right_ghost, j) = edge_rho
-
-              ! reconstructed_state(2, p, n, right_ghost, j) = 2.0_rk * mach * edge_cs - edge_u
-              reconstructed_state(2, p, n, right_ghost, j) = -(mach * edge_cs) * sign(1.0_rk, edge_u)
+              reconstructed_state(2, p, n, right_ghost, j) = -(mach * sqrt(gamma * edge_p / edge_rho)) * sign(1.0_rk, edge_u)
               reconstructed_state(3, p, n, right_ghost, j) = -edge_v
-
-              ! reconstructed_state(4, p, n, right_ghost, j) = (edge_rho / gamma) * (abs(edge_u)/mach)**2
               reconstructed_state(4, p, n, right_ghost, j) = edge_p
 
-              ! print*, 'reconstructed_state(1, p, n, right_ghost, j)', reconstructed_state(1, p, n, right_ghost, j)
-              ! print*, 'reconstructed_state(2, p, n, right_ghost, j)', reconstructed_state(2, p, n, right_ghost, j)
-              ! print*, 'reconstructed_state(3, p, n, right_ghost, j)', reconstructed_state(3, p, n, right_ghost, j)
-              ! print*, 'reconstructed_state(4, p, n, right_ghost, j)', reconstructed_state(4, p, n, right_ghost, j)
-              ! print*
             end associate
           end do
         end do

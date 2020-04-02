@@ -125,9 +125,10 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
     real(rk), dimension(:, :), allocatable :: io_data_buffer
+    integer(ik), dimension(:, :), allocatable :: ghost_cell
 
     allocate(primitive_vars, mold=fluid%conserved_vars)
-    call fluid%get_primitive_vars(primitive_vars)
+    call fluid%get_primitive_vars(primitive_vars, lbounds=lbound(fluid%conserved_vars))
 
     call self%hdf5_file%initialize(filename=self%hdf5_filename, &
                                    status='new', action='w', comp_lvl=6)
@@ -190,6 +191,25 @@ contains
     jlo = self%jlo_cell
     jhi = self%jhi_cell
     allocate(io_data_buffer(ilo:ihi, jlo:jhi))
+    allocate(ghost_cell(ilo:ihi, jlo:jhi))
+
+    ! Write a simple flag to tag ghost cells
+    dataset_name = '/ghost_cell'
+    ghost_cell = 0
+    associate(ilo_g=>fv_scheme%grid%ilo_bc_cell, &
+              ihi_g=>fv_scheme%grid%ihi_bc_cell, &
+              jlo_g=>fv_scheme%grid%jlo_bc_cell, &
+              jhi_g=>fv_scheme%grid%jhi_bc_cell)
+
+      ghost_cell(ilo_g, :) = 1
+      ghost_cell(ihi_g, :) = 1
+      ghost_cell(:, jlo_g) = 1
+      ghost_cell(:, jhi_g) = 1
+    end associate
+    call self%hdf5_file%add(trim(dataset_name), ghost_cell)
+    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Ghost Cell [0=no, 1=yes]')
+    call self%hdf5_file%writeattr(trim(dataset_name), 'units', 'dimensionless')
+    deallocate(ghost_cell)
 
     ! Primitive Variables
     dataset_name = '/density'
@@ -295,18 +315,6 @@ contains
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/sound_speed</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    ! unit_label = "[" // trim(io_velocity_label) // "]"
-    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="X Velocity ' // trim(unit_label) //'">'
-    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-    !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/x_velocity</DataItem>'
-    ! write(xdmf_unit, '(a)') '      </Attribute>'
-
-    ! unit_label = "[" // trim(io_velocity_label) // "]"
-    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Y Velocity ' // trim(unit_label) //'">'
-    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-    !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/y_velocity</DataItem>'
-    ! write(xdmf_unit, '(a)') '      </Attribute>'
-
     unit_label = "["//trim(io_pressure_label)//"]"
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Pressure '//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
@@ -334,6 +342,12 @@ contains
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Volume '//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/volume</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    unit_label = ""
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Ghost Cell '//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Integer" Precision="4">'//self%hdf5_filename//':/ghost_cell</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '    </Grid>'

@@ -1,7 +1,7 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_MACH
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -274,7 +274,7 @@ contains
     allocate(local_d_dt, source=self)
     allocate(primitive_vars, mold=self%conserved_vars)
 
-    call local_d_dt%get_primitive_vars(primitive_vars)
+    call local_d_dt%get_primitive_vars(primitive_vars, lbounds=lbound(self%conserved_vars))
 
     ! First put primitive vars in ghost layers
     call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
@@ -459,27 +459,28 @@ contains
     integer(ik) :: i, j
     real(rk) :: eps
     real(rk) :: u, v
-    ! real(rk), dimension(:, :, :), allocatable :: primitive_vars
+    real(rk), dimension(:, :), allocatable :: sound_speed
 
-    logical :: underflow_mode
+    call self%get_sound_speed(sound_speed)
 
-    ! ilo = lbound(self%conserved_vars, dim=2)
-    ! ihi = ubound(self%conserved_vars, dim=2)
-    ! jlo = lbound(self%conserved_vars, dim=3)
-    ! jhi = ubound(self%conserved_vars, dim=3)
+    ilo = lbound(self%conserved_vars, dim=2)
+    ihi = ubound(self%conserved_vars, dim=2)
+    jlo = lbound(self%conserved_vars, dim=3)
+    jhi = ubound(self%conserved_vars, dim=3)
 
-    ! do j = jlo, jhi
-    !   do i = ilo, ihi
-    !     u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
-    !     v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
-    !     if(abs(u) < TINY_VEL) then
-    !       self%conserved_vars(2, i, j) = 0.0_rk
-    !     end if
-    !     if(abs(v) < TINY_VEL) then
-    !       self%conserved_vars(3, i, j) = 0.0_rk
-    !     end if
-    !   end do
-    ! end do
+    do j = jlo, jhi
+      do i = ilo, ihi
+        u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
+        v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
+        if(abs(u) / sound_speed(i, j) < TINY_MACH) then
+          self%conserved_vars(2, i, j) = 0.0_rk
+        end if
+        if(abs(u) / sound_speed(i, j) < TINY_MACH) then
+          self%conserved_vars(3, i, j) = 0.0_rk
+        end if
+      end do
+    end do
+    deallocate(sound_speed)
 
   end subroutine
 
@@ -696,34 +697,36 @@ contains
     deallocate(sound_speed)
   end function get_max_sound_speed
 
-  subroutine get_primitive_vars(self, primitive_vars)
+  subroutine get_primitive_vars(self, primitive_vars, lbounds)
     !< Convert the current conserved_vars [rho, rho u, rho v, rho E] to primitive [rho, u, v, p]. Note, the
     !< work is done in the EOS module due to the energy to pressure conversion
     class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :, :), intent(out) :: primitive_vars
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: primitive_vars
     integer(ik) :: i, j, ilo, jlo, ihi, jhi
-    logical :: invalid_numbers
-
-    invalid_numbers = .false.
+    real(rk), dimension(:, :), allocatable :: sound_speed
 
     call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
-    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
+    call self%get_sound_speed(sound_speed)
+    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars, lbounds=lbound(self%conserved_vars))
 
-    ! ilo = lbound(primitive_vars, dim=2)
-    ! ihi = ubound(primitive_vars, dim=2)
-    ! jlo = lbound(primitive_vars, dim=3)
-    ! jhi = ubound(primitive_vars, dim=3)
-    ! do j = jlo, jhi
-    !   do i = ilo, ihi
-    !     if(abs(primitive_vars(2, i, j)) < TINY_VEL) then
-    !       primitive_vars(2, i, j) = 0.0_rk
-    !     end if
-    !     if(abs(primitive_vars(3, i, j)) < TINY_VEL) then
-    !       primitive_vars(3, i, j) = 0.0_rk
-    !     end if
-    !   end do
-    ! end do
+    ilo = lbound(self%conserved_vars, dim=2)
+    ihi = ubound(self%conserved_vars, dim=2)
+    jlo = lbound(self%conserved_vars, dim=3)
+    jhi = ubound(self%conserved_vars, dim=3)
 
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(abs(primitive_vars(2, i, j)) / sound_speed(i, j) < TINY_MACH) then
+          primitive_vars(2, i, j) = 0.0_rk
+        end if
+        if(abs(primitive_vars(3, i, j)) / sound_speed(i, j) < TINY_MACH) then
+          primitive_vars(3, i, j) = 0.0_rk
+        end if
+      end do
+    end do
+
+    deallocate(sound_speed)
   end subroutine get_primitive_vars
 
   subroutine sanity_check(self, error_code)

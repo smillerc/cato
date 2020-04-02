@@ -8,7 +8,9 @@ module mod_globals
   logical, parameter :: enable_file_and_line_stats = .false.
 
   real(rk), parameter :: TINY_DIST = 1.0e-20_rk ! cm
-  real(rk), parameter :: TINY_MACH = 1.0e-15_rk
+  real(rk), parameter :: TINY_MACH = 1.0e-5_rk
+  real(rk), parameter :: PRESSURE_FLOOR = 1.0e4_rk
+  real(rk), parameter :: DENSITY_FLOOR = 1.0e-6_rk
 
   logical :: globals_set = .false.
 
