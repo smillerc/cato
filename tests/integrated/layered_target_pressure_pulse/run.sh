@@ -10,7 +10,7 @@ export FOR_COARRAY_NUM_IMAGES=1
 
 python generate_ic.py
 rm cato.x cato.error
-rm -rf step*
+#rm -rf step*
 cd ../../../build &&\
 make -j &&\
 cd - &&\

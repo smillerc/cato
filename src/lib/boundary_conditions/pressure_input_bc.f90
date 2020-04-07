@@ -41,7 +41,6 @@ contains
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
-
     bc%constant_pressure = input%apply_constant_bc_pressure
     bc%scale_factor = input%bc_pressure_scale_factor
     if(.not. bc%constant_pressure) then
@@ -110,7 +109,12 @@ contains
 
     ! Initialize the linear interpolated data object so we can query the pressure at any time
     call self%temporal_pressure_input%initialize(time_sec, pressure_barye, interp_status)
-    if(interp_status /= 0) error stop "Error initializing pressure_input_bc_t%temporal_pressure_input"
+    if(interp_status /= 0) then
+      write(*, *) time_sec
+      write(*, *) pressure_barye
+      write(*, *) interp_status
+      error stop "Error initializing pressure_input_bc_t%temporal_pressure_input"
+    end if
 
     deallocate(time_sec)
     deallocate(pressure_barye)
@@ -168,7 +172,11 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    real(rk) :: desired_boundary_pressure, boundary_density, gamma
+    logical :: inflow
+    logical :: outflow
+
+    real(rk) :: desired_boundary_pressure, boundary_density, gamma, ave_u, min_u, max_u, u, v, rho_new, ave_rho
+    real(rk) :: mach
     real(rk), dimension(:), allocatable :: edge_pressure
 
     gamma = eos%get_gamma()
@@ -182,6 +190,9 @@ contains
     bottom = bottom_ghost + 1
     top = top_ghost - 1
 
+    inflow = .false.
+    outflow = .false.
+    mach = 1.5_rk
     ! Since we know the pressure/density in the fluid edge cell,
     ! and we also know what we want the pressure to be on the boundary (ghost)
     ! We use the isentropic relation rho2/rho2 = (P2/P1)^(gamma-1) to find the density
@@ -202,11 +213,36 @@ contains
 
       allocate(edge_pressure(bottom:top))
 
-      ! Zero-gradient in velocity
-      self%edge_primitive_vars(2, bottom:top) = primitive_vars(2, right, bottom:top)
-      self%edge_primitive_vars(3, bottom:top) = primitive_vars(3, right, bottom:top)
+      min_u = minval(primitive_vars(2, right, bottom:top))
+      max_u = maxval(primitive_vars(2, right, bottom:top))
+      ave_u = sum(primitive_vars(2, right, bottom:top)) / size(primitive_vars(2, right, bottom:top))
+      ave_rho = sum(primitive_vars(1, right, bottom:top)) / size(primitive_vars(1, right, bottom:top))
+      primitive_vars(1, right, bottom:top) = ave_rho
 
+      ! defaults
+      u = ave_u
+      v = 0.0_rk
+
+      if(ave_u < 0.0_rk) then
+        inflow = .true.
+        outflow = .false.
+        u = min_u
+      else
+        inflow = .false.
+        outflow = .true.
+        u = max_u
+      end if
+
+      ! Default to zero-gradient
+      self%edge_primitive_vars(1, :) = sum(primitive_vars(1, right, bottom:top)) / size(primitive_vars(1, right, bottom:top))
+      self%edge_primitive_vars(2, :) = u
+      self%edge_primitive_vars(3, :) = v
+
+      edge_pressure(bottom:top) = sum(primitive_vars(4, right, bottom:top)) / size(primitive_vars(4, right, bottom:top))
       desired_boundary_pressure = self%get_desired_pressure()
+
+      self%edge_primitive_vars(4, bottom:top) = edge_pressure(bottom:top)
+
       if(desired_boundary_pressure <= 0.0_rk) then
         ! Default to zero-gradient if the input pressure goes <= 0
         self%edge_primitive_vars(1, bottom:top) = primitive_vars(1, right, bottom:top)
@@ -215,7 +251,6 @@ contains
         self%edge_primitive_vars(4, bottom:top) = primitive_vars(4, right, bottom:top)
       else
         ! Pressure on the right-most column of fluid cells
-        edge_pressure(bottom:top) = primitive_vars(4, right, bottom:top)
 
         ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
         associate(rho_1=>primitive_vars(1, right, bottom:top), &
@@ -230,31 +265,33 @@ contains
             self%edge_primitive_vars(4, bottom:top) = P_2
 
             ! Outflow
-            if(maxval(primitive_vars(2, right, bottom:top)) > 0.0_rk) then
-              associate(v=>abs(primitive_vars(2, right, bottom:top)), mach=>1.5_rk)
-                ! Set density to make the flow supersonic
-                self%edge_primitive_vars(1, bottom:top) = (gamma * P_2) / (v / mach)
-              end associate
+            if(outflow) then
+              ! print*, 'outflow!'
+              rho_new = abs((gamma * P_2) / (u / mach)) ! Set density to make the flow supersonic
+              if(rho_new > ave_rho) then
+                self%edge_primitive_vars(1, bottom:top) = ave_rho
+              else
+                self%edge_primitive_vars(1, bottom:top) = rho_new
+              end if
+
             else ! Inflow
+              ! print*, 'inflow!'
               self%edge_primitive_vars(1, bottom:top) = rho_1 * (P_2 / P_1)**(1.0_rk / gamma)
             end if
+            ! write(*,'(a, 12(es10.3,1x))') 'edge p  ', P_1
+            ! write(*,'(a, 12(es10.3,1x))') 'input p ', P_2
+            ! write(*,'(a, 12(es10.3,1x))') 'edge rho', rho_1
+            ! write(*,'(a, 12(es10.3,1x))') 'new rho ', self%edge_primitive_vars(1, bottom:top)
+            ! write(*,'(a, 12(es10.3,1x))') 'new u   ', self%edge_primitive_vars(2, bottom:top)
+            ! write(*,'(a, 12(es10.3,1x))') 'new p   ', self%edge_primitive_vars(4, bottom:top)
+            ! print*
 
           end if
         end associate
 
-        self%edge_primitive_vars(2, bottom:top) = primitive_vars(2, right, bottom:top)
-        self%edge_primitive_vars(3, bottom:top) = primitive_vars(3, right, bottom:top)
-
       end if
 
       primitive_vars(:, right_ghost, bottom:top) = self%edge_primitive_vars(:, bottom:top)
-
-      ! case('-x')
-      !   ! primitive_vars(:, left_ghost, :) = primitive_vars(:, right, bottom)
-      ! case('+y')
-      !   ! primitive_vars(:, :, top_ghost) = primitive_vars(:, left:right, bottom)
-      ! case('-y')
-      !   ! primitive_vars(:, :, bottom_ghost) = primitive_vars(:, left:right, top)
     case default
       error stop "Unsupported location to apply the bc at in "// &
         "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"

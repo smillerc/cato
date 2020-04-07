@@ -1,7 +1,6 @@
 module mod_flux_tensor
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
-  use mod_globals, only: TINY_VEL
   use mod_vector, only: vector_t
   use mod_eos, only: eos
 
@@ -45,22 +44,12 @@ contains
     !< Implementation of the flux tensor (H) construction. This requires the primitive variables
     real(rk), dimension(4), intent(in) :: primitive_variables !< [rho, u, v, p]
 
-    real(rk) :: u, v, total_energy !< total energy
-
-    if(abs(primitive_variables(2)) < TINY_VEL) then
-      u = 0.0_rk
-    else
-      u = primitive_variables(2)
-    end if
-
-    if(abs(primitive_variables(3)) < TINY_VEL) then
-      v = 0.0_rk
-    else
-      v = primitive_variables(3)
-    end if
+    real(rk) :: total_energy !< total energy
 
     ! The flux tensor is H = Fi + Gj
     associate(rho=>primitive_variables(1), &
+              u=>primitive_variables(2), &
+              v=>primitive_variables(3), &
               p=>primitive_variables(4), &
               H=>flux_tensor%state)
 

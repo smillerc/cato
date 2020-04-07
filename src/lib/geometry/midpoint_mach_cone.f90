@@ -1,7 +1,8 @@
 module mod_midpoint_mach_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use, intrinsic :: ieee_arithmetic
   use math_constants, only: pi, rad2deg
-  use mod_globals, only: TINY_DIST, TINY_VEL, grid_is_orthogonal
+  use mod_globals, only: TINY_MACH, grid_is_orthogonal
   use mod_floating_point_utils, only: near_zero, equal
   use mod_eos, only: eos
   use mod_vector, only: vector_t
@@ -59,6 +60,9 @@ module mod_midpoint_mach_cone
     real(rk), dimension(4, 2, N_CELLS) :: arc_primitive_vars = 0.0_rk
     !< ((rho,u,v,p), (arc 1:2), (cell 1:N_CELLS))
 
+    real(rk), dimension(4, 2, N_CELLS) :: normed_arc_primitive_vars = 0.0_rk
+    !< ((rho,u,v,p), (arc 1:2), (cell 1:N_CELLS))
+
     real(rk), dimension(N_CELLS) :: sound_speed = 0.0_rk
     !< (cell 1:N_CELLS); speed of sound for each neighbor cell
 
@@ -71,13 +75,13 @@ module mod_midpoint_mach_cone
     real(rk) :: reference_u = 0.0_rk              !< Reference x velocity (e.g. neighbor averaged)
     real(rk) :: reference_v = 0.0_rk              !< Reference y velocity (e.g. neighbor averaged)
     real(rk) :: reference_sound_speed = 0.0_rk    !< Reference sound speed (e.g. neighbor averaged)
-    real(rk) :: reference_mach_number = 0.0_rk    !< Reference Mach number (e.g. neighbor averaged)
+    ! real(rk) :: reference_mach_number = 0.0_rk    !< Reference Mach number (e.g. neighbor averaged)
     logical :: cone_is_transonic = .false.        !< Flag to enable special treatment for transonic cones
     logical :: cone_is_centered = .false.
     !< Flag signifying if P and P' are collocated -> allows for simplified angles/trig
     !< so a bunch of functions can be skipped for speed (no need to find line/circle intersections)
 
-    character(len=32) :: cone_location = ''       !< Corner or midpoint cone?
+    character(len=32) :: cone_location = 'midpoint'       !< Corner or midpoint cone?
   contains
     procedure, private :: get_reference_state
     procedure, private :: determine_p_prime_cell
@@ -116,13 +120,13 @@ contains
     cone%edge_vectors = edge_vectors
 
     if(any(reconstructed_state(1, :) < 0.0_rk)) then
-      write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed density states (cell 1:2)', reconstructed_state(1, :)
+      write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed density states [' // trim(cone%cone_location) //'] (cell 1:2)', reconstructed_state(1, :)
       write(std_err, '(a, 2("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
       error stop "Error in midpoint_mach_cone_t initialization, density in the reconstructed state is < 0"
     end if
 
     if(any(reconstructed_state(4, :) < 0.0_rk)) then
-      write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed pressure states (cell 1:2): ', reconstructed_state(4, :)
+      write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed pressure states [' // trim(cone%cone_location) //'] (cell 1:2): ', reconstructed_state(4, :)
       write(std_err, '(a, 2("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
       error stop "Error in midpoint_mach_cone_t initialization, pressure in the reconstructed state is < 0"
     end if
@@ -156,6 +160,13 @@ contains
       end do
     end do
 
+    ! Normalize the quantities for numbers closer to 1 (better FP accuracy)
+    cone%normed_arc_primitive_vars = cone%arc_primitive_vars
+    cone%normed_arc_primitive_vars(2, :, :) = cone%normed_arc_primitive_vars(2, :, :) / cone%reference_sound_speed
+    cone%normed_arc_primitive_vars(3, :, :) = cone%normed_arc_primitive_vars(3, :, :) / cone%reference_sound_speed
+    cone%normed_arc_primitive_vars(4, :, :) = cone%normed_arc_primitive_vars(4, :, :) / &
+                                              (cone%reference_density * cone%reference_sound_speed**2)
+
     call cone%determine_p_prime_cell()
     call cone%sanity_checks()
 
@@ -172,7 +183,7 @@ contains
     real(rk) :: ave_p
     real(rk), dimension(N_CELLS) :: mach_number, sound_speed
     integer(ik) :: i, n_supersonic_cells
-    real(rk) :: gamma
+    real(rk) :: gamma, mach_u, mach_v
 
     gamma = eos%get_gamma()
 
@@ -190,7 +201,15 @@ contains
       end if
     end do
 
-    ! n_supersonic_cells = count(self%cell_is_supersonic)
+    ! Use the mach number to eliminate small velocities
+    ! (this scales with the problem better than an absolute velocity value)
+    do i = 1, N_CELLS
+      mach_u = abs(self%recon_state(2, i) / self%sound_speed(i))
+      mach_v = abs(self%recon_state(3, i) / self%sound_speed(i))
+      if(mach_u < TINY_MACH) self%recon_state(2, i) = 0.0_rk
+      if(mach_v < TINY_MACH) self%recon_state(3, i) = 0.0_rk
+    end do
+
     if(n_supersonic_cells == N_CELLS .or. n_supersonic_cells == 0) then
       self%cone_is_transonic = .false.
     else
@@ -198,21 +217,25 @@ contains
     end if
 
     self%reference_density = sum(self%recon_state(1, :)) / real(N_CELLS, rk)
-    self%reference_u = sum(self%recon_state(2, :)) / real(N_CELLS, rk)
-    self%reference_v = sum(self%recon_state(3, :)) / real(N_CELLS, rk)
-
-    if(abs(self%reference_u) < TINY_VEL .and. abs(self%reference_v) < TINY_VEL) then
-      self%reference_u = 0.0_rk
-      self%reference_v = 0.0_rk
-      self%cone_is_centered = .true.
-    else
-      self%cone_is_centered = .false.
-    end if
-
     ave_p = sum(self%recon_state(4, :)) / real(N_CELLS, rk)
     self%reference_sound_speed = sqrt(gamma * ave_p / self%reference_density)
-    self%reference_mach_number = sqrt(self%reference_u**2 + self%reference_v**2) / &
-                                 self%reference_sound_speed
+    self%reference_u = sum(self%recon_state(2, :)) / real(N_CELLS, rk)
+    self%reference_v = sum(self%recon_state(3, :)) / real(N_CELLS, rk)
+    ! self%reference_mach_number = sqrt(self%reference_u**2 + self%reference_v**2) / &
+    !                              self%reference_sound_speed
+
+    associate(u_tilde=>self%reference_u, mach_u=>abs(self%reference_u / self%reference_sound_speed), &
+              v_tilde=>self%reference_v, mach_v=>abs(self%reference_v / self%reference_sound_speed))
+      if(mach_u < TINY_MACH) self%reference_u = 0.0_rk
+      if(mach_v < TINY_MACH) self%reference_v = 0.0_rk
+      if(mach_u < TINY_MACH .and. mach_v < TINY_MACH) then
+        self%cone_is_centered = .true.
+      else
+        self%cone_is_centered = .false.
+      end if
+
+    end associate
+
   end subroutine get_reference_state
 
   subroutine find_arc_angles(self, cell_indices, edge_vectors, theta_ib, theta_ie, n_arcs_per_cell)
@@ -337,6 +360,11 @@ contains
     integer(ik) :: i, arc, max_n_arcs
     integer(ik), dimension(N_CELLS) :: n_arcs_per_cell
 
+    sin_theta_ib = 0.0_rk
+    cos_theta_ib = 0.0_rk
+    sin_theta_ie = 0.0_rk
+    cos_theta_ie = 0.0_rk
+
     ! If we know the cone is at the origin and the grid is orthogonal, then
     ! the angles are easily known ahead of time, so we can skip the additional
     ! math needed to find the intersection angles
@@ -433,6 +461,15 @@ contains
           end do
         end do
       end if
+
+      do i = 1, N_CELLS
+        do arc = 1, max_n_arcs
+          if(ieee_is_nan(sin_theta_ib(arc, i))) sin_theta_ib(arc, i) = 0.0_rk
+          if(ieee_is_nan(cos_theta_ib(arc, i))) cos_theta_ib(arc, i) = 0.0_rk
+          if(ieee_is_nan(sin_theta_ie(arc, i))) sin_theta_ie(arc, i) = 0.0_rk
+          if(ieee_is_nan(cos_theta_ie(arc, i))) cos_theta_ie(arc, i) = 0.0_rk
+        end do
+      end do
 
       self%sin_dtheta = sin_theta_ie - sin_theta_ib
       self%cos_dtheta = cos_theta_ie - cos_theta_ib
@@ -580,7 +617,7 @@ contains
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_x_velocity =  ", self%reference_u, new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_y_velocity =  ", self%reference_v, new_line('a')
     write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_sound_speed = ", self%reference_sound_speed, new_line('a')
-    write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_mach_Number = ", self%reference_mach_number, new_line('a')
+    ! write(unit, '(a, es10.3, a)', iostat=iostat, iomsg=iomsg) "reference_mach_number = ", self%reference_mach_number, new_line('a')
 
     write(unit, '(a)', iostat=iostat) new_line('a')
     write(unit, '(a, 2(i0, 1x),a)', iostat=iostat) '# Valid arcs in each cell: [', self%n_arcs_per_cell, ']'
@@ -588,14 +625,27 @@ contains
     ! write(unit, '(a)', iostat=iostat, iomsg=iomsg) '# Angles:       Theta_ib [deg]         Theta_ie [deg]'//new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) '# Delta Theta (for each arc) [deg]'//new_line('a')
     do i = 1, N_CELLS
-      ! write(unit, '(a, i0, 4(a,f9.5, ",",f9.5), a )', iostat=iostat, iomsg=iomsg) &
-      !   'angles[:,', i, &
-      !   '] = [[ ', rad2deg(self%theta_ib(:, i)), &
-      !   '], [ ', rad2deg(self%theta_ie(:, i)), &
-      !   ']]'//new_line('a')
       write(unit, '(a, i0,a,f9.5,",",f9.5, a)', iostat=iostat, iomsg=iomsg) &
         'dtheta[', i, '] = [', rad2deg(self%dtheta(:, i)), ']'//new_line('a')
     end do
+
+    do i = 1, N_CELLS
+      write(unit, '(a, i0,a,f9.5,",",f9.5, a)', iostat=iostat, iomsg=iomsg) &
+        'sin_dtheta[', i, '] = [', self%sin_dtheta(:, i), ']'//new_line('a')
+    end do
+    do i = 1, N_CELLS
+      write(unit, '(a, i0,a,f9.5,",",f9.5, a)', iostat=iostat, iomsg=iomsg) &
+        'cos_dtheta[', i, '] = [', self%cos_dtheta(:, i), ']'//new_line('a')
+    end do
+    do i = 1, N_CELLS
+      write(unit, '(a, i0,a,f9.5,",",f9.5, a)', iostat=iostat, iomsg=iomsg) &
+        'sin_d2theta[', i, '] = [', self%sin_d2theta(:, i), ']'//new_line('a')
+    end do
+    do i = 1, N_CELLS
+      write(unit, '(a, i0,a,f9.5,",",f9.5, a)', iostat=iostat, iomsg=iomsg) &
+        'cos_d2theta[', i, '] = [', self%cos_d2theta(:, i), ']'//new_line('a')
+    end do
+
     write(unit, '(a, f0.2, a)', iostat=iostat, iomsg=iomsg) 'arc_length_sum = ', &
       rad2deg(sum(self%dtheta)), ' '//new_line('a')
 

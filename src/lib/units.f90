@@ -14,6 +14,9 @@ module mod_units
   real(rk), protected :: io_density_units = 1.0_rk
   real(rk), protected :: io_volume_units = 1.0_rk
   real(rk), protected :: io_temperature_units = 1.0_rk
+  real(rk), protected :: io_energy_units = 1.0_rk
+  real(rk), protected :: io_force_units = 1.0_rk
+  real(rk), protected :: io_power_units = 1.0_rk
 
   character(len=10), protected :: io_velocity_label = 'cm/s'
   character(len=10), protected :: io_time_label = 's'
@@ -23,6 +26,9 @@ module mod_units
   character(len=10), protected :: io_density_label = 'g/cc'
   character(len=10), protected :: io_volume_label = 'cc'
   character(len=10), protected :: io_temperature_label = 'K'
+  character(len=10), protected :: io_energy_label = 'erg'
+  character(len=10), protected :: io_force_label = 'dyne'
+  character(len=10), protected :: io_power_label = 'dyne/s'
 
   ! Time conversion
   real(rk), parameter :: pico_seconds = 1e12_rk !< sec to ps conversion
@@ -36,10 +42,18 @@ module mod_units
   real(rk), parameter :: microns = 1e4_rk !< cm to microns conversion
 
   ! Pressure
-  real(rk), parameter :: megabar = 1e-12_rk !< barye to megabar conversion
+  real(rk), parameter :: mega_bar = 1e-12_rk !< barye to Megabar conversion
+  real(rk), parameter :: atm = 9.86923e-7_rk !< barye to atm conversion
+  real(rk), parameter :: giga_pascal = 1e-10_rk !< barye to GPa conversion
 
   ! Temperature
   real(rk), parameter :: kelvin_to_electron_volt = 1.160451812e4_rk
+
+  ! Energy
+  real(rk), parameter :: joule = 1e-7_rk ! erg to joules
+
+  ! Power
+  real(rk), parameter :: watt = 1e-10_rk ! erg/s to watts
 
   character(len=3), protected :: unit_system
   ! ICF: length = microns, mass = g, time = ns, pressure = Mbar
@@ -80,7 +94,7 @@ contains
       io_time_label = 'ns'
       io_length_units = microns
       io_length_label = 'um'
-      io_pressure_units = megabar
+      io_pressure_units = mega_bar
       io_pressure_label = 'Mbar'
       io_mass_units = 1.0_rk
       io_mass_label = 'g'

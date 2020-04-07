@@ -4,6 +4,7 @@ module mod_energy_source
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
 
   use mod_globals, only: debug_print
+  use mod_units
   use math_constants, only: universal_gas_const
   use mod_source, only: source_t
   use mod_input, only: input_t
@@ -19,6 +20,7 @@ module mod_energy_source
   contains
     procedure :: apply_source => apply_energy_source
     procedure :: copy => copy_energy_source
+    final :: finalize
   end type
 
 contains
@@ -50,7 +52,14 @@ contains
     energy_source%jlo = input%source_jlo
     energy_source%jhi = input%source_jhi
 
+    open(newunit=energy_source%io_unit, file='input_source_value.dat')
+    write(energy_source%io_unit, '(a)') 'Time [sec] Energy [erg]'
   end function
+
+  subroutine finalize(self)
+    type(energy_source_t), intent(inout) :: self
+    close(self%io_unit)
+  end subroutine
 
   subroutine copy_energy_source(out_source, in_source)
     class(source_t), intent(in) :: in_source
@@ -76,9 +85,10 @@ contains
     real(rk), intent(in) :: time
 
     integer(ik) :: interp_stat
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo, ihi, jlo, jhi, i, j, i_max
     integer(ik), dimension(4) :: index_ranges
     real(rk) :: input_energy
+    ! real(rk), dimension(:), allocatable :: new_energy_i
     real(rk), dimension(:, :), allocatable :: new_energy
 
     call self%set_time(time)
@@ -91,12 +101,39 @@ contains
       jlo = index_ranges(3)
       jhi = index_ranges(4)
 
-      allocate(new_energy(ilo:ihi, jlo:jhi))
       ! Get the energy from the conserved variable array (convert from rho E to E)
+      allocate(new_energy(ilo:ihi, jlo:jhi))
       new_energy = conserved_vars(4, ilo:ihi, jlo:jhi) / conserved_vars(1, ilo:ihi, jlo:jhi)
-      new_energy = new_energy + (input_energy * self%scale_factor)
+      new_energy = new_energy + input_energy
       conserved_vars(4, ilo:ihi, jlo:jhi) = new_energy * conserved_vars(1, ilo:ihi, jlo:jhi)
-      deallocate(new_energy)
+
+      ! Apply near peak density (backside of the shell)
+      ! if (time > 5e-12_rk) then
+      !   allocate(new_energy_i(3))
+      !   new_energy_i = 0.0_rk
+      !     do j = lbound(conserved_vars, dim=3), ubound(conserved_vars, dim=3)
+
+      !       ! print*, 'maxloc(conserved_vars(1,:,j),dim=1)', maxloc(conserved_vars(1,:,j),dim=1)
+      !       i_max = min(maxloc(conserved_vars(1,:,j),dim=1), ilo) + 2
+      !       ! i_max = maxloc(conserved_vars(1,:,j),dim=1)
+      !       ! print*, 'i_max', i_max, 'ilo', ilo
+
+      !       associate(i_low => i_max, i_high => i_max + 2)
+      !         new_energy_i = conserved_vars(4, i_low:i_high, j) / conserved_vars(1, i_low:i_high, j)
+      !         new_energy_i = new_energy_i + input_energy
+      !         conserved_vars(4, i_low:i_high, j) = new_energy_i * conserved_vars(1, i_low:i_high, j)
+      !       end associate
+      !     end do
+      ! else ! time = 0
+      !   allocate(new_energy(ilo:ihi, jlo:jhi))
+      !   new_energy = conserved_vars(4, ilo:ihi, jlo:jhi) / conserved_vars(1, ilo:ihi, jlo:jhi)
+      !   new_energy = new_energy + input_energy
+      !   conserved_vars(4, ilo:ihi, jlo:jhi) = new_energy * conserved_vars(1, ilo:ihi, jlo:jhi)
+      ! end if
+
+      ! error stop
+      ! if(allocated(new_energy_i)) deallocate(new_energy_i)
+      if(allocated(new_energy)) deallocate(new_energy)
     end if
 
   end subroutine apply_energy_source

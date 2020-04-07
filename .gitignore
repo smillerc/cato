@@ -47,6 +47,10 @@ tests/**/cato.x
 tests/**/*.txt
 tests/**/*.error
 tests/**/*.ipynb
+tests/**/*/timing.csv
+tests/integrated/**/input_source_value.dat
+tests/integrated/**/boundary_pressure_input_value.dat
+
 *.h5
 *.xdmf
 

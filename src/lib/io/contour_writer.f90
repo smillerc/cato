@@ -90,15 +90,15 @@ contains
     self%hdf5_filename = trim(char_buff)//'.h5'
     self%xdmf_filename = trim(char_buff)//'.xdmf'
 
-    self%ilo_cell = fv_scheme%grid%ilo_cell
-    self%ihi_cell = fv_scheme%grid%ihi_cell
-    self%jlo_cell = fv_scheme%grid%jlo_cell
-    self%jhi_cell = fv_scheme%grid%jhi_cell
+    self%ilo_cell = fv_scheme%grid%ilo_bc_cell
+    self%ihi_cell = fv_scheme%grid%ihi_bc_cell
+    self%jlo_cell = fv_scheme%grid%jlo_bc_cell
+    self%jhi_cell = fv_scheme%grid%jhi_bc_cell
 
-    self%ilo_node = fv_scheme%grid%ilo_node
-    self%ihi_node = fv_scheme%grid%ihi_node
-    self%jlo_node = fv_scheme%grid%jlo_node
-    self%jhi_node = fv_scheme%grid%jhi_node
+    self%ilo_node = fv_scheme%grid%ilo_bc_node
+    self%ihi_node = fv_scheme%grid%ihi_bc_node
+    self%jlo_node = fv_scheme%grid%jlo_bc_node
+    self%jhi_node = fv_scheme%grid%jhi_bc_node
 
     write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
@@ -122,16 +122,19 @@ contains
     real(rk), intent(in) :: time
     character(32) :: dataset_name
 
+    integer(ik) :: ilo, ihi, jlo, jhi
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
-    real(rk), dimension(:, :), allocatable :: sound_speed
+    real(rk), dimension(:, :), allocatable :: io_data_buffer
+    integer(ik), dimension(:, :), allocatable :: ghost_cell
 
     allocate(primitive_vars, mold=fluid%conserved_vars)
-    call fluid%get_primitive_vars(primitive_vars)
+    call fluid%get_primitive_vars(primitive_vars, lbounds=lbound(fluid%conserved_vars))
 
     call self%hdf5_file%initialize(filename=self%hdf5_filename, &
                                    status='new', action='w', comp_lvl=6)
 
     ! Header info
+    call self%hdf5_file%add('/')
     call self%hdf5_file%add('/title', fv_scheme%title)
 
     call self%hdf5_file%add('/iteration', iteration)
@@ -148,7 +151,7 @@ contains
 
     ! Version info
     if(.not. globals_set) call set_global_options()
-    call self%hdf5_file%add('/')
+
     call self%hdf5_file%writeattr('/', 'compiler_flags', compiler_flags_str)
     call self%hdf5_file%writeattr('/', 'compiler_version', compiler_version_str)
     call self%hdf5_file%writeattr('/', 'git_hast', git_hash)
@@ -159,52 +162,111 @@ contains
     call self%hdf5_file%writeattr('/', 'compile_os', compile_os)
     call self%hdf5_file%writeattr('/', 'build_type', build_type)
 
-    ! Grid
+    ! Node Data
+    ilo = self%ilo_node
+    ihi = self%ihi_node
+    jlo = self%jlo_node
+    jhi = self%jhi_node
+    allocate(io_data_buffer(ilo:ihi, jlo:jhi))
+
     dataset_name = '/x'
-    call self%hdf5_file%add(trim(dataset_name), fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node) * io_length_units)
+    io_data_buffer = fv_scheme%grid%node_x(ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_length_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'X Coordinate')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
     dataset_name = '/y'
-    call self%hdf5_file%add(trim(dataset_name), fv_scheme%grid%node_y(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node) * io_length_units)
+    io_data_buffer = fv_scheme%grid%node_y(ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_length_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Y Coordinate')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
+    deallocate(io_data_buffer)
+
+    ! Cell Data
+    ilo = self%ilo_cell
+    ihi = self%ihi_cell
+    jlo = self%jlo_cell
+    jhi = self%jhi_cell
+    allocate(io_data_buffer(ilo:ihi, jlo:jhi))
+    allocate(ghost_cell(ilo:ihi, jlo:jhi))
+
+    ! Write a simple flag to tag ghost cells
+    dataset_name = '/ghost_cell'
+    ghost_cell = 0
+    associate(ilo_g=>fv_scheme%grid%ilo_bc_cell, &
+              ihi_g=>fv_scheme%grid%ihi_bc_cell, &
+              jlo_g=>fv_scheme%grid%jlo_bc_cell, &
+              jhi_g=>fv_scheme%grid%jhi_bc_cell)
+
+      ghost_cell(ilo_g, :) = 1
+      ghost_cell(ihi_g, :) = 1
+      ghost_cell(:, jlo_g) = 1
+      ghost_cell(:, jhi_g) = 1
+    end associate
+    call self%hdf5_file%add(trim(dataset_name), ghost_cell)
+    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Ghost Cell [0=no, 1=yes]')
+    call self%hdf5_file%writeattr(trim(dataset_name), 'units', 'dimensionless')
+    deallocate(ghost_cell)
+
     ! Primitive Variables
     dataset_name = '/density'
-    call self%hdf5_file%add(trim(dataset_name), primitive_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_density_units)
+    io_data_buffer = primitive_vars(1, ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_density_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    call self%hdf5_file%add(trim(dataset_name), primitive_vars(2, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
+    io_data_buffer = primitive_vars(2, ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_velocity_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    call self%hdf5_file%add(trim(dataset_name), primitive_vars(3, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
+    io_data_buffer = primitive_vars(3, ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_velocity_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    call self%hdf5_file%add(trim(dataset_name), primitive_vars(4, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_pressure_units)
+    io_data_buffer = primitive_vars(4, ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_pressure_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
+    dataset_name = '/total_energy'
+    associate(rhoE=>fluid%conserved_vars(4, ilo:ihi, jlo:jhi), &
+              rho=>fluid%conserved_vars(1, ilo:ihi, jlo:jhi))
+      io_data_buffer = rhoE / rho
+    end associate
+    io_data_buffer = io_data_buffer * io_pressure_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Total Energy')
+    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_energy_label))
+
     dataset_name = '/sound_speed'
-    call fluid%get_sound_speed(sound_speed)
-    call self%hdf5_file%add(trim(dataset_name), sound_speed(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
+    call fluid%get_sound_speed(io_data_buffer)
+    io_data_buffer = io_data_buffer * io_velocity_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     ! Volume
     dataset_name = '/volume'
-    call self%hdf5_file%add(trim(dataset_name), fv_scheme%grid%cell_volume(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell) * io_velocity_units)
+    io_data_buffer = fv_scheme%grid%cell_volume(ilo:ihi, jlo:jhi)
+    io_data_buffer = io_data_buffer * io_volume_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     deallocate(primitive_vars)
-    deallocate(sound_speed)
+    deallocate(io_data_buffer)
     call self%hdf5_file%finalize()
   end subroutine
 
@@ -253,24 +315,19 @@ contains
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/sound_speed</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    ! unit_label = "[" // trim(io_velocity_label) // "]"
-    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="X Velocity ' // trim(unit_label) //'">'
-    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-    !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/x_velocity</DataItem>'
-    ! write(xdmf_unit, '(a)') '      </Attribute>'
-
-    ! unit_label = "[" // trim(io_velocity_label) // "]"
-    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Y Velocity ' // trim(unit_label) //'">'
-    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-    !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/y_velocity</DataItem>'
-    ! write(xdmf_unit, '(a)') '      </Attribute>'
-
     unit_label = "["//trim(io_pressure_label)//"]"
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Pressure '//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/pressure</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
+    unit_label = "["//trim(io_energy_label)//"]"
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Total Energy '//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    ! Velocity
     unit_label = "["//trim(io_velocity_label)//"]"
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Vector" Center="Cell" Name="Velocity '// &
       trim(unit_label)//'" Dimensions="'//cell_shape//' 2">'
@@ -282,10 +339,29 @@ contains
     write(xdmf_unit, '(a)') '        </DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
+    ! Mach Number
+    unit_label = ""
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Vector" Center="Cell" Name="Mach" Dimensions="'//cell_shape//' 2">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape//' 2" ItemType="Function" Function="JOIN(ABS($0/$2), ABS($1/$2))">'
+    write(xdmf_unit, '(a)') '          <DataItem DataType="Float" Dimensions="'//cell_shape// &
+      '" Format="HDF" Precision="4">'//self%hdf5_filename//':/x_velocity</DataItem>'
+    write(xdmf_unit, '(a)') '          <DataItem DataType="Float" Dimensions="'//cell_shape// &
+      '" Format="HDF" Precision="4">'//self%hdf5_filename//':/y_velocity</DataItem>'
+    write(xdmf_unit, '(a)') '          <DataItem DataType="Float" Dimensions="'//cell_shape// &
+      '" Format="HDF" Precision="4">'//self%hdf5_filename//':/sound_speed</DataItem>'
+    write(xdmf_unit, '(a)') '        </DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
     unit_label = "["//trim(io_volume_label)//"]"
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Volume '//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/volume</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    unit_label = ""
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Ghost Cell '//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Integer" Precision="4">'//self%hdf5_filename//':/ghost_cell</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '    </Grid>'

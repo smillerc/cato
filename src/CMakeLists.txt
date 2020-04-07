@@ -1,5 +1,5 @@
-add_library(globals lib/hermetic.f90 lib/units.f90 lib/globals.f90 lib/math_constants.f90
-                    lib/floating_point_utilities.f90 lib/mod_timing.f90)
+add_library(globals lib/hermetic.f90 lib/units.f90 lib/globals.f90
+                    lib/math_constants.f90 lib/floating_point_utilities.f90)
 
 add_library(parallel lib/mod_parallel.f90)
 target_link_libraries(parallel PRIVATE ${Coarray_LIBRARIES})
