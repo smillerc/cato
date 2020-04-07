@@ -2,10 +2,13 @@ module mod_timing
   !< Define the type used for timing
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64
+  use mod_finite_volume_schemes, only: finite_volume_scheme_t
+  use mod_fluid, only: fluid_t
+
   implicit none
 
   private
-  public :: timer_t
+  public :: timer_t, get_timestep
 
   type :: timer_t
     private
@@ -86,5 +89,35 @@ contains
     write(*, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
     write(*, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
   end subroutine
+
+  real(rk) function get_timestep(cfl, fv, fluid) result(delta_t)
+    real(rk), intent(in) :: cfl
+    class(finite_volume_scheme_t), intent(in) :: fv
+    class(fluid_t), intent(in) :: fluid
+    real(rk), dimension(:, :), allocatable :: u, v
+    real(rk), dimension(:, :), allocatable :: sound_speed
+
+    allocate(u(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
+    u = 0.0_rk
+    allocate(v(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
+    v = 0.0_rk
+    allocate(sound_speed(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
+    sound_speed = 0.0_rk
+
+    call fluid%get_sound_speed(sound_speed)
+    u = abs(fluid%conserved_vars(2, :, :)) / fluid%conserved_vars(1, :, :)
+    v = abs(fluid%conserved_vars(3, :, :)) / fluid%conserved_vars(1, :, :)
+
+    associate(dx=>fv%grid%cell_size(1, :, :), &
+              dy=>fv%grid%cell_size(2, :, :), &
+              cs=>sound_speed)
+
+      delta_t = minval(cfl * ((dx / (u + cs)) + (dy / (v + cs))))
+    end associate
+
+    deallocate(u)
+    deallocate(v)
+    deallocate(sound_speed)
+  end function
 
 end module mod_timing

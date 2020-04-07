@@ -1,5 +1,5 @@
-add_library(globals lib/hermetic.f90 lib/units.f90 lib/globals.f90 lib/math_constants.f90
-                    lib/floating_point_utilities.f90 lib/mod_timing.f90)
+add_library(globals lib/hermetic.f90 lib/units.f90 lib/globals.f90
+                    lib/math_constants.f90 lib/floating_point_utilities.f90)
 
 add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
                        third_party/ini_parser/string_conv_mod.f90)
@@ -40,6 +40,7 @@ target_link_libraries(geometry PUBLIC globals io eos)
 
 add_library(
   cato
+  lib/mod_timing.f90
   lib/finite_volume_scheme/mod_fluid.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90

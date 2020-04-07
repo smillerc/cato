@@ -5,7 +5,7 @@ program cato
   use mod_globals, only: print_version_stats
   use mod_units, only: set_output_unit_system, io_time_label, io_time_units
   use mod_input, only: input_t
-  use mod_timing, only: timer_t
+  use mod_timing, only: timer_t, get_timestep
   use mod_finite_volume_schemes, only: finite_volume_scheme_t, make_fv_scheme
   use mod_fluid, only: fluid_t, new_fluid
   use mod_integrand, only: integrand_t
@@ -26,9 +26,11 @@ program cato
   real(rk) :: time = 0.0_rk
   real(rk) :: delta_t = 0.0_rk
   real(rk) :: max_cs = 0.0_rk
+  real(rk) :: min_dx = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
   logical :: file_exists = .false.
+  ! real(rk), dimension(:,:), allocatable :: sound_speed
 
   print *, 'std_error', std_error
   open(std_error, file='cato.error')
@@ -76,11 +78,10 @@ program cato
   print *
 
   call timer%start()
-
+  delta_t = 0.1_rk * get_timestep(cfl=input%cfl, fv=fv, fluid=U)
+  ! delta_t = 1e-15_rk
   do while(time < input%max_time .and. iteration < input%max_iterations)
 
-    max_cs = U%get_max_sound_speed()
-    delta_t = min(fv%grid%min_dx, fv%grid%min_dx) * input%cfl / max_cs
     write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units, &
       ' '//trim(io_time_label)//', Delta t =', delta_t, ' s'
 
@@ -108,11 +109,13 @@ program cato
       call contour_writer%write_contour(U, fv, time, iteration)
     end if
 
+    delta_t = get_timestep(cfl=input%cfl, fv=fv, fluid=U)
   end do
 
   call timer%stop()
   deallocate(fv)
   deallocate(U)
+  ! deallocate(sound_speed)
 
   call timer%output_stats()
   close(std_error)

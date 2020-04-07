@@ -121,6 +121,10 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volume"
       self%cell_volume = 0.0_rk
 
+      allocate(self%cell_size(2, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_size"
+      self%cell_size = 0.0_rk
+
       allocate(self%cell_centroid_xy(2, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroid_xy"
       self%cell_centroid_xy = 0.0_rk
@@ -437,6 +441,7 @@ contains
         self%cell_edge_lengths(:, i, j) = quad%edge_lengths
         self%cell_node_xy(:, :, :, i, j) = quad%get_cell_node_xy_set()
         self%cell_edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
+        self%cell_size(:, i, j) = [quad%min_dx, quad%min_dy]
 
       end do
     end do

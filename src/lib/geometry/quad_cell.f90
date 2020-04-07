@@ -26,6 +26,8 @@ module mod_quad_cell
   type quad_cell_t
     real(rk), dimension(4) :: x = 0.0_rk  !< vertex x coords
     real(rk), dimension(4) :: y = 0.0_rk  !< vertex y coords
+    real(rk), dimension(4) :: min_dx = 0.0_rk  !< minimum edge length in x
+    real(rk), dimension(4) :: min_dy = 0.0_rk  !< minimum edge length in x
     real(rk), dimension(2) :: centroid = [0.0_rk, 0.0_rk]  !< centroid x,y coords
     real(rk) :: volume = 0.0_rk !< volume, aka area in 2d
 
@@ -73,6 +75,13 @@ contains
       self%edge_midpoints(:, 2) = [0.5 * (x(3) + x(2)), 0.5 * (y(3) + y(2))]
       self%edge_midpoints(:, 3) = [0.5 * (x(4) + x(3)), 0.5 * (y(4) + y(3))]
       self%edge_midpoints(:, 4) = [0.5 * (x(1) + x(4)), 0.5 * (y(1) + y(4))]
+
+      self%min_dx = min(abs(x(2) - x(1)), &
+                        abs(x(3) - x(4)))
+
+      self%min_dy = min(abs(y(4) - y(1)), &
+                        abs(y(3) - y(2)))
+
     end associate
 
   end subroutine

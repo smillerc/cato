@@ -53,6 +53,7 @@ module mod_grid
     ! once at the beginning of the simulation or on demand
 
     real(rk), dimension(:, :), allocatable :: cell_volume !< (i,j); volume of each cell
+    real(rk), dimension(:, :, :), allocatable :: cell_size !< ((dx,dy), i, j); dx, dy spacing of each cell
 
     !  Numbering convention for a 2D quadrilateral cell
     !
