@@ -158,9 +158,10 @@ contains
 
     source_value = source_value * self%scale_factor
 
-    if(source_value > 0.0_rk) write(*, '(a, es10.3)') 'Applying source term of: ', source_value
-
-    write(self%io_unit, '(2(es14.5, 1x))') t * io_time_units, source_value
+    if(source_value > 0.0_rk) then
+      write(*, '(a, es10.3)') 'Applying source term of: ', source_value
+      write(self%io_unit, '(2(es14.5, 1x))') t, source_value
+    end if
 
   end function get_desired_source_value
 

@@ -53,7 +53,7 @@ contains
     energy_source%jhi = input%source_jhi
 
     open(newunit=energy_source%io_unit, file='input_source_value.dat')
-    write(energy_source%io_unit, '(a)') 'Time Energy'
+    write(energy_source%io_unit, '(a)') 'Time [sec] Energy [erg]'
   end function
 
   subroutine finalize(self)

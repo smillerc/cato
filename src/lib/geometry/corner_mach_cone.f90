@@ -120,14 +120,14 @@ contains
     cone%edge_vectors = edge_vectors
 
     if(any(reconstructed_state(1, :) < 0.0_rk)) then
-      write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed density states (cell 1:4)', reconstructed_state(1, :)
+      write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed density states [' // trim(cone%cone_location) //'] (cell 1:4)', reconstructed_state(1, :)
       write(std_err, '(a, 4("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
       error stop "Error in corner_mach_cone_t initialization, density in the reconstructed state is < 0"
 
     end if
 
     if(any(reconstructed_state(4, :) < 0.0_rk)) then
-      write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed pressure states (cell 1:4): ', reconstructed_state(4, :)
+      write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed pressure states [' // trim(cone%cone_location) //'] (cell 1:4): ', reconstructed_state(4, :)
       write(std_err, '(a, 4("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
       error stop "Error in corner_mach_cone_t initialization, pressure in the reconstructed state is < 0"
     end if

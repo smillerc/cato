@@ -279,6 +279,12 @@ contains
     ! First put primitive vars in ghost layers
     call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
 
+    ! print*, '+x'
+    ! write(*, "(a, 12(es10.3, 1x))") 'fluid rho ', primitive_vars(1,fv%grid%ihi_bc_cell, :)
+    ! write(*, "(a, 12(es10.3, 1x))") 'fluid u   ', primitive_vars(2,fv%grid%ihi_bc_cell, :)
+    ! write(*, "(a, 12(es10.3, 1x))") 'fluid v   ', primitive_vars(3,fv%grid%ihi_bc_cell, :)
+    ! write(*, "(a, 12(es10.3, 1x))") 'fluid p   ', primitive_vars(4,fv%grid%ihi_bc_cell, :)
+
     ! Now we can reconstruct the entire domain
     call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
                                                                lbounds=lbound(primitive_vars))
@@ -315,7 +321,6 @@ contains
                                                           error_code=error_code)
     if(error_code /= 0) then
       fv%error_code = error_code
-      ! error stop 'Error code!'
     end if
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
@@ -327,12 +332,6 @@ contains
       fv%error_code = error_code
     end if
 
-    ! call print_evolved_cell_data('rho', 601, 1, evolved_corner_state, &
-    !                              evolved_downup_midpoints_state, evolved_leftright_midpoints_state, primitive_vars)
-    ! call print_evolved_cell_data('p', 601, 1, evolved_corner_state, &
-    !                              evolved_downup_midpoints_state, evolved_leftright_midpoints_state, primitive_vars)
-
-    ! error stop
     nullify(fv%reconstruction_operator%primitive_vars)
     nullify(fv%evolution_operator%reconstructed_state)
 
