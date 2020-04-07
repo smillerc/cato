@@ -66,3 +66,4 @@ scripts/reconstruction_testing.ipynb
 # Ignore Intel advisor results
 tests/integrated/*/advi
 tests/integrated/*/out
+tests/integrated/*/timing.csv
