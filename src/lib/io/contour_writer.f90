@@ -24,6 +24,7 @@ module mod_contour_writer
     character(len=:), allocatable :: format !< xdmf or just plain hdf5
     character(len=:), allocatable :: hdf5_filename
     character(len=:), allocatable :: xdmf_filename
+    character(len=:), allocatable :: results_folder
     logical, private :: plot_64bit = .false.
     logical, private :: plot_ghost_cells = .false.
     logical, private :: plot_reconstruction_states = .false.
@@ -50,6 +51,29 @@ contains
 
   type(contour_writer_t) function constructor(input) result(writer)
     class(input_t), intent(in) :: input
+
+    integer(ik) :: dt(8)
+    character(len=32) :: str_buff = ''
+    integer(ik) :: cstat, estat
+    character(100) :: cmsg
+
+    call date_and_time(values=dt)
+
+    ! make the results folder look like: 'results_2019_08_12-21_50' -> results_YYYY_MM_DD-HH_mm
+    write(str_buff, '(a, i4, 5(a, i2.2))') &
+      'results_', dt(1), '_', dt(2), '_', dt(3), '-', dt(5), '_', dt(6)
+
+    writer%results_folder = trim(str_buff)
+    call execute_command_line('mkdir -p '//writer%results_folder, exitstat=estat, cmdstat=cstat, cmdmsg=cmsg)
+    if(cstat > 0) then
+      write(*, '(a)') "Unable to make results folder: "//trim(cmsg)
+      error stop
+    else if(cstat < 0) then
+      write(*, '(a)') "Unable to make results folder"
+      error stop "Unable to make results folder"
+    end if
+
+    write(*, '(a)') "Setting the results folder to: '"//writer%results_folder//"'"
 
     writer%format = input%contour_io_format
 
@@ -122,15 +146,15 @@ contains
     real(rk), intent(in) :: time
     character(32) :: dataset_name
 
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
     real(rk), dimension(:, :), allocatable :: io_data_buffer
-    integer(ik), dimension(:, :), allocatable :: ghost_cell
+    integer(ik), dimension(:, :), allocatable :: int_data_buffer
 
     allocate(primitive_vars, mold=fluid%conserved_vars)
     call fluid%get_primitive_vars(primitive_vars, lbounds=lbound(fluid%conserved_vars))
 
-    call self%hdf5_file%initialize(filename=self%hdf5_filename, &
+    call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
                                    status='new', action='w', comp_lvl=6)
 
     ! Header info
@@ -191,25 +215,48 @@ contains
     jlo = self%jlo_cell
     jhi = self%jhi_cell
     allocate(io_data_buffer(ilo:ihi, jlo:jhi))
-    allocate(ghost_cell(ilo:ihi, jlo:jhi))
+    allocate(int_data_buffer(ilo:ihi, jlo:jhi))
 
     ! Write a simple flag to tag ghost cells
     dataset_name = '/ghost_cell'
-    ghost_cell = 0
+    int_data_buffer = 0
     associate(ilo_g=>fv_scheme%grid%ilo_bc_cell, &
               ihi_g=>fv_scheme%grid%ihi_bc_cell, &
               jlo_g=>fv_scheme%grid%jlo_bc_cell, &
               jhi_g=>fv_scheme%grid%jhi_bc_cell)
 
-      ghost_cell(ilo_g, :) = 1
-      ghost_cell(ihi_g, :) = 1
-      ghost_cell(:, jlo_g) = 1
-      ghost_cell(:, jhi_g) = 1
+      int_data_buffer(ilo_g, :) = 1
+      int_data_buffer(ihi_g, :) = 1
+      int_data_buffer(:, jlo_g) = 1
+      int_data_buffer(:, jhi_g) = 1
     end associate
-    call self%hdf5_file%add(trim(dataset_name), ghost_cell)
+    call self%hdf5_file%add(trim(dataset_name), int_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Ghost Cell [0=no, 1=yes]')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', 'dimensionless')
-    deallocate(ghost_cell)
+
+    ! Indexing
+    dataset_name = '/i'
+    io_data_buffer = 0
+    do i = jlo, ihi
+      io_data_buffer(i, :) = i
+    end do
+
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell i Index')
+    call self%hdf5_file%writeattr(trim(dataset_name), 'units', 'dimensionless')
+
+    dataset_name = '/j'
+    io_data_buffer = 0
+    do j = jlo, jhi
+      io_data_buffer(:, j) = j
+    end do
+
+    io_data_buffer = io_data_buffer * io_density_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell j Index')
+    call self%hdf5_file%writeattr(trim(dataset_name), 'units', 'dimensionless')
+
+    deallocate(int_data_buffer)
 
     ! Primitive Variables
     dataset_name = '/density'
@@ -281,7 +328,7 @@ contains
     character(10) :: unit_label = ''
     character(:), allocatable :: cell_shape, node_shape
 
-    open(newunit=xdmf_unit, file=self%xdmf_filename, status='replace')
+    open(newunit=xdmf_unit, file=self%results_folder//'/'//self%xdmf_filename, status='replace')
 
     write(char_buff, '(2(i0,1x))') .reverse.shape(fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     cell_shape = trim(char_buff)
@@ -362,6 +409,18 @@ contains
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Ghost Cell '//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Integer" Precision="4">'//self%hdf5_filename//':/ghost_cell</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    unit_label = ""
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i'//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Integer" Precision="4">'//self%hdf5_filename//':/i</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    unit_label = ""
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="j'//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Integer" Precision="4">'//self%hdf5_filename//':/j</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '    </Grid>'
