@@ -272,16 +272,18 @@ contains
     call h5%get('/x', x)
     call h5%get('/y', y)
 
-    call h5%readattr('/x', 'units', str_buff)
-    select case(trim(str_buff))
-    case('um')
-      x = x * um_to_cm
-      y = y * um_to_cm
-    case('cm')
-      ! Do nothing, since cm is what the code works in
-    case default
-      error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
-    end select
+    if(input%restart_from_file) then
+      call h5%readattr('/x', 'units', str_buff)
+      select case(trim(str_buff))
+      case('um')
+        x = x * um_to_cm
+        y = y * um_to_cm
+      case('cm')
+        ! Do nothing, since cm is what the code works in
+      case default
+        error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
+      end select
+    end if
 
     call h5%finalize()
 
