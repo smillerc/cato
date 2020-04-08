@@ -73,8 +73,6 @@ contains
       error stop "Unable to make results folder"
     end if
 
-    write(*, '(a)') "Setting the results folder to: '"//writer%results_folder//"'"
-
     writer%format = input%contour_io_format
 
     ! Turn on debug plotting?
@@ -84,13 +82,14 @@ contains
     writer%plot_ghost_cells = input%plot_ghost_cells
     writer%plot_64bit = input%plot_64bit
 
-    write(*, '(a)') "Contour Writer Inputs"
-    write(*, '(a)') "====================="
-    write(*, '(a, l1)') 'plot_reconstruction_states: ', writer%plot_reconstruction_states
-    write(*, '(a, l1)') 'plot_reference_states: ', writer%plot_reference_states
-    write(*, '(a, l1)') 'plot_evolved_states: ', writer%plot_evolved_states
-    write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
-    write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
+    write(*, '(a)') "Contour Writer Info"
+    write(*, '(a)') "==================="
+    write(*, '(a, a)') 'Output folder: ', writer%results_folder
+    ! write(*, '(a, l1)') 'plot_reconstruction_states: ', writer%plot_reconstruction_states
+    ! write(*, '(a, l1)') 'plot_reference_states: ', writer%plot_reference_states
+    ! write(*, '(a, l1)') 'plot_evolved_states: ', writer%plot_evolved_states
+    ! write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
+    ! write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
     write(*, *)
 
   end function
@@ -158,7 +157,7 @@ contains
                                    status='new', action='w', comp_lvl=6)
 
     ! Header info
-    call self%hdf5_file%add('/')
+
     call self%hdf5_file%add('/title', fv_scheme%title)
 
     call self%hdf5_file%add('/iteration', iteration)
@@ -176,15 +175,16 @@ contains
     ! Version info
     if(.not. globals_set) call set_global_options()
 
-    call self%hdf5_file%writeattr('/', 'compiler_flags', compiler_flags_str)
-    call self%hdf5_file%writeattr('/', 'compiler_version', compiler_version_str)
-    call self%hdf5_file%writeattr('/', 'git_hast', git_hash)
-    call self%hdf5_file%writeattr('/', 'git_ref', git_ref)
-    call self%hdf5_file%writeattr('/', 'git_changes', git_local_changes)
-    call self%hdf5_file%writeattr('/', 'version', cato_version)
-    call self%hdf5_file%writeattr('/', 'compile_hostname', compile_host)
-    call self%hdf5_file%writeattr('/', 'compile_os', compile_os)
-    call self%hdf5_file%writeattr('/', 'build_type', build_type)
+    call self%hdf5_file%add('/cato_info', 'CATO info')
+    call self%hdf5_file%writeattr('/cato_info', 'compiler_flags', compiler_flags_str)
+    call self%hdf5_file%writeattr('/cato_info', 'compiler_version', compiler_version_str)
+    call self%hdf5_file%writeattr('/cato_info', 'git_hast', git_hash)
+    call self%hdf5_file%writeattr('/cato_info', 'git_ref', git_ref)
+    call self%hdf5_file%writeattr('/cato_info', 'git_changes', git_local_changes)
+    call self%hdf5_file%writeattr('/cato_info', 'version', cato_version)
+    call self%hdf5_file%writeattr('/cato_info', 'compile_hostname', compile_host)
+    call self%hdf5_file%writeattr('/cato_info', 'compile_os', compile_os)
+    call self%hdf5_file%writeattr('/cato_info', 'build_type', build_type)
 
     ! Node Data
     ilo = self%ilo_node

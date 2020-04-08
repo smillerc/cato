@@ -57,7 +57,7 @@ module hdf5_interface
   contains
     !! initialize HDF5 file
     procedure, public :: initialize => hdf_initialize, &
-      finalize => hdf_finalize, writeattr, &
+      finalize => hdf_finalize, writeattr, readattr, &
       open => hdf_open_group, &
       close => hdf_close_group
 
@@ -350,6 +350,43 @@ contains
     end if
 
   end subroutine writeattr
+
+  subroutine readattr(self, dname, attr, attrval)
+    class(hdf5_file), intent(in) :: self
+    character(*), intent(in) :: dname
+    character(*), intent(in) :: attr
+    character(*), intent(out) :: attrval
+
+    integer :: ierr, i
+    logical :: exists
+
+    call self%add(dname)
+
+    call h5ltpath_valid_f(self%lid, dname, .true., exists, ierr)
+    if(ierr /= 0) then
+      print *, 'problem checking existence: '//dname//' file '//self%filename
+      error stop
+    end if
+
+    if(.not. exists) then
+      write(stderr, *) 'WARNING: variable '//dname//' must be created before writing '//attr
+      return
+    endif
+
+    call h5ltget_attribute_string_f(self%lid, dname, attr, attrval, ierr)
+
+    if(ierr /= 0) then
+      print *, 'problem reading attribute '//attr//' from '//dname//' file '//self%filename
+      error stop
+    end if
+
+    ! gets rid of the ^@ character (null)
+    do i = 1, len(attrval)
+      if(attrval(i:i) == char(0)) attrval(i:i) = ' '
+    end do
+
+  end subroutine readattr
+
   !===================================
   subroutine hdf_add_int(self, dname, value)
     class(hdf5_file), intent(in) :: self
