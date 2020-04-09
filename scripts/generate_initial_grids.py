@@ -4,9 +4,7 @@ in the .h5 format
 """
 import numpy as np
 import h5py
-import pint
-
-ureg = pint.UnitRegistry()
+from .unit_registry import ureg
 
 
 def make_uniform_grid(n_cells, xrange, yrange):
@@ -43,26 +41,32 @@ def make_uniform_grid(n_cells, xrange, yrange):
     xc = np.zeros(x.shape[0] - 1, dtype=np.float64)
     yc = np.zeros(y.shape[0] - 1, dtype=np.float64)
 
-    xx, yy = np.meshgrid(x, y)
-    xxc, yyc = np.meshgrid(xc, yc)
+    # 2d versions
+    y_2d, x_2d = np.meshgrid(y, x)  # nodes
 
-    rho = np.ones_like(xxc, dtype=np.float64)
-    pressure = np.ones_like(xxc, dtype=np.float64)
-    u = np.ones_like(xxc, dtype=np.float64)
-    v = np.ones_like(xxc, dtype=np.float64)
+    # cell-centered arrays
+    # node_shape = (x_2d.shape[0], x_2d.shape[1])
+    cell_shape = (x_2d.shape[0] - 1, x_2d.shape[1] - 1)
+    rho = np.ones_like(cell_shape)
+    u = np.ones_like(cell_shape)
+    v = np.ones_like(cell_shape)
+    p = np.ones_like(cell_shape)
 
-    dy = (np.diff(yy[:, 0]) / 2.0)[0]
-    dx = (np.diff(xx[0, :]) / 2.0)[0]
-    xc = xx[:-1, :-1] + dx
-    yc = yy[:-1, :-1] + dy
+    # cell spacing
+    dy = (np.diff(y_2d[0, :]) / 2.0)[0]
+    dx = (np.diff(x_2d[:, 0]) / 2.0)[0]
+
+    # cell center locations
+    xc = x_2d[:-1, :-1] + dx
+    yc = y_2d[:-1, :-1] + dy
 
     return {
-        "x": xx * ureg("cm"),
-        "y": yy * ureg("cm"),
+        "x": x_2d * ureg("cm"),
+        "y": y_2d * ureg("cm"),
         "rho": rho * ureg("g/cc"),
         "u": u * ureg("cm/s"),
         "v": v * ureg("cm/s"),
-        "p": pressure * ureg("barye"),
+        "p": p * ureg("barye"),
         "xc": xc * ureg("cm"),
         "yc": yc * ureg("cm"),
     }
