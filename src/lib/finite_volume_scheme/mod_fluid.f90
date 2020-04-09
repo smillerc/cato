@@ -5,6 +5,7 @@ module mod_fluid
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
+  use mod_units
   use mod_parallel
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_strategy, only: strategy
@@ -136,6 +137,7 @@ contains
     type(hdf5_file) :: h5
     logical :: file_exists
     character(:), allocatable :: filename
+    character(32) :: str_buff = ''
 
     real(rk), dimension(:, :), allocatable :: density
     real(rk), dimension(:, :), allocatable :: x_velocity
@@ -161,9 +163,41 @@ contains
     call h5%initialize(filename=filename, status='old', action='r')
 
     call h5%get('/density', density)
+    if(input%restart_from_file) then
+      call h5%readattr('/density', 'units', str_buff)
+      select case(trim(str_buff))
+      case('g/cc')
+      case default
+        error stop "Unknown density units in .h5 file. Acceptable units are 'g/cc'."
+      end select
+    end if
+
     call h5%get('/x_velocity', x_velocity)
     call h5%get('/y_velocity', y_velocity)
+    if(input%restart_from_file) then
+      call h5%readattr('/x_velocity', 'units', str_buff)
+      select case(trim(str_buff))
+      case('km/s')
+        x_velocity = x_velocity * km_per_sec_to_cm_per_sec
+        y_velocity = y_velocity * km_per_sec_to_cm_per_sec
+      case('cm/s')
+      case default
+        error stop "Unknown velocity units in .h5 file. Acceptable units are 'km/s' and 'cm/s'."
+      end select
+    end if
+
     call h5%get('/pressure', pressure)
+    if(input%restart_from_file) then
+      call h5%readattr('/pressure', 'units', str_buff)
+      select case(trim(str_buff))
+      case('barye')
+      case('Mbar')
+        pressure = pressure * mega_bar_to_barye
+      case default
+        error stop "Unknown density units in .h5 file. Acceptable units are 'g/cc'."
+      end select
+    end if
+
     call h5%finalize()
 
     if(any(near_zero(pressure))) then

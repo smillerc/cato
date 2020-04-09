@@ -34,15 +34,22 @@ module mod_units
   real(rk), parameter :: pico_seconds = 1e12_rk !< sec to ps conversion
   real(rk), parameter :: nano_seconds = 1e9_rk !< sec to ps conversion
 
-  ! Vel
+  real(rk), parameter :: ns_to_s = 1e-9_rk !< ns to sec conversion
+
+  ! Velocity
   real(rk), parameter :: km_per_sec = 1e-5_rk !< cm/s to km/s conversion
   real(rk), parameter :: um_per_ns = 1e-5_rk !< cm/s to um/ns conversion
+  real(rk), parameter :: km_per_sec_to_cm_per_sec = 1e5_rk !< km/s to cm/s conversion
 
   ! Distance
   real(rk), parameter :: microns = 1e4_rk !< cm to microns conversion
+  real(rk), parameter :: cm_to_um = 1e4_rk !< cm to um conversion
+  real(rk), parameter :: um_to_cm = 1e-4_rk !< um to cm conversion
 
   ! Pressure
   real(rk), parameter :: mega_bar = 1e-12_rk !< barye to Megabar conversion
+  real(rk), parameter :: mega_bar_to_barye = 1e12_rk !< Mbar to barye convers8ihn
+
   real(rk), parameter :: atm = 9.86923e-7_rk !< barye to atm conversion
   real(rk), parameter :: giga_pascal = 1e-10_rk !< barye to GPa conversion
 

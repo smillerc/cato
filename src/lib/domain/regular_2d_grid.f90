@@ -1,6 +1,7 @@
 module mod_regular_2d_grid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_grid, only: grid_t
+  use mod_units
   use mod_quad_cell, only: quad_cell_t
   use mod_input, only: input_t
   use hdf5_interface, only: hdf5_file
@@ -248,6 +249,7 @@ contains
     integer(ik) :: alloc_status
     logical :: file_exists
     character(:), allocatable :: filename
+    character(32) :: str_buff = ''
 
     real(rk), dimension(:, :), allocatable :: x
     real(rk), dimension(:, :), allocatable :: y
@@ -269,6 +271,20 @@ contains
     call h5%initialize(filename=filename, status='old', action='r')
     call h5%get('/x', x)
     call h5%get('/y', y)
+
+    if(input%restart_from_file) then
+      call h5%readattr('/x', 'units', str_buff)
+      select case(trim(str_buff))
+      case('um')
+        x = x * um_to_cm
+        y = y * um_to_cm
+      case('cm')
+        ! Do nothing, since cm is what the code works in
+      case default
+        error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
+      end select
+    end if
+
     call h5%finalize()
 
     ! High node/cell indices

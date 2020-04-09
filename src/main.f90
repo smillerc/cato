@@ -66,6 +66,7 @@ program cato
 
   if(input%restart_from_file) then
     time = fv%time
+    next_output_time = time + input%contour_interval_dt
     iteration = fv%iteration
   else
     call contour_writer%write_contour(U, fv, time, iteration)
@@ -79,7 +80,12 @@ program cato
 
   call timer%start()
   delta_t = 0.1_rk * get_timestep(cfl=input%cfl, fv=fv, fluid=U)
-  ! delta_t = 1e-15_rk
+
+  if(input%restart_from_file) then
+    write(std_out, '(a, es10.3)') "Starting time:", time
+    write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
+  end if
+
   do while(time < input%max_time .and. iteration < input%max_iterations)
 
     write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units, &

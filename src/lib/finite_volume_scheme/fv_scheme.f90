@@ -3,6 +3,7 @@ module mod_finite_volume_schemes
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic, only: ieee_is_nan, ieee_is_finite
   use mod_globals, only: debug_print
+  use mod_units
   use mod_floating_point_utils, only: near_zero
   use mod_input, only: input_t
   use mod_reconstruction_factory, only: reconstruction_factory
@@ -109,6 +110,7 @@ contains
     class(abstract_evo_operator_t), pointer :: E0 => null()
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
+    character(32) :: str_buff
     alloc_status = 0
 
     call debug_print('Initializing finite_volume_scheme_t', __FILE__, __LINE__)
@@ -116,6 +118,17 @@ contains
     if(input%restart_from_file) then
       call h5%initialize(filename=trim(input%restart_file), status='old', action='r')
       call h5%get('/time', self%time)
+      call h5%get('/iteration', self%iteration)
+
+      call h5%readattr('/time', 'units', str_buff)
+      select case(trim(str_buff))
+      case('ns')
+        self%time = self%time * ns_to_s
+      case('s')
+        ! Do nothing, since seconds is what the code works in
+      case default
+        error stop "Unknown time units in .h5 file. Acceptable units are 'ns' or 's'."
+      end select
       call h5%finalize()
     end if
 
