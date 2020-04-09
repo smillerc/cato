@@ -59,14 +59,16 @@ contains
     writer%plot_ghost_cells = input%plot_ghost_cells
     writer%plot_64bit = input%plot_64bit
 
-    write(*, '(a)') "Contour Writer Inputs"
-    write(*, '(a)') "====================="
-    write(*, '(a, l1)') 'plot_reconstruction_states: ', writer%plot_reconstruction_states
-    write(*, '(a, l1)') 'plot_reference_states: ', writer%plot_reference_states
-    write(*, '(a, l1)') 'plot_evolved_states: ', writer%plot_evolved_states
-    write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
-    write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
-    write(*, *)
+    if (this_image() == 1) then
+      write(*, '(a)') "Contour Writer Inputs"
+      write(*, '(a)') "====================="
+      write(*, '(a, l1)') 'plot_reconstruction_states: ', writer%plot_reconstruction_states
+      write(*, '(a, l1)') 'plot_reference_states: ', writer%plot_reference_states
+      write(*, '(a, l1)') 'plot_evolved_states: ', writer%plot_evolved_states
+      write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
+      write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
+      write(*, *)
+    end if
 
   end function
 
@@ -112,17 +114,19 @@ contains
     self%jhi_node = fv_scheme%grid%jhi_node
     ! end if
 
-    write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
-    select case(self%format)
-    case('xdmf')
-      call self%write_hdf5(fluid, fv_scheme, time, iteration)
-      call self%write_xdmf(fluid, fv_scheme, time, iteration)
-    case('hdf5', 'h5')
-      call self%write_hdf5(fluid, fv_scheme, time, iteration)
-    case default
-      print *, 'Contour format:', self%format
-      error stop "Unsupported I/O contour format"
-    end select
+    if (this_image() == 1) then
+      write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
+      select case(self%format)
+      case('xdmf')
+        call self%write_hdf5(fluid, fv_scheme, time, iteration)
+        call self%write_xdmf(fluid, fv_scheme, time, iteration)
+      case('hdf5', 'h5')
+        call self%write_hdf5(fluid, fv_scheme, time, iteration)
+      case default
+        print *, 'Contour format:', self%format
+        error stop "Unsupported I/O contour format"
+      end select
+    endif
 
   end subroutine
 

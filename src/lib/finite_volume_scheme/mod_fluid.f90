@@ -5,6 +5,7 @@ module mod_fluid
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
+  use mod_parallel
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
@@ -25,6 +26,14 @@ module mod_fluid
 
   type, extends(integrand_t) :: fluid_t
     real(rk), dimension(:, :, :), allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
+    integer(ik) :: ilo !< global min i index (cell-based w/ ghost included)
+    integer(ik) :: ihi !< global max i index (cell-based w/ ghost included)
+    integer(ik) :: jlo !< global min j index (cell-based w/ ghost included)
+    integer(ik) :: jhi !< global max j index (cell-based w/ ghost included) 
+    integer(ik) :: ilo_img !< coarray image min i index (cell-based w/ ghost included)
+    integer(ik) :: ihi_img !< coarray image max i index (cell-based w/ ghost included)
+    integer(ik) :: jlo_img !< coarray image min j index (cell-based w/ ghost included)
+    integer(ik) :: jhi_img !< coarray image max j index (cell-based w/ ghost included) 
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
@@ -43,6 +52,8 @@ module mod_fluid
     procedure, pass(lhs), public :: assign => assign_fluid
     procedure, public :: force_finalization
     procedure, private, nopass :: add_fields
+    procedure, public :: gather
+    procedure, public :: get_image_partitioning
     final :: finalize
   end type fluid_t
 
@@ -76,13 +87,13 @@ contains
               ni=>finite_volume_scheme%grid%ni_cell, &
               nj=>finite_volume_scheme%grid%nj_cell)
 
-      indices = tile_indices([ni, nj])
-      self%lb = indices([1, 3])
-      self%ub = indices([2, 4])
-      self%neighbors = tile_neighbors_2d(periodic=.true.)
-      self%edge_size = max(self%ub(1) - self%lb(1) + 1, &
-                           self%ub(2) - self%lb(2) + 1)
-      call co_max(self%edge_size)
+      ! indices = tile_indices([ni, nj])
+      ! self%lb = indices([1, 3])
+      ! self%ub = indices([2, 4])
+      ! self%neighbors = tile_neighbors_2d(periodic=.true.)
+      ! self%edge_size = max(self%ub(1) - self%lb(1) + 1, &
+      !                      self%ub(2) - self%lb(2) + 1)
+      ! call co_max(self%edge_size)
       allocate(self%conserved_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) then
         error stop "Unable to allocate fluid_t%conserved_vars"
@@ -757,10 +768,15 @@ contains
     call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
     call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
 
-    ilo = lbound(primitive_vars, dim=2)
-    ihi = ubound(primitive_vars, dim=2)
-    jlo = lbound(primitive_vars, dim=3)
-    jhi = ubound(primitive_vars, dim=3)
+    ! ilo = lbound(primitive_vars, dim=2)
+    ! ihi = ubound(primitive_vars, dim=2)
+    ! jlo = lbound(primitive_vars, dim=3)
+    ! jhi = ubound(primitive_vars, dim=3)
+    ilo = self%ilo_img
+    ihi = self%ihi_img
+    jlo = self%jlo_img
+    jhi = self%jhi_img
+
     do j = jlo, jhi
       do i = ilo, ihi
         if(.not. any(ieee_is_finite(primitive_vars(:, i, j)))) then
@@ -791,10 +807,14 @@ contains
 
     invalid_numbers = .false.
 
-    ilo = lbound(self%conserved_vars, dim=2)
-    ihi = ubound(self%conserved_vars, dim=2)
-    jlo = lbound(self%conserved_vars, dim=3)
-    jhi = ubound(self%conserved_vars, dim=3)
+    ! ilo = lbound(self%conserved_vars, dim=2)
+    ! ihi = ubound(self%conserved_vars, dim=2)
+    ! jlo = lbound(self%conserved_vars, dim=3)
+    ! jhi = ubound(self%conserved_vars, dim=3)
+    ilo = self%ilo_img
+    ihi = self%ihi_img
+    jlo = self%jlo_img
+    jhi = self%jhi_img
     do j = jlo, jhi
       do i = ilo, ihi
         if(.not. any(ieee_is_finite(self%conserved_vars(:, i, j)))) then
@@ -834,4 +854,49 @@ contains
 
   end subroutine sanity_check
 
+  function gather(self, image) result(gathered_data)
+    !< Gather all the conserved vars onto one image for I/O
+
+    class(fluid_t), intent(in) :: self
+    integer(ik), intent(in) :: image !< image number
+    real(rk), dimension(4, self%ilo:self%ihi, self%jlo:self%jhi) :: gathered_data
+
+    real(rk), dimension(:, :,:), allocatable :: gather_coarray[:]
+    
+    associate(ilo => self%ilo, ihi => self%ihi, &
+              jlo => self%jlo, jhi => self%jhi)
+      allocate(gather_coarray(4, ilo:ihi, jlo:jhi)[*])
+    end associate
+
+    associate(ilo => self%ilo_img, ihi => self%ihi_img,&
+              jlo => self%jlo_img, jhi => self%jhi_img)
+      gather_coarray(4, ilo:ihi, jlo:jhi)[image] = self%conserved_vars(4, ilo:ihi, jlo:jhi)
+      sync all
+      if (this_image() == image) gathered_data = gather_coarray
+    end associate
+
+    deallocate(gather_coarray)
+
+  end function gather
+
+  subroutine get_image_partitioning(self, partitioning)
+    !< For the sake of visualization, make an array that has the image number for
+    !< each cell
+    class(fluid_t), intent(in) :: self
+    integer(ik), dimension(self%ilo:self%ihi, self%jlo:self%jhi), intent(out) :: partitioning
+    integer(ik), dimension(:,:), allocatable :: gather_coarray[:]
+
+    associate(ilo => self%ilo, ihi => self%ihi, &
+              jlo => self%jlo, jhi => self%jhi)
+      allocate(gather_coarray(ilo:ihi, jlo:jhi)[*])
+    end associate
+
+    associate(ilo => self%ilo_img, ihi => self%ihi_img,&
+              jlo => self%jlo_img, jhi => self%jhi_img)
+      gather_coarray(ilo:ihi, jlo:jhi)[this_image()] = this_image()
+      sync all
+    end associate
+
+    if (this_image() == 1) partitioning = gather_coarray
+  end subroutine
 end module mod_fluid

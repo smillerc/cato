@@ -651,7 +651,7 @@ contains
 
     integer(ik) :: ref_state_cell
     real(rk) :: ave_p
-    real(rk), dimension(:), allocatable, contiguous :: mach_number, sound_speed
+    real(rk), dimension(:), allocatable :: mach_number, sound_speed
     integer(ik) :: i
     real(rk) :: gamma
 

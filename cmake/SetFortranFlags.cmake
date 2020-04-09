@@ -1,11 +1,11 @@
-# ##############################################################################
+# ##################################################################################################
 # Determine and set the Fortran compiler flags we want
-# ##############################################################################
+# ##################################################################################################
 # https://github.com/SethMMorton/cmake_fortran_template
 
-# ##############################################################################
+# ##################################################################################################
 # Make sure that the default build type is RELEASE if not specified.
-# ##############################################################################
+# ##################################################################################################
 include(${CMAKE_MODULE_PATH}/SetCompileFlag.cmake)
 
 # Make sure the build type is uppercase
@@ -16,22 +16,18 @@ message(STATUS "Build type: ${BT}")
 if(BT STREQUAL "RELEASE")
   set(CMAKE_BUILD_TYPE
       RELEASE
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE"
-            FORCE)
+      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
 elseif(BT STREQUAL "DEBUG")
   set(CMAKE_BUILD_TYPE
       DEBUG
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE"
-            FORCE)
+      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
 elseif(NOT BT)
   set(CMAKE_BUILD_TYPE
       RELEASE
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE"
-            FORCE)
+      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
   message(STATUS "CMAKE_BUILD_TYPE not given, defaulting to RELEASE")
 else()
-  message(
-    FATAL_ERROR "CMAKE_BUILD_TYPE not valid, choices are DEBUG or RELEASE")
+  message(FATAL_ERROR "CMAKE_BUILD_TYPE not valid, choices are DEBUG or RELEASE")
 endif(BT STREQUAL "RELEASE")
 
 # gfortran
@@ -44,8 +40,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
     set(GNUNATIVE "-march=native")
   endif()
 
-  set(CMAKE_Fortran_FLAGS
-      "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
+  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${Coarray_COMPILE_OPTIONS}")
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g \
@@ -66,16 +61,11 @@ endif()
 # ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
-  if(SERIAL_BUILD)
-    set(IFORT_COARRAY "-coarray=single")
-  elseif(SHARED_MEMORY)
-    set(IFORT_COARRAY "-coarray=shared")
-  elseif(DISTRIBUTED_MEMORY)
-    set(IFORT_COARRAY "-coarray=distributed")
-  endif()
+  # if(SERIAL_BUILD) set(IFORT_COARRAY "-coarray=single") elseif(SHARED_MEMORY) set(IFORT_COARRAY
+  # "-coarray=shared") elseif(DISTRIBUTED_MEMORY) set(IFORT_COARRAY "-coarray=distributed") endif()
 
   set(IFORT_FLAGS
-      "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770 ${IFORT_COARRAY} "
+      "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770 ${Coarray_COMPILE_OPTIONS}"
   )
 
   # Fortran 2018 standards check based on the version
@@ -91,8 +81,6 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     )
   endif()
 
-  set(CMAKE_Fortran_FLAGS_DEBUG
-      "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check all")
-  set(CMAKE_Fortran_FLAGS_RELEASE
-      " -O3 -xHost -ipo -parallel -mtune=${TARGET_ARCHITECTURE}")
+  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check all")
+  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -ipo -parallel -mtune=${TARGET_ARCHITECTURE}")
 endif()
