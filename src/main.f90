@@ -28,20 +28,24 @@ program cato
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
   logical :: file_exists = .false.
+  character(len=5) :: image_name[*] = ''
   ! real(rk), dimension(:,:), allocatable :: sound_speed
 
-  print *, 'std_error', std_error
+  write(image_name[this_image()], '(i0)') this_image()
   open(std_error, file='cato.error')
 
   ! ascii art for the heck of it :)
-  write(std_out, '(a)')
-  write(std_out, '(a)') "  ______      ___   .___________.  ______  "
-  write(std_out, '(a)') " /      |    /   \  |           | /  __  \ "
-  write(std_out, '(a)') "|  ,----'   /  ^  \ `---|  |----`|  |  |  |"
-  write(std_out, '(a)') "|  |       /  /_\  \    |  |     |  |  |  |"
-  write(std_out, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
-  write(std_out, '(a)') " \______|/__/     \__\  |__|      \______/ "
-  write(std_out, '(a)')
+  if (this_image() == 1) then
+    write(std_out, '(a)')
+    write(std_out, '(a)') "  ______      ___   .___________.  ______  "
+    write(std_out, '(a)') " /      |    /   \  |           | /  __  \ "
+    write(std_out, '(a)') "|  ,----'   /  ^  \ `---|  |----`|  |  |  |"
+    write(std_out, '(a)') "|  |       /  /_\  \    |  |     |  |  |  |"
+    write(std_out, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
+    write(std_out, '(a)') " \______|/__/     \__\  |__|      \______/ "
+    write(std_out, '(a)')
+    write(std_out, '(a, i0, a)') "Running on ", num_images(), " images"
+  end if
 
   call print_version_stats()
 

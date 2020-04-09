@@ -440,15 +440,20 @@ contains
 
     class(regular_2d_grid_t), intent(inout) :: self
     type(quad_cell_t) :: quad
+    real(rk), dimension(4) :: x_coords
+    real(rk), dimension(4) :: y_coords
 
     integer(ik) :: i, j
+    x_coords = 0.0_rk
+    y_coords = 0.0_rk
 
     do j = self%jlo_bc_cell, self%jhi_bc_cell
       do i = self%ilo_bc_cell, self%ihi_bc_cell
-
         associate(x=>self%node_x, y=>self%node_y)
-          call quad%initialize(x_coords=[x(i, j), x(i + 1, j), x(i + 1, j + 1), x(i, j + 1)], &
-                               y_coords=[y(i, j), y(i + 1, j), y(i + 1, j + 1), y(i, j + 1)])
+          x_coords = [x(i, j), x(i + 1, j), x(i + 1, j + 1), x(i, j + 1)]
+          y_coords = [y(i, j), y(i + 1, j), y(i + 1, j + 1), y(i, j + 1)]
+
+          call quad%initialize(x_coords, y_coords)
 
         end associate
 

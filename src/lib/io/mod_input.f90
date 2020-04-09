@@ -159,7 +159,7 @@ contains
     ! Restart files
     call cfg%get("restart", "restart_from_file", self%restart_from_file, .false.)
 
-    print *, 'Reading from restart?', self%restart_from_file
+
 
     if(self%restart_from_file) then
       call cfg%get("restart", "restart_file", char_buffer)
@@ -174,6 +174,10 @@ contains
       end if
     end if
 
+    if (this_image() == 1) then
+      if (self%restart_from_file) write(*, '(a, l1)') 'Reading from restart: "', trim(self%restart_file), '"'
+    end if
+    
     ! Initial Conditions
     if(.not. self%restart_from_file) then
       call cfg%get("initial_conditions", "read_from_file", self%read_init_cond_from_file, .true.)

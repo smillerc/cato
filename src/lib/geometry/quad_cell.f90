@@ -120,15 +120,16 @@ contains
     end associate
 
     if(self%volume <= 0.0_rk) then
-      write(*, '(a, 2(g0.4, 1x))') 'N4: ', self%x(4), self%y(4)
-      write(*, '(a, 2(g0.4, 1x))') 'N3: ', self%x(3), self%y(3)
+      write(*, '(a, es10.3)') "Error! Negative Volume: ", self%volume
+      write(*, '(2(a, g0.4, ",", g0.4), a)') &
+            'N4: (', self%x(4), self%y(4),  ')         N3: (', self%x(3), self%y(3), ')'
       write(*, *) '             N4-----o-----N3'
       write(*, *) '             |            |'
       write(*, *) '             o      C     o'
       write(*, *) '             |            |'
       write(*, *) '             N1-----o-----N2'
-      write(*, '(a, 2(g0.4, 1x))') 'N1: ', self%x(1), self%y(1)
-      write(*, '(a, 2(g0.4, 1x))') 'N2: ', self%x(2), self%y(2)
+      write(*, '(2(a, g0.4, ",", g0.4), a)') &
+            'N1: (', self%x(1), self%y(1),  ')         N2: (', self%x(2), self%y(2), ')'
       error stop "Negative volume!"
     end if
 
