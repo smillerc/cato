@@ -5,12 +5,12 @@ import numpy as np
 import sys
 import os
 
-# sys.path.append(os.path.abspath('../../../'))
-sys.path.append(os.path.abspath("../../../scripts"))
-from generate_initial_grids import make_uniform_grid, write_initial_hdf5
+sys.path.append(os.path.abspath("../../.."))
+from scripts import make_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
-domain = make_uniform_grid(n_cells=(350, 350), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
+# domain = make_uniform_grid(n_cells=(350, 350), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
+domain = make_uniform_grid(n_cells=(200, 100), xrange=(-1.0, 1.0), yrange=(-0.5, 0.5))
 
 # Set the initial conditions
 domain["rho"] = domain["rho"] * 0.001
@@ -18,30 +18,18 @@ domain["rho"] = domain["rho"] * 0.001
 p0 = 1e-3
 domain["x"] = domain["x"]
 domain["y"] = domain["y"]
-x = domain["xc"]
-y = domain["yc"]
+x = domain["xc"].m
+y = domain["yc"].m
 
 # Make pressure a centered gaussian with surrounding pressure of 1.0
 # domain["p"] = np.exp(-(x**2 + y**2)) * 1.0e6 + 1e6# 1 atm
-domain["p"] = 10 * np.exp(-((x ** 2) / 0.001 + (y ** 2) / 0.001)) + p0
+domain["p"] = (10 * np.exp(-((x ** 2) / 0.001 + (y ** 2) / 0.001)) + p0) * ureg("barye")
 
 # Zero velocity everywhere
 domain["u"] = domain["u"] * 0.0
 domain["v"] = domain["v"] * 0.0
 
-# for i in range(y.shape[0]):
-#     for j in range(y.shape[1]):
-#         radius = np.sqrt(x[i, j]**2 + y[i, j]**2)
-#         if 0.2 < radius <= .22:
-#             domain["rho"][i, j] = 1.0
-#         # elif radius > .22:
-#         #     domain["rho"][i, j] = .1
-
-bc_dict = {"+x": "periodic", "+y": "periodic", "-x": "periodic", "-y": "periodic"}
-
-write_initial_hdf5(
-    filename="gaussian", initial_condition_dict=domain, boundary_conditions_dict=bc_dict
-)
+write_initial_hdf5(filename="gaussian", initial_condition_dict=domain)
 
 # Plot the results
 fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
