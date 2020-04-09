@@ -73,7 +73,7 @@ contains
 
     select case(trim(system))
     case("cgs")
-      write(*, '(a)') "Setting I/O unit system to CGS conventions (g/cc, cm, K, barye)"
+      if (this_image() == 1) write(*, '(a)') "Setting I/O unit system to CGS conventions (g/cc, cm, K, barye)"
       unit_system = "cgs"
       io_velocity_units = 1.0_rk
       io_velocity_label = 'cm/s'
@@ -93,7 +93,7 @@ contains
       io_volume_label = 'cc'
 
     case("icf")
-      write(*, '(a)') "Setting I/O unit system to ICF conventions (g/cc, microns, eV, Mbar)"
+      if (this_image() == 1) write(*, '(a)') "Setting I/O unit system to ICF conventions (g/cc, microns, eV, Mbar)"
       unit_system = "icf"
       io_velocity_units = km_per_sec
       io_velocity_label = 'km/s'

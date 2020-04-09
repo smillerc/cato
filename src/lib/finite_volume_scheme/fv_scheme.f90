@@ -166,13 +166,15 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%source_term"
     end if
 
-    write(*, '(a)') "Boundary Conditions"
-    write(*, '(a)') "==================="
-    write(*, '(3(a),i0,a)') "+x: ", trim(self%bc_plus_x%name), ' (priority = ', self%bc_plus_x%priority, ')'
-    write(*, '(3(a),i0,a)') "-x: ", trim(self%bc_minus_x%name), ' (priority = ', self%bc_minus_x%priority, ')'
-    write(*, '(3(a),i0,a)') "+y: ", trim(self%bc_plus_y%name), ' (priority = ', self%bc_plus_y%priority, ')'
-    write(*, '(3(a),i0,a)') "-y: ", trim(self%bc_minus_y%name), ' (priority = ', self%bc_minus_y%priority, ')'
-    write(*, *)
+    if (this_image() == 1) then
+      write(*, '(a)') "Boundary Conditions"
+      write(*, '(a)') "==================="
+      write(*, '(3(a),i0,a)') "+x: ", trim(self%bc_plus_x%name), ' (priority = ', self%bc_plus_x%priority, ')'
+      write(*, '(3(a),i0,a)') "-x: ", trim(self%bc_minus_x%name), ' (priority = ', self%bc_minus_x%priority, ')'
+      write(*, '(3(a),i0,a)') "+y: ", trim(self%bc_plus_y%name), ' (priority = ', self%bc_plus_y%priority, ')'
+      write(*, '(3(a),i0,a)') "-y: ", trim(self%bc_minus_y%name), ' (priority = ', self%bc_minus_y%priority, ')'
+      write(*, *)
+    end if
 
     associate(imin=>self%grid%ilo_bc_cell, imax=>self%grid%ihi_bc_cell, &
               jmin=>self%grid%jlo_bc_cell, jmax=>self%grid%jhi_bc_cell)

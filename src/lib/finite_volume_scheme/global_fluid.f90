@@ -85,6 +85,8 @@ contains
     alloc_status = 0
     call debug_print('Initializing fluid_t', __FILE__, __LINE__)
 
+    sync all
+
     associate(ilo=>finite_volume_scheme%grid%ilo_bc_cell, &
               ihi=>finite_volume_scheme%grid%ihi_bc_cell, &
               jlo=>finite_volume_scheme%grid%jlo_bc_cell, &
@@ -98,9 +100,17 @@ contains
       self%cell_dims_img = tile_indices(dims) - 1
 
       self%node_dims_global = [ilo, ihi + 1, jlo, jhi + 1]
-      self%node_dims_img = self%cell_dims_img
-      self%node_dims_img(2) = self%node_dims_img(2) - 1
-      self%node_dims_img(4) = self%node_dims_img(4) - 1
+      self%node_dims_img = tile_indices(dims)
+      self%node_dims_img(1) = self%node_dims_img(1) - 1
+      self%node_dims_img(3) = self%node_dims_img(3) - 1
+
+      if(this_image()==1) then
+        write(*,'(a, 4(i6))') 'self%cell_dims_global:', self%cell_dims_global
+        write(*,'(a, 4(i6))') 'self%node_dims_global:', self%node_dims_global
+      end if
+
+      write(*,'(a, i0, a, 4(i6))') 'Image: ', this_image(), ' self%cell_dims_img   :', self%cell_dims_img
+      write(*,'(a, i0, a, 4(i6))') 'Image: ', this_image(), ' self%node_dims_img   :', self%node_dims_img
 
       ! Is this image on the edge of the domain?
       if(self%cell_dims_img(1) == ilo) self%img_on_ilo_bc = .true.

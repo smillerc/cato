@@ -72,19 +72,19 @@ contains
 
   subroutine print_version_stats()
     call set_global_options()
-    ! if(this_image() == 1) then
-    write(std_out, '(a,a)')
-    write(std_out, '(a,a)') "Version: ", cato_version
-    write(std_out, '(a,a)') "Build Type: ", build_type
-    write(std_out, '(a,a)') "Compile OS: ", compile_os
-    write(std_out, '(a,a)') "Compiler Flags: ", compiler_flags_str
-    write(std_out, '(a,a)') "Compiler Version: ", compiler_version_str
-    write(std_out, '(a,a)') "Git Hash: ", git_hash
-    write(std_out, '(a,a)') "Git Ref: ", git_ref
-    write(std_out, '(a,a)') "Commited Changes (Clean/Dirty): ", git_local_changes
-    write(std_out, '(a,a)') "Compile Host: ", compile_host
-    write(std_out, '(a,a)')
-    ! end if
+    if(this_image() == 1) then
+      write(std_out, '(a,a)')
+      write(std_out, '(a,a)') "Version: ", cato_version
+      write(std_out, '(a,a)') "Build Type: ", build_type
+      write(std_out, '(a,a)') "Compile OS: ", compile_os
+      write(std_out, '(a,a)') "Compiler Flags: ", compiler_flags_str
+      write(std_out, '(a,a)') "Compiler Version: ", compiler_version_str
+      write(std_out, '(a,a)') "Git Hash: ", git_hash
+      write(std_out, '(a,a)') "Git Ref: ", git_ref
+      write(std_out, '(a,a)') "Commited Changes (Clean/Dirty): ", git_local_changes
+      write(std_out, '(a,a)') "Compile Host: ", compile_host
+      write(std_out, '(a,a)')
+    end if
   end subroutine
 
   subroutine debug_print(str, file, line_number)

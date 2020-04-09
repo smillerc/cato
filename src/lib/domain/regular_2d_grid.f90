@@ -216,25 +216,27 @@ contains
   subroutine print_grid_stats(self)
     class(regular_2d_grid_t), intent(inout) :: self
 
-    write(*, '(a)') "Grid stats:"
-    write(*, '(a)') "===================="
-    write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_node, ' -> ', self%ihi_node
-    write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_node, ' -> ', self%jhi_node
-    write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_cell, ' -> ', self%ihi_cell
-    write(*, '(a, i6, a, i6)') "j cells: ", self%jlo_cell, ' -> ', self%jhi_cell
-    write(*, *)
-    write(*, '(a)') "Ghost Regions"
-    write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_bc_node, ' & ', self%ihi_bc_node
-    write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_bc_node, ' & ', self%jhi_bc_node
-    write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_bc_cell, ' & ', self%ihi_bc_cell
-    write(*, '(a, i6, a, i6)') "j cells: ", self%jlo_bc_cell, ' & ', self%jhi_bc_cell
-    write(*, *)
-    write(*, '(a)') "Totals"
-    write(*, '(a, i0)') "ni_nodes: ", self%ni_node
-    write(*, '(a, i0)') "nj_nodes: ", self%nj_node
-    write(*, '(a, i0)') "ni_cells: ", self%ni_cell
-    write(*, '(a, i0)') "nj_cells: ", self%nj_cell
-    write(*, *)
+    if (this_image() == 1) then
+      write(*, '(a)') "Grid stats:"
+      write(*, '(a)') "===================="
+      write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_node, ' -> ', self%ihi_node
+      write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_node, ' -> ', self%jhi_node
+      write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_cell, ' -> ', self%ihi_cell
+      write(*, '(a, i6, a, i6)') "j cells: ", self%jlo_cell, ' -> ', self%jhi_cell
+      write(*, *)
+      write(*, '(a)') "Ghost Regions"
+      write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_bc_node, ' & ', self%ihi_bc_node
+      write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_bc_node, ' & ', self%jhi_bc_node
+      write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_bc_cell, ' & ', self%ihi_bc_cell
+      write(*, '(a, i6, a, i6)') "j cells: ", self%jlo_bc_cell, ' & ', self%jhi_bc_cell
+      write(*, *)
+      write(*, '(a)') "Totals"
+      write(*, '(a, i0)') "ni_nodes: ", self%ni_node
+      write(*, '(a, i0)') "nj_nodes: ", self%nj_node
+      write(*, '(a, i0)') "ni_cells: ", self%ni_cell
+      write(*, '(a, i0)') "nj_cells: ", self%nj_cell
+      write(*, *)
+    end if
 
   end subroutine
 
