@@ -47,7 +47,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta
 
-    print*, "test_midpoint_leftright_p_prime_below_no_intersections"
+    print *, "test_midpoint_leftright_p_prime_below_no_intersections"
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -108,7 +108,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta
 
-    print*, "test_midpoint_leftright_p_prime_below_with_intersections"
+    print *, "test_midpoint_leftright_p_prime_below_with_intersections"
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -171,7 +171,7 @@ contains
     real(rk), dimension(2, 2) :: theta
     real(rk) :: theta_11, theta_12
 
-    print*, "test_midpoint_leftright_p_prime_above"
+    print *, "test_midpoint_leftright_p_prime_above"
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -237,7 +237,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta
 
-    print*, "test_midpoint_downup_p_prime_right_no_intersections"
+    print *, "test_midpoint_downup_p_prime_right_no_intersections"
     i = 1
     j = 1
 
@@ -298,7 +298,7 @@ contains
     real(rk), dimension(2, 2) :: theta
     real(rk) :: theta_11, theta_12
 
-    print*, "test_midpoint_downup_p_prime_left"
+    print *, "test_midpoint_downup_p_prime_left"
     i = 1
     j = 1
     midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
@@ -363,7 +363,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta_ie, theta_ib
 
-    print*, "test_midpoint_downup_collocated"
+    print *, "test_midpoint_downup_collocated"
     i = 1
     j = 1
     midpoint_edge_vectors = reshape([[0.0_rk, 0.0_rk], & ! tail, vector 1
@@ -430,7 +430,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 2) :: theta_ib, theta_ie
 
-    print*, "test_midpoint_leftright_collocated"
+    print *, "test_midpoint_leftright_collocated"
     i = 1
     j = 1
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
@@ -499,7 +499,7 @@ contains
     integer(ik) :: i, j
     real(rk), dimension(2, 4) :: theta_ib, theta_ie
 
-    print*, "test_corner_p_prime_at_corner"
+    print *, "test_corner_p_prime_at_corner"
     i = 2
     j = 2
     ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)

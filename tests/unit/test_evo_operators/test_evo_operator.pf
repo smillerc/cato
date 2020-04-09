@@ -36,9 +36,7 @@ contains
   @before
   subroutine startup()
 
-    integer(ik) :: i, j
     class(grid_t), pointer :: grid_ptr
-    real(rk), dimension(2, 2, 4) :: actual_corner_vectors, grid_corner_vectors
 
     write(*, *) "Creating a simple grid, reconstruction operator, and evo operator for E0 testing"
     input = input_t(reconstruction_type='piecewise_linear_sgg_structured', &
@@ -177,7 +175,6 @@ contains
     real(rk), dimension(4, 4) :: reconstructed_corner_state
     !< ((rho, u, v, p), cell_id); the reconstructed state of the corner with respect to each cell
 
-    integer(ik) :: ilo, ihi, jlo, jhi
     real(rk), dimension(4) :: evolved_primitive_vars
     integer(ik) :: error_code
     error_code = 0
