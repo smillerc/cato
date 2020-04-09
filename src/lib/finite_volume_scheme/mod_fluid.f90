@@ -1,17 +1,21 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
-  use mod_parallel, only: num_tiles, tile_indices, tile_neighbors_1d, tile_neighbors_2d, sync_edges
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_MACH
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
+  use mod_surrogate, only: surrogate
+  use mod_parallel
+  use mod_boundary_conditions, only: boundary_condition_t
   use mod_strategy, only: strategy
   use mod_integrand, only: integrand_t
+  use mod_surrogate, only: surrogate
   use mod_grid, only: grid_t
   use mod_input, only: input_t
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
+  use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use mod_time_integrator_factory, only: time_integrator_factory
 
@@ -21,13 +25,22 @@ module mod_fluid
   public :: fluid_t, new_fluid
 
   type, extends(integrand_t) :: fluid_t
-    real(rk), dimension(:, :, :), codimension[:], allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
+    real(rk), dimension(:, :, :), allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
+    integer(ik) :: ilo !< global min i index (cell-based w/ ghost included)
+    integer(ik) :: ihi !< global max i index (cell-based w/ ghost included)
+    integer(ik) :: jlo !< global min j index (cell-based w/ ghost included)
+    integer(ik) :: jhi !< global max j index (cell-based w/ ghost included)
+    integer(ik) :: ilo_img !< coarray image min i index (cell-based w/ ghost included)
+    integer(ik) :: ihi_img !< coarray image max i index (cell-based w/ ghost included)
+    integer(ik) :: jlo_img !< coarray image min j index (cell-based w/ ghost included)
+    integer(ik) :: jhi_img !< coarray image max j index (cell-based w/ ghost included)
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
     procedure, private :: initialize_from_hdf5
     procedure, public :: t => time_derivative
     procedure, public :: get_sound_speed
+    procedure, public :: residual_smoother
     procedure, public :: get_max_sound_speed
     procedure, public :: get_primitive_vars
     procedure, public :: sanity_check
@@ -39,6 +52,8 @@ module mod_fluid
     procedure, pass(lhs), public :: assign => assign_fluid
     procedure, public :: force_finalization
     procedure, private, nopass :: add_fields
+    procedure, public :: gather
+    procedure, public :: get_image_partitioning
     final :: finalize
   end type fluid_t
 
@@ -72,13 +87,13 @@ contains
               ni=>finite_volume_scheme%grid%ni_cell, &
               nj=>finite_volume_scheme%grid%nj_cell)
 
-      indices = tile_indices([ni, nj])
-      self%lb = indices([1, 3])
-      self%ub = indices([2, 4])
-      self%neighbors = tile_neighbors_2d(periodic=.true.)
-      self%edge_size = max(self%ub(1) - self%lb(1) + 1, &
-                           self%ub(2) - self%lb(2) + 1)
-      call co_max(self%edge_size)
+      ! indices = tile_indices([ni, nj])
+      ! self%lb = indices([1, 3])
+      ! self%ub = indices([2, 4])
+      ! self%neighbors = tile_neighbors_2d(periodic=.true.)
+      ! self%edge_size = max(self%ub(1) - self%lb(1) + 1, &
+      !                      self%ub(2) - self%lb(2) + 1)
+      ! call co_max(self%edge_size)
       allocate(self%conserved_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) then
         error stop "Unable to allocate fluid_t%conserved_vars"
@@ -201,23 +216,6 @@ contains
 
   end subroutine initialize_from_ini
 
-  subroutine synchronize()
-    !< Syncronize with the neighboring images
-
-    integer(ik) :: left, right, up, down !< left/right/up/down neighbor images
-    ! if (num_images()>1) then
-    !   associate(me=>this_image(),first_image=>1,last_image=>num_images())
-    !     left_neighbor = merge(last_image,me-1,me==first_image)
-    !     right_neighbor = merge(first_image,me+1,me==last_image)
-    !     if (left_neighbor==right_neighbor) then ! occurs if num_images()==2
-    !       sync images([left_neighbor])
-    !     else
-    sync images([left, right, up, down])
-    !     end if
-    !   end associate
-    ! end if
-  end subroutine synchronize
-
   subroutine force_finalization(self)
     class(fluid_t), intent(inout) :: self
 
@@ -245,22 +243,22 @@ contains
     type(fluid_t), allocatable :: local_d_dt !< dU/dt
     integer(ik) :: alloc_status, error_code
 
-    real(rk), dimension(:, :, :), codimension[:], allocatable :: primitive_vars
+    real(rk), dimension(:, :, :), allocatable :: primitive_vars
     !< ((rho, u, v, p), i, j); Primitive variables at each cell center
 
-    real(rk), dimension(:, :, :), codimension[:], allocatable :: evolved_corner_state
+    real(rk), dimension(:, :, :), allocatable :: evolved_corner_state
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each corner
 
     ! Indexing the midpoints is a pain, so they're split by the up/down edges and left/right edges
-    real(rk), dimension(:, :, :), codimension[:], allocatable :: evolved_downup_midpoints_state
+    real(rk), dimension(:, :, :), allocatable :: evolved_downup_midpoints_state
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go up/down
     !< (edges 2 (right edge) and 4 (left edge))
 
-    real(rk), dimension(:, :, :), codimension[:], allocatable :: evolved_leftright_midpoints_state
+    real(rk), dimension(:, :, :), allocatable :: evolved_leftright_midpoints_state
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go left/right
     !< (edges 1 (bottom edge) and 3 (top edge))
 
-    real(rk), dimension(:, :, :, :, :), codimension[:], allocatable, target :: reconstructed_state
+    real(rk), dimension(:, :, :, :, :), allocatable, target :: reconstructed_state
     !< (((rho, u, v, p)), point, node/midpoint, i, j); The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints. Note, this DOES repeat nodes, since corners and midpoints are
     !< shared by neighboring cells, but each point has its own reconstructed value based on the parent cell's state
@@ -270,7 +268,7 @@ contains
     associate(imin=>fv%grid%ilo_bc_cell, imax=>fv%grid%ihi_bc_cell, &
               jmin=>fv%grid%jlo_bc_cell, jmax=>fv%grid%jhi_bc_cell)
 
-      allocate(reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)[*]
+      allocate(reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state in fluid_t%time_derivative()"
     end associate
 
@@ -280,15 +278,15 @@ contains
               jmin_cell=>fv%grid%jlo_cell, jmax_cell=>fv%grid%jhi_cell)
 
       ! corners
-      allocate(evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)[*]
+      allocate(evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state in fluid_t%time_derivative()"
 
       ! left/right midpoints
-      allocate(evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)[*]
+      allocate(evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state in fluid_t%time_derivative()"
 
       ! down/up midpoints
-      allocate(evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)[*]
+      allocate(evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state"
 
     end associate
@@ -736,6 +734,15 @@ contains
     jlo = lbound(self%conserved_vars, dim=3)
     jhi = ubound(self%conserved_vars, dim=3)
 
+    ! ilo = lbound(primitive_vars, dim=2)
+    ! ihi = ubound(primitive_vars, dim=2)
+    ! jlo = lbound(primitive_vars, dim=3)
+    ! jhi = ubound(primitive_vars, dim=3)
+    ilo = self%ilo_img
+    ihi = self%ihi_img
+    jlo = self%jlo_img
+    jhi = self%jhi_img
+
     do j = jlo, jhi
       do i = ilo, ihi
         if(abs(primitive_vars(2, i, j)) / sound_speed(i, j) < TINY_MACH) then
@@ -762,10 +769,14 @@ contains
     negative_numbers = .false.
     invalid_numbers = .false.
 
-    ilo = lbound(self%conserved_vars, dim=2)
-    ihi = ubound(self%conserved_vars, dim=2)
-    jlo = lbound(self%conserved_vars, dim=3)
-    jhi = ubound(self%conserved_vars, dim=3)
+    ! ilo = lbound(self%conserved_vars, dim=2)
+    ! ihi = ubound(self%conserved_vars, dim=2)
+    ! jlo = lbound(self%conserved_vars, dim=3)
+    ! jhi = ubound(self%conserved_vars, dim=3)
+    ilo = self%ilo_img
+    ihi = self%ihi_img
+    jlo = self%jlo_img
+    jhi = self%jhi_img
     do j = jlo, jhi
       do i = ilo, ihi
         if(.not. any(ieee_is_finite(self%conserved_vars(:, i, j)))) then
@@ -802,4 +813,49 @@ contains
 
   end subroutine sanity_check
 
+  function gather(self, image) result(gathered_data)
+    !< Gather all the conserved vars onto one image for I/O
+
+    class(fluid_t), intent(in) :: self
+    integer(ik), intent(in) :: image !< image number
+    real(rk), dimension(4, self%ilo:self%ihi, self%jlo:self%jhi) :: gathered_data
+
+    real(rk), dimension(:, :, :), allocatable :: gather_coarray[:]
+
+    associate(ilo=>self%ilo, ihi=>self%ihi, &
+              jlo=>self%jlo, jhi=>self%jhi)
+      allocate(gather_coarray(4, ilo:ihi, jlo:jhi)[*])
+    end associate
+
+    associate(ilo=>self%ilo_img, ihi=>self%ihi_img, &
+              jlo=>self%jlo_img, jhi=>self%jhi_img)
+      gather_coarray(4, ilo:ihi, jlo:jhi)[image] = self%conserved_vars(4, ilo:ihi, jlo:jhi)
+      sync all
+      if(this_image() == image) gathered_data = gather_coarray
+    end associate
+
+    deallocate(gather_coarray)
+
+  end function gather
+
+  subroutine get_image_partitioning(self, partitioning)
+    !< For the sake of visualization, make an array that has the image number for
+    !< each cell
+    class(fluid_t), intent(in) :: self
+    integer(ik), dimension(self%ilo:self%ihi, self%jlo:self%jhi), intent(out) :: partitioning
+    integer(ik), dimension(:, :), allocatable :: gather_coarray[:]
+
+    associate(ilo=>self%ilo, ihi=>self%ihi, &
+              jlo=>self%jlo, jhi=>self%jhi)
+      allocate(gather_coarray(ilo:ihi, jlo:jhi)[*])
+    end associate
+
+    associate(ilo=>self%ilo_img, ihi=>self%ihi_img, &
+              jlo=>self%jlo_img, jhi=>self%jhi_img)
+      gather_coarray(ilo:ihi, jlo:jhi)[this_image()] = this_image()
+      sync all
+    end associate
+
+    if(this_image() == 1) partitioning = gather_coarray
+  end subroutine
 end module mod_fluid

@@ -1,5 +1,5 @@
-# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-# file Copyright.txt or https://cmake.org/licensing for details.
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying file Copyright.txt or
+# https://cmake.org/licensing for details.
 
 #[=======================================================================[.rst:
 FindCoarray
@@ -52,12 +52,28 @@ unset(Coarray_REQUIRED_VARS)
 if(CMAKE_Fortran_COMPILER_ID IN_LIST options_coarray)
 
   if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
+
     if(WIN32)
       set(Coarray_COMPILE_OPTIONS /Qcoarray:shared)
       list(APPEND Coarray_REQUIRED_VARS ${Coarray_COMPILE_OPTIONS})
     elseif(UNIX AND NOT APPLE)
-      set(Coarray_COMPILE_OPTIONS -coarray=shared)
-      set(Coarray_LIBRARY -coarray=shared) # ifort requires it at build AND link
+
+      if(SERIAL_BUILD)
+        set(IFORT_COARRAY "-coarray=single")
+        set(Coarray_MAX_NUMPROCS 1)
+      elseif(SHARED_MEMORY)
+        # if(ENABLE_TESTING)
+        #   set(IFORT_COARRAY "-coarray=shared -coarray-num-images=${N_CORES}")
+        # else()
+          set(IFORT_COARRAY "-coarray=shared")
+          set(Coarray_MAX_NUMPROCS ${N_CORES})
+        # endif()
+      elseif(DISTRIBUTED_MEMORY)
+        set(IFORT_COARRAY "-coarray=distributed")
+      endif()
+
+      set(Coarray_COMPILE_OPTIONS ${IFORT_COARRAY})
+      set(Coarray_LIBRARY ${IFORT_COARRAY}) # ifort requires it at build AND link
       list(APPEND Coarray_REQUIRED_VARS ${Coarray_LIBRARY})
     endif()
   endif()
@@ -99,7 +115,9 @@ find_package_handle_standard_args(Coarray REQUIRED_VARS Coarray_REQUIRED_VARS)
 if(Coarray_FOUND)
   set(Coarray_LIBRARIES ${Coarray_LIBRARY})
 endif()
-message(STATUS "Coarray_REQUIRED_VARS:" ${Coarray_REQUIRED_VARS})
 
-message(STATUS "Coarray_REQUIRED_VARS:" ${Coarray_REQUIRED_VARS})
+message(STATUS "Coarray_COMPILE_OPTIONS:" ${Coarray_COMPILE_OPTIONS})
+message(STATUS "Coarray_LIBRARIES:" ${Coarray_LIBRARIES})
+message(STATUS "Coarray_MAX_NUMPROCS:" ${Coarray_MAX_NUMPROCS})
+
 mark_as_advanced(Coarray_LIBRARY Coarray_REQUIRED_VARS)
