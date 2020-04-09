@@ -7,7 +7,7 @@ program cato
   use mod_input, only: input_t
   use mod_timing, only: timer_t, get_timestep
   use mod_finite_volume_schemes, only: finite_volume_scheme_t, make_fv_scheme
-  use mod_fluid, only: fluid_t, new_fluid
+  use mod_fluid, only: fluid_t
   use mod_integrand, only: integrand_t
   use mod_grid, only: grid_t
   use mod_eos, only: set_equation_of_state
@@ -19,14 +19,12 @@ program cato
   integer(ik) :: error_code = 0
   type(input_t) :: input
   class(finite_volume_scheme_t), pointer :: fv
-  class(fluid_t), pointer :: U
+  type(fluid_t) :: U
 
   type(contour_writer_t) :: contour_writer
   type(timer_t) :: timer
   real(rk) :: time = 0.0_rk
   real(rk) :: delta_t = 0.0_rk
-  real(rk) :: max_cs = 0.0_rk
-  real(rk) :: min_dx = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
   logical :: file_exists = .false.
@@ -61,7 +59,9 @@ program cato
   call set_output_unit_system(input%unit_system)
 
   fv => make_fv_scheme(input)
-  U => new_fluid(input, fv)
+  ! U => new_fluid(input, fv)
+  call U%initialize(input, fv)
+
   contour_writer = contour_writer_t(input=input)
 
   if(input%restart_from_file) then
@@ -120,7 +120,7 @@ program cato
 
   call timer%stop()
   deallocate(fv)
-  deallocate(U)
+  ! deallocate(U)
   ! deallocate(sound_speed)
 
   call timer%output_stats()

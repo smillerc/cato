@@ -4,6 +4,7 @@ module mod_integrand
   use mod_surrogate, only: surrogate
   use mod_globals, only: debug_print
   use mod_strategy, only: strategy
+  use mod_local_field, only: local_field_t
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
 
   implicit none
@@ -18,27 +19,31 @@ module mod_integrand
     procedure, non_overridable :: get_time_integrator
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
     procedure(sanity_check), deferred :: sanity_check
-    procedure(symmetric_operator), deferred :: type_plus_type
-    procedure(symmetric_operator), deferred :: type_minus_type
+    procedure(global_op_local), deferred :: global_plus_local
+    procedure(global_op_local), deferred :: global_minus_local
+    ! procedure(local_op_global), pass(rhs), deferred :: local_plus_global
+    ! procedure(local_op_global), pass(rhs), deferred :: local_minus_global
+    ! procedure(symmetric_operator), deferred :: type_minus_type
     procedure(asymmetric_operator_rhs), pass(rhs), deferred :: real_mul_type
     procedure(asymmetric_operator_lhs), pass(lhs), deferred :: type_mul_real
     procedure(symmetric_assignment), deferred :: assign
 
     ! Map operators to corresponding procedures
-    generic :: operator(+) => type_plus_type
-    generic :: operator(-) => type_minus_type
+    generic :: operator(+) => global_plus_local
+    generic :: operator(-) => global_minus_local
     generic :: operator(*) => real_mul_type, type_mul_real
     generic :: assignment(=) => assign
   end type
 
   abstract interface
     function time_derivative(self, fv) result(dState_dt)
-      import :: integrand_t
+      !< Implementation of d/dt for the local_field_t
+      import :: integrand_t, local_field_t
       import :: finite_volume_scheme_t
       import :: rk
       class(integrand_t), intent(in) :: self
       class(finite_volume_scheme_t), intent(inout) :: fv !< finite volume scheme
-      class(integrand_t), allocatable :: dState_dt
+      class(local_field_t), allocatable :: dState_dt
     end function time_derivative
 
     subroutine residual_smoother(self)
@@ -47,37 +52,57 @@ module mod_integrand
     end subroutine residual_smoother
 
     subroutine sanity_check(self, error_code)
-      import :: ik, integrand_t
+      import :: ik, integrand_t, local_field_t
       class(integrand_t), intent(in) :: self
       integer(ik), intent(out) :: error_code
     end subroutine sanity_check
 
     function symmetric_operator(lhs, rhs) result(operator_result)
-      import :: integrand_t
+      !< LHS +-*/ RHS
+      import :: integrand_t, local_field_t
       class(integrand_t), intent(in) :: lhs, rhs
-      class(integrand_t), allocatable :: operator_result
+      type(local_field_t) :: operator_result
     end function symmetric_operator
 
+    function global_op_local(lhs, rhs) result(operator_result)
+      !< LHS +-*/ RHS
+      import :: integrand_t, local_field_t
+      class(integrand_t), intent(in) :: lhs
+      class(local_field_t), intent(in) :: rhs
+      type(local_field_t) :: operator_result
+    end function global_op_local
+
+    function local_op_global(lhs, rhs) result(operator_result)
+      !< LHS +-*/ RHS
+      import :: integrand_t, local_field_t
+      class(local_field_t), intent(in) :: lhs
+      class(integrand_t), intent(in) :: rhs
+      type(local_field_t) :: operator_result
+    end function local_op_global
+
     function asymmetric_operator_lhs(lhs, rhs) result(operator_result)
-      import :: integrand_t
+      !< LHS +-*/ RHS (real64)
+      import :: integrand_t, local_field_t
       import :: rk
       real(rk), intent(in) :: rhs
       class(integrand_t), intent(in) :: lhs
-      class(integrand_t), allocatable :: operator_result
+      type(local_field_t) :: operator_result
     end function asymmetric_operator_lhs
 
     function asymmetric_operator_rhs(lhs, rhs) result(operator_result)
-      import :: integrand_t
+      !< LHS (real64) +-*/ RHS
+      import :: integrand_t, local_field_t
       import :: rk
       real(rk), intent(in) :: lhs
       class(integrand_t), intent(in) :: rhs
-      class(integrand_t), allocatable :: operator_result
+      type(local_field_t) :: operator_result
     end function asymmetric_operator_rhs
 
     subroutine symmetric_assignment(lhs, rhs)
-      import :: integrand_t
-      class(integrand_t), intent(in) :: rhs
+      !< LHS = RHS
+      import :: integrand_t, local_field_t
       class(integrand_t), intent(inout) :: lhs
+      class(local_field_t), intent(in) :: rhs
     end subroutine symmetric_assignment
   end interface
 

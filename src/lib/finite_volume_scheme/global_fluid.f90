@@ -2,6 +2,7 @@ module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_MACH
+  use mod_local_field, only: local_field_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -23,18 +24,21 @@ module mod_fluid
   implicit none
 
   private
-  public :: fluid_t, new_fluid
+  public :: fluid_t
 
   type, extends(integrand_t) :: fluid_t
-    real(rk), dimension(:, :, :), allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
-    integer(ik) :: ilo !< global min i index (cell-based w/ ghost included)
-    integer(ik) :: ihi !< global max i index (cell-based w/ ghost included)
-    integer(ik) :: jlo !< global min j index (cell-based w/ ghost included)
-    integer(ik) :: jhi !< global max j index (cell-based w/ ghost included)
-    integer(ik) :: ilo_img !< coarray image min i index (cell-based w/ ghost included)
-    integer(ik) :: ihi_img !< coarray image max i index (cell-based w/ ghost included)
-    integer(ik) :: jlo_img !< coarray image min j index (cell-based w/ ghost included)
-    integer(ik) :: jhi_img !< coarray image max j index (cell-based w/ ghost included)
+    real(rk), dimension(:, :, :), allocatable :: conserved_vars[:] !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
+    integer(ik), dimension(4) :: neighbors !< neighboring images
+
+    integer(ik), dimension(4) :: node_dims_global = 0 !< (ilo, ihi, jlo, jhi); global node-based dimensions (w/ ghost)
+    integer(ik), dimension(4) :: node_dims_img = 0    !< (ilo, ihi, jlo, jhi); local image node-based dimensions (w/ ghost)
+    integer(ik), dimension(4) :: cell_dims_global = 0 !< (ilo, ihi, jlo, jhi); global node-based dimensions (w/ ghost)
+    integer(ik), dimension(4) :: cell_dims_img = 0    !< (ilo, ihi, jlo, jhi); local image node-based dimensions (w/ ghost)
+
+    logical :: img_on_ilo_bc = .false. !< is this image on the boundary for ilo?
+    logical :: img_on_ihi_bc = .false. !< is this image on the boundary for ihi?
+    logical :: img_on_jlo_bc = .false. !< is this image on the boundary for jlo?
+    logical :: img_on_jhi_bc = .false. !< is this image on the boundary for jhi?
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
@@ -45,14 +49,13 @@ module mod_fluid
     procedure, public :: get_max_sound_speed
     procedure, public :: get_primitive_vars
     procedure, public :: sanity_check
-    procedure, nopass, private :: flux_edges
-    procedure, pass(lhs), public :: type_plus_type => add_fluid
-    procedure, pass(lhs), public :: type_minus_type => subtract_fluid
+    procedure, private :: flux_edges
+    procedure, pass(lhs), public :: global_plus_local => add_fluid
+    procedure, pass(lhs), public :: global_minus_local => subtract_fluid
     procedure, pass(lhs), public :: type_mul_real => fluid_mul_real
     procedure, pass(rhs), public :: real_mul_type => real_mul_fluid
     procedure, pass(lhs), public :: assign => assign_fluid
     procedure, public :: force_finalization
-    procedure, private, nopass :: add_fields
     procedure, public :: gather
     procedure, public :: get_image_partitioning
     final :: finalize
@@ -60,33 +63,54 @@ module mod_fluid
 
 contains
 
-  function new_fluid(input, finite_volume_scheme) result(fluid)
-    !< Fluid constructor
-    class(input_t), intent(in) :: input
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
-    type(fluid_t), pointer :: fluid
+  ! function new_fluid(input, finite_volume_scheme) result(fluid)
+  !   !< Fluid constructor
+  !   class(input_t), intent(in) :: input
+  !   class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
+  !   type(fluid_t), pointer :: fluid
 
-    allocate(fluid)
-    call fluid%initialize(input, finite_volume_scheme)
-  end function new_fluid
+  !   allocate(fluid)
+  !   call fluid%initialize(input, finite_volume_scheme)
+  ! end function new_fluid
 
   subroutine initialize(self, input, finite_volume_scheme)
     class(fluid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     class(strategy), pointer :: time_integrator => null()
-    integer(ik) :: edge_size, indices(4)
+    integer(ik) :: edge_size
+    integer(ik) :: dims(2) !< domain dimension
     integer(ik) :: alloc_status
 
     alloc_status = 0
     call debug_print('Initializing fluid_t', __FILE__, __LINE__)
 
-    associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, &
-              imax=>finite_volume_scheme%grid%ihi_bc_cell, &
-              jmin=>finite_volume_scheme%grid%jlo_bc_cell, &
-              jmax=>finite_volume_scheme%grid%jhi_bc_cell, &
+    associate(ilo=>finite_volume_scheme%grid%ilo_bc_cell, &
+              ihi=>finite_volume_scheme%grid%ihi_bc_cell, &
+              jlo=>finite_volume_scheme%grid%jlo_bc_cell, &
+              jhi=>finite_volume_scheme%grid%jhi_bc_cell, &
               ni=>finite_volume_scheme%grid%ni_cell, &
               nj=>finite_volume_scheme%grid%nj_cell)
+
+      dims = [ihi - ilo + 1, jhi - jlo + 1]
+
+      self%cell_dims_global = [ilo, ihi, jlo, jhi]
+      self%cell_dims_img = tile_indices(dims) - 1
+
+      self%node_dims_global = [ilo, ihi + 1, jlo, jhi + 1]
+      self%node_dims_img = self%cell_dims_img
+      self%node_dims_img(2) = self%node_dims_img(2) - 1
+      self%node_dims_img(4) = self%node_dims_img(4) - 1
+
+      ! Is this image on the edge of the domain?
+      if(self%cell_dims_img(1) == ilo) self%img_on_ilo_bc = .true.
+      if(self%cell_dims_img(2) == ihi) self%img_on_ihi_bc = .true.
+      if(self%cell_dims_img(3) == jlo) self%img_on_jlo_bc = .true.
+      if(self%cell_dims_img(4) == jhi) self%img_on_jhi_bc = .true.
+
+      ! Who are my image neighbors? Won't you be my neighbor?
+      ! It's a beautiful day in the neighborhood...
+      self%neighbors = tile_neighbors_2d(periodic=.true.)
 
       ! indices = tile_indices([ni, nj])
       ! self%lb = indices([1, 3])
@@ -95,7 +119,7 @@ contains
       ! self%edge_size = max(self%ub(1) - self%lb(1) + 1, &
       !                      self%ub(2) - self%lb(2) + 1)
       ! call co_max(self%edge_size)
-      allocate(self%conserved_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
+      allocate(self%conserved_vars(4, ilo:ihi, jlo:jhi)[*], stat=alloc_status)
       if(alloc_status /= 0) then
         error stop "Unable to allocate fluid_t%conserved_vars"
       end if
@@ -113,19 +137,22 @@ contains
       call self%initialize_from_ini(input)
     end if
 
-    write(*, '(a)') 'Initial fluid stats'
-    write(*, '(a)') '======================================'
-    write(*, '(a, f0.4)') 'EOS Gamma:                 ', eos%get_gamma()
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho:              ', &
-      minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho u:            ', &
-      minval(self%conserved_vars(2, :, :)), maxval(self%conserved_vars(2, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho v:            ', &
-      minval(self%conserved_vars(3, :, :)), maxval(self%conserved_vars(3, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho E:            ', &
-      minval(self%conserved_vars(4, :, :)), maxval(self%conserved_vars(4, :, :))
-    write(*, *)
+    if(this_image() == 1) then
+      write(*, '(a)') 'Initial fluid stats'
+      write(*, '(a)') '======================================'
+      write(*, '(a, f0.4)') 'EOS Gamma:                 ', eos%get_gamma()
+      write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho:              ', &
+        minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
+      write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho u:            ', &
+        minval(self%conserved_vars(2, :, :)), maxval(self%conserved_vars(2, :, :))
+      write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho v:            ', &
+        minval(self%conserved_vars(3, :, :)), maxval(self%conserved_vars(3, :, :))
+      write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho E:            ', &
+        minval(self%conserved_vars(4, :, :)), maxval(self%conserved_vars(4, :, :))
+      write(*, *)
+    end if
 
+    sync all
   end subroutine initialize
 
   subroutine initialize_from_hdf5(self, input, finite_volume_scheme)
@@ -273,8 +300,8 @@ contains
     class(finite_volume_scheme_t), intent(inout) :: fv
 
     ! Locals
-    class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
-    type(fluid_t), allocatable :: local_d_dt !< dU/dt
+    type(local_field_t) :: d_dt !< dU/dt
+
     integer(ik) :: alloc_status, error_code
 
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
@@ -325,10 +352,12 @@ contains
 
     end associate
 
-    allocate(local_d_dt, source=self)
-    allocate(primitive_vars, mold=self%conserved_vars)
+    ! TODO: fix this
+    ! allocate(local_d_dt, source=self)
+    ! allocate(primitive_vars, mold=self%conserved_vars)
 
-    call local_d_dt%get_primitive_vars(primitive_vars, lbounds=lbound(self%conserved_vars))
+    ! TODO: fix this
+    ! call local_d_dt%get_primitive_vars(primitive_vars, lbounds=lbound(self%conserved_vars))
 
     ! First put primitive vars in ghost layers
     call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
@@ -393,9 +422,9 @@ contains
                          evolved_corner_state=evolved_corner_state, &
                          evolved_leftright_midpoints_state=evolved_leftright_midpoints_state, &
                          evolved_downup_midpoints_state=evolved_downup_midpoints_state, &
-                         dU_dt=local_d_dt%conserved_vars)
+                         dU_dt=d_dt%conserved_vars)
 
-    call move_alloc(local_d_dt, d_dt)
+    ! call move_alloc(local_d_dt, d_dt)
     call d_dt%set_temp(calling_function='fluid_t%time_derivative (d_dt)', line=__LINE__)
 
     ! Now deallocate everything
@@ -416,9 +445,10 @@ contains
 
   end function time_derivative
 
-  subroutine flux_edges(grid, evolved_corner_state, evolved_leftright_midpoints_state, &
+  subroutine flux_edges(self, grid, evolved_corner_state, evolved_leftright_midpoints_state, &
                         evolved_downup_midpoints_state, dU_dt)
     !< Evaluate the fluxes along the edges. This is equation 13 in the paper
+    class(fluid_t), intent(in) :: self
     class(grid_t), intent(in) :: grid
     real(rk), dimension(:, grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_state
     real(rk), dimension(:, grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_leftright_midpoints_state
@@ -436,10 +466,14 @@ contains
     real(rk), dimension(4) :: top_flux
     real(rk), dimension(4) :: left_flux
 
-    ilo = grid%ilo_cell
-    ihi = grid%ihi_cell
-    jlo = grid%jlo_cell
-    jhi = grid%jhi_cell
+    ! ilo = grid%ilo_cell
+    ! ihi = grid%ihi_cell
+    ! jlo = grid%jlo_cell
+    ! jhi = grid%jhi_cell
+    ilo = self%cell_dims_img(1)
+    ihi = self%cell_dims_img(2)
+    jlo = self%cell_dims_img(3)
+    jhi = self%cell_dims_img(4)
 
     bottom_flux = 0.0_rk
     right_flux = 0.0_rk
@@ -535,181 +569,114 @@ contains
     end do
     deallocate(sound_speed)
 
-  end subroutine
+  end subroutine residual_smoother
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
     class(fluid_t), intent(in) :: lhs
-    class(integrand_t), intent(in) :: rhs
+    type(local_field_t), intent(in) :: rhs
+    type(local_field_t) :: difference
 
-    class(integrand_t), allocatable :: difference
-    type(fluid_t), allocatable :: local_difference
+    ! call debug_print('Running fluid_t%subtract_fluid()', __FILE__, __LINE__)
 
-    call debug_print('Running fluid_t%subtract_fluid()', __FILE__, __LINE__)
+    ! select type(rhs)
+    ! class is(fluid_t)
+    !   allocate(local_difference, source=lhs)
+    !   ! local_difference%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
+    !   call add_fields(a=lhs%conserved_vars, b=rhs%conserved_vars, c=local_difference%conserved_vars) ! c=a-b
+    ! class default
+    !   error stop 'fluid_t%subtract_fluid: unsupported rhs class'
+    ! end select
 
-    select type(rhs)
-    class is(fluid_t)
-      allocate(local_difference, source=lhs)
-      ! local_difference%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
-      call add_fields(a=lhs%conserved_vars, b=rhs%conserved_vars, c=local_difference%conserved_vars) ! c=a-b
-    class default
-      error stop 'fluid_t%subtract_fluid: unsupported rhs class'
-    end select
-
-    call move_alloc(local_difference, difference)
-    call difference%set_temp(calling_function='subtract_fluid (difference)', line=__LINE__)
+    ! call move_alloc(local_difference, difference)
+    ! call difference%set_temp(calling_function='subtract_fluid (difference)', line=__LINE__)
   end function subtract_fluid
 
   function add_fluid(lhs, rhs) result(sum)
     !< Implementation of the (+) operator for the fluid type
     class(fluid_t), intent(in) :: lhs
-    class(integrand_t), intent(in) :: rhs
+    type(local_field_t), intent(in) :: rhs
+    type(local_field_t) :: sum
 
-    class(integrand_t), allocatable :: sum
-    type(fluid_t), allocatable :: local_sum
+    ! call debug_print('Running fluid_t%add_fluid()', __FILE__, __LINE__)
 
-    call debug_print('Running fluid_t%add_fluid()', __FILE__, __LINE__)
+    ! select type(rhs)
+    ! class is(fluid_t)
+    !   allocate(local_sum, source=lhs)
+    !   ! local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
+    !   call add_fields(a=lhs%conserved_vars, b=rhs%conserved_vars, c=local_sum%conserved_vars) ! c=a+b
+    ! class default
+    !   error stop 'fluid_t%add_fluid: unsupported rhs class'
+    ! end select
 
-    select type(rhs)
-    class is(fluid_t)
-      allocate(local_sum, source=lhs)
-      ! local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
-      call add_fields(a=lhs%conserved_vars, b=rhs%conserved_vars, c=local_sum%conserved_vars) ! c=a+b
-    class default
-      error stop 'fluid_t%add_fluid: unsupported rhs class'
-    end select
-
-    call local_sum%set_temp(calling_function='fluid_t%add_fluid(local_sum)', line=__LINE__)
-    call move_alloc(local_sum, sum)
-    call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
+    ! call local_sum%set_temp(calling_function='fluid_t%add_fluid(local_sum)', line=__LINE__)
+    ! call move_alloc(local_sum, sum)
+    ! call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
   end function add_fluid
-
-  pure subroutine add_fields(a, b, c)
-    !< Dumb routine for a vectorized version of c = a + b
-    real(rk), dimension(:, :, :), intent(in), contiguous :: a
-    real(rk), dimension(:, :, :), intent(in), contiguous :: b
-    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
-    integer(ik) :: i, j, k
-
-    do k = lbound(a, dim=3), ubound(a, dim=3)
-      do j = lbound(a, dim=2), ubound(a, dim=2)
-        do i = lbound(a, dim=1), ubound(a, dim=1)
-          c(i, j, k) = a(i, j, k) + b(i, j, k)
-        end do
-      end do
-    end do
-  end subroutine add_fields
-
-  pure subroutine subtract_fields(a, b, c)
-    !< Dumb routine for a vectorized version of c = a - b
-    real(rk), dimension(:, :, :), intent(in), contiguous :: a
-    real(rk), dimension(:, :, :), intent(in), contiguous :: b
-    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
-    integer(ik) :: i, j, k
-
-    do k = lbound(a, dim=3), ubound(a, dim=3)
-      do j = lbound(a, dim=2), ubound(a, dim=2)
-        do i = lbound(a, dim=1), ubound(a, dim=1)
-          c(i, j, k) = a(i, j, k) - b(i, j, k)
-        end do
-      end do
-    end do
-  end subroutine subtract_fields
-
-  pure subroutine mult_fields(a, b, c)
-    !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :, :), intent(in), contiguous :: a
-    real(rk), dimension(:, :, :), intent(in), contiguous :: b
-    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
-    integer(ik) :: i, j, k
-
-    do k = lbound(a, dim=3), ubound(a, dim=3)
-      do j = lbound(a, dim=2), ubound(a, dim=2)
-        do i = lbound(a, dim=1), ubound(a, dim=1)
-          c(i, j, k) = a(i, j, k) * b(i, j, k)
-        end do
-      end do
-    end do
-  end subroutine mult_fields
-
-  pure subroutine mult_field_by_real(a, b, c)
-    !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :, :), intent(in), contiguous :: a
-    real(rk), intent(in) :: b
-    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
-    integer(ik) :: i, j, k
-
-    do k = lbound(a, dim=3), ubound(a, dim=3)
-      do j = lbound(a, dim=2), ubound(a, dim=2)
-        do i = lbound(a, dim=1), ubound(a, dim=1)
-          c(i, j, k) = a(i, j, k) * b
-        end do
-      end do
-    end do
-  end subroutine mult_field_by_real
 
   function fluid_mul_real(lhs, rhs) result(product)
     !< Implementation of the fluid * real operation
     class(fluid_t), intent(in) :: lhs
     real(rk), intent(in) :: rhs
-    class(integrand_t), allocatable :: product
+    type(local_field_t) :: product
 
-    class(fluid_t), allocatable :: local_product
-    integer(ik) :: alloc_status
+    ! class(local_field_t), allocatable :: local_product
+    ! integer(ik) :: alloc_status
 
-    call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
+    ! call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
 
-    allocate(local_product, source=lhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
+    ! allocate(local_product, source=lhs, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
 
-    ! local_product%conserved_vars = lhs%conserved_vars * rhs
-    call mult_field_by_real(a=lhs%conserved_vars, b=rhs, c=local_product%conserved_vars)
+    ! ! local_product%conserved_vars = lhs%conserved_vars * rhs
+    ! call mult_field_by_real(a=lhs%conserved_vars, b=rhs, c=local_product%conserved_vars)
 
-    call move_alloc(local_product, product)
-    call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
+    ! call move_alloc(local_product, product)
+    ! call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
   end function fluid_mul_real
 
   function real_mul_fluid(lhs, rhs) result(product)
     !< Implementation of the real * fluid operation
-    class(fluid_t), intent(in) :: rhs
     real(rk), intent(in) :: lhs
-    class(integrand_t), allocatable :: product
+    class(fluid_t), intent(in) :: rhs
+    type(local_field_t) :: product
 
-    type(fluid_t), allocatable :: local_product
-    integer(ik) :: alloc_status
+    ! type(local_field_t), allocatable :: local_product
+    ! integer(ik) :: alloc_status
 
-    call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
+    ! call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
 
-    allocate(local_product, source=rhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%real_mul_fluid"
+    ! allocate(local_product, source=rhs, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%real_mul_fluid"
 
-    local_product%time_integrator = rhs%time_integrator
-    ! local_product%conserved_vars = rhs%conserved_vars * lhs
-    call mult_field_by_real(a=rhs%conserved_vars, b=lhs, c=local_product%conserved_vars)
+    ! local_product%time_integrator = rhs%time_integrator
+    ! ! local_product%conserved_vars = rhs%conserved_vars * lhs
+    ! call mult_field_by_real(a=rhs%conserved_vars, b=lhs, c=local_product%conserved_vars)
 
-    call move_alloc(local_product, product)
-    call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
+    ! call move_alloc(local_product, product)
+    ! call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
   end function real_mul_fluid
 
   subroutine assign_fluid(lhs, rhs)
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
     class(fluid_t), intent(inout) :: lhs
-    class(integrand_t), intent(in) :: rhs
-    integer(ik) :: alloc_status
+    class(local_field_t), intent(in) :: rhs
+    ! integer(ik) :: alloc_status
 
-    alloc_status = 0
-    call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
+    ! alloc_status = 0
+    ! call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
 
-    call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
-    select type(rhs)
-    class is(fluid_t)
-      lhs%time_integrator = rhs%time_integrator
-      lhs%conserved_vars = rhs%conserved_vars
-    class default
-      error stop 'Error in fluid_t%assign_fluid: unsupported class'
-    end select
+    ! call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
+    ! select type(rhs)
+    ! class is(fluid_t)
+    !   lhs%time_integrator = rhs%time_integrator
+    !   lhs%conserved_vars = rhs%conserved_vars
+    ! class default
+    !   error stop 'Error in fluid_t%assign_fluid: unsupported class'
+    ! end select
 
-    call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
+    ! call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
+    sync all
   end subroutine assign_fluid
 
   subroutine get_sound_speed(self, sound_speed)
@@ -772,10 +739,10 @@ contains
     ! ihi = ubound(primitive_vars, dim=2)
     ! jlo = lbound(primitive_vars, dim=3)
     ! jhi = ubound(primitive_vars, dim=3)
-    ilo = self%ilo_img
-    ihi = self%ihi_img
-    jlo = self%jlo_img
-    jhi = self%jhi_img
+    ilo = self%cell_dims_img(1)
+    ihi = self%cell_dims_img(2)
+    jlo = self%cell_dims_img(3)
+    jhi = self%cell_dims_img(4)
 
     do j = jlo, jhi
       do i = ilo, ihi
@@ -807,10 +774,10 @@ contains
     ! ihi = ubound(self%conserved_vars, dim=2)
     ! jlo = lbound(self%conserved_vars, dim=3)
     ! jhi = ubound(self%conserved_vars, dim=3)
-    ilo = self%ilo_img
-    ihi = self%ihi_img
-    jlo = self%jlo_img
-    jhi = self%jhi_img
+    ilo = self%cell_dims_img(1)
+    ihi = self%cell_dims_img(2)
+    jlo = self%cell_dims_img(3)
+    jhi = self%cell_dims_img(4)
     do j = jlo, jhi
       do i = ilo, ihi
         if(.not. any(ieee_is_finite(self%conserved_vars(:, i, j)))) then
@@ -852,17 +819,19 @@ contains
 
     class(fluid_t), intent(in) :: self
     integer(ik), intent(in) :: image !< image number
-    real(rk), dimension(4, self%ilo:self%ihi, self%jlo:self%jhi) :: gathered_data
+    real(rk), dimension(4, &
+                        self%cell_dims_global(1):self%cell_dims_global(2), &
+                        self%cell_dims_global(3):self%cell_dims_global(4)) :: gathered_data
 
     real(rk), dimension(:, :, :), allocatable :: gather_coarray[:]
 
-    associate(ilo=>self%ilo, ihi=>self%ihi, &
-              jlo=>self%jlo, jhi=>self%jhi)
+    associate(ilo=>self%cell_dims_global(1), ihi=>self%cell_dims_global(2), &
+              jlo=>self%cell_dims_global(3), jhi=>self%cell_dims_global(4))
       allocate(gather_coarray(4, ilo:ihi, jlo:jhi)[*])
     end associate
 
-    associate(ilo=>self%ilo_img, ihi=>self%ihi_img, &
-              jlo=>self%jlo_img, jhi=>self%jhi_img)
+    associate(ilo=>self%cell_dims_img(1), ihi=>self%cell_dims_img(2), &
+              jlo=>self%cell_dims_img(3), jhi=>self%cell_dims_img(4))
       gather_coarray(4, ilo:ihi, jlo:jhi)[image] = self%conserved_vars(4, ilo:ihi, jlo:jhi)
       sync all
       if(this_image() == image) gathered_data = gather_coarray
@@ -876,16 +845,17 @@ contains
     !< For the sake of visualization, make an array that has the image number for
     !< each cell
     class(fluid_t), intent(in) :: self
-    integer(ik), dimension(self%ilo:self%ihi, self%jlo:self%jhi), intent(out) :: partitioning
+    integer(ik), dimension(self%cell_dims_global(1):self%cell_dims_global(2), &
+                           self%cell_dims_global(3):self%cell_dims_global(4)), intent(out) :: partitioning
     integer(ik), dimension(:, :), allocatable :: gather_coarray[:]
 
-    associate(ilo=>self%ilo, ihi=>self%ihi, &
-              jlo=>self%jlo, jhi=>self%jhi)
+    associate(ilo=>self%cell_dims_global(1), ihi=>self%cell_dims_global(2), &
+              jlo=>self%cell_dims_global(3), jhi=>self%cell_dims_global(4))
       allocate(gather_coarray(ilo:ihi, jlo:jhi)[*])
     end associate
 
-    associate(ilo=>self%ilo_img, ihi=>self%ihi_img, &
-              jlo=>self%jlo_img, jhi=>self%jhi_img)
+    associate(ilo=>self%cell_dims_img(1), ihi=>self%cell_dims_img(2), &
+              jlo=>self%cell_dims_img(3), jhi=>self%cell_dims_img(4))
       gather_coarray(ilo:ihi, jlo:jhi)[this_image()] = this_image()
       sync all
     end associate

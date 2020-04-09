@@ -1,7 +1,7 @@
 include_directories(${HDF5_INCLUDE_DIRS})
 
 add_library(globals lib/hermetic.f90 lib/globals.f90 lib/math_constants.f90
-                    lib/floating_point_utilities.f90 lib/mod_timing.f90)
+                    lib/floating_point_utilities.f90 lib/units.f90)
 target_link_libraries(globals PRIVATE ${Coarray_LIBRARIES})
 
 add_library(parallel lib/mod_parallel.f90)
@@ -16,8 +16,8 @@ add_library(functional third_party/functional/mod_functional.f90
                        third_party/functional/mod_interfaces.f90)
 
 add_library(io lib/io/mod_hdf5.f90 lib/io/mod_input.f90)
-target_link_libraries(io PUBLIC globals ini_parser ${HDF5_LIBRARIES}
-                                ${HDF5_HL_LIBRARIES} ${Coarray_LIBRARIES})
+target_link_libraries(io PUBLIC globals ini_parser ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES}
+                                ${Coarray_LIBRARIES})
 target_include_directories(io PUBLIC ${HDF5_INCLUDE_DIRS})
 
 add_library(eos lib/equation_of_state.f90)
@@ -43,6 +43,7 @@ target_link_libraries(geometry PUBLIC globals io eos)
 
 add_library(
   cato
+  lib/mod_timing.f90
   lib/finite_volume_scheme/global_fluid.f90
   lib/finite_volume_scheme/local_fluid.f90
   lib/io/contour_writer.f90
@@ -69,12 +70,12 @@ add_library(
   lib/reconstruction/reconstruction_factory.f90
   lib/finite_volume_scheme/fv_scheme.f90
   lib/integrand.f90
-  lib/integrators/strategy.f90
-  lib/integrators/surrogate.f90
-  lib/integrators/time_integrator_factory.f90
-  lib/integrators/heun_2nd_order.f90
-  lib/integrators/ssp_runge_kutta_3rd_order.f90
-  lib/integrators/ralston_2nd_order.f90)
+  lib/time_integrators/strategy.f90
+  lib/time_integrators/surrogate.f90
+  lib/time_integrators/time_integrator_factory.f90
+  lib/time_integrators/heun_2nd_order.f90
+  lib/time_integrators/ssp_runge_kutta_3rd_order.f90
+  lib/time_integrators/ralston_2nd_order.f90)
 
 # target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(

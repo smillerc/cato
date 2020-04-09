@@ -93,20 +93,20 @@ contains
     integer, intent(in), optional :: line_number
 
     if(enable_debug_print) then
-      if(this_image() == 1) then
+      ! if(this_image() == 1) then
 
-        if(enable_file_and_line_stats) then
-          if(present(file) .and. present(line_number)) then
-            write(std_out, '(a,a,i0,3(a))') file, ':', line_number, ' "', str, '"'
-          else
-            write(std_out, '(a)') str
-          end if
+      if(enable_file_and_line_stats) then
+        if(present(file) .and. present(line_number)) then
+          write(std_out, '(a,a,i0,3(a), i0)') file, ':', line_number, ' "', str, '" image: ', this_image()
         else
-          write(std_out, '(a)') str
+          write(std_out, '(a, a, i0)') str, ' image: ', this_image()
         end if
-
+      else
+        write(std_out, '(a, a, i0)') str, ' image: ', this_image()
       end if
+
     end if
+    ! end if
   end subroutine
 
   subroutine print_evolved_cell_data(primitive_variable, i, j, corners, updown_midoints, leftright_midpoints, primitive_vars)
