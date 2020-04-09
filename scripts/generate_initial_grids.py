@@ -47,10 +47,10 @@ def make_uniform_grid(n_cells, xrange, yrange):
     # cell-centered arrays
     # node_shape = (x_2d.shape[0], x_2d.shape[1])
     cell_shape = (x_2d.shape[0] - 1, x_2d.shape[1] - 1)
-    rho = np.ones_like(cell_shape)
-    u = np.ones_like(cell_shape)
-    v = np.ones_like(cell_shape)
-    p = np.ones_like(cell_shape)
+    rho = np.ones(cell_shape)
+    u = np.ones(cell_shape)
+    v = np.ones(cell_shape)
+    p = np.ones(cell_shape)
 
     # cell spacing
     dy = (np.diff(y_2d[0, :]) / 2.0)[0]
