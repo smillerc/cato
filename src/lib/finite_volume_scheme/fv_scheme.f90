@@ -107,11 +107,17 @@ contains
     class(grid_t), pointer :: grid => null()
     class(abstract_reconstruction_t), pointer :: r_omega => null()
     class(abstract_evo_operator_t), pointer :: E0 => null()
-
+    type(hdf5_file) :: h5
     integer(ik) :: alloc_status
     alloc_status = 0
 
     call debug_print('Initializing finite_volume_scheme_t', __FILE__, __LINE__)
+
+    if(input%restart_from_file) then
+      call h5%initialize(filename=trim(input%restart_file), status='old', action='r')
+      call h5%get('/time', self%time)
+      call h5%finalize()
+    end if
 
     self%title = trim(input%title)
 
@@ -235,25 +241,25 @@ contains
 
     if(allocated(self%source_term)) then
 
-      if(self%source_term%ilo /= 0 .and. self%source_term%ihi /= 0) then
-        if(max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)) then
-          error stop "max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)"
-        end if
+      ! if(self%source_term%ilo /= 0 .and. self%source_term%ihi /= 0) then
+      !   if(max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)) then
+      !     error stop "max(self%source_term%ilo, self%source_term%ihi) > max(self%grid%ilo_cell, self%grid%ihi_cell)"
+      !   end if
 
-        if(min(self%source_term%ilo, self%source_term%ihi) < min(self%grid%ilo_cell, self%grid%ihi_cell)) then
-          error stop "min(self%source_term%ilo, self%source_term%ihi) > min(self%grid%ilo_cell, self%grid%ihi_cell)"
-        end if
-      end if
+      !   if(min(self%source_term%ilo, self%source_term%ihi) < min(self%grid%ilo_cell, self%grid%ihi_cell)) then
+      !     error stop "min(self%source_term%ilo, self%source_term%ihi) > min(self%grid%ilo_cell, self%grid%ihi_cell)"
+      !   end if
+      ! end if
 
-      if(self%source_term%jlo /= 0 .and. self%source_term%jhi /= 0) then
-        if(max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)) then
-          error stop "max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)"
-        end if
+      ! if(self%source_term%jlo /= 0 .and. self%source_term%jhi /= 0) then
+      !   if(max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)) then
+      !     error stop "max(self%source_term%jlo, self%source_term%jhi) > max(self%grid%jlo_cell, self%grid%jhi_cell)"
+      !   end if
 
-        if(min(self%source_term%jlo, self%source_term%jhi) < min(self%grid%jlo_cell, self%grid%jhi_cell)) then
-          error stop "min(self%source_term%jlo, self%source_term%jhi) > min(self%grid%jlo_cell, self%grid%jhi_cell)"
-        end if
-      end if
+      !   if(min(self%source_term%jlo, self%source_term%jhi) < min(self%grid%jlo_cell, self%grid%jhi_cell)) then
+      !     error stop "min(self%source_term%jlo, self%source_term%jhi) > min(self%grid%jlo_cell, self%grid%jhi_cell)"
+      !   end if
+      ! end if
 
       call self%source_term%apply_source(conserved_vars=conserved_vars, lbounds=lbound(conserved_vars), time=self%time)
     end if

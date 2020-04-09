@@ -70,8 +70,8 @@ contains
     real(rk), intent(in) :: pressure
     real(rk), intent(in) :: density
 
-    ! if(pressure < 0) error stop "Pressure is < 0 in eos_t%sound_speed"
-    ! if(density < 0) error stop "Density is < 0 in eos_t%sound_speed"
+    ! The absolute value is used here because negative density and pressure will get caught
+    ! elsewhere and allow for a final IO contour dump
     sound_speed = sqrt(self%gamma * abs(pressure / density))
   end function sound_speed
 
@@ -81,16 +81,8 @@ contains
     real(rk), dimension(:, :, :), intent(in) :: primitive_vars
     real(rk), dimension(:, :), intent(out) :: sound_speed
 
-    ! if(minval(primitive_vars(4, :, :)) < 0.0_rk) then
-    !   print*, 'minloc(primitive_vars(4, :, :))', minloc(primitive_vars(4, :, :))
-    !   error stop "Pressure is < 0 in eos_t%calc_sound_speed_from_primitive()"
-    ! end if
-
-    ! if(minval(primitive_vars(1, :, :)) < 0.0_rk) then
-    !   print*, 'minloc(primitive_vars(1, :, :))', minloc(primitive_vars(1, :, :))
-    !   error stop "Density is < 0 in eos_t%calc_sound_speed_from_primitive()"
-    ! end if
-
+    ! The absolute value is used here because negative density and pressure will get caught
+    ! elsewhere and allow for a final IO contour dump
     sound_speed = sqrt(self%gamma * abs(primitive_vars(4, :, :) / primitive_vars(1, :, :)))
   end subroutine sound_speed_from_primitive
 
@@ -102,7 +94,7 @@ contains
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
 
     allocate(primitive_vars, mold=conserved_vars)
-    call self%conserved_to_primitive(conserved_vars, primitive_vars)
+    call self%conserved_to_primitive(conserved_vars, primitive_vars, lbounds=lbound(conserved_vars))
     call self%sound_speed_from_primitive(primitive_vars, sound_speed)
     deallocate(primitive_vars)
   end subroutine
@@ -132,13 +124,14 @@ contains
     pressure = rho * (self%gamma - 1.0_rk) * (total_energy - ((u**2 + v**2) / 2.0_rk))
   end function total_energy_to_pressure
 
-  subroutine conserved_to_primitive(self, conserved_vars, primitive_vars)
+  subroutine conserved_to_primitive(self, conserved_vars, primitive_vars, lbounds)
     !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
     !< is in the EOS class due to requirement of converting energy into pressure
 
     class(eos_t), intent(in) :: self
-    real(rk), dimension(:, :, :), intent(in) :: conserved_vars
-    real(rk), dimension(:, :, :), intent(out) :: primitive_vars
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: conserved_vars
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: primitive_vars
 
     logical :: underflow_mode
 

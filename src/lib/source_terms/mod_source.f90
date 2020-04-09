@@ -3,18 +3,21 @@ module mod_source
   !< "source term" into the domain, e.g. energy, pressure, etc...
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit
+  use mod_units
   use linear_interpolation_module, only: linear_interp_1d
 
   implicit none
 
   type, abstract :: source_t
     character(len=:), allocatable :: source_type
+    real(rk) :: scale_factor = 1.0_rk !< User scale factor do scale energy up/down
     real(rk), private :: time = 0.0_rk ! Solution time (for time dependent bc's)
     real(rk), private :: max_time = 0.0_rk !< Max time in source (e.g. stop after this)
     integer(ik) :: ilo = 0 !< Index to apply source term at
     integer(ik) :: jlo = 0 !< Index to apply source term at
     integer(ik) :: ihi = 0 !< Index to apply source term at
     integer(ik) :: jhi = 0 !< Index to apply source term at
+    integer(ik) :: io_unit !< file that the source value is written out to (time,source) pairs
 
     logical :: constant_source = .false.
     real(rk) :: source_input = 0.0_rk
@@ -131,14 +134,17 @@ contains
 
     class(source_t), intent(inout) :: self
     integer(ik) :: interp_stat
+    real(rk) :: t
 
+    t = self%get_time()
     if(self%constant_source) then
       source_value = self%source_input
     else
-      if(self%get_time() <= self%max_time) then
-        call self%temporal_source_input%evaluate(x=self%get_time(), &
+      if(t <= self%max_time) then
+        call self%temporal_source_input%evaluate(x=t, &
                                                  f=source_value, &
                                                  istat=interp_stat)
+
         if(interp_stat /= 0) then
           write(std_out, '(a)') "Unable to interpolate value within "// &
             "source_t%get_desired_source_value()"
@@ -150,7 +156,13 @@ contains
       end if
     end if
 
-    if(source_value > 0.0_rk) write(*, '(a, es10.3)') 'Applying source term of: ', source_value
+    source_value = source_value * self%scale_factor
+
+    if(source_value > 0.0_rk) then
+      write(*, '(a, es10.3)') 'Applying source term of: ', source_value
+      write(self%io_unit, '(2(es14.5, 1x))') t, source_value
+    end if
+
   end function get_desired_source_value
 
   function get_application_bounds(self, lbounds, ubounds) result(ranges)
@@ -163,24 +175,31 @@ contains
 
     associate(ilo=>ranges(1), ihi=>ranges(2), &
               jlo=>ranges(3), jhi=>ranges(4))
+
+      ilo = self%ilo
+      ihi = self%ihi
+      jlo = self%jlo
+      jhi = self%jhi
+
       if(self%ilo == 0 .and. self%ihi == 0) then
         ! Apply across entire i range
         ilo = lbounds(2)
         ihi = ubounds(2)
-        jlo = self%jlo
-        jhi = self%jhi
       else if(self%jlo == 0 .and. self%jhi == 0) then
         ! Apply across entire j range
-        ilo = self%ilo
-        ihi = self%ihi
         jlo = lbounds(3)
         jhi = ubounds(3)
-      else
-        ilo = self%ilo
-        ihi = self%ihi
-        jlo = self%jlo
-        jhi = self%jhi
       end if
+
+      ! For convienence, -1 just means go to the last index, ala python
+      if(self%ihi == -1) ihi = ubounds(2)
+      if(self%jhi == -1) jhi = ubounds(3)
+
+      if(ilo > ihi .or. jlo > jhi) then
+        write(*, '(a, 4(i0, 1x), a)') "Error: Invalid source appliation range [ilo,ihi,jlo,jhi]: [", ilo, ihi, jlo, jhi, ']'
+        error stop "Error: Invalid source appliation range"
+      end if
+
     end associate
   end function get_application_bounds
 

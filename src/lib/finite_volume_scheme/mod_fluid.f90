@@ -1,7 +1,7 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_MACH
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -106,7 +106,7 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate cato_t%time_integrator"
     deallocate(time_integrator)
 
-    if(input%read_init_cond_from_file) then
+    if(input%read_init_cond_from_file .or. input%restart_from_file) then
       call self%initialize_from_hdf5(input, finite_volume_scheme)
     else
       call self%initialize_from_ini(input)
@@ -134,6 +134,8 @@ contains
     class(input_t), intent(in) :: input
     class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     type(hdf5_file) :: h5
+    logical :: file_exists
+    character(:), allocatable :: filename
 
     real(rk), dimension(:, :), allocatable :: density
     real(rk), dimension(:, :), allocatable :: x_velocity
@@ -141,7 +143,23 @@ contains
     real(rk), dimension(:, :), allocatable :: pressure
 
     call debug_print('Initializing fluid_t from hdf5', __FILE__, __LINE__)
-    call h5%initialize(filename=input%initial_condition_file, status='old', action='r')
+
+    if(input%restart_from_file) then
+      filename = trim(input%restart_file)
+    else
+      filename = trim(input%initial_condition_file)
+    end if
+
+    file_exists = .false.
+    inquire(file=filename, exist=file_exists)
+
+    if(.not. file_exists) then
+      write(*, '(a)') 'Error in finite_volume_scheme_t%initialize_from_hdf5(); file not found: "'//filename//'"'
+      error stop 'Error in finite_volume_scheme_t%initialize_from_hdf5(); file not found, exiting...'
+    end if
+
+    call h5%initialize(filename=filename, status='old', action='r')
+
     call h5%get('/density', density)
     call h5%get('/x_velocity', x_velocity)
     call h5%get('/y_velocity', y_velocity)
@@ -276,10 +294,16 @@ contains
     allocate(local_d_dt, source=self)
     allocate(primitive_vars, mold=self%conserved_vars)
 
-    call local_d_dt%get_primitive_vars(primitive_vars)
+    call local_d_dt%get_primitive_vars(primitive_vars, lbounds=lbound(self%conserved_vars))
 
     ! First put primitive vars in ghost layers
     call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
+
+    ! print*, '+x'
+    ! write(*, "(a, 12(es10.3, 1x))") 'fluid rho ', primitive_vars(1,fv%grid%ihi_bc_cell, :)
+    ! write(*, "(a, 12(es10.3, 1x))") 'fluid u   ', primitive_vars(2,fv%grid%ihi_bc_cell, :)
+    ! write(*, "(a, 12(es10.3, 1x))") 'fluid v   ', primitive_vars(3,fv%grid%ihi_bc_cell, :)
+    ! write(*, "(a, 12(es10.3, 1x))") 'fluid p   ', primitive_vars(4,fv%grid%ihi_bc_cell, :)
 
     ! Now we can reconstruct the entire domain
     call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
@@ -317,7 +341,6 @@ contains
                                                           error_code=error_code)
     if(error_code /= 0) then
       fv%error_code = error_code
-      ! error stop 'Error code!'
     end if
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
@@ -329,12 +352,6 @@ contains
       fv%error_code = error_code
     end if
 
-    ! call print_evolved_cell_data('rho', 601, 1, evolved_corner_state, &
-    !                              evolved_downup_midpoints_state, evolved_leftright_midpoints_state, primitive_vars)
-    ! call print_evolved_cell_data('p', 601, 1, evolved_corner_state, &
-    !                              evolved_downup_midpoints_state, evolved_leftright_midpoints_state, primitive_vars)
-
-    ! error stop
     nullify(fv%reconstruction_operator%primitive_vars)
     nullify(fv%evolution_operator%reconstructed_state)
 
@@ -460,91 +477,29 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
     real(rk) :: eps
-    real(rk), dimension(:, :, :), allocatable :: primitive_vars
+    real(rk) :: u, v
+    real(rk), dimension(:, :), allocatable :: sound_speed
 
-    logical :: underflow_mode
+    call self%get_sound_speed(sound_speed)
 
-    call ieee_get_underflow_mode(underflow_mode)
-    call ieee_set_underflow_mode(.false.)
+    ilo = lbound(self%conserved_vars, dim=2)
+    ihi = ubound(self%conserved_vars, dim=2)
+    jlo = lbound(self%conserved_vars, dim=3)
+    jhi = ubound(self%conserved_vars, dim=3)
 
-    allocate(primitive_vars, mold=self%conserved_vars)
-    primitive_vars = 1.0_rk
-    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
-    call self%get_primitive_vars(primitive_vars)
-
-    ilo = lbound(self%conserved_vars, dim=2) + 1
-    ihi = ubound(self%conserved_vars, dim=2) - 1
-    jlo = lbound(self%conserved_vars, dim=3) + 1
-    jhi = ubound(self%conserved_vars, dim=3) - 1
-
-    ! do j = jlo, jhi
-    !   do i = ilo, ihi
-    !     associate(rho=>primitive_vars(1, :, :), &
-    !               u=>primitive_vars(2, :, :), &
-    !               v=>primitive_vars(3, :, :), &
-    !               p=>primitive_vars(4, :, :))
-
-    !       eps = (2.0e-5_rk / rho(i, j))  ! smoother
-    !       if(i > ilo .and. i < ihi .and. j > jlo .and. j < jhi) then ! center
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j > jlo .and. j < jhi) then ! left (w/o corners)
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ihi .and. j > jlo .and. j < jhi) then ! right (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) + rho(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) + u(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) + v(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) + p(i, j + 1)) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i > ilo .and. i < ihi .and. j == jlo) then ! bottom (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i > ilo .and. i < ihi .and. j == jhi) then ! top (w/o corners)
-    !         rho(i, j) = eps * (rho(i - 1, j) + rho(i + 1, j) + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) + u(i + 1, j) + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) + v(i + 1, j) + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) + p(i + 1, j) + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j == jlo) then ! bottom left corner
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-
-    !       else if(i == ilo .and. j == jhi) then ! top left corner
-    !         rho(i, j) = eps * (rho(i + 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i + 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i + 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i + 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       else if(i == ihi .and. j == jlo) then ! bottom right corner
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j + 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       else if(i == ihi .and. j == jhi) then ! top right corner
-    !         rho(i, j) = eps * (rho(i - 1, j) * 2.0_rk + rho(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * rho(i, j)
-    !         u(i, j) = eps * (u(i - 1, j) * 2.0_rk + u(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * u(i, j)
-    !         v(i, j) = eps * (v(i - 1, j) * 2.0_rk + v(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * v(i, j)
-    !         p(i, j) = eps * (p(i - 1, j) * 2.0_rk + p(i, j - 1) * 2.0_rk) + (1.0_rk - 4.0_rk * eps) * p(i, j)
-    !       end if
-
-    !     end associate
-    !   end do
-    ! end do
-
-    call eos%primitive_to_conserved(primitive_vars, self%conserved_vars)
-    deallocate(primitive_vars)
-    call ieee_set_underflow_mode(underflow_mode)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
+        v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
+        if(abs(u) / sound_speed(i, j) < TINY_MACH) then
+          self%conserved_vars(2, i, j) = 0.0_rk
+        end if
+        if(abs(u) / sound_speed(i, j) < TINY_MACH) then
+          self%conserved_vars(3, i, j) = 0.0_rk
+        end if
+      end do
+    end do
+    deallocate(sound_speed)
 
   end subroutine
 
@@ -735,7 +690,7 @@ contains
     jlo = lbound(self%conserved_vars, dim=3)
     jhi = ubound(self%conserved_vars, dim=3)
 
-    allocate(sound_speed(ilo:ihi, jlo:jhi))
+    if(.not. allocated(sound_speed)) allocate(sound_speed(ilo:ihi, jlo:jhi))
 
     call debug_print('Running fluid_t%calculate_sound_speed()', __FILE__, __LINE__)
 
@@ -747,26 +702,37 @@ contains
     !< Find the maximum sound speed in the domain
     class(fluid_t), intent(in) :: self
     real(rk), dimension(:, :), allocatable :: sound_speed
-
+    integer(ik) :: ilo, ihi, jlo, jhi
+    max_cs = 0.0_rk
     call debug_print('Running fluid_t%get_max_sound_speed()', __FILE__, __LINE__)
 
     call self%get_sound_speed(sound_speed)
-    max_cs = maxval(sound_speed)
-    ! write(*,'(a, es10.3)') 'Max sound speed: ', max_cs
+    ilo = lbound(sound_speed, dim=1) + 1
+    ihi = ubound(sound_speed, dim=1) - 1
+    jlo = lbound(sound_speed, dim=2) + 1
+    jhi = ubound(sound_speed, dim=2) - 1
+
+    max_cs = maxval(sound_speed(ilo:ihi, jlo:jhi))
+    deallocate(sound_speed)
   end function get_max_sound_speed
 
-  subroutine get_primitive_vars(self, primitive_vars)
+  subroutine get_primitive_vars(self, primitive_vars, lbounds)
     !< Convert the current conserved_vars [rho, rho u, rho v, rho E] to primitive [rho, u, v, p]. Note, the
     !< work is done in the EOS module due to the energy to pressure conversion
     class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :, :), intent(out) :: primitive_vars
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: primitive_vars
     integer(ik) :: i, j, ilo, jlo, ihi, jhi
-    logical :: invalid_numbers
-
-    invalid_numbers = .false.
+    real(rk), dimension(:, :), allocatable :: sound_speed
 
     call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
-    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
+    call self%get_sound_speed(sound_speed)
+    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars, lbounds=lbound(self%conserved_vars))
+
+    ilo = lbound(self%conserved_vars, dim=2)
+    ihi = ubound(self%conserved_vars, dim=2)
+    jlo = lbound(self%conserved_vars, dim=3)
+    jhi = ubound(self%conserved_vars, dim=3)
 
     ! ilo = lbound(primitive_vars, dim=2)
     ! ihi = ubound(primitive_vars, dim=2)
@@ -779,32 +745,28 @@ contains
 
     do j = jlo, jhi
       do i = ilo, ihi
-        if(.not. any(ieee_is_finite(primitive_vars(:, i, j)))) then
-          write(std_err, '(2(a,i0), a, 4(es10.3))') 'Infinite numbers in primitive_vars(:, ', i, ', ', j, ')', &
-            primitive_vars(:, i, j)
-          invalid_numbers = .true.
+        if(abs(primitive_vars(2, i, j)) / sound_speed(i, j) < TINY_MACH) then
+          primitive_vars(2, i, j) = 0.0_rk
         end if
-
-        if(any(ieee_is_nan(primitive_vars(:, i, j)))) then
-          write(std_err, '(2(a,i0), a, 4(es10.3))') 'NaNs in primitive_vars(:, ', i, ', ', j, ')', &
-            primitive_vars(:, i, j)
-          invalid_numbers = .true.
+        if(abs(primitive_vars(3, i, j)) / sound_speed(i, j) < TINY_MACH) then
+          primitive_vars(3, i, j) = 0.0_rk
         end if
       end do
     end do
 
-    if(invalid_numbers) then
-      write(*, *) "Invalid numbers in primitive_vars"
-      error stop "Invalid numbers in primitive_vars"
-    end if
+    deallocate(sound_speed)
   end subroutine get_primitive_vars
 
-  subroutine sanity_check(self)
+  subroutine sanity_check(self, error_code)
     !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.
     class(fluid_t), intent(in) :: self
     integer(ik) :: i, j, ilo, jlo, ihi, jhi
-    logical :: invalid_numbers
+    logical :: invalid_numbers, negative_numbers
+    integer(ik), intent(out) :: error_code
 
+    error_code = 0
+
+    negative_numbers = .false.
     invalid_numbers = .false.
 
     ! ilo = lbound(self%conserved_vars, dim=2)
@@ -831,25 +793,22 @@ contains
       end do
     end do
 
-    if(invalid_numbers) then
-      write(std_out, '(a)') "Invalid numbers in the conserved variables [rho, rho u, rho v, rho E]"
-      error stop "Invalid numbers in the conserved variables [rho, rho u, rho v, rho E]"
-    end if
-
     if(minval(self%conserved_vars(1, :, :)) < 0.0_rk) then
-      write(std_out, '(a, 2(i0, 1x))') "Error: Negative density at fluid_t%conserved_vars(1,i,j): ", &
-        minloc(self%conserved_vars(1, :, :))
       write(std_err, '(a, 2(i0, 1x), a, es10.3)') "Error: Negative density at fluid_t%conserved_vars(1,i,j): (", &
         minloc(self%conserved_vars(1, :, :)), ") density = ", minval(self%conserved_vars(1, :, :))
-      error stop "Error in fluid_t%sanity_checks(): Negative density"
+      negative_numbers = .true.
     end if
 
     if(minval(self%conserved_vars(4, :, :)) < 0.0_rk) then
-      write(std_out, '(a, 2(i0, 1x))') "Error: Negative rho E (density * total energy) at fluid_t%conserved_vars(4,i,j): ", &
-        minloc(self%conserved_vars(4, :, :))
       write(std_err, '(a, 2(i0, 1x))') "Error: Negative rho E (density * total energy) at fluid_t%conserved_vars(4,i,j): ", &
         minloc(self%conserved_vars(4, :, :))
-      error stop "Error in fluid_t%sanity_checks(): Negative density"
+      negative_numbers = .true.
+    end if
+
+    if(invalid_numbers .or. negative_numbers) then
+      write(std_out, '(a)') "Invalid or negative numbers in the conserved variables [rho, rho u, rho v, rho E]"
+      write(std_err, '(a)') "Invalid or negative numbers in the conserved variables [rho, rho u, rho v, rho E]"
+      error_code = 1
     end if
 
   end subroutine sanity_check

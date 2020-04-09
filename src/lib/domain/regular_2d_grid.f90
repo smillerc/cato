@@ -104,7 +104,7 @@ contains
     self%ilo_bc_cell = 0
     self%jlo_bc_cell = 0
 
-    if(input%read_init_cond_from_file) then
+    if(input%read_init_cond_from_file .or. input%restart_from_file) then
       call self%initialize_from_hdf5(input)
     else
       call self%initialize_from_ini(input)
@@ -120,6 +120,10 @@ contains
       allocate(self%cell_volume(imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volume"
       self%cell_volume = 0.0_rk
+
+      allocate(self%cell_size(2, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_size"
+      self%cell_size = 0.0_rk
 
       allocate(self%cell_centroid_xy(2, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroid_xy"
@@ -243,18 +247,26 @@ contains
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
     logical :: file_exists
+    character(:), allocatable :: filename
 
     real(rk), dimension(:, :), allocatable :: x
     real(rk), dimension(:, :), allocatable :: y
 
-    file_exists = .false.
-    inquire(file=trim(input%initial_condition_file), exist=file_exists)
-
-    if(.not. file_exists) then
-      error stop 'Error in regular_2d_grid_t%initialize_from_hdf5(); initial conditions file not found, exiting...'
+    if(input%restart_from_file) then
+      filename = trim(input%restart_file)
+    else
+      filename = trim(input%initial_condition_file)
     end if
 
-    call h5%initialize(filename=input%initial_condition_file, status='old', action='r')
+    file_exists = .false.
+    inquire(file=filename, exist=file_exists)
+
+    if(.not. file_exists) then
+      write(*, '(a)') 'Error in regular_2d_grid_t%initialize_from_hdf5(); file not found: "'//filename//'"'
+      error stop 'Error in regular_2d_grid_t%initialize_from_hdf5(); file not found, exiting...'
+    end if
+
+    call h5%initialize(filename=filename, status='old', action='r')
     call h5%get('/x', x)
     call h5%get('/y', y)
     call h5%finalize()
@@ -429,21 +441,24 @@ contains
         self%cell_edge_lengths(:, i, j) = quad%edge_lengths
         self%cell_node_xy(:, :, :, i, j) = quad%get_cell_node_xy_set()
         self%cell_edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
+        self%cell_size(:, i, j) = [quad%min_dx, quad%min_dy]
 
       end do
     end do
 
     ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
-    if(equal(minval(self%cell_volume), maxval(self%cell_volume), epsilon=1e-8_rk)) then
-      self%cell_volume = (maxval(self%cell_volume) + minval(self%cell_volume)) / 2.0_rk
-    end if
+    ! if(equal(minval(self%cell_volume), maxval(self%cell_volume), epsilon=1e-3_rk)) then
+    !   print*, 'vol', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
+    !   error stop
+    !   self%cell_volume = (maxval(self%cell_volume) + minval(self%cell_volume)) / 2.0_rk
+    ! end if
 
     ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
-    if(equal(minval(self%cell_edge_lengths), maxval(self%cell_edge_lengths), epsilon=1e-3_rk)) then
-      ! print*, 'assdflkasdjf;saldkfj', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
-      ! error stop
-      self%cell_edge_lengths = (maxval(self%cell_edge_lengths) + minval(self%cell_edge_lengths)) / 2.0_rk
-    end if
+    ! if(equal(minval(self%cell_edge_lengths), maxval(self%cell_edge_lengths), epsilon=1e-3_rk)) then
+    !   print*, 'edgessss', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
+    !   error stop
+    !   self%cell_edge_lengths = (maxval(self%cell_edge_lengths) + minval(self%cell_edge_lengths)) / 2.0_rk
+    ! end if
 
   end subroutine
 

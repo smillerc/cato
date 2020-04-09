@@ -11,6 +11,7 @@ module mod_input
   type :: input_t
     ! general
     character(:), allocatable :: title  !< Name of the simulation
+    character(:), allocatable :: unit_system !< Type of units to output (CGS, ICF, MKS, etc...)
 
     ! grid
     character(len=32) :: grid_type = '2d_regular'  !< Structure/layout of the grid, e.g. '2d_regular'
@@ -29,10 +30,15 @@ module mod_input
     real(rk) :: init_density = 0.0_rk    !< Initial condition for the density field (useful only for testing)
     real(rk) :: init_pressure = 0.0_rk   !< Initial condition for the pressure field (useful only for testing)
 
+    ! restart files
+    logical :: restart_from_file = .false.
+    character(:), allocatable :: restart_file
+
     ! boundary conditions
     character(:), allocatable :: bc_pressure_input_file
     logical :: apply_constant_bc_pressure = .false.
     real(rk) :: constant_bc_pressure_value = 0.0_rk
+    real(rk) :: bc_pressure_scale_factor = 1.0_rk
     character(len=32) ::  plus_x_bc = 'periodic' !< Boundary condition at +x
     character(len=32) :: minus_x_bc = 'periodic' !< Boundary condition at -x
     character(len=32) ::  plus_y_bc = 'periodic' !< Boundary condition at +y
@@ -44,6 +50,7 @@ module mod_input
     logical :: apply_constant_source = .false.
     character(:), allocatable :: source_file
     real(rk) :: constant_source_value = 0.0_rk
+    real(rk) :: source_scale_factor = 1.0_rk
     integer(ik) :: source_ilo = 0
     integer(ik) :: source_ihi = 0
     integer(ik) :: source_jlo = 0
@@ -113,11 +120,11 @@ contains
 
     file_exists = .false.
 
-    ! if(this_image() == 1) then
-    write(output_unit, '(a)') 'Reading input file: '//trim(filename)
-    ! end if
+    if(this_image() == 1) then
+      write(output_unit, '(a)') 'Reading input file: '//trim(filename)
+    end if
 
-    inquire(file=filename, EXIST=file_exists)
+    inquire(file=filename, exist=file_exists)
     if(.not. file_exists) error stop "Input .ini file not found"
 
     cfg = parse_cfg(trim(filename))
@@ -125,6 +132,9 @@ contains
     ! General
     call cfg%get("general", "title", char_buffer)
     self%title = trim(char_buffer)
+
+    call cfg%get("general", "units", char_buffer, 'cgs')
+    self%unit_system = trim(char_buffer)
 
     ! Time
     call cfg%get("time", "max_time", self%max_time)
@@ -146,23 +156,53 @@ contains
     call cfg%get("scheme", "slope_limiter", char_buffer, 'upwind')
     self%slope_limiter = trim(char_buffer)
 
-    ! Initial Conditions
-    call cfg%get("initial_conditions", "read_from_file", self%read_init_cond_from_file, .true.)
-    if(self%read_init_cond_from_file) then
-      call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
-      self%initial_condition_file = trim(char_buffer)
+    ! Restart files
+    call cfg%get("restart", "restart_from_file", self%restart_from_file, .false.)
+
+    print *, 'Reading from restart?', self%restart_from_file
+
+    if(self%restart_from_file) then
+      call cfg%get("restart", "restart_file", char_buffer)
+      self%restart_file = trim(char_buffer)
+
+      inquire(file=self%restart_file, exist=file_exists)
+      if(.not. file_exists) then
+        if(this_image() == 1) then
+          write(*, '(a)') 'Restart file not found: "'//trim(self%restart_file)//'"'
+        end if
+        error stop "Restart file not found"
+      end if
     end if
 
-    call cfg%get("initial_conditions", "init_density", self%init_density, 0.0_rk)
-    call cfg%get("initial_conditions", "init_x_velocity", self%init_x_velocity, 0.0_rk)
-    call cfg%get("initial_conditions", "init_y_velocity", self%init_y_velocity, 0.0_rk)
-    call cfg%get("initial_conditions", "init_pressure", self%init_pressure, 0.0_rk)
+    ! Initial Conditions
+    if(.not. self%restart_from_file) then
+      call cfg%get("initial_conditions", "read_from_file", self%read_init_cond_from_file, .true.)
+
+      if(self%read_init_cond_from_file) then
+        call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
+        self%initial_condition_file = trim(char_buffer)
+
+        inquire(file=self%initial_condition_file, exist=file_exists)
+        if(.not. file_exists) then
+          if(this_image() == 1) then
+            write(*, '(a)') 'Initial conditions file not found: "'//trim(self%initial_condition_file)//'"'
+          end if
+          error stop "Initial conditions file not found"
+        end if
+
+      end if
+
+      call cfg%get("initial_conditions", "init_density", self%init_density, 0.0_rk)
+      call cfg%get("initial_conditions", "init_x_velocity", self%init_x_velocity, 0.0_rk)
+      call cfg%get("initial_conditions", "init_y_velocity", self%init_y_velocity, 0.0_rk)
+      call cfg%get("initial_conditions", "init_pressure", self%init_pressure, 0.0_rk)
+    end if
 
     ! Grid
     call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
     self%grid_type = trim(char_buffer)
 
-    if(.not. self%read_init_cond_from_file) then
+    if(.not. self%read_init_cond_from_file .and. .not. self%restart_from_file) then
       call cfg%get("grid", "ni_nodes", self%ni_nodes)
       call cfg%get("grid", "xmin", self%xmin)
       call cfg%get("grid", "xmax", self%xmax)
@@ -175,11 +215,13 @@ contains
     ! Boundary conditions
     call cfg%get("boundary_conditions", "plus_x", char_buffer, 'periodic')
     self%plus_x_bc = trim(char_buffer)
+
     call cfg%get("boundary_conditions", "minus_x", char_buffer, 'periodic')
     self%minus_x_bc = trim(char_buffer)
 
     call cfg%get("boundary_conditions", "plus_y", char_buffer, 'periodic')
     self%plus_y_bc = trim(char_buffer)
+
     call cfg%get("boundary_conditions", "minus_y", char_buffer, 'periodic')
     self%minus_y_bc = trim(char_buffer)
 
@@ -196,6 +238,8 @@ contains
         call cfg%get("boundary_conditions", "bc_pressure_input_file", char_buffer)
         self%bc_pressure_input_file = trim(char_buffer)
       end if
+
+      call cfg%get("boundary_conditions", "bc_pressure_scale_factor", self%bc_pressure_scale_factor, 1.0_rk)
     end if
 
     ! Source terms
@@ -210,6 +254,7 @@ contains
       self%source_term_type = trim(char_buffer)
 
       call cfg%get('source_terms', 'constant_source_value', self%constant_source_value, 0.0_rk)
+      call cfg%get('source_terms', 'source_scale_factor', self%source_scale_factor, 1.0_rk)
       call cfg%get('source_terms', 'ilo', self%source_ilo, 0)
       call cfg%get('source_terms', 'ihi', self%source_ihi, 0)
       call cfg%get('source_terms', 'jlo', self%source_jlo, 0)
@@ -222,10 +267,10 @@ contains
         error stop "All of the (i,j) ranges in source_terms are 0"
       end if
 
-      if(self%source_ilo > self%source_ihi) then
-        error stop "source_terms%ilo > source_terms%ihi"
-      else if(self%source_jlo > self%source_jhi) then
-        error stop "source_terms%jlo > source_terms%jhi"
+      if(self%source_ilo > self%source_ihi .and. self%source_ihi /= -1) then
+        error stop "Error: Invalid source application range; source_terms%ilo > source_terms%ihi"
+      else if(self%source_jlo > self%source_jhi .and. self%source_jhi /= -1) then
+        error stop "Error: Invalid source application range; source_terms%jlo > source_terms%jhi"
       end if
     end if
 

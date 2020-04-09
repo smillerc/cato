@@ -51,7 +51,7 @@ contains
     ! allocate(out_bc%name, source=in_bc%name)
     out_bc%name = in_bc%name
     out_bc%location = in_bc%location
-  end subroutine
+  end subroutine copy_periodic_bc
 
   subroutine apply_periodic_primitive_var_bc(self, primitive_vars, lbounds)
     !< Apply periodic boundary conditions to the conserved state vector field

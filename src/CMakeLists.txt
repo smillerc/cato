@@ -28,11 +28,9 @@ target_link_libraries(utilities PUBLIC globals)
 
 add_library(
   geometry
-  lib/geometry/mach_cone.f90
   lib/geometry/mach_cone_utilities.f90
   lib/geometry/midpoint_mach_cone.f90
   lib/geometry/corner_mach_cone.f90
-  # lib/geometry/cone.f90
   lib/geometry/geometry.f90
   lib/domain/grid_type.f90
   lib/domain/regular_2d_grid.f90
@@ -45,10 +43,12 @@ target_link_libraries(geometry PUBLIC globals io eos)
 
 add_library(
   cato
+  lib/mod_timing.f90
   lib/finite_volume_scheme/mod_fluid.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
+  lib/boundary_conditions/vacuum_bc.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/reflection_bc.f90

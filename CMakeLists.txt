@@ -7,7 +7,7 @@ project(
   LANGUAGES Fortran C)
 
 set(CATO_VERSION_MAJOR 1)
-set(CATO_VERSION_MINOR 0)
+set(CATO_VERSION_MINOR 1)
 set(CATO_PATCH_VERSION 0)
 
 set(CMAKE_VERBOSE_MAKEFILE Off)
@@ -93,7 +93,6 @@ if(NOT ENABLE_PROFILING)
 endif()
 
 
-
 if(CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   message(STATUS "Compile Flags: ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_RELEASE} ")
 elseif(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
@@ -121,6 +120,9 @@ add_subdirectory(src)
 
 if(ENABLE_TESTING)
   find_package(PFUNIT REQUIRED)
+  message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
+  message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
+  message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
   enable_testing()
   add_subdirectory(tests/unit)
 endif()

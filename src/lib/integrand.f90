@@ -47,9 +47,10 @@ module mod_integrand
       class(integrand_t), intent(inout) :: self
     end subroutine residual_smoother
 
-    subroutine sanity_check(self)
-      import :: integrand_t
+    subroutine sanity_check(self, error_code)
+      import :: ik, integrand_t
       class(integrand_t), intent(in) :: self
+      integer(ik), intent(out) :: error_code
     end subroutine sanity_check
 
     function symmetric_operator(lhs, rhs) result(operator_result)
@@ -99,11 +100,12 @@ contains
     allocate(self_strategy, source=self%time_integrator)
   end function
 
-  subroutine integrate(model, finite_volume_scheme, dt)
+  subroutine integrate(model, finite_volume_scheme, dt, error_code)
     !< Integration implementation
     class(integrand_t), intent(inout) :: model ! integrand_t
     class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
     real(rk), intent(inout) :: dt ! time step size
+    integer(ik), intent(out) :: error_code
 
     if(.not. ieee_is_finite(dt)) then
       error stop 'The timestep "dt" in integrand_t%integrate() is not a finite number'
@@ -112,8 +114,8 @@ contains
     call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
-      ! call model%residual_smoother()
-      call model%sanity_check()
+      call model%residual_smoother()
+      call model%sanity_check(error_code)
     else
       error stop 'Error: No integration procedure available in integrand_t%integrate()'
     end if
