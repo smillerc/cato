@@ -414,7 +414,7 @@ contains
     unit_label = ""
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i'//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Int" Precision="2"'//self%hdf5_filename//':/i</DataItem>'
+      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/i</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     unit_label = ""
