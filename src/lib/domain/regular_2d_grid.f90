@@ -440,15 +440,20 @@ contains
 
     class(regular_2d_grid_t), intent(inout) :: self
     type(quad_cell_t) :: quad
+    real(rk), dimension(4) :: x_coords
+    real(rk), dimension(4) :: y_coords
 
     integer(ik) :: i, j
+    x_coords = 0.0_rk
+    y_coords = 0.0_rk
 
     do j = self%jlo_bc_cell, self%jhi_bc_cell
       do i = self%ilo_bc_cell, self%ihi_bc_cell
-
         associate(x=>self%node_x, y=>self%node_y)
-          call quad%initialize(x_coords=[x(i, j), x(i + 1, j), x(i + 1, j + 1), x(i, j + 1)], &
-                               y_coords=[y(i, j), y(i + 1, j), y(i + 1, j + 1), y(i, j + 1)])
+          x_coords = [x(i, j), x(i + 1, j), x(i + 1, j + 1), x(i, j + 1)]
+          y_coords = [y(i, j), y(i + 1, j), y(i + 1, j + 1), y(i, j + 1)]
+
+          call quad%initialize(x_coords, y_coords)
 
         end associate
 
@@ -461,20 +466,6 @@ contains
 
       end do
     end do
-
-    ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
-    ! if(equal(minval(self%cell_volume), maxval(self%cell_volume), epsilon=1e-3_rk)) then
-    !   print*, 'vol', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
-    !   error stop
-    !   self%cell_volume = (maxval(self%cell_volume) + minval(self%cell_volume)) / 2.0_rk
-    ! end if
-
-    ! Make all the volume exactly equal if w/in a tolerance. Not sure yet why the volumes are different for a uniform grid...
-    ! if(equal(minval(self%cell_edge_lengths), maxval(self%cell_edge_lengths), epsilon=1e-3_rk)) then
-    !   print*, 'edgessss', maxval(self%cell_edge_lengths) - minval(self%cell_edge_lengths)
-    !   error stop
-    !   self%cell_edge_lengths = (maxval(self%cell_edge_lengths) + minval(self%cell_edge_lengths)) / 2.0_rk
-    ! end if
 
   end subroutine
 
