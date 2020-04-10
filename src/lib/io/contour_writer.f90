@@ -408,19 +408,19 @@ contains
     unit_label = ""
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Ghost Cell '//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Integer" Precision="4">'//self%hdf5_filename//':/ghost_cell</DataItem>'
+      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/ghost_cell</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     unit_label = ""
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i'//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Integer" Precision="4">'//self%hdf5_filename//':/i</DataItem>'
+      '" Format="HDF" NumberType="Int" Precision="2"'//self%hdf5_filename//':/i</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     unit_label = ""
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="j'//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Integer" Precision="4">'//self%hdf5_filename//':/j</DataItem>'
+      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/j</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '    </Grid>'
