@@ -7,7 +7,7 @@ module mod_corner_mach_cone
   use mod_eos, only: eos
   use mod_vector, only: vector_t
   use mod_geometry, only: super_circle, get_arc_segments_new
-  use mod_mach_cone_utilties, only: get_cone_extents, determine_if_p_prime_is_in_cell
+  use mod_mach_cone_utilties, only: tau_scaling, enable_tau_scaling, enable_edge_vector_scaling
 
   implicit none
 
@@ -48,14 +48,22 @@ module mod_corner_mach_cone
     integer(ik), dimension(2, N_CELLS) :: p_prime_ij = 0
     !< ((i,j), (cell 1:N_CELLS)) i,j location of P' or the apex of the Mach cone (global, not relative to P0)
 
-    real(rk), dimension(2, 2, N_CELLS) :: edge_vectors = 0.0_rk
-    !< ((x,y), (tail,head), (vector 1:N_CELLS)); set of vectors that define the cell edges
+    type(vector_t) :: p_prime_vector !< vector from P0 to P' (P0 is shifted to (0,0))
+
+    type(vector_t), dimension(N_CELLS) :: edge_vectors = 0.0_rk
+    !< (vector 1:N_CELLS); set of vectors that define the cell edges. These are shifted to the origin
 
     integer(ik), dimension(N_CELLS) :: n_arcs_per_cell = 0
     !< (cell 1:N_CELLS); Number of arcs that each cell contributes (0, 1, or 2)
 
     logical, dimension(N_CELLS) :: p_prime_in_cell = .false.
     !< (cell 1:N_CELLS); is P' inside the control volume?
+
+    real(rk) :: pressure_p_prime = 0.0_rk
+    !< pressure from the P' cell (due to FVLEG assumptions, this is the reconstructed value at P0 of the cell that contains P')
+
+    real(rk) :: density_p_prime = 0.0_rk
+    !< density from the P' cell (due to FVLEG assumptions, this is the reconstructed value at P0 of the cell that contains P')
 
     real(rk), dimension(4, 2, N_CELLS) :: arc_primitive_vars = 0.0_rk
     !< ((rho,u,v,p), (arc 1:2), (cell 1:N_CELLS))
@@ -65,6 +73,9 @@ module mod_corner_mach_cone
 
     real(rk), dimension(N_CELLS) :: sound_speed = 0.0_rk
     !< (cell 1:N_CELLS); speed of sound for each neighbor cell
+
+    integer(ik), dimension(2, N_CELLS) :: cell_indices = 0
+    !< ((i,j), 1:N_CELLS); indices of the neighboring cells
 
     real(rk), dimension(2) :: p_prime_xy = 0.0_rk !< (x,y); Location of P'
     real(rk), dimension(2) :: p_xy = 0.0_rk       !< (x,y); Location of P
@@ -102,8 +113,9 @@ contains
     real(rk), intent(in) :: tau  !< time increment, tau -> 0 (very small number)
     character(len=*), intent(in) :: cone_location !< corner, down/up midpoint, left/right midpoint
 
-    real(rk), dimension(2, 2, N_CELLS), intent(in) :: edge_vectors
-    !< ((x,y), (tail,head), (vector 1:N_CELLS)); set of vectors that define the cell edges
+    ! TODO: make this use less memory, since they all have the same origin point
+    real(rk), dimension(2, 0:N_CELLS), intent(in) :: edge_vectors
+    !< ((x,y), (origin, vector_1:vector_N_CELLS) ; set of vectors that define the corner
 
     integer(ik), dimension(2, N_CELLS), intent(in) :: cell_indices
     !< ((i,j), cell 1:N_CELLS); set of indices for the neighboring cells -> needed to find P' i,j index
@@ -113,17 +125,26 @@ contains
 
     ! Locals
     integer(ik) :: l, i, arc
+    real(rk), dimension(2, 2) :: vec_xy
+    real(rk) :: vector_len, min_edge_vector_length
 
-    cone%tau = tau
-    cone%p_xy = [edge_vectors(1, 1, 1), edge_vectors(2, 1, 1)]
+    ! Note: Everything is scaled down so that the minimum edge length is 1. Since
+    ! P'(x,y) is only needed to determine which cell is P', the P' vector is also scaled.
+    ! Since this is the FVLEG method, P' -> P0, so P' is taken as the reconstructed value at P0
+    ! from the reconstructed state vector of [rho, u, v, p] from each neighbor cell
+
+    vector_len = 0.0_rk
+    min_edge_vector_length = 0.0_rk
+
+    cone%p_xy = edge_vectors(:, 0)
     cone%cone_location = trim(cone_location)
-    cone%edge_vectors = edge_vectors
+    cone%recon_state = reconstructed_state
+    cone%cell_indices = cell_indices
 
     if(any(reconstructed_state(1, :) < 0.0_rk)) then
       write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed density states [' // trim(cone%cone_location) //'] (cell 1:4)', reconstructed_state(1, :)
       write(std_err, '(a, 4("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
       error stop "Error in corner_mach_cone_t initialization, density in the reconstructed state is < 0"
-
     end if
 
     if(any(reconstructed_state(4, :) < 0.0_rk)) then
@@ -132,27 +153,48 @@ contains
       error stop "Error in corner_mach_cone_t initialization, pressure in the reconstructed state is < 0"
     end if
 
-    do i = 1, N_CELLS
-      do l = 1, 4
-        cone%recon_state(l, i) = reconstructed_state(l, i)
-      end do
-    end do
-
     call cone%get_reference_state(reconstructed_state)
 
-    if(cone%cone_is_transonic) then
-      call cone%get_transonic_cone_extents(origin=cone%p_prime_xy, &
-                                           radius=cone%radius)
-      cone%reference_sound_speed = cone%radius / cone%tau
+    ! Find the minimum length of the edge vectors
+    vec_xy(:, 1) = edge_vectors(:, 0)
+    do i = 1, N_CELLS
+      vec_xy(:, 2) = edge_vectors(:, i)
+      cone%edge_vectors(i) = vector_t(vec_xy)
+    end do
+    min_edge_vector_length = min(cone%edge_vectors(1)%length, cone%edge_vectors(2)%length, &
+                                 cone%edge_vectors(3)%length, cone%edge_vectors(4)%length)
+
+    ! Scale the edge vectors (make them all close to 1 if possible)
+    do i = 1, N_CELLS
+      call cone%edge_vectors(i)%scale(min_edge_vector_length)
+    end do
+
+    ! Scale tau based on the reference sound speed (ensure that the cone)
+    ! is within the cell by a large margin
+    if(enable_tau_scaling) then
+      cone%tau = tau_scaling / cone%reference_sound_speed
     else
-      call get_cone_extents(tau=cone%tau, xy=cone%p_xy, &
-                            vel=[cone%reference_u, cone%reference_v], &
-                            sound_speed=cone%reference_sound_speed, &
-                            origin=cone%p_prime_xy, &
-                            radius=cone%radius)
+      cone%tau = tau
     end if
 
-    call cone%precompute_trig_angles(cell_indices, edge_vectors)
+    associate(x=>cone%p_xy(1), y=>cone%p_xy(1), tau=>cone%tau, &
+              origin=>cone%p_prime_xy, &
+              u=>cone%reference_u, v=>cone%reference_v, cs=>cone%reference_sound_speed)
+      origin = [x - tau * u, y - tau * v]
+      cone%radius = cs * tau
+
+      ! For very small distances, just make it coincide with P
+      if(abs(origin(1) - x) < TINY_DIST) origin(1) = x
+      if(abs(origin(2) - y) < TINY_DIST) origin(2) = y
+    end associate
+
+    ! Make the P' vector
+    vec_xy(:, 2) = cone%p_prime_xy
+    cone%p_prime_vector = vector_t(xy)
+
+    call cone%p_prime_vector%scale(min_edge_vector_length) ! Scale the P' vector too
+
+    call cone%precompute_trig_angles()
 
     ! Assign the primitive state variables to each arc contained in each cell
     do i = 1, N_CELLS
@@ -244,7 +286,7 @@ contains
 
     class(corner_mach_cone_t), intent(inout) :: self
 
-    real(rk), dimension(2, 2, N_CELLS), intent(in) :: edge_vectors
+    real(rk), dimension(2, 0:N_CELLS), intent(in) :: edge_vectors
     integer(ik), dimension(2, N_CELLS), intent(in) :: cell_indices
     !< ((i,j), cell 1:N_CELLS); set of indices for the neighboring cells -> needed to find P' i,j index
 
@@ -259,12 +301,7 @@ contains
     real(rk), dimension(2, 2) :: theta_ib_ie
     !< ((start,end), (arc1, arc2)); start/end angle for a given cell
 
-    real(rk), dimension(2) :: vector_1_head !< (x,y) location of vector 1's head
-    real(rk), dimension(2) :: vector_2_head !< (x,y) location of vector 2's head
-    real(rk), dimension(2) :: vector_3_head !< (x,y) location of vector 3's head
-    real(rk), dimension(2) :: vector_4_head !< (x,y) location of vector 4's head
-    real(rk), dimension(2) :: origin        !< (x,y) location of the origin (common for all vectors)
-    real(rk), dimension(2) :: second_vector, first_vector
+    type(vector_t), pointer :: second_vector, first_vector
     type(vector_t) :: p_prime_vector
     integer(ik) :: i
     logical :: p_prime_in_cell
@@ -299,51 +336,40 @@ contains
     ! if P' is in the neighboring cell or not
     ! edge_vector_ordering = [4, 1],[1, 2],[2, 3],[3, 4]
 
-    vector_1_head = [edge_vectors(1, 2, 1), edge_vectors(2, 2, 1)] ! (x,y)
-    vector_2_head = [edge_vectors(1, 2, 2), edge_vectors(2, 2, 2)] ! (x,y)
-    vector_3_head = [edge_vectors(1, 2, 3), edge_vectors(2, 2, 3)] ! (x,y)
-    vector_4_head = [edge_vectors(1, 2, 4), edge_vectors(2, 2, 4)] ! (x,y)
-    origin = [edge_vectors(1, 1, 1), edge_vectors(2, 1, 1)] ! (x,y)
-
-    p_prime_vector = vector_t(x=[edge_vectors(1, 1, 1), self%p_prime_xy(1)], &
-                              y=[edge_vectors(2, 1, 1), self%p_prime_xy(2)])
-
     do i = 1, N_CELLS
       select case(i)
       case(1) ! Cell 1
-        first_vector = vector_4_head
-        second_vector = vector_1_head
+        first_vector => self%edge_vectors(4)
+        second_vector => self%edge_vectors(1)
       case(2) ! Cell 2
-        first_vector = vector_1_head
-        second_vector = vector_2_head
+        first_vector => self%edge_vectors(1)
+        second_vector => self%edge_vectors(2)
       case(3) ! Cell 3
-        first_vector = vector_2_head
-        second_vector = vector_3_head
+        first_vector => self%edge_vectors(2)
+        second_vector => self%edge_vectors(3)
       case(4) ! Cell 4
-        first_vector = vector_3_head
-        second_vector = vector_4_head
+        first_vector => self%edge_vectors(3)
+        second_vector => self%edge_vectors(4)
       end select
 
-      p_prime_in_cell = determine_if_p_prime_is_in_cell(origin=origin, &
-                                                        vec_1_head=first_vector, &
-                                                        vec_2_head=second_vector, &
-                                                        p_prime_vector=p_prime_vector)
+      p_prime_in_cell = self%determine_if_p_prime_is_in_cell(vec_1=first_vector, &
+                                                             vec_2=second_vector)
       self%p_prime_in_cell(i) = p_prime_in_cell
       if(p_prime_in_cell) self%p_prime_ij(:, i) = cell_indices(:, i)
-      call get_arc_segments_new(origin=origin, &
-                                vec_1_head=first_vector, &
-                                vec_2_head=second_vector, &
+      call get_arc_segments_new(vector_1=first_vector, vector_2=second_vector, &
                                 origin_in_cell=p_prime_in_cell, &
                                 circle_xy=self%p_prime_xy, circle_radius=self%radius, &
                                 arc_segments=theta_ib_ie, n_arcs=n_arcs)
       n_arcs_per_cell(i) = n_arcs
       theta_ib(:, i) = theta_ib_ie(1, :)
       theta_ie(:, i) = theta_ib_ie(2, :)
+      nullify(first_vector)
+      nullify(second_vector)
     end do
 
   end subroutine find_arc_angles
 
-  subroutine precompute_trig_angles(self, cell_indices, edge_vectors)
+  subroutine precompute_trig_angles(self)
     !< Precompute some of the trig values, like sin(theta_ie), etc. to save compute time. If
     !< the grid is orthogonal and the references state is at rest, then the math
     !< gets even easier
@@ -355,10 +381,6 @@ contains
 
     real(rk), dimension(2, N_CELLS) :: theta_ie
     !< ((arc1, arc2), (cell 1:N_CELLS)); ending angle [rad] for the arc contained in each cell
-
-    real(rk), dimension(2, 2, N_CELLS), intent(in) :: edge_vectors
-    integer(ik), dimension(2, N_CELLS), intent(in) :: cell_indices
-    !< ((i,j), cell 1:N_CELLS); set of indices for the neighboring cells -> needed to find P' i,j index
 
     real(rk), dimension(2, N_CELLS) :: sin_theta_ib, cos_theta_ib
     real(rk), dimension(2, N_CELLS) :: sin_theta_ie, cos_theta_ie
@@ -665,4 +687,5 @@ contains
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
   end subroutine write_cone
+
 end module mod_corner_mach_cone

@@ -3,6 +3,7 @@ module mod_abstract_evo_operator
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
+  use mod_mach_cone_collection, only: mach_cone_collection_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
 
@@ -25,6 +26,13 @@ module mod_abstract_evo_operator
 
     class(abstract_reconstruction_t), pointer :: reconstruction_operator => null()
     !< pointer to the R_Omega operator used to provide values at the P' location
+
+    class(mach_cone_collection_t), allocatable :: leftright_midpoint_mach_cones
+    class(mach_cone_collection_t), allocatable :: downup_midpoint_mach_cones
+    class(mach_cone_collection_t), allocatable :: corner_mach_cones
+    integer(ik), dimension(:, :), allocatable :: leftright_midpoint_neighbors
+    integer(ik), dimension(:, :), allocatable :: downup_midpoint_neighbors
+    integer(ik), dimension(:, :), allocatable :: corner_neighbors
 
     character(:), allocatable :: name  !< Name of the evolution operator
     real(rk) :: tau !< time increment to evolve
@@ -64,7 +72,7 @@ module mod_abstract_evo_operator
     subroutine evolve_location(self, evolved_state, lbounds, error_code)
       import :: abstract_evo_operator_t
       import :: rk, ik
-      class(abstract_evo_operator_t), intent(in) :: self
+      class(abstract_evo_operator_t), intent(inout) :: self
       ! !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
       integer(ik), dimension(3), intent(in) :: lbounds
       integer(ik), intent(out) :: error_code
