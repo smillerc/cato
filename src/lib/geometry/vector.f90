@@ -13,12 +13,13 @@ module mod_vector
     real(rk) :: length = 0.0_rk
   contains
     private
+    procedure, public :: scale
     procedure, pass :: write => write_vector
     generic, public :: write(formatted) => write
   end type
 
   interface vector_t
-    module procedure :: constructor, constructor_from_2d
+    module procedure :: constructor, constructor_from_2points, constructor_from_2d_array
   end interface
 
   interface operator(.unitnorm.)
@@ -45,7 +46,7 @@ contains
     vec%length = sqrt(vec%x**2 + vec%y**2)
   end function
 
-  type(vector_t) pure function constructor_from_2d(x, y) result(vec)
+  type(vector_t) pure function constructor_from_2points(x, y) result(vec)
     ! //TODO: fix this so no temp array copy warning issued
     !< Constructor from a set of (x,y) pairs
     real(rk), intent(in), dimension(2) :: x !< (x1,x2)
@@ -53,6 +54,15 @@ contains
 
     vec%x = x(2) - x(1)
     vec%y = y(2) - y(1)
+    vec%length = sqrt(vec%x**2 + vec%y**2)
+  end function
+
+  type(vector_t) pure function constructor_from_2d_array(xy) result(vec)
+    !< Constructor from a set of (x,y) pairs
+    real(rk), intent(in), dimension(2, 2) :: xy !< ((x,y), (tail, head))
+
+    vec%x = xy(1, 2) - xy(1, 1) ! x_head - x_tail
+    vec%y = xy(2, 2) - xy(2, 1) ! y_head - y_tail
     vec%length = sqrt(vec%x**2 + vec%y**2)
   end function
 
@@ -67,6 +77,16 @@ contains
     character(*), intent(inout) :: iomsg
 
     write(unit, '(3(a,f0.4))', iostat=iostat) 'Vector(x,y): (', self%x, ', ', self%y, ') Length: ', self%length
+  end subroutine
+
+  subroutine scale(self, scale_factor)
+    !< Scale the vector by a given factor
+    class(vector_t), intent(inout) :: self
+    real(rk), intent(in) :: scale_factor
+
+    self%x = self%x * scale_factor
+    self%y = self%y * scale_factor
+    self%length = self%length * scale_factor
   end subroutine
 
   type(vector_t) pure function unit_normal(vec) result(norm_vec)

@@ -1,7 +1,6 @@
 module mod_flux_tensor
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
-  use mod_vector, only: vector_t
   use mod_eos, only: eos
 
   implicit none

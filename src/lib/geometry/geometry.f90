@@ -238,6 +238,42 @@ contains
     end do
   end subroutine get_intersection_angles
 
+  pure subroutine get_origin_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections)
+    !< Given a arbitrary line from (0,0) to (x,y) and a circle at (x_c,y_c) with a given radius, find
+    !< the angle that a the vector from the circle's center to the intersection point(s) has with respect
+    !< to the x-axis
+
+    ! Input
+    real(rk), dimension(2), intent(in) :: line_xy !< (x,y)
+    real(rk), dimension(2), intent(in) :: circle_xy !< (x_c, y_c)
+    real(rk), intent(in) :: circle_radius
+
+    ! Output
+    logical, dimension(2), intent(out) :: valid_intersections
+    !< (point_1, point_2); A line can intersect at a max of 2 points; .true. or .false.
+
+    real(rk), dimension(2), intent(out):: arc_angles
+
+    ! Dummy
+    integer(ik) :: i
+    real(rk), dimension(2, 2) :: intersection_xy !< ((x,y), (point_1, point_2))
+
+    intersection_xy = 0.0_rk
+    valid_intersections = .false.
+
+    ! Find the intersection (x,y) locations (if any)
+    call find_line_at_origin_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersections)
+
+    arc_angles = 0.0_rk
+    do i = 1, 2
+      if(valid_intersections(i)) then
+        ! arc_angles(i) = intersection_angle_from_x_axis(circle_xy, intersection_xy(:, i))
+        arc_angles(i) = atan2(y=intersection_xy(2, i) - circle_xy(2), &
+                              x=intersection_xy(1, i) - circle_xy(1))
+      end if
+    end do
+  end subroutine get_origin_intersection_angles
+
   pure subroutine find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
     !< Find the intersections between an arbitrary line and circle. There can be 0, 1, or 2 intersections.
 
@@ -309,6 +345,78 @@ contains
       end associate
     end if
   end subroutine find_line_circle_intersections
+
+  pure subroutine find_line_at_origin_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
+    !< Find the intersections between an arbitrary line and circle. There can be 0, 1, or 2 intersections.
+
+    real(rk), dimension(2), intent(in) :: line_xy !< (x,y); Line location
+    real(rk), dimension(2), intent(in) :: circle_xy !< (x,y); Circle origin
+    real(rk), intent(in) :: circle_radius !< Radius of the circle (duh)
+    real(rk), dimension(2, 2), intent(out) :: intersection_xy !< ((x,y), (point_1, point_2)); Intersection point
+    logical, dimension(2), intent(out) :: valid_intersection !< (point_1, point_2); Is there an intersection or not?
+
+    real(rk) :: discriminiant  !< term under the square root in the quadratic formula
+    real(rk) :: sqrt_discriminiant  !< term under the square root in the quadratic formula
+    integer(ik) :: i
+    real(rk), dimension(2) :: t !< scale factor (should be between 0 and 1) of where the intersection point is along the line
+    real(rk) :: a, b, c  !< quadratic formula variables
+
+    t = 0.0_rk
+    discriminiant = 0.0_rk
+    a = 0.0_rk
+    b = 0.0_rk
+    c = 0.0_rk
+
+    associate(x1=>line_xy(1), y1=>line_xy(2), &
+              r=>circle_radius, h=>circle_xy(1), k=>circle_xy(2))
+      a = x1**2 + y1**2
+      b = 2 * x1 * (-h) + 2 * y1 * (-k)
+      c = h**2 + k**2 - r**2
+    end associate
+
+    discriminiant = b**2 - 4 * a * c
+
+    if(discriminiant > 0.0_rk) then
+      sqrt_discriminiant = sqrt(discriminiant)
+
+      ! This used the alternative quadratic formula better suited for floating point operations
+      if(near_zero(-b + sqrt_discriminiant)) then
+        t(1) = 0.0_rk ! t_1 -> 0 when intersection is at the vector start point
+      else
+        t(1) = (2 * c) / (-b + sqrt_discriminiant)
+      end if
+
+      if(near_zero(-b - sqrt_discriminiant)) then
+        t(2) = 1.0_rk  ! t_2 -> 1 when intersection is at the vector end point
+      else
+        t(2) = (2 * c) / (-b - sqrt_discriminiant)
+      end if
+    end if
+
+    ! The scale factor t must be between 0 and 1, otherwise there is no intersection
+    valid_intersection = .false.
+    if(discriminiant > 0.0_rk) then
+      do i = 1, 2 ! TODO: Can we use a where block?
+        if(t(i) < 0.0_rk .or. t(i) > 1.0_rk) then
+          valid_intersection(i) = .false.
+        else
+          valid_intersection(i) = .true.
+        end if
+      end do
+    end if
+
+    intersection_xy = 0.0_rk
+    if(discriminiant > 0.0_rk) then
+      associate(x1=>line_xy(1), &
+                y1=>line_xy(2))
+        ! x_t
+        intersection_xy(1, :) = x1 * t
+
+        ! y_t
+        intersection_xy(2, :) = y1 * t
+      end associate
+    end if
+  end subroutine find_line_at_origin_circle_intersections
 
   pure real(rk) function intersection_angle_from_x_axis(circle_origin_xy, intersection_xy) result(angle)
     !< Given the the intersection point and origin of the circle it intersected, determine the
