@@ -24,20 +24,20 @@ module mod_mach_cone_collection
     !< (i, j); Is each neighbor cell supersonic or not? This is needed for transonic mach cones in
     !< order to apply an entropy fix for transonic rarefaction regions.
 
-    real(rk), dimension(:, :, :, :), allocatable :: dtheta
-    !< ((arc 1:2), (cell 1:N), i, j); theta_ie - theta_ib [radians]
+    real(rk), dimension(:, :, :), allocatable :: dtheta
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); theta_ie - theta_ib [radians]
 
-    real(rk), dimension(:, :, :, :), allocatable :: sin_dtheta
-    !< ((arc 1:2), (cell 1:N), i, j); sin(theta_ie) - sin(theta_ib)
+    real(rk), dimension(:, :, :), allocatable :: sin_dtheta
+    !< (cell_1_arc_1:cell_N_arc_2); sin(theta_ie) - sin(theta_ib)
 
-    real(rk), dimension(:, :, :, :), allocatable :: cos_dtheta
-    !< ((arc 1:2), (cell 1:N), i, j); cos(theta_ie) - cos(theta_ib)
+    real(rk), dimension(:, :, :), allocatable :: cos_dtheta
+    !< (cell_1_arc_1:cell_N_arc_2); cos(theta_ie) - cos(theta_ib)
 
-    real(rk), dimension(:, :, :, :), allocatable :: sin_d2theta
-    !< ((arc 1:2), (cell 1:N), i, j); sin(2*theta_ie) - sine(2*theta_ib)
+    real(rk), dimension(:, :, :), allocatable :: sin_d2theta
+    !< (cell_1_arc_1:cell_N_arc_2); sin(2*theta_ie) - sine(2*theta_ib)
 
-    real(rk), dimension(:, :, :, :), allocatable :: cos_d2theta
-    !< ((arc 1:2), (cell 1:N), i, j); cos(2*theta_ie) - cos(2*theta_ib)
+    real(rk), dimension(:, :, :), allocatable :: cos_d2theta
+    !< (cell_1_arc_1:cell_N_arc_2); cos(2*theta_ie) - cos(2*theta_ib)
 
     integer(ik), dimension(:, :, :), allocatable :: p_prime_ij
     !< ((P' i, P' j), i, j) i,j location of P' or the apex of the Mach cone (global, not relative to P0)
@@ -57,8 +57,14 @@ module mod_mach_cone_collection
     real(rk), dimension(:, :), allocatable :: density_p_prime
     !< density from the P' cell (due to FVLEG assumptions, this is the reconstructed value at P0 of the cell that contains P')
 
-    real(rk), dimension(:, :, :, :, :), allocatable :: arc_primitive_vars
-    !< ((rho,u,v,p), (arc 1:2), (cell 1:N), i, j)
+    real(rk), dimension(:, :, :), allocatable :: rho
+    !< (cell_1_arc_1:cell_N_arc_2); pressure of the cell along the are; Note the dimension (cell 1:N)*2 , where 2 means # arcs
+    real(rk), dimension(:, :, :), allocatable :: u
+    !< (cell_1_arc_1:cell_N_arc_2); u velocity of the cell along the are; Note the dimension (cell 1:N)*2 , where 2 means # arcs
+    real(rk), dimension(:, :, :), allocatable :: v
+    !< (cell_1_arc_1:cell_N_arc_2); v velocity of the cell along the are; Note the dimension (cell 1:N)*2 , where 2 means # arcs
+    real(rk), dimension(:, :, :), allocatable :: p
+    !< (cell_1_arc_1:cell_N_arc_2); pressure of the cell along the are; Note the dimension (cell 1:N)*2 , where 2 means # arcs
 
     integer(ik), dimension(:, :, :, :), allocatable :: cell_indices
     !< ((i,j), cell 1:N, i, j); indices of the neighboring cells
@@ -110,7 +116,7 @@ contains
     real(rk), dimension(:, :, :, :), intent(in) :: reconstructed_state
     !< ((rho,u,v,p), (origin, vector_1:N), i, j); reconstructed state for point P.
 
-    integer(ik) :: arc, c, i, j, ni, nj
+    integer(ik) :: idx, arc, c, i, j, ni, nj
 
     self%ni = size(reconstructed_state, dim=3)
     self%nj = size(reconstructed_state, dim=4)
@@ -148,19 +154,19 @@ contains
       allocate(self%recon_state(4, nc, ni, nj))
       self%recon_state = reconstructed_state
 
-      allocate(self%dtheta(2, nc, ni, nj))
+      allocate(self%dtheta(nc * 2, ni, nj))
       self%dtheta = 0.0_rk
 
-      allocate(self%sin_dtheta(2, nc, ni, nj))
+      allocate(self%sin_dtheta(nc * 2, ni, nj))
       self%sin_dtheta = 0.0_rk
 
-      allocate(self%cos_dtheta(2, nc, ni, nj))
+      allocate(self%cos_dtheta(nc * 2, ni, nj))
       self%cos_dtheta = 0.0_rk
 
-      allocate(self%sin_d2theta(2, nc, ni, nj))
+      allocate(self%sin_d2theta(nc * 2, ni, nj))
       self%sin_d2theta = 0.0_rk
 
-      allocate(self%cos_d2theta(2, nc, ni, nj))
+      allocate(self%cos_d2theta(nc * 2, ni, nj))
       self%cos_d2theta = 0.0_rk
 
       allocate(self%p_prime_vector(2, ni, nj))
@@ -172,7 +178,15 @@ contains
       allocate(self%density_p_prime(ni, nj))
       self%density_p_prime = 0.0_rk
 
-      allocate(self%arc_primitive_vars(4, 2, nc, ni, nj))
+      allocate(self%rho(nc * 2, ni, nj))
+      self%rho = 0.0_rk
+      allocate(self%u(nc * 2, ni, nj))
+      self%u = 0.0_rk
+      allocate(self%v(nc * 2, ni, nj))
+      self%v = 0.0_rk
+      allocate(self%p(nc * 2, ni, nj))
+      self%p = 0.0_rk
+
       allocate(self%p_prime_ij(2, ni, nj))
 
       allocate(self%n_arcs_per_cell(nc, ni, nj))
@@ -227,14 +241,17 @@ contains
     ! Assign the reconstructed quantities to the primitive var values for each arc of the mach cone
     do j = 1, self%nj
       do i = 1, self%ni
-        do c = 1, self%n_neighbor_cells
-          do arc = 1, self%n_arcs_per_cell(c, i, j)
+        do arc = 1, self%n_arcs_per_cell(c, i, j)
+          do c = 1, self%n_neighbor_cells
+
+            idx = c + (arc - 1) * self%n_neighbor_cells ! convert indexing for better storage
+
             ! Normalize for numbers closer to 1 (better for floating point storage)
-            self%arc_primitive_vars(1, arc, c, i, j) = self%recon_state(1, c, i, j)
-            self%arc_primitive_vars(2, arc, c, i, j) = self%recon_state(2, c, i, j) / self%reference_sound_speed(i, j)
-            self%arc_primitive_vars(3, arc, c, i, j) = self%recon_state(3, c, i, j) / self%reference_sound_speed(i, j)
-            self%arc_primitive_vars(4, arc, c, i, j) = self%recon_state(4, c, i, j) / &
-                                                       (self%reference_density(i, j) * self%reference_sound_speed(i, j)**2)
+            self%rho(idx, i, j) = self%recon_state(1, c, i, j)
+            self%u(idx, i, j) = self%recon_state(2, c, i, j) / self%reference_sound_speed(i, j)
+            self%v(idx, i, j) = self%recon_state(3, c, i, j) / self%reference_sound_speed(i, j)
+            self%p(idx, i, j) = self%recon_state(4, c, i, j) / &
+                                (self%reference_density(i, j) * self%reference_sound_speed(i, j)**2)
           end do
         end do
       end do
@@ -316,43 +333,46 @@ contains
 
     real(rk), dimension(:, :, :, :), intent(in) :: edge_vectors
 
-    real(rk), dimension(:, :, :, :), allocatable :: theta_ib
-    !< ((arc1, arc2), (cell 1:N_CELLS), i, j); starting angle [rad] for the arc contained in each cell
+    real(rk), dimension(:, :, :), allocatable :: theta_ib
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); starting angle [rad] for the arc contained in each cell
 
-    real(rk), dimension(:, :, :, :), allocatable:: theta_ie
-    !< ((arc1, arc2), (cell 1:N_CELLS), i, j); ending angle [rad] for the arc contained in each cell
+    real(rk), dimension(:, :, :), allocatable:: theta_ie
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); ending angle [rad] for the arc contained in each cell
 
-    real(rk), dimension(:, :, :, :), allocatable :: sin_theta_ib
-    !< ((arc1, arc2), (cell 1:N_CELLS), i, j); sin(theta_ib) for the arc contained in each cell
+    real(rk), dimension(:, :, :), allocatable :: sin_theta_ib
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); sin(theta_ib) for the arc contained in each cell
 
-    real(rk), dimension(:, :, :, :), allocatable :: cos_theta_ib
-    !< ((arc1, arc2), (cell 1:N_CELLS), i, j); cos(theta_ib) for the arc contained in each cell
+    real(rk), dimension(:, :, :), allocatable :: cos_theta_ib
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); cos(theta_ib) for the arc contained in each cell
 
-    real(rk), dimension(:, :, :, :), allocatable :: sin_theta_ie
-    !< ((arc1, arc2), (cell 1:N_CELLS), i, j); sin(theta_ie) for the arc contained in each cell
+    real(rk), dimension(:, :, :), allocatable :: sin_theta_ie
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); sin(theta_ie) for the arc contained in each cell
 
-    real(rk), dimension(:, :, :, :), allocatable :: cos_theta_ie
-    !< ((arc1, arc2), (cell 1:N_CELLS), i, j); cos(theta_ie) for the arc contained in each cell
+    real(rk), dimension(:, :, :), allocatable :: cos_theta_ie
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); cos(theta_ie) for the arc contained in each cell
 
     integer(ik) :: i, j, c, arc, max_n_arcs
+    integer(ik) :: idx
+    !< index conversion to go from ((arc1, arc2), (cell 1:N_CELLS), i, j) to ((cell_1_arc_1, cell_N_arc_1:cell_1_arc_N, cell_N_arc_N), i, j)
+
     integer(ik), dimension(:, :, :), allocatable :: n_arcs_per_cell
 
-    allocate(theta_ib(2, self%n_neighbor_cells, self%ni, self%nj))
-    theta_ib = 0.0_rk
+    ! allocate(theta_ib(2*self%n_neighbor_cells, self%ni, self%nj))
+    ! theta_ib = 0.0_rk
 
-    allocate(theta_ie(2, self%n_neighbor_cells, self%ni, self%nj))
-    theta_ie = 0.0_rk
+    ! allocate(theta_ie(2*self%n_neighbor_cells, self%ni, self%nj))
+    ! theta_ie = 0.0_rk
 
-    allocate(sin_theta_ib(2, self%n_neighbor_cells, self%ni, self%nj))
+    allocate(sin_theta_ib(2 * self%n_neighbor_cells, self%ni, self%nj))
     sin_theta_ib = 0.0_rk
 
-    allocate(cos_theta_ib(2, self%n_neighbor_cells, self%ni, self%nj))
+    allocate(cos_theta_ib(2 * self%n_neighbor_cells, self%ni, self%nj))
     cos_theta_ib = 0.0_rk
 
-    allocate(sin_theta_ie(2, self%n_neighbor_cells, self%ni, self%nj))
+    allocate(sin_theta_ie(2 * self%n_neighbor_cells, self%ni, self%nj))
     sin_theta_ie = 0.0_rk
 
-    allocate(cos_theta_ie(2, self%n_neighbor_cells, self%ni, self%nj))
+    allocate(cos_theta_ie(2 * self%n_neighbor_cells, self%ni, self%nj))
     cos_theta_ie = 0.0_rk
 
     allocate(n_arcs_per_cell(self%n_neighbor_cells, self%ni, self%nj))
@@ -366,32 +386,32 @@ contains
         do i = 1, self%ni
           if(self%cone_is_centered(i, j)) then
 
-            self%dtheta(1, :, i, j) = pi / 2.0_rk ! all of the 1st arcs are a quarter of the circle
+            self%dtheta(1:4, i, j) = pi / 2.0_rk ! all of the 1st arcs are a quarter of the circle
             self%n_arcs_per_cell(:, i, j) = 1
             self%p_prime_in_cell(:, i, j) = [.true., .false., .false., .false.]
             ! Cell 1 (lower left):  180 -> 270
-            self%sin_dtheta(1, 1, i, j) = -1.0_rk
-            self%cos_dtheta(1, 1, i, j) = 1.0_rk
-            self%sin_d2theta(1, 1, i, j) = 0.0_rk
-            self%cos_d2theta(1, 1, i, j) = -2.0_rk
+            self%sin_dtheta(1, i, j) = -1.0_rk
+            self%cos_dtheta(1, i, j) = 1.0_rk
+            self%sin_d2theta(1, i, j) = 0.0_rk
+            self%cos_d2theta(1, i, j) = -2.0_rk
 
             ! Cell 2 (lower right): 270 -> 360
-            self%sin_dtheta(1, 2, i, j) = 1.0_rk
-            self%cos_dtheta(1, 2, i, j) = 1.0_rk
-            self%sin_d2theta(1, 2, i, j) = 0.0_rk
-            self%cos_d2theta(1, 2, i, j) = 2.0_rk
+            self%sin_dtheta(2, i, j) = 1.0_rk
+            self%cos_dtheta(2, i, j) = 1.0_rk
+            self%sin_d2theta(2, i, j) = 0.0_rk
+            self%cos_d2theta(2, i, j) = 2.0_rk
 
             ! Cell 3 (upper right): 0 -> 90
-            self%sin_dtheta(1, 3, i, j) = 1.0_rk
-            self%cos_dtheta(1, 3, i, j) = -1.0_rk
-            self%sin_d2theta(1, 3, i, j) = 0.0_rk
-            self%cos_d2theta(1, 3, i, j) = -2.0_rk
+            self%sin_dtheta(3, i, j) = 1.0_rk
+            self%cos_dtheta(3, i, j) = -1.0_rk
+            self%sin_d2theta(3, i, j) = 0.0_rk
+            self%cos_d2theta(3, i, j) = -2.0_rk
 
             ! Cell 4 (upper left):  90 -> 180
-            self%sin_dtheta(1, 4, i, j) = -1.0_rk
-            self%cos_dtheta(1, 4, i, j) = -1.0_rk
-            self%sin_d2theta(1, 4, i, j) = 0.0_rk
-            self%cos_d2theta(1, 4, i, j) = 2.0_rk
+            self%sin_dtheta(4, i, j) = -1.0_rk
+            self%cos_dtheta(4, i, j) = -1.0_rk
+            self%sin_d2theta(4, i, j) = 0.0_rk
+            self%cos_d2theta(4, i, j) = 2.0_rk
           end if
         end do
       end do
@@ -407,23 +427,27 @@ contains
       do j = 1, self%nj
         do i = 1, self%ni
           do c = 1, self%n_neighbor_cells
-            self%dtheta(1, c, i, j) = abs(theta_ie(1, c, i, j) - theta_ib(1, c, i, j))
-            sin_theta_ib(1, c, i, j) = sin(theta_ib(1, c, i, j))
-            cos_theta_ib(1, c, i, j) = cos(theta_ib(1, c, i, j))
-            sin_theta_ie(1, c, i, j) = sin(theta_ie(1, c, i, j))
-            cos_theta_ie(1, c, i, j) = cos(theta_ie(1, c, i, j))
+            self%dtheta(c, i, j) = abs(theta_ie(c, i, j) - theta_ib(c, i, j))
+            sin_theta_ib(c, i, j) = sin(theta_ib(c, i, j))
+            cos_theta_ib(c, i, j) = cos(theta_ib(c, i, j))
+            sin_theta_ie(c, i, j) = sin(theta_ie(c, i, j))
+            cos_theta_ie(c, i, j) = cos(theta_ie(c, i, j))
           end do
         end do
       end do
     else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
       do j = 1, self%nj
         do i = 1, self%ni
-          do arc = 1, 2
-            self%dtheta(arc, c, i, j) = abs(theta_ie(arc, c, i, j) - theta_ib(arc, c, i, j))
-            sin_theta_ib(arc, c, i, j) = sin(theta_ib(arc, c, i, j))
-            cos_theta_ib(arc, c, i, j) = cos(theta_ib(arc, c, i, j))
-            sin_theta_ie(arc, c, i, j) = sin(theta_ie(arc, c, i, j))
-            cos_theta_ie(arc, c, i, j) = cos(theta_ie(arc, c, i, j))
+          do arc = 1, self%n_arcs_per_cell(c, i, j)
+            do c = 1, self%n_neighbor_cells
+              idx = c + (arc - 1) * self%n_neighbor_cells ! convert indexing for better storage
+
+              self%dtheta(idx, i, j) = abs(theta_ie(idx, i, j) - theta_ib(idx, i, j))
+              sin_theta_ib(idx, i, j) = sin(theta_ib(idx, i, j))
+              cos_theta_ib(idx, i, j) = cos(theta_ib(idx, i, j))
+              sin_theta_ie(idx, i, j) = sin(theta_ie(idx, i, j))
+              cos_theta_ie(idx, i, j) = cos(theta_ie(idx, i, j))
+            end do
           end do
         end do
       end do
@@ -454,11 +478,11 @@ contains
     real(rk), dimension(:, :, :, :), intent(in) :: edge_vectors
     !< ((x,y), (vector_1:N), i, j) ; set of vectors that define the corner
 
-    real(rk), dimension(:, :, :, :), allocatable, intent(out) :: theta_ib
-    !< ((arc1, arc2), (cell 1:N), i, j); starting angle [rad] for the arc contained in each cell
+    real(rk), dimension(:, :, :), allocatable :: theta_ib
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); starting angle [rad] for the arc contained in each cell
 
-    real(rk), dimension(:, :, :, :), allocatable, intent(out) :: theta_ie
-    !< ((arc1, arc2), (cell 1:N), i, j); ending angle [rad] for the arc contained in each cell
+    real(rk), dimension(:, :, :), allocatable:: theta_ie
+    !< ((cell_1_arc_1:cell_N_arc_2), i, j); ending angle [rad] for the arc contained in each cell
 
     integer(ik), dimension(:, :, :), allocatable, intent(out) :: n_arcs_per_cell !< # of arcs in a given cell
 
@@ -475,8 +499,8 @@ contains
     real(rk) :: p_prime_cross_vec_1
     real(rk) :: vec_2_cross_p_prime
 
-    allocate(theta_ib(2, self%n_neighbor_cells, self%ni, self%nj))
-    allocate(theta_ie(2, self%n_neighbor_cells, self%ni, self%nj))
+    allocate(theta_ib(2 * self%n_neighbor_cells, self%ni, self%nj))
+    allocate(theta_ie(2 * self%n_neighbor_cells, self%ni, self%nj))
     allocate(n_arcs_per_cell(self%n_neighbor_cells, self%ni, self%nj))
     n_arcs_per_cell = 0
 
@@ -550,8 +574,14 @@ contains
                                         circle_radius=self%radius(i, j), &
                                         arc_segments=theta_ib_ie, n_arcs=n_arcs)
             n_arcs_per_cell(c, i, j) = n_arcs
-            theta_ib(:, c, i, j) = theta_ib_ie(1, :)
-            theta_ie(:, c, i, j) = theta_ib_ie(2, :)
+
+            associate(arc_1=>self%n_neighbor_cells, arc_2=>self%n_neighbor_cells * 2)
+              theta_ib(1:arc_1, i, j) = theta_ib_ie(1, 1)
+              theta_ib(arc_1 + 1:arc_2, i, j) = theta_ib_ie(1, 2)
+
+              theta_ie(1:arc_1, i, j) = theta_ib_ie(2, 1)
+              theta_ie(arc_1 + 1:arc_2, i, j) = theta_ib_ie(2, 2)
+            end associate
           end do
         end do
       end do
@@ -618,8 +648,13 @@ contains
                                         circle_radius=self%radius(i, j), &
                                         arc_segments=theta_ib_ie, n_arcs=n_arcs)
             n_arcs_per_cell(c, i, j) = n_arcs
-            theta_ib(:, c, i, j) = theta_ib_ie(1, :)
-            theta_ie(:, c, i, j) = theta_ib_ie(2, :)
+            associate(arc_1=>self%n_neighbor_cells, arc_2=>self%n_neighbor_cells * 2)
+              theta_ib(1:arc_1, i, j) = theta_ib_ie(1, 1)
+              theta_ib(arc_1 + 1:arc_2, i, j) = theta_ib_ie(1, 2)
+
+              theta_ie(1:arc_1, i, j) = theta_ib_ie(2, 1)
+              theta_ie(arc_1 + 1:arc_2, i, j) = theta_ib_ie(2, 2)
+            end associate
           end do
         end do
       end do

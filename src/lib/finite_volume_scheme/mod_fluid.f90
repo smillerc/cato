@@ -339,9 +339,10 @@ contains
     ! call print_recon_data('rho', 601, 1, reconstructed_state, primitive_vars)
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_downup_midpoints(evolved_state=evolved_downup_midpoints_state, &
-                                                       lbounds=lbound(evolved_downup_midpoints_state), &
-                                                       error_code=error_code)
+    call fv%evolution_operator%evolve(location='down/up midpoint', &
+                                      evolved_state=evolved_downup_midpoints_state, &
+                                      lbounds=lbound(evolved_downup_midpoints_state), &
+                                      error_code=error_code)
 
     if(error_code /= 0) then
       fv%error_code = error_code
@@ -350,18 +351,20 @@ contains
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_leftright_midpoints(evolved_state=evolved_leftright_midpoints_state, &
-                                                          lbounds=lbound(evolved_leftright_midpoints_state), &
-                                                          error_code=error_code)
+    call fv%evolution_operator%evolve(location='left/right midpoint', &
+                                      evolved_state=evolved_leftright_midpoints_state, &
+                                      lbounds=lbound(evolved_leftright_midpoints_state), &
+                                      error_code=error_code)
     if(error_code /= 0) then
       fv%error_code = error_code
     end if
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_corners(evolved_state=evolved_corner_state, &
-                                              lbounds=lbound(evolved_corner_state), &
-                                              error_code=error_code)
+    call fv%evolution_operator%evolve(location='corner', &
+                                      evolved_state=evolved_corner_state, &
+                                      lbounds=lbound(evolved_corner_state), &
+                                      error_code=error_code)
     if(error_code /= 0) then
       fv%error_code = error_code
     end if
