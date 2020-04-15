@@ -26,7 +26,7 @@ contains
     class(grid_t), pointer :: grid
     type(input_t) :: input
 
-    real(rk), dimension(2, 2, 4) :: actual_corner_vectors, grid_corner_vectors
+    real(rk), dimension(2, 0:4) :: actual_corner_vectors, grid_corner_vectors
 
     print *, 'Testing test_corner_edge_vector_query()'
     input = input_t(reconstruction_type='piecewise_linear', &
@@ -37,19 +37,41 @@ contains
     grid => grid_factory(input)
 
     grid_corner_vectors = grid%get_corner_vectors(cell_ij=[1, 1], corner='lower-left')
-    actual_corner_vectors = reshape([[-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 1
-                                     [-2.0_rk, -4.0_rk], & ! (x,y) head, vector 1
-                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 2
-                                     [-1.0_rk, -2.0_rk], &  ! (x,y) head, vector 2
-                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 3
-                                     [-2.0_rk, 0.0_rk], &  ! (x,y) head, vector 3
-                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 4
-                                     [-3.0_rk, -2.0_rk] &  ! (x,y) head, vector 4
-                                     ], shape=[2, 2, 4])
-
+    actual_corner_vectors(:, 0) = [-2.0_rk, -2.0_rk]
+    actual_corner_vectors(:, 1) = [-2.0_rk, -4.0_rk]  ! (x,y) head, vector 1
+    actual_corner_vectors(:, 2) = [-1.0_rk, -2.0_rk]  ! (x,y) head, vector 2
+    actual_corner_vectors(:, 3) = [-2.0_rk,  0.0_rk]   ! (x,y) head, vector 3
+    actual_corner_vectors(:, 4) = [-3.0_rk, -2.0_rk]  ! (x,y) head, vector 4
     @assertEqual(actual_corner_vectors, grid_corner_vectors)
     deallocate(grid)
   end subroutine test_corner_edge_vector_query
+
+  @test
+  subroutine test_corner_scaled_edge_vector_query()
+
+    class(grid_t), pointer :: grid
+    type(input_t) :: input
+
+    real(rk), dimension(2, 4) :: actual_corner_vectors !< ((x,y), vector1:vector2)
+    real(rk), dimension(2, 4) :: grid_corner_vectors   !< ((x,y), vector1:vector2)
+
+    print *, 'Testing test_corner_scaled_edge_vector_query()'
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    grid => grid_factory(input)
+
+    grid_corner_vectors = grid%corner_edge_vectors(:, :, 1, 1)
+
+    actual_corner_vectors(:, 1) = [ 0.0_rk, -2.0_rk]  ! (x,y) head, vector 1
+    actual_corner_vectors(:, 2) = [ 1.0_rk,  0.0_rk]  ! (x,y) head, vector 2
+    actual_corner_vectors(:, 3) = [ 0.0_rk,  2.0_rk]  ! (x,y) head, vector 3
+    actual_corner_vectors(:, 4) = [-1.0_rk,  0.0_rk]  ! (x,y) head, vector 4
+    @assertEqual(actual_corner_vectors, grid_corner_vectors)
+    deallocate(grid)
+  end subroutine test_corner_scaled_edge_vector_query
 
   @test
   subroutine test_leftright_midpoint_edge_vector_query()
@@ -57,8 +79,8 @@ contains
     class(grid_t), pointer :: grid
     type(input_t) :: input
 
-    real(rk), dimension(2, 2, 2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
-    real(rk), dimension(2, 2, 2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 0:2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 0:2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
 
     print *, 'Testing test_leftright_midpoint_edge_vector_query()'
     input = input_t(reconstruction_type='piecewise_linear', &
@@ -69,15 +91,36 @@ contains
     grid => grid_factory(input)
 
     grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='bottom')
-    actual_midpoint_vectors = reshape([[-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 1
-                                       [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
-                                       [-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 2
-                                       [-1.0_rk, -2.0_rk] &  ! (x,y) head, vector 2
-                                       ], shape=[2, 2, 2])
-
+    actual_midpoint_vectors(:,0) = [-1.5_rk, -2.0_rk] ! (x,y) origin
+    actual_midpoint_vectors(:,1) = [-2.0_rk, -2.0_rk] ! (x,y) vector 1
+    actual_midpoint_vectors(:,2) = [-1.0_rk, -2.0_rk] ! (x,y) vector 2
     @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
     deallocate(grid)
   end subroutine test_leftright_midpoint_edge_vector_query
+
+  @test
+  subroutine test_leftright_midpoint_scaled_edge_vector_query()
+
+    class(grid_t), pointer :: grid
+    type(input_t) :: input
+
+    real(rk), dimension(2, 2) :: actual_midpoint_vectors !< ((x,y), vector1:vector2)
+    real(rk), dimension(2, 2) :: grid_midpoint_vectors   !< ((x,y), vector1:vector2)
+
+    print *, 'Testing test_leftright_midpoint_scaled_edge_vector_query()'
+    input = input_t(reconstruction_type='piecewise_linear', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    grid => grid_factory(input)
+
+    grid_midpoint_vectors = grid%leftright_midpoint_edge_vectors(:, :, 1, 1)
+    actual_midpoint_vectors(:, 1) = [-1.0_rk, 0.0_rk]
+    actual_midpoint_vectors(:, 2) = [ 1.0_rk, 0.0_rk]
+    @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
+    deallocate(grid)
+  end subroutine test_leftright_midpoint_scaled_edge_vector_query
 
   @test
   subroutine test_downup_midpoint_edge_vector_query()
@@ -85,8 +128,8 @@ contains
     class(grid_t), pointer :: grid
     type(input_t) :: input
 
-    real(rk), dimension(2, 2, 2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
-    real(rk), dimension(2, 2, 2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 0:2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 0:2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
 
     print *, 'Testing test_downup_midpoint_edge_vector_query()'
     input = input_t(reconstruction_type='piecewise_linear', &
@@ -97,12 +140,9 @@ contains
     grid => grid_factory(input)
 
     grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='left')
-    actual_midpoint_vectors = reshape([[-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 1
-                                       [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
-                                       [-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 2
-                                       [-2.0_rk, 0.0_rk] &  ! (x,y) head, vector 2
-                                       ], shape=[2, 2, 2])
-
+    actual_midpoint_vectors(:, 0) = [-2.0_rk, -1.0_rk]
+    actual_midpoint_vectors(:, 1) = [-2.0_rk, -2.0_rk]
+    actual_midpoint_vectors(:, 2) = [-2.0_rk,  0.0_rk]
     @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
     deallocate(grid)
   end subroutine test_downup_midpoint_edge_vector_query

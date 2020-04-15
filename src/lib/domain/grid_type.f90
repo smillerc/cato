@@ -88,15 +88,15 @@ module mod_grid
     !< ((x,y), edge, i, j); normal direction vector of each face
 
     real(rk), dimension(:, :, :, :), allocatable :: corner_edge_vectors
-    !< ((x,y), (origin, vector_1:4), i, j); edge vector set for each corner
+    !< ((x,y), (vector_1:4), i, j); edge vector set for each corner
     real(rk), dimension(:, :), allocatable :: corner_edge_vectors_scale
 
     real(rk), dimension(:, :, :, :), allocatable :: downup_midpoint_edge_vectors
-    !< ((x,y), (origin, vector_1:2), i, j); edge vector set for each downup midpoint
+    !< ((x,y), (vector_1:2), i, j); edge vector set for each downup midpoint
     real(rk), dimension(:, :), allocatable :: downup_midpoint_edge_vectors_scale
 
     real(rk), dimension(:, :, :, :), allocatable :: leftright_midpoint_edge_vectors
-    !< ((x,y), (origin, vector_1:2), i, j); edge vector set for each leftright midpoint
+    !< ((x,y), (vector_1:2), i, j); edge vector set for each leftright midpoint
     real(rk), dimension(:, :), allocatable :: leftright_midpoint_edge_vectors_scale
 
     logical :: scale_edge_vectors = .true.
@@ -196,13 +196,13 @@ module mod_grid
       real(rk), dimension(2, 0:4) :: vectors !< ((x,y), (origin, vector_1, vector_2, vector_3, vector_4)
     end function
 
-    pure subroutine get_corner_vectors_scaled_and_shifted(self)
+    subroutine get_corner_vectors_scaled_and_shifted(self)
       !< Public interface to get_corner_vectors_scaled_and_shifted
       import :: grid_t
       class(grid_t), intent(inout) :: self
     end subroutine
 
-    pure subroutine get_midpoint_vectors_scaled_and_shifted(self, edge)
+    subroutine get_midpoint_vectors_scaled_and_shifted(self, edge)
       !< Public interface to get_midpoint_vectors_scaled_and_shifted
       import :: grid_t
       class(grid_t), intent(inout) :: self
