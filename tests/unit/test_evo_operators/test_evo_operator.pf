@@ -12,8 +12,7 @@ module test_evo_operator
   use mod_grid, only: grid_t
   use mod_eos
   use mod_local_evo_operator
-  use mod_corner_mach_cone
-  use mod_midpoint_mach_cone
+  use mod_mach_cone_collection
   use math_constants, only: pi, rad2deg
   use funit
 
@@ -21,11 +20,17 @@ module test_evo_operator
 
   class(grid_t), allocatable :: grid
   real(rk), parameter :: tau = 1e-3_rk
-  integer(ik), parameter :: ni_nodes = 4
-  integer(ik), parameter :: nj_nodes = 4
-  integer(ik), parameter :: ni_cells = ni_nodes - 1
-  integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik), parameter :: M = 2
+  integer(ik), parameter :: N = 1
+  integer(ik), parameter :: ni_nodes = 4 ! 4x4 grid of nodes (not including ghost layer)
+  integer(ik), parameter :: nj_nodes = 4 ! 4x4 grid of nodes (not including ghost layer)
+  integer(ik), parameter :: ni_cells = ni_nodes - 1 ! 3x3 grid of cells
+  integer(ik), parameter :: nj_cells = nj_nodes - 1 ! 3x3 grid of cells
+
   real(rk), dimension(4, 0:ni_cells + 1, 0:nj_cells + 1) :: primitive_vars = 0.0_rk
+  real(rk), dimension(4, ni_nodes, nj_cells) :: evolved_downup_midpoint = 0.0_rk
+  real(rk), dimension(4, 2, ni_nodes, nj_cells) :: downup_midpoint_recon_state = 0.0_rk
+
   real(rk), dimension(4, 4, 2, 0:ni_cells + 1, 0:nj_cells + 1) :: reconstructed_state = 0.0_rk
   type(input_t) :: input
   class(abstract_reconstruction_t), pointer :: r_omega => null()
@@ -36,11 +41,11 @@ contains
   @before
   subroutine startup()
 
-    integer(ik) :: i, j
+    integer(ik) :: i, j, c, p
     class(grid_t), pointer :: grid_ptr
     real(rk), dimension(2, 2, 4) :: actual_corner_vectors, grid_corner_vectors
 
-    write(*, *) "Creating a simple grid, reconstruction operator, and evo operator for E0 testing"
+    write(*, *) "Creating a simple grid, recon operator, and evo operator for E0 testing"
     input = input_t(reconstruction_type='piecewise_linear_sgg_structured', &
                     slope_limiter='minmod', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
@@ -57,11 +62,21 @@ contains
     r_omega => reconstruction_factory(input=input, grid_target=grid)
 
     ! Initial conditions for the primitive variables (taken from sod test)
-    primitive_vars(2:3, :, :) = 0.0_rk   ! zero velocity everywher
-    primitive_vars(1, 1, :) = 1.0_rk     ! LHS density
-    primitive_vars(4, 1, :) = 1.0_rk     ! LHS pressure
-    primitive_vars(1, 2:3, :) = 0.125_rk ! RHS density
-    primitive_vars(4, 2:3, :) = 0.1_rk   ! RHS pressure
+    primitive_vars(2:3, :, :) = 0.0_rk   ! zero velocity everywhere
+    primitive_vars(1, 0:2, :) = 1.0_rk     ! LHS density
+    primitive_vars(4, 0:2, :) = 1.0_rk     ! LHS pressure
+    primitive_vars(1, 3:4, :) = 0.125_rk ! RHS density
+    primitive_vars(4, 3:4, :) = 0.1_rk   ! RHS pressure
+
+    do j = 0, nj_cells + 1
+      do i = 0, ni_cells + 1
+        do c = 1, 2
+          do p = 1, 4
+            reconstructed_state(:,p, c, i, j) = primitive_vars(:, i, j)
+          end do
+        end do
+      end do
+    end do
 
     call r_omega%set_grid_pointer(grid)
     call r_omega%set_primitive_vars_pointer(primitive_vars, lbounds=lbound(primitive_vars))
@@ -86,176 +101,195 @@ contains
   subroutine test_simple_updown()
 
     ! Locals
-    type(midpoint_mach_cone_t) :: mach_cone
+    type(mach_cone_collection_t) :: updown_mid_mach_cone
     integer(ik) :: i, j
-    integer(ik), parameter :: midpoint_idx = 2 !< used to select the midpoint in the reconstructed_state
+    integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: point_idx  !< used to select the edge in the reconstructed_state
-    integer(ik), dimension(2, 2) :: neighbor_cell_indices
-    real(rk), dimension(2, 2, 2) :: midpoint_edge_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    integer(ik), dimension(:, :, :, :), allocatable :: neighbor_cell_indices
+    !< ((i,j), cell_id, i, j); neighbor cell (i,j) sets for each location
 
-    real(rk), dimension(4, 2) :: reconstructed_midpoint_state
-    !< ((rho, u, v, p), cell_id); the reconstructed state of the midpoint with respect to each cell
-
-    real(rk), dimension(4) :: evolved_primitive_vars
     integer(ik) :: error_code
 
     error_code = 0
 
-    ! call print_recon_data('rho', 2, 2, reconstructed_state, primitive_vars)
-    ! call print_recon_data('p', 2, 2, reconstructed_state, primitive_vars)
-    print *, 'down/up midpoint (2,2)'
-    i = 2; j = 2
-    ! cell ordering is 1) left, 2) right
-    neighbor_cell_indices(:, 1) = [i - 1, j] ! left
-    neighbor_cell_indices(:, 2) = [i, j]     ! right
+    ilo = lbound(evolved_downup_midpoint, dim=2)
+    ihi = ubound(evolved_downup_midpoint, dim=2)
+    jlo = lbound(evolved_downup_midpoint, dim=3)
+    jhi = ubound(evolved_downup_midpoint, dim=3)
 
-    midpoint_edge_vectors = E0%grid%get_midpoint_vectors(cell_ij=[i, j], edge='left')
+    allocate(neighbor_cell_indices(2, 2, ilo:ihi, jlo:jhi))
 
-    ! Cell 1: use M2 from the left cell
-    point_idx = 2
-    reconstructed_midpoint_state(:, 1) = E0%reconstructed_state(:, point_idx, midpoint_idx, i - 1, j)
+    do j = jlo, jhi
+      do i = ilo, ihi
+        neighbor_cell_indices(:, 1, i, j) = [i - 1, j] ! left
+        neighbor_cell_indices(:, 2, i, j) = [i, j]     ! right
+      end do
+    end do
 
-    ! Cell 2: cell to the right -> use M4 from the right cell
-    point_idx = 4
-    reconstructed_midpoint_state(:, 2) = E0%reconstructed_state(:, point_idx, midpoint_idx, i, j)
-    mach_cone = new_midpoint_cone(tau=tau, edge_vectors=midpoint_edge_vectors, &
-                                  reconstructed_state=reconstructed_midpoint_state, &
-                                  cell_indices=neighbor_cell_indices, &
-                                  cone_location='down/up midpoint')
+    do j = jlo, jhi
+      do i = ilo, ihi
+        ! reconstructed_state indexing; ((rho, u ,v, p), point, node/midpoint, i, j)
 
-    ! Use original reference state
+        ! Cell 1: use M2 from the left cell
+        downup_midpoint_recon_state(:, 1, i, j) = reconstructed_state(:, 2, M, i - 1, j)
+
+        ! Cell 2: cell to the right -> use M4 from the right cell
+        downup_midpoint_recon_state(:, 2, i, j) = reconstructed_state(:, 4, M, i, j)
+      end do
+    end do
+
+    call updown_mid_mach_cone%initialize(edge_vectors=E0%grid%downup_midpoint_edge_vectors, &
+                              vector_scaling=E0%grid%downup_midpoint_edge_vectors_scale, &
+                              reconstructed_state=downup_midpoint_recon_state, &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='down/up midpoint')
+
     select type(E0)
     class is(local_evo_operator_t)
-      call E0%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+       call E0%e0_operator(cones=updown_mid_mach_cone, primitive_vars=evolved_downup_midpoint)
     end select
-    write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
 
-    ! Use reference state from LHS
-    mach_cone%reference_density = 1.0_rk
-    mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.0_rk, density=1.0_rk)
-    select type(E0)
-    class is(local_evo_operator_t)
-      call E0%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
-    end select
-    write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
+    print*, evolved_downup_midpoint(2, :, 2)
+    print*, evolved_downup_midpoint(2, 2, :)
 
-    ! Use reference state from RHS
-    mach_cone%reference_density = 1.0_rk
-    mach_cone%reference_sound_speed = eos%sound_speed(pressure=0.1_rk, density=0.125_rk)
-    select type(E0)
-    class is(local_evo_operator_t)
-      call E0%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
-    end select
-    write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
+    ! Assert on either side of the interface
+    @assertEqual(1.0_rk, evolved_downup_midpoint(1, 1:2, :), 1e-10_rk)
+    @assertEqual(.125_rk, evolved_downup_midpoint(1, 4, :), 1e-10_rk)
 
-    ! Use reference state from an average of RHS and LHS
-    mach_cone%reference_density = 1.125_rk / 2.0_rk
-    mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.1_rk / 2.0_rk, density=0.125_rk)
-    select type(E0)
-    class is(local_evo_operator_t)
-      call E0%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
-    end select
-    write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
+    ! should be symmetric along j
+    @assertEqual(1.0_rk, evolved_downup_midpoint(1, 2, :), 1e-10_rk)
+
+    ! The interface value of the shock tube should be > .125 after evolution
+    @assertLessThan(.125_rk, evolved_downup_midpoint(1, 3, :), 1e-10_rk)
+
+    ! write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
+
+    ! ! Use reference state from LHS
+    ! updown_mid_mach_cone%reference_density = 1.0_rk
+    ! updown_mid_mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.0_rk, density=1.0_rk)
+    ! select type(E0)
+    ! class is(local_evo_operator_t)
+    !   call E0%e0_operator_midpoint(updown_mid_mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+    ! end select
+    ! write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
+
+    ! ! Use reference state from RHS
+    ! updown_mid_mach_cone%reference_density = 1.0_rk
+    ! updown_mid_mach_cone%reference_sound_speed = eos%sound_speed(pressure=0.1_rk, density=0.125_rk)
+    ! select type(E0)
+    ! class is(local_evo_operator_t)
+    !   call E0%e0_operator_midpoint(updown_mid_mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+    ! end select
+    ! write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
+
+    ! ! Use reference state from an average of RHS and LHS
+    ! updown_mid_mach_cone%reference_density = 1.125_rk / 2.0_rk
+    ! updown_mid_mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.1_rk / 2.0_rk, density=0.125_rk)
+    ! select type(E0)
+    ! class is(local_evo_operator_t)
+    !   call E0%e0_operator_midpoint(updown_mid_mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+    ! end select
+    ! write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
 
     ! error
   end subroutine
 
-  @test
-  subroutine test_simple_corner()
+  ! @test
+  ! subroutine test_simple_corner()
 
-    ! Locals
-    type(corner_mach_cone_t) :: mach_cone
-    !< Mach cone used to provide angles theta_ib and theta_ie
+  !   ! Locals
+  !   type(corner_mach_cone_t) :: mach_cone
+  !   !< Mach cone used to provide angles theta_ib and theta_ie
 
-    integer(ik) :: i, j
-    integer(ik), parameter :: corner_idx = 1 !< used to select the corner in the reconstructed_state
-    integer(ik) :: point_idx  !< used to select the point in the reconstructed_state
-    integer(ik), dimension(2, 4) :: neighbor_cell_indices
-    real(rk), dimension(2, 2, 4) :: corner_edge_vectors !< ((x,y), (tail,head), (vector1:vector4))
-    !< ((x,y), head/tail, vector_id); set of vectors that define the corner
+  !   integer(ik) :: i, j
+  !   integer(ik), parameter :: corner_idx = 1 !< used to select the corner in the reconstructed_state
+  !   integer(ik) :: point_idx  !< used to select the point in the reconstructed_state
+  !   integer(ik), dimension(2, 4) :: neighbor_cell_indices
+  !   real(rk), dimension(2, 2, 4) :: corner_edge_vectors !< ((x,y), (tail,head), (vector1:vector4))
+  !   !< ((x,y), head/tail, vector_id); set of vectors that define the corner
 
-    real(rk), dimension(4, 4) :: reconstructed_corner_state
-    !< ((rho, u, v, p), cell_id); the reconstructed state of the corner with respect to each cell
+  !   real(rk), dimension(4, 4) :: reconstructed_corner_state
+  !   !< ((rho, u, v, p), cell_id); the reconstructed state of the corner with respect to each cell
 
-    integer(ik) :: ilo, ihi, jlo, jhi
-    real(rk), dimension(4) :: evolved_primitive_vars
-    integer(ik) :: error_code
-    error_code = 0
+  !   integer(ik) :: ilo, ihi, jlo, jhi
+  !   real(rk), dimension(4) :: evolved_primitive_vars
+  !   integer(ik) :: error_code
+  !   error_code = 0
 
-    i = 2; j = 2
+  !   i = 2; j = 2
 
-    call print_recon_data('rho', i, j, reconstructed_state, primitive_vars)
-    call print_recon_data('p', i, j, reconstructed_state, primitive_vars)
-    do i = 2, 3
-      do j = 2, 3
-        write(*, '(2(a,i0),a)') 'corner (', i, ',', j, ')'
+  !   call print_recon_data('rho', i, j, reconstructed_state, primitive_vars)
+  !   call print_recon_data('p', i, j, reconstructed_state, primitive_vars)
+  !   do i = 2, 3
+  !     do j = 2, 3
+  !       write(*, '(2(a,i0),a)') 'corner (', i, ',', j, ')'
 
-        ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
-        neighbor_cell_indices(:, 1) = [i - 1, j - 1] ! lower left
-        neighbor_cell_indices(:, 2) = [i, j - 1]     ! lower right
-        neighbor_cell_indices(:, 3) = [i, j]         ! upper right
-        neighbor_cell_indices(:, 4) = [i - 1, j]     ! upper left
+  !       ! cell ordering is 1) lower left, 2) lower right, 3) upper right, 4) upper left
+  !       neighbor_cell_indices(:, 1) = [i - 1, j - 1] ! lower left
+  !       neighbor_cell_indices(:, 2) = [i, j - 1]     ! lower right
+  !       neighbor_cell_indices(:, 3) = [i, j]         ! upper right
+  !       neighbor_cell_indices(:, 4) = [i - 1, j]     ! upper left
 
-        corner_edge_vectors = E0%grid%get_corner_vectors(cell_ij=[i, j], corner='lower-left')
+  !       corner_edge_vectors = E0%grid%get_corner_vectors(cell_ij=[i, j], corner='lower-left')
 
-        ! Cell 1: lower left cell -> corner is in the upper right (N3) of its parent cell
-        point_idx = 3
-        reconstructed_corner_state(:, 1) = E0%reconstructed_state(:, point_idx, corner_idx, i - 1, j - 1)
+  !       ! Cell 1: lower left cell -> corner is in the upper right (N3) of its parent cell
+  !       point_idx = 3
+  !       reconstructed_corner_state(:, 1) = E0%reconstructed_state(:, point_idx, corner_idx, i - 1, j - 1)
 
-        ! Cell 2: lower right cell -> corner is in the upper left (N4) of its parent cell
-        point_idx = 4
-        reconstructed_corner_state(:, 2) = E0%reconstructed_state(:, point_idx, corner_idx, i, j - 1)
+  !       ! Cell 2: lower right cell -> corner is in the upper left (N4) of its parent cell
+  !       point_idx = 4
+  !       reconstructed_corner_state(:, 2) = E0%reconstructed_state(:, point_idx, corner_idx, i, j - 1)
 
-        ! Cell 3: upper right cell-> corner is in the lower left (N1) of its parent cell
-        point_idx = 1
-        reconstructed_corner_state(:, 3) = E0%reconstructed_state(:, point_idx, corner_idx, i, j)
+  !       ! Cell 3: upper right cell-> corner is in the lower left (N1) of its parent cell
+  !       point_idx = 1
+  !       reconstructed_corner_state(:, 3) = E0%reconstructed_state(:, point_idx, corner_idx, i, j)
 
-        ! Cell 4: upper left cell -> corner is in the lower right (N2) of its parent cell
-        point_idx = 2
-        reconstructed_corner_state(:, 4) = E0%reconstructed_state(:, point_idx, corner_idx, i - 1, j)
+  !       ! Cell 4: upper left cell -> corner is in the lower right (N2) of its parent cell
+  !       point_idx = 2
+  !       reconstructed_corner_state(:, 4) = E0%reconstructed_state(:, point_idx, corner_idx, i - 1, j)
 
-        mach_cone = new_corner_cone(tau=tau, edge_vectors=corner_edge_vectors, &
-                                    reconstructed_state=reconstructed_corner_state, &
-                                    cell_indices=neighbor_cell_indices, &
-                                    cone_location='corner')
+  !       mach_cone = new_corner_cone(tau=tau, edge_vectors=corner_edge_vectors, &
+  !                                   reconstructed_state=reconstructed_corner_state, &
+  !                                   cell_indices=neighbor_cell_indices, &
+  !                                   cone_location='corner')
 
-        ! Use original reference state
-        select type(E0)
-        class is(local_evo_operator_t)
-          call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
-        end select
-        write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (orig ref state): ", evolved_primitive_vars
+  !       ! Use original reference state
+  !       select type(E0)
+  !       class is(local_evo_operator_t)
+  !         call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+  !       end select
+  !       write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (orig ref state): ", evolved_primitive_vars
 
-        ! Use reference state from LHS
-        mach_cone%reference_density = 1.0_rk
-        mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.0_rk, density=1.0_rk)
-        select type(E0)
-        class is(local_evo_operator_t)
-          call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
-        end select
-        write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (LHS ref state):  ", evolved_primitive_vars
+  !       ! Use reference state from LHS
+  !       mach_cone%reference_density = 1.0_rk
+  !       mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.0_rk, density=1.0_rk)
+  !       select type(E0)
+  !       class is(local_evo_operator_t)
+  !         call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+  !       end select
+  !       write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (LHS ref state):  ", evolved_primitive_vars
 
-        ! Use reference state from RHS
-        mach_cone%reference_density = 1.0_rk
-        mach_cone%reference_sound_speed = eos%sound_speed(pressure=0.1_rk, density=0.125_rk)
-        select type(E0)
-        class is(local_evo_operator_t)
-          call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
-        end select
-        write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (RHS ref state):  ", evolved_primitive_vars
+  !       ! Use reference state from RHS
+  !       mach_cone%reference_density = 1.0_rk
+  !       mach_cone%reference_sound_speed = eos%sound_speed(pressure=0.1_rk, density=0.125_rk)
+  !       select type(E0)
+  !       class is(local_evo_operator_t)
+  !         call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+  !       end select
+  !       write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (RHS ref state):  ", evolved_primitive_vars
 
-        ! Use reference state from an average of RHS and LHS
-        mach_cone%reference_density = 1.125_rk / 2.0_rk
-        mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.1_rk / 2.0_rk, density=1.125_rk / 2.0_rk)
-        select type(E0)
-        class is(local_evo_operator_t)
-          call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
-        end select
-        write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (ave ref state):  ", evolved_primitive_vars
+  !       ! Use reference state from an average of RHS and LHS
+  !       mach_cone%reference_density = 1.125_rk / 2.0_rk
+  !       mach_cone%reference_sound_speed = eos%sound_speed(pressure=1.1_rk / 2.0_rk, density=1.125_rk / 2.0_rk)
+  !       select type(E0)
+  !       class is(local_evo_operator_t)
+  !         call E0%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+  !       end select
+  !       write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p) (ave ref state):  ", evolved_primitive_vars
 
-      end do
-    end do
-  end subroutine
+  !     end do
+  !   end do
+  ! end subroutine
 
   ! ! @test
   ! subroutine test_local_evo_operator_equal_corner_arc_sections()

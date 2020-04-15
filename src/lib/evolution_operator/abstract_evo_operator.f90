@@ -27,9 +27,9 @@ module mod_abstract_evo_operator
     class(abstract_reconstruction_t), pointer :: reconstruction_operator => null()
     !< pointer to the R_Omega operator used to provide values at the P' location
 
-    class(mach_cone_collection_t), allocatable :: leftright_midpoint_mach_cones
-    class(mach_cone_collection_t), allocatable :: downup_midpoint_mach_cones
-    class(mach_cone_collection_t), allocatable :: corner_mach_cones
+    type(mach_cone_collection_t) :: leftright_midpoint_mach_cones
+    type(mach_cone_collection_t) :: downup_midpoint_mach_cones
+    type(mach_cone_collection_t) :: corner_mach_cones
     integer(ik), dimension(:, :), allocatable :: leftright_midpoint_neighbors
     integer(ik), dimension(:, :), allocatable :: downup_midpoint_neighbors
     integer(ik), dimension(:, :), allocatable :: corner_neighbors
