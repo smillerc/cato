@@ -7,7 +7,7 @@ module mod_mach_cone_utilties
 
   implicit none
 
-  logical :: enable_tau_scaling = .true. !< automatically scale the tau factor to ensure nice numbers near 1 for floating point accuracy
+  logical :: enable_tau_scaling = .false. !< automatically scale the tau factor to ensure nice numbers near 1 for floating point accuracy
   logical :: enable_edge_vector_scaling = .true. !< scale the edge vector lengths so that they are near 1 (based off of the average length)
   real(rk), parameter :: tau_scaling = 0.01 !< scaling factor for tau that ensures P' is within the neighboring cells
 

@@ -7,7 +7,7 @@ module mod_mach_cone_collection
   use mod_eos, only: eos
   use mod_vector, only: vector_t
   use mod_geometry
-  use mod_mach_cone_utilties, only: tau_scaling, enable_tau_scaling, enable_edge_vector_scaling
+  use mod_mach_cone_utilties, only: tau_scaling, enable_tau_scaling
 
   implicit none
 
@@ -147,10 +147,10 @@ contains
     !< scale the P' vector down to the same frame as the edge vectors
 
     integer(ik), dimension(:, :, :, :), intent(in) :: cell_indices
-    !< ((i,j), (origin, vector_1:N), i, j); set of indices for the neighboring cells -> needed to find P' i,j index
+    !< ((i,j), (cell_1:N), i, j); set of indices for the neighboring cells -> needed to find P' i,j index
 
     real(rk), dimension(:, :, :, :), intent(in) :: reconstructed_state
-    !< ((rho,u,v,p), (origin, vector_1:N), i, j); reconstructed state for point P.
+    !< ((rho,u,v,p), (cell_1:N), i, j); reconstructed state for point P.
 
     integer(ik) :: idx, arc, c, i, j, ni, nj
 
@@ -162,6 +162,10 @@ contains
       tau_param = tau
     end if
 
+    if(any(vector_scaling < 0.0_rk)) error stop "vector_scaling < 0"
+
+    print *, 'min/max vector scale', minval(vector_scaling), maxval(vector_scaling)
+
     select case(trim(cone_location))
     case('corner')
       self%n_neighbor_cells = 4
@@ -171,20 +175,23 @@ contains
       error stop "Error in mach_cone_collection_t%initialize(), unsupported cone location"
     end select
 
-    print *, 'self%n_neighbor_cells', self%n_neighbor_cells
     do j = 1, self%nj
       do i = 1, self%ni
-        if(any(reconstructed_state(1, :, i, j) < 0.0_rk)) then
-          write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed density states [' // trim(self%cone_location) //'] (cell 1:4)', reconstructed_state(1, :, i, j)
-          write(std_err, '(a, 4("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', i, j
-          error stop "Error in corner_mach_cone_t initialization, density in the reconstructed state is < 0"
-        end if
+        do c = 1, self%n_neighbor_cells
+          if(reconstructed_state(1, c, i, j) < 0.0_rk) then
+            write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed density states [' // trim(self%cone_location) //'] (cell 1:N)', reconstructed_state(1, :, i, j)
+            write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: ', i, j
+            write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
+            error stop "Error in corner_mach_cone_t initialization, density in the reconstructed state is < 0"
+          end if
 
-        if(any(reconstructed_state(4, :, i, j) < 0.0_rk)) then
-          write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed pressure states [' // trim(self%cone_location) //'] (cell 1:4): ', reconstructed_state(4, :, i, j)
-          write(std_err, '(a, 4("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', i, j
-          error stop "Error in corner_mach_cone_t initialization, pressure in the reconstructed state is < 0"
-        end if
+          if(reconstructed_state(4, c, i, j) < 0.0_rk) then
+            write(std_err, '(a, 4(es10.3,1x))') 'Reconstructed pressure states [' // trim(self%cone_location) //'] (cell 1:N): ', reconstructed_state(4, :, i, j)
+            write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: [', i, j, ']'
+            write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
+            error stop "Error in corner_mach_cone_t initialization, pressure in the reconstructed state is < 0"
+          end if
+        end do
       end do
     end do
 
@@ -192,73 +199,69 @@ contains
       ! allocate(self%cell_is_supersonic(ni, nj))
       ! self%cell_is_supersonic = .false.
 
-      allocate(self%p_prime_in_cell(nc, ni, nj))
+      if(.not. allocated(self%p_prime_in_cell)) allocate(self%p_prime_in_cell(nc, ni, nj))
       self%p_prime_in_cell = .false.
 
-      allocate(self%recon_state(4, nc, ni, nj))
+      if(.not. allocated(self%recon_state)) allocate(self%recon_state(4, nc, ni, nj))
       self%recon_state = reconstructed_state
 
-      allocate(self%dtheta(nc * 2, ni, nj))
+      if(.not. allocated(self%dtheta)) allocate(self%dtheta(nc * 2, ni, nj))
       self%dtheta = 0.0_rk
 
-      allocate(self%sin_dtheta(nc * 2, ni, nj))
+      if(.not. allocated(self%sin_dtheta)) allocate(self%sin_dtheta(nc * 2, ni, nj))
       self%sin_dtheta = 0.0_rk
 
-      allocate(self%cos_dtheta(nc * 2, ni, nj))
+      if(.not. allocated(self%cos_dtheta)) allocate(self%cos_dtheta(nc * 2, ni, nj))
       self%cos_dtheta = 0.0_rk
 
-      allocate(self%sin_d2theta(nc * 2, ni, nj))
+      if(.not. allocated(self%sin_d2theta)) allocate(self%sin_d2theta(nc * 2, ni, nj))
       self%sin_d2theta = 0.0_rk
 
-      allocate(self%cos_d2theta(nc * 2, ni, nj))
+      if(.not. allocated(self%cos_d2theta)) allocate(self%cos_d2theta(nc * 2, ni, nj))
       self%cos_d2theta = 0.0_rk
 
-      allocate(self%p_prime_vector(2, ni, nj))
+      if(.not. allocated(self%p_prime_vector)) allocate(self%p_prime_vector(2, ni, nj))
       self%p_prime_vector = 0.0_rk
 
-      allocate(self%pressure_p_prime(ni, nj))
+      if(.not. allocated(self%pressure_p_prime)) allocate(self%pressure_p_prime(ni, nj))
       self%pressure_p_prime = 0.0_rk
 
-      allocate(self%density_p_prime(ni, nj))
+      if(.not. allocated(self%density_p_prime)) allocate(self%density_p_prime(ni, nj))
       self%density_p_prime = 0.0_rk
 
-      allocate(self%rho(nc * 2, ni, nj))
+      if(.not. allocated(self%rho)) allocate(self%rho(nc * 2, ni, nj))
       self%rho = 0.0_rk
-      allocate(self%u(nc * 2, ni, nj))
+      if(.not. allocated(self%u)) allocate(self%u(nc * 2, ni, nj))
       self%u = 0.0_rk
-      allocate(self%v(nc * 2, ni, nj))
+      if(.not. allocated(self%v)) allocate(self%v(nc * 2, ni, nj))
       self%v = 0.0_rk
-      allocate(self%p(nc * 2, ni, nj))
+      if(.not. allocated(self%p)) allocate(self%p(nc * 2, ni, nj))
       self%p = 0.0_rk
 
-      allocate(self%p_prime_ij(2, ni, nj))
+      if(.not. allocated(self%p_prime_ij)) allocate(self%p_prime_ij(2, ni, nj))
 
-      allocate(self%n_arcs_per_cell(nc, ni, nj))
+      if(.not. allocated(self%n_arcs_per_cell)) allocate(self%n_arcs_per_cell(nc, ni, nj))
       self%n_arcs_per_cell = 0
 
-      allocate(self%cell_indices(2, nc, ni, nj))
+      if(.not. allocated(self%cell_indices)) allocate(self%cell_indices(2, nc, ni, nj))
       self%cell_indices = cell_indices
 
-      allocate(self%radius(ni, nj))
-      allocate(self%tau(ni, nj))
-      allocate(self%reference_density(ni, nj))
-      allocate(self%reference_u(ni, nj))
-      allocate(self%reference_v(ni, nj))
-      allocate(self%reference_sound_speed(ni, nj))
+      if(.not. allocated(self%radius)) allocate(self%radius(ni, nj))
+      if(.not. allocated(self%tau)) allocate(self%tau(ni, nj))
+      if(.not. allocated(self%reference_density)) allocate(self%reference_density(ni, nj))
+      if(.not. allocated(self%reference_u)) allocate(self%reference_u(ni, nj))
+      if(.not. allocated(self%reference_v)) allocate(self%reference_v(ni, nj))
+      if(.not. allocated(self%reference_sound_speed)) allocate(self%reference_sound_speed(ni, nj))
 
-      allocate(self%cone_is_transonic(ni, nj))
+      if(.not. allocated(self%cone_is_transonic)) allocate(self%cone_is_transonic(ni, nj))
       self%cone_is_transonic = .false.
 
-      allocate(self%cone_is_centered(ni, nj))
+      if(.not. allocated(self%cone_is_centered)) allocate(self%cone_is_centered(ni, nj))
       self%cone_is_centered = .false.
     end associate
 
     call self%get_reference_state()
 
-    print *, 'rho tilde ', self%reference_density
-    print *, 'cs tilde ', self%reference_sound_speed
-    print *, 'u tilde ', self%reference_u
-    print *, 'v tilde ', self%reference_v
     ! Set tau (infinitesimal time increment)
     if(enable_tau_scaling .and. .not. present(tau)) then
       self%tau = tau_scaling / self%reference_sound_speed
@@ -266,20 +269,18 @@ contains
       self%tau = tau_param
     end if
 
-    print *, 'tau_scaling', enable_tau_scaling
-    print *, 'tau', self%tau
+    print *, 'min/max tau', minval(self%tau), maxval(self%tau)
 
     ! Set the P' vector. Remember that all edge vector sets are moved to the origin, so P0 is at (0,0)
     do j = 1, self%nj
       do i = 1, self%ni
         ! In the FVLEG paper, P'(x,y) = [x - tau * u_tilde, y - tau * v_tilde], but P0 is at (0,0) below
-        self%p_prime_vector(:, i, j) = -tau*[self%reference_u(i, j), self%reference_v(i, j)] * vector_scaling(i, j)
+        self%p_prime_vector(:, i, j) = -self%tau(i, j) * vector_scaling(i, j)* &
+                                       [self%reference_u(i, j), self%reference_v(i, j)]
       end do
     end do
 
-    print *, 'self%p_prime_vector', self%p_prime_vector
     self%radius = self%tau * self%reference_sound_speed
-    print *, 'self%radius', self%radius
 
     ! For very small distances, just make P' coincide with P0 at the origin
     do j = 1, self%nj
@@ -306,6 +307,17 @@ contains
             self%p(idx, i, j) = self%recon_state(4, c, i, j) / &
                                 (self%reference_density(i, j) * self%reference_sound_speed(i, j)**2)
           end do
+        end do
+      end do
+    end do
+
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do c = 1, self%n_neighbor_cells
+          if(self%p_prime_in_cell(c, i, j)) then
+            self%density_p_prime(i, j) = self%recon_state(1, c, i, j)
+            self%pressure_p_prime(i, j) = self%recon_state(4, c, i, j)
+          end if
         end do
       end do
     end do
@@ -352,21 +364,21 @@ contains
 
     ! Use the mach number to eliminate small velocities
     ! (this scales with the problem better than an absolute velocity value)
-    do j = 1, self%nj
-      do i = 1, self%ni
-        do c = 1, self%n_neighbor_cells
-          mach_u = abs(self%recon_state(2, c, i, j) / sound_speed(c, i, j))
-          mach_v = abs(self%recon_state(3, c, i, j) / sound_speed(c, i, j))
-          if(mach_u < TINY_MACH) self%recon_state(2, c, i, j) = 0.0_rk
-          if(mach_v < TINY_MACH) self%recon_state(3, c, i, j) = 0.0_rk
-          if(mach_u < TINY_MACH .and. mach_v < TINY_MACH) then
-            self%cone_is_centered(i, j) = .true.
-          else
-            self%cone_is_centered(i, j) = .false.
-          end if
-        end do
-      end do
-    end do
+    ! do j = 1, self%nj
+    !   do i = 1, self%ni
+    !     do c = 1, self%n_neighbor_cells
+    !       mach_u = abs(self%recon_state(2, c, i, j) / sound_speed(c, i, j))
+    !       mach_v = abs(self%recon_state(3, c, i, j) / sound_speed(c, i, j))
+    !       if(mach_u < TINY_MACH) self%recon_state(2, c, i, j) = 0.0_rk
+    !       if(mach_v < TINY_MACH) self%recon_state(3, c, i, j) = 0.0_rk
+    !       if(mach_u < TINY_MACH .and. mach_v < TINY_MACH) then
+    !         self%cone_is_centered(i, j) = .true.
+    !       else
+    !         self%cone_is_centered(i, j) = .false.
+    !       end if
+    !     end do
+    !   end do
+    ! end do
 
     self%reference_density = sum(self%recon_state(1, :, :, :), dim=1) / real(self%n_neighbor_cells, rk)
     self%reference_u = sum(self%recon_state(2, :, :, :), dim=1) / real(self%n_neighbor_cells, rk)
@@ -375,6 +387,9 @@ contains
     self%reference_sound_speed = sqrt(gamma * (sum(self%recon_state(4, :, :, :), dim=1) / real(self%n_neighbor_cells, rk)) &
                                       / self%reference_density)
 
+    deallocate(mach_number)
+    deallocate(sound_speed)
+    deallocate(n_supersonic_cells)
   end subroutine get_reference_state
 
   subroutine compute_trig_angles(self, edge_vectors)
@@ -509,6 +524,7 @@ contains
     deallocate(cos_theta_ib)
     deallocate(sin_theta_ie)
     deallocate(cos_theta_ie)
+    deallocate(n_arcs_per_cell)
 
   end subroutine compute_trig_angles
 
