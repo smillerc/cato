@@ -59,9 +59,13 @@ contains
 
     call date_and_time(values=dt)
 
-    ! make the results folder look like: 'results_2019_08_12-21_50' -> results_YYYY_MM_DD-HH_mm
-    write(str_buff, '(a, i4, 5(a, i2.2))') &
-      'results_', dt(1), '_', dt(2), '_', dt(3), '-', dt(5), '_', dt(6)
+    if(input%append_date_to_result_folder) then
+      ! make the results folder look like: 'results_2019_08_12-21_50' -> results_YYYY_MM_DD-HH_mm
+      write(str_buff, '(a, i4, 5(a, i2.2))') &
+        'results_', dt(1), '_', dt(2), '_', dt(3), '-', dt(5), '_', dt(6)
+    else
+      str_buff = 'results'
+    end if
 
     writer%results_folder = trim(str_buff)
     call execute_command_line('mkdir -p '//writer%results_folder, exitstat=estat, cmdstat=cstat, cmdmsg=cmsg)

@@ -58,6 +58,7 @@ module mod_input
 
     ! io
     character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
+    logical :: append_date_to_result_folder = .false.
     logical :: plot_reconstruction_states = .false.
     logical :: plot_reference_states = .false.
     logical :: plot_evolved_states = .false.
@@ -279,6 +280,7 @@ contains
     self%contour_io_format = trim(char_buffer)
 
     call cfg%get("io", "contour_interval_dt", self%contour_interval_dt, 0.1_rk)
+    call cfg%get("io", "append_date_to_result_folder", self%append_date_to_result_folder, .false.)
     call cfg%get("io", "plot_reconstruction_states", self%plot_reconstruction_states, .false.)
     call cfg%get("io", "plot_reference_states", self%plot_reference_states, .false.)
     call cfg%get("io", "plot_evolved_states", self%plot_evolved_states, .false.)
