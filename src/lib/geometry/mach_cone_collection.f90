@@ -14,15 +14,49 @@ module mod_mach_cone_collection
   private
   public :: mach_cone_collection_t
 
-  real(rk), parameter :: tau = 1e-16_rk
+  real(rk) :: tau_param = 1e-16_rk
 
   type :: mach_cone_collection_t
+    ! TODO: midpoint cones can't have more than 1 arc!!
     real(rk), dimension(:, :, :, :), allocatable :: recon_state
     !< ((rho, u, v, p), (cell 1:N), i, j); Reconstructed value of U at P for each neighbor cell
 
     ! logical, dimension(:, :), allocatable :: cell_is_supersonic
     !< (i, j); Is each neighbor cell supersonic or not? This is needed for transonic mach cones in
     !< order to apply an entropy fix for transonic rarefaction regions.
+
+    ! Note: The cell/arc indexing is a bit tricky, but there is a good reason why it is so...
+    ! Take self%dtheta for example; it's indexed as ((cell_1_arc_1:cell_N_arc_2), i, j). The primary
+    ! reason for making it this way is so that the E0 operator can directly sum along dim=1 and make
+    ! the math/code easy to read as well as have nice memory access patterns (all data is next to each other in sum)
+
+    ! So, for a corner mach cone with 4 cells, the indexing goes like the following
+    ! cell: 1, arc: 1 => array index = (1, i, j)
+    ! cell: 1, arc: 2 => array index = (2, i, j)
+    ! cell: 2, arc: 1 => array index = (3, i, j)
+    ! cell: 2, arc: 2 => array index = (4, i, j)
+    ! cell: 3, arc: 1 => array index = (5, i, j)
+    ! cell: 3, arc: 2 => array index = (6, i, j)
+    ! cell: 4, arc: 1 => array index = (7, i, j)
+    ! cell: 4, arc: 2 => array index = (8, i, j)
+
+    ! When looping through these arrays use the following:
+
+    ! when the arc index is first
+    ! do arc = 1, 2
+    !   do cell = 1, 4
+    !     idx = cell + (arc-1) * ncells ! ncells = 4 or 2
+    !     array(idx, i, j) = something...
+    !   end do
+    ! end do
+
+    ! when the cell index is first
+    ! do cell = 1, 4
+    !   do arc = 1, 2
+    !     idx = arc + (cell-1)*2
+    !     array(idx, i, j) = something...
+    !   end do
+    ! end do
 
     real(rk), dimension(:, :, :), allocatable :: dtheta
     !< ((cell_1_arc_1:cell_N_arc_2), i, j); theta_ie - theta_ib [radians]
@@ -85,7 +119,7 @@ module mod_mach_cone_collection
     procedure, public :: initialize
     procedure, private :: get_reference_state
     ! procedure, private :: determine_p_prime_cell
-    ! procedure, private :: sanity_checks
+    procedure, private :: sanity_checks
     procedure, private :: find_arc_angles
     procedure, private :: find_arc_segments
     procedure, private :: compute_trig_angles
@@ -96,12 +130,14 @@ module mod_mach_cone_collection
 
 contains
 
-  subroutine initialize(self, edge_vectors, vector_scaling, reconstructed_state, cell_indices, cone_location)
+  subroutine initialize(self, edge_vectors, vector_scaling, reconstructed_state, cell_indices, cone_location, tau)
     !< Class constructor
 
     class(mach_cone_collection_t), intent(inout) :: self
 
     character(len=*), intent(in) :: cone_location !< corner, down/up midpoint, left/right midpoint
+
+    real(rk), intent(in), optional :: tau
 
     real(rk), dimension(:, :, :, :), intent(in) :: edge_vectors
     !< ((x,y), (vector_1:N), i, j) ; set of vectors that define the corner
@@ -120,14 +156,22 @@ contains
 
     self%ni = size(reconstructed_state, dim=3)
     self%nj = size(reconstructed_state, dim=4)
+    self%cone_location = trim(cone_location)
+
+    if(present(tau)) then
+      tau_param = tau
+    end if
 
     select case(trim(cone_location))
     case('corner')
       self%n_neighbor_cells = 4
     case('down/up midpoint', 'left/right midpoint')
       self%n_neighbor_cells = 2
+    case default
+      error stop "Error in mach_cone_collection_t%initialize(), unsupported cone location"
     end select
 
+    print *, 'self%n_neighbor_cells', self%n_neighbor_cells
     do j = 1, self%nj
       do i = 1, self%ni
         if(any(reconstructed_state(1, :, i, j) < 0.0_rk)) then
@@ -211,12 +255,19 @@ contains
 
     call self%get_reference_state()
 
+    print *, 'rho tilde ', self%reference_density
+    print *, 'cs tilde ', self%reference_sound_speed
+    print *, 'u tilde ', self%reference_u
+    print *, 'v tilde ', self%reference_v
     ! Set tau (infinitesimal time increment)
-    if(enable_tau_scaling) then
+    if(enable_tau_scaling .and. .not. present(tau)) then
       self%tau = tau_scaling / self%reference_sound_speed
     else
-      self%tau = tau
+      self%tau = tau_param
     end if
+
+    print *, 'tau_scaling', enable_tau_scaling
+    print *, 'tau', self%tau
 
     ! Set the P' vector. Remember that all edge vector sets are moved to the origin, so P0 is at (0,0)
     do j = 1, self%nj
@@ -226,7 +277,9 @@ contains
       end do
     end do
 
+    print *, 'self%p_prime_vector', self%p_prime_vector
     self%radius = self%tau * self%reference_sound_speed
+    print *, 'self%radius', self%radius
 
     ! For very small distances, just make P' coincide with P0 at the origin
     do j = 1, self%nj
@@ -241,7 +294,7 @@ contains
     ! Assign the reconstructed quantities to the primitive var values for each arc of the mach cone
     do j = 1, self%nj
       do i = 1, self%ni
-        do arc = 1, self%n_arcs_per_cell(c, i, j)
+        do arc = 1, 2
           do c = 1, self%n_neighbor_cells
 
             idx = c + (arc - 1) * self%n_neighbor_cells ! convert indexing for better storage
@@ -258,7 +311,7 @@ contains
     end do
 
     ! call self%determine_p_prime_cell()
-    ! call self%sanity_checks()
+    call self%sanity_checks()
   end subroutine initialize
 
   subroutine get_reference_state(self)
@@ -381,77 +434,61 @@ contains
     ! If we know the cone is at the origin and the grid is orthogonal, then
     ! the angles are easily known ahead of time, so we can skip the additional
     ! math needed to find the intersection angles
-    if(grid_is_orthogonal) then
-      do j = 1, self%nj
-        do i = 1, self%ni
-          if(self%cone_is_centered(i, j)) then
+    ! if(grid_is_orthogonal) then
+    !   do j = 1, self%nj
+    !     do i = 1, self%ni
+    !       if(self%cone_is_centered(i, j)) then
 
-            self%dtheta(1:4, i, j) = pi / 2.0_rk ! all of the 1st arcs are a quarter of the circle
-            self%n_arcs_per_cell(:, i, j) = 1
-            self%p_prime_in_cell(:, i, j) = [.true., .false., .false., .false.]
-            ! Cell 1 (lower left):  180 -> 270
-            self%sin_dtheta(1, i, j) = -1.0_rk
-            self%cos_dtheta(1, i, j) = 1.0_rk
-            self%sin_d2theta(1, i, j) = 0.0_rk
-            self%cos_d2theta(1, i, j) = -2.0_rk
+    !         self%dtheta(1:4, i, j) = pi / 2.0_rk ! all of the 1st arcs are a quarter of the circle
+    !         self%n_arcs_per_cell(:, i, j) = 1
+    !         self%p_prime_in_cell(:, i, j) = [.true., .false., .false., .false.]
+    !         ! Cell 1 (lower left):  180 -> 270
+    !         self%sin_dtheta(1, i, j) = -1.0_rk
+    !         self%cos_dtheta(1, i, j) = 1.0_rk
+    !         self%sin_d2theta(1, i, j) = 0.0_rk
+    !         self%cos_d2theta(1, i, j) = -2.0_rk
 
-            ! Cell 2 (lower right): 270 -> 360
-            self%sin_dtheta(2, i, j) = 1.0_rk
-            self%cos_dtheta(2, i, j) = 1.0_rk
-            self%sin_d2theta(2, i, j) = 0.0_rk
-            self%cos_d2theta(2, i, j) = 2.0_rk
+    !         ! Cell 2 (lower right): 270 -> 360
+    !         self%sin_dtheta(2, i, j) = 1.0_rk
+    !         self%cos_dtheta(2, i, j) = 1.0_rk
+    !         self%sin_d2theta(2, i, j) = 0.0_rk
+    !         self%cos_d2theta(2, i, j) = 2.0_rk
 
-            ! Cell 3 (upper right): 0 -> 90
-            self%sin_dtheta(3, i, j) = 1.0_rk
-            self%cos_dtheta(3, i, j) = -1.0_rk
-            self%sin_d2theta(3, i, j) = 0.0_rk
-            self%cos_d2theta(3, i, j) = -2.0_rk
+    !         ! Cell 3 (upper right): 0 -> 90
+    !         self%sin_dtheta(3, i, j) = 1.0_rk
+    !         self%cos_dtheta(3, i, j) = -1.0_rk
+    !         self%sin_d2theta(3, i, j) = 0.0_rk
+    !         self%cos_d2theta(3, i, j) = -2.0_rk
 
-            ! Cell 4 (upper left):  90 -> 180
-            self%sin_dtheta(4, i, j) = -1.0_rk
-            self%cos_dtheta(4, i, j) = -1.0_rk
-            self%sin_d2theta(4, i, j) = 0.0_rk
-            self%cos_d2theta(4, i, j) = 2.0_rk
-          end if
-        end do
-      end do
-    end if
+    !         ! Cell 4 (upper left):  90 -> 180
+    !         self%sin_dtheta(4, i, j) = -1.0_rk
+    !         self%cos_dtheta(4, i, j) = -1.0_rk
+    !         self%sin_d2theta(4, i, j) = 0.0_rk
+    !         self%cos_d2theta(4, i, j) = 2.0_rk
+    !       end if
+    !     end do
+    !   end do
+    ! end if
 
     call self%find_arc_angles(edge_vectors, theta_ib, theta_ie, n_arcs_per_cell)
 
     ! Precompute for a bit of speed
     self%n_arcs_per_cell = n_arcs_per_cell
     max_n_arcs = maxval(n_arcs_per_cell)
-
-    if(max_n_arcs == 1) then ! most cells will only have 1 arc in each
-      do j = 1, self%nj
-        do i = 1, self%ni
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do arc = 1, 2
           do c = 1, self%n_neighbor_cells
-            self%dtheta(c, i, j) = abs(theta_ie(c, i, j) - theta_ib(c, i, j))
-            sin_theta_ib(c, i, j) = sin(theta_ib(c, i, j))
-            cos_theta_ib(c, i, j) = cos(theta_ib(c, i, j))
-            sin_theta_ie(c, i, j) = sin(theta_ie(c, i, j))
-            cos_theta_ie(c, i, j) = cos(theta_ie(c, i, j))
+            idx = c + (arc - 1) * self%n_neighbor_cells ! convert indexing for better storage
+            self%dtheta(idx, i, j) = abs(theta_ie(idx, i, j) - theta_ib(idx, i, j))
+            sin_theta_ib(idx, i, j) = sin(theta_ib(idx, i, j))
+            cos_theta_ib(idx, i, j) = cos(theta_ib(idx, i, j))
+            sin_theta_ie(idx, i, j) = sin(theta_ie(idx, i, j))
+            cos_theta_ie(idx, i, j) = cos(theta_ie(idx, i, j))
           end do
         end do
       end do
-    else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
-      do j = 1, self%nj
-        do i = 1, self%ni
-          do arc = 1, self%n_arcs_per_cell(c, i, j)
-            do c = 1, self%n_neighbor_cells
-              idx = c + (arc - 1) * self%n_neighbor_cells ! convert indexing for better storage
-
-              self%dtheta(idx, i, j) = abs(theta_ie(idx, i, j) - theta_ib(idx, i, j))
-              sin_theta_ib(idx, i, j) = sin(theta_ib(idx, i, j))
-              cos_theta_ib(idx, i, j) = cos(theta_ib(idx, i, j))
-              sin_theta_ie(idx, i, j) = sin(theta_ie(idx, i, j))
-              cos_theta_ie(idx, i, j) = cos(theta_ie(idx, i, j))
-            end do
-          end do
-        end do
-      end do
-    end if
+    end do
 
     where(ieee_is_nan(sin_theta_ib)) sin_theta_ib = 0.0_rk
     where(ieee_is_nan(cos_theta_ib)) cos_theta_ib = 0.0_rk
@@ -460,8 +497,13 @@ contains
 
     self%sin_dtheta = sin_theta_ie - sin_theta_ib
     self%cos_dtheta = cos_theta_ie - cos_theta_ib
+    where(abs(self%sin_dtheta) < 1e-10_rk) self%sin_dtheta = 0.0_rk
+    where(abs(self%cos_dtheta) < 1e-10_rk) self%cos_dtheta = 0.0_rk
+
     self%sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
     self%cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
+    where(abs(self%sin_d2theta) < 1e-10_rk) self%sin_d2theta = 0.0_rk
+    where(abs(self%cos_d2theta) < 1e-10_rk) self%cos_d2theta = 0.0_rk
 
     deallocate(sin_theta_ib)
     deallocate(cos_theta_ib)
@@ -492,7 +534,7 @@ contains
     real(rk), dimension(2) :: second_vector, first_vector
     real(rk), dimension(2, 4) :: corner_vector_set
     real(rk), dimension(2, 2) :: midpoint_vector_set
-    integer(ik) :: i, j, c
+    integer(ik) :: i, j, c, idx
     integer(ik) :: arc  !< index for looping through the # arcs in each neighbor cell
     integer(ik) :: n_arcs
 
@@ -500,7 +542,9 @@ contains
     real(rk) :: vec_2_cross_p_prime
 
     allocate(theta_ib(2 * self%n_neighbor_cells, self%ni, self%nj))
+    theta_ib = 0.0_rk
     allocate(theta_ie(2 * self%n_neighbor_cells, self%ni, self%nj))
+    theta_ie = 0.0_rk
     allocate(n_arcs_per_cell(self%n_neighbor_cells, self%ni, self%nj))
     n_arcs_per_cell = 0
 
@@ -573,15 +617,15 @@ contains
                                         circle_xy=self%p_prime_vector(:, i, j), &
                                         circle_radius=self%radius(i, j), &
                                         arc_segments=theta_ib_ie, n_arcs=n_arcs)
+
             n_arcs_per_cell(c, i, j) = n_arcs
 
-            associate(arc_1=>self%n_neighbor_cells, arc_2=>self%n_neighbor_cells * 2)
-              theta_ib(1:arc_1, i, j) = theta_ib_ie(1, 1)
-              theta_ib(arc_1 + 1:arc_2, i, j) = theta_ib_ie(1, 2)
+            do arc = 1, 2
+              idx = arc + (c - 1) * 2
+              theta_ib(idx, i, j) = theta_ib_ie(1, arc)
+              theta_ie(idx, i, j) = theta_ib_ie(2, arc)
+            end do
 
-              theta_ie(1:arc_1, i, j) = theta_ib_ie(2, 1)
-              theta_ie(arc_1 + 1:arc_2, i, j) = theta_ib_ie(2, 2)
-            end associate
           end do
         end do
       end do
@@ -634,8 +678,10 @@ contains
             end select
 
             ! Determine if P' is in this cell
-            p_prime_cross_vec_1 = self%p_prime_vector(1, i, j) * first_vector(2) - self%p_prime_vector(2, i, j) * first_vector(1)
-            vec_2_cross_p_prime = second_vector(1) * self%p_prime_vector(2, i, j) - second_vector(2) * self%p_prime_vector(1, i, j)
+            p_prime_cross_vec_1 = self%p_prime_vector(1, i, j) * first_vector(2) - &
+                                  self%p_prime_vector(2, i, j) * first_vector(1)
+            vec_2_cross_p_prime = second_vector(1) * self%p_prime_vector(2, i, j) - &
+                                  second_vector(2) * self%p_prime_vector(1, i, j)
 
             if(p_prime_cross_vec_1 <= 0.0_rk .and. vec_2_cross_p_prime <= 0.0_rk) then
               self%p_prime_in_cell(c, i, j) = .true.
@@ -647,17 +693,21 @@ contains
                                         circle_xy=self%p_prime_vector(:, i, j), &
                                         circle_radius=self%radius(i, j), &
                                         arc_segments=theta_ib_ie, n_arcs=n_arcs)
-            n_arcs_per_cell(c, i, j) = n_arcs
-            associate(arc_1=>self%n_neighbor_cells, arc_2=>self%n_neighbor_cells * 2)
-              theta_ib(1:arc_1, i, j) = theta_ib_ie(1, 1)
-              theta_ib(arc_1 + 1:arc_2, i, j) = theta_ib_ie(1, 2)
 
-              theta_ie(1:arc_1, i, j) = theta_ib_ie(2, 1)
-              theta_ie(arc_1 + 1:arc_2, i, j) = theta_ib_ie(2, 2)
-            end associate
+            n_arcs_per_cell(c, i, j) = n_arcs
+
+            do arc = 1, 2
+              idx = arc + (c - 1) * 2
+              theta_ib(idx, i, j) = theta_ib_ie(1, arc)
+              theta_ie(idx, i, j) = theta_ib_ie(2, arc)
+            end do
+
           end do
         end do
       end do
+
+    case default
+      error stop 'Error in mach_cone_collection_t%find_arc_angles(), invalid cone location'
     end select
 
   end subroutine find_arc_angles
@@ -786,27 +836,31 @@ contains
   !                     new_origin=origin, new_radius=radius)
   ! end subroutine get_transonic_cone_extents
 
-  ! subroutine sanity_checks(self)
-  !   !< Do some sanity checks to make sure the mach cone is valid
-  !   class(corner_mach_cone_t), intent(in) :: self
-  !   real(rk) :: arc_sum
+  subroutine sanity_checks(self)
+    !< Do some sanity checks to make sure the mach cone is valid
+    class(mach_cone_collection_t), intent(in) :: self
+    real(rk), dimension(self%ni, self%nj) :: arc_sum
+    integer(ik) :: i, j
 
-  !   arc_sum = sum(self%dtheta)
+    arc_sum = sum(self%dtheta, dim=1)
 
-  !   if(count(self%n_arcs_per_cell >= 2) > 1) then
-  !     error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
-  !   end if
+    do j = 1, self%nj
+      do i = 1, self%ni
+        if(count(self%n_arcs_per_cell(:, i, j) >= 2) > 1) then
+          error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
+        end if
+      end do
+    end do
 
-  !   if(.not. equal(arc_sum, 2 * pi, 1e-6_rk)) then
-  !     write(std_err, *) self
-  !     error stop "Cone arcs do not add up to 2pi"
-  !   end if
+    do j = 1, self%nj
+      do i = 1, self%ni
+        if(.not. equal(arc_sum(i, j), 2 * pi, 1e-6_rk)) then
+          error stop "Cone arcs do not add up to 2pi"
+        end if
+      end do
+    end do
 
-  !   if(self%radius < 0.0_rk) then
-  !     error stop "Error: cone radius < 0"
-  !   end if
-
-  ! end subroutine sanity_checks
+  end subroutine sanity_checks
 
   ! subroutine write_cone(self, unit, iotype, v_list, iostat, iomsg)
   !   !< Implementation of `write(*,*) mach_cone_base_t`
