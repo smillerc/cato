@@ -57,7 +57,7 @@ contains
 
     integer(int64) :: count_end
     real(rk) :: elapsed_walltime
-    real(rk) :: elapsed_cputime, end_cputim
+    real(rk) :: elapsed_cputime
     real(rk) :: end_cputime
 
     call cpu_time(end_cputime)

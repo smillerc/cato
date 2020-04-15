@@ -25,7 +25,6 @@ contains
     class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
     real(rk), intent(inout) :: dt
     class(integrand_t), allocatable :: U_1
-    class(integrand_t), allocatable :: U_0
     class(integrand_t), allocatable :: dU_dt
 
     call debug_print('Running ralston_2nd%integrate()', __FILE__, __LINE__)

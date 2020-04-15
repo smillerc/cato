@@ -25,8 +25,6 @@ program cato
   type(timer_t) :: timer
   real(rk) :: time = 0.0_rk
   real(rk) :: delta_t = 0.0_rk
-  real(rk) :: max_cs = 0.0_rk
-  real(rk) :: min_dx = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
   logical :: file_exists = .false.
