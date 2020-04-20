@@ -28,6 +28,9 @@ module mod_abstract_evo_operator
 
     character(:), allocatable :: name  !< Name of the evolution operator
     real(rk) :: tau !< time increment to evolve
+
+    integer(ik) :: iteration
+    real(rk) :: time
   contains
     procedure(initialize), public, deferred :: initialize
     procedure(evolve_location), public, deferred :: evolve_leftright_midpoints

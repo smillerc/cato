@@ -310,6 +310,10 @@ contains
     call self%bc_minus_x%set_time(time)
     call self%bc_plus_y%set_time(time)
     call self%bc_minus_y%set_time(time)
+
+    self%evolution_operator%time = time
+    self%evolution_operator%iteration = iteration
+
   end subroutine set_time
 
   subroutine apply_primitive_vars_bc(self, primitive_vars, lbounds)

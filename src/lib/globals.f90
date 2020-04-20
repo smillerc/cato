@@ -22,6 +22,15 @@ module mod_globals
 
   logical, protected :: grid_is_orthogonal = .true.
 
+  ! Debug/scratch io file units
+  logical, parameter :: track_single_cell_cone = .false.
+  integer(ik) :: single_cell_cone_unit
+
+  logical, parameter :: enable_debug_cone_output = .true.
+  integer(ik) :: du_midpoint_unit
+  integer(ik) :: lr_midpoint_unit
+  integer(ik) :: corner_unit
+
   character(:), allocatable :: compiler_flags_str
   character(:), allocatable :: compiler_version_str
   character(:), allocatable :: git_hash
@@ -251,4 +260,35 @@ contains
     end if
 
   end subroutine print_recon_data
+
+  subroutine open_debug_files()
+    character(len=:), allocatable :: header
+
+    if(enable_debug_cone_output) then
+      open(newunit=du_midpoint_unit, file='debug_du_midpoint_cones.csv')
+      open(newunit=lr_midpoint_unit, file='debug_lr_midpoint_cones.csv')
+      open(newunit=corner_unit, file='debug_corner_cones.csv')
+
+      header = "iteration time i j origin_x origin_y p_prime_x p_prime_y radius "// &
+               "ref_density ref_u ref_v ref_cs"
+      write(du_midpoint_unit, '(a)') header
+      write(lr_midpoint_unit, '(a)') header
+      write(corner_unit, '(a)') header
+
+    end if
+
+    if(track_single_cell_cone) then
+      open(newunit=single_cell_cone_unit, file='scratch.csv')
+      write(single_cell_cone_unit, '(a)') 'dtheta_arc1_cell1 dtheta_arc1_cell2 '// &
+        'ref_density ref_sound_speed '// &
+        'ref_u ref_v '// &
+        'rho_arc1_cell_1 rho_arc1_cell_2 '// &
+        'u_arc1_cell_1 u_arc1_cell_2 '// &
+        'v_arc1_cell_1 v_arc1_cell_2 '// &
+        'p_arc1_cell_1 p_arc1_cell_2 '// &
+        'rho u v p '
+    end if
+
+  end subroutine
+
 end module mod_globals

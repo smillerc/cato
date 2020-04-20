@@ -2,7 +2,7 @@ program cato
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit, std_error => error_unit
   use mod_contour_writer, only: contour_writer_t
-  use mod_globals, only: print_version_stats
+  use mod_globals, only: print_version_stats, open_debug_files
   use mod_units, only: set_output_unit_system, io_time_label, io_time_units
   use mod_input, only: input_t
   use mod_timing, only: timer_t, get_timestep
@@ -44,6 +44,8 @@ program cato
   write(std_out, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
   write(std_out, '(a)') " \______|/__/     \__\  |__|      \______/ "
   write(std_out, '(a)')
+
+  call open_debug_files()
 
   call print_version_stats()
 

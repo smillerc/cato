@@ -2,7 +2,8 @@ module mod_local_evo_operator
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, &
                                                                               std_err => error_unit, &
                                                                               std_out => output_unit
-  use mod_globals, only: debug_print, print_recon_data
+  use mod_globals, only: debug_print, print_recon_data, track_single_cell_cone, enable_debug_cone_output, &
+                         du_midpoint_unit, lr_midpoint_unit, corner_unit, single_cell_cone_unit
 
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: near_zero, equal
@@ -171,10 +172,14 @@ contains
 
         ! Set the evolved state at the midpoint
         call self%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_leftright_midpoints', error_code)
-        ! if(i == 601 .and. j == 1) then
-        !   print *, mach_cone
-        !   print *, 'evolved_primitive_vars (601,1): ', evolved_primitive_vars
-        ! end if
+
+        if(enable_debug_cone_output) then
+          ! header -> "i j origin_x origin_y p_prime_x p_prime_y radius"
+          write(lr_midpoint_unit, '(i0, 1x, es10.4, 1x, 2(i0, 1x), 10(es14.5))') &
+            self%iteration, self%time, i, j, mach_cone%p_xy, mach_cone%p_prime_xy, mach_cone%radius, &
+            mach_cone%reference_density, mach_cone%reference_u, mach_cone%reference_v, mach_cone%reference_sound_speed
+        end if
+
         if(error_code /= 0) then
           write(std_out, '(a)') 'The E0 operator returned an error in '// &
             'local_evo_operator_t%evolve_leftright_midpoints(), check cato.error for details'
@@ -257,6 +262,33 @@ contains
 
         ! Set the evolved state at the midpoint
         call self%e0_operator_midpoint(mach_cone, evolved_primitive_vars, 'evolve_downup_midpoints', error_code)
+
+        if(enable_debug_cone_output) then
+          ! header -> "i j origin_x origin_y p_prime_x p_prime_y radius"
+          write(du_midpoint_unit, '(i0, 1x, es10.4, 1x, 2(i0, 1x), 10(es14.5))') &
+            self%iteration, self%time, i, j, mach_cone%p_xy, mach_cone%p_prime_xy, mach_cone%radius, &
+            mach_cone%reference_density, mach_cone%reference_u, mach_cone%reference_v, mach_cone%reference_sound_speed
+        end if
+
+        if(track_single_cell_cone) then
+          if(i == 101 .and. j == 1) then
+            ! write(*, *) 'cs     ', mach_cone%sound_speed
+            ! write(*, *) 'u      ', mach_cone%arc_primitive_vars(2,:,:)
+            ! write(*, *) 'cs_ref ', mach_cone%reference_sound_speed
+            ! write(*, *) 'transonic?', mach_cone%cone_is_transonic
+            if(mach_cone%reference_sound_speed > maxval(mach_cone%sound_speed)) error stop
+            ! print*
+            write(single_cell_cone_unit, '(20(f0.6, 1x))') &
+              mach_cone%dtheta(1, 1), mach_cone%dtheta(1, 2), &
+              mach_cone%reference_density, mach_cone%reference_sound_speed, &
+              mach_cone%reference_u, mach_cone%reference_v, &
+              mach_cone%arc_primitive_vars(1, 1, 1), mach_cone%arc_primitive_vars(1, 1, 2), &
+              mach_cone%arc_primitive_vars(2, 1, 1), mach_cone%arc_primitive_vars(2, 1, 2), &
+              mach_cone%arc_primitive_vars(3, 1, 1), mach_cone%arc_primitive_vars(3, 1, 2), &
+              mach_cone%arc_primitive_vars(4, 1, 1), mach_cone%arc_primitive_vars(4, 1, 2), &
+              evolved_primitive_vars
+          end if
+        end if
 
         if(error_code /= 0) then
           write(std_out, '(a)') 'The E0 operator returned an error in '// &
@@ -360,6 +392,14 @@ contains
 
         ! Set the evolved state at the midpoint
         call self%e0_operator_corner(mach_cone, evolved_primitive_vars, 'evolve_corners', error_code)
+
+        if(enable_debug_cone_output) then
+          ! header -> "i j origin_x origin_y p_prime_x p_prime_y radius"
+          write(corner_unit, '(i0, 1x, es10.4, 1x, 2(i0, 1x), 10(es14.5))') &
+            self%iteration, self%time, i, j, mach_cone%p_xy, mach_cone%p_prime_xy, mach_cone%radius, &
+            mach_cone%reference_density, mach_cone%reference_u, mach_cone%reference_v, mach_cone%reference_sound_speed
+        end if
+
         if(error_code /= 0) then
           write(std_out, '(a)') 'The E0 operator returned an error in '// &
             'local_evo_operator_t%evolve_corners(), check cato.error for details'
@@ -391,13 +431,13 @@ contains
 
     error_code = 0 ! All ok at first
 
-    do i = 1, mach_cone%n_neighbor_cells
-      if(mach_cone%p_prime_in_cell(i)) then
-        p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
-                            xy=mach_cone%p_prime_xy, &
-                            cell_ij=mach_cone%p_prime_ij(:, i))
-      end if
-    end do
+    ! do i = 1, mach_cone%n_neighbor_cells
+    !   if(mach_cone%p_prime_in_cell(i)) then
+    !     p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
+    !                         xy=mach_cone%p_prime_xy, &
+    !                         cell_ij=mach_cone%p_prime_ij(:, i))
+    !   end if
+    ! end do
 
     rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
     rho_a_tilde_sq = mach_cone%reference_density * mach_cone%reference_sound_speed**2
@@ -409,8 +449,8 @@ contains
               cos_dtheta=>mach_cone%cos_dtheta, &
               sin_d2theta=>mach_cone%sin_d2theta, &
               cos_d2theta=>mach_cone%cos_d2theta, &
-              rho_p_prime=>p_prime_prim_vars(1), &
-              pressure_p_prime=>p_prime_prim_vars(4), &
+              rho_p_prime=>mach_cone%p_prime_density, &
+              pressure_p_prime=>mach_cone%p_prime_pressure, &
               u_i_star=>mach_cone%normed_arc_primitive_vars(2, :, :), &
               v_i_star=>mach_cone%normed_arc_primitive_vars(3, :, :), &
               p_i_star=>mach_cone%normed_arc_primitive_vars(4, :, :), &
@@ -418,31 +458,31 @@ contains
               v_i=>mach_cone%arc_primitive_vars(3, :, :), &
               p_i=>mach_cone%arc_primitive_vars(4, :, :))
 
-      ! pressure = sum(p_i * dtheta &
-      !                - rho_a_tilde * u_i * sin_dtheta &
-      !                + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
+      pressure = sum(p_i * dtheta &
+                     - rho_a_tilde * u_i * sin_dtheta &
+                     + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
 
-      pressure = sum(p_i_star * dtheta - u_i_star * sin_dtheta - v_i_star * cos_dtheta) * (rho_a_tilde_sq / (2.0_rk * pi))
+      ! pressure = sum(p_i_star * dtheta - u_i_star * sin_dtheta - v_i_star * cos_dtheta) * (rho_a_tilde_sq / (2.0_rk * pi))
 
       ! ! Note: the a_tilde**2 term is not combined on purpose, so that floating point subtraction is more accurate
       density = rho_p_prime + (pressure / a_tilde**2) - (pressure_p_prime / a_tilde**2)
       ! ! density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
 
-      ! u = sum((-p_i / rho_a_tilde) * sin_dtheta &
-      !         + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
-      !         - v_i * (cos_d2theta / 4.0_rk)) / pi
+      u = sum((-p_i / rho_a_tilde) * sin_dtheta &
+              + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+              - v_i * (cos_d2theta / 4.0_rk)) / pi
 
-      u = (a_tilde / pi) * sum(-p_i_star * sin_dtheta &
-                               + u_i_star * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
-                               - v_i_star * (cos_d2theta / 4.0_rk))
+      ! u = (a_tilde / pi) * sum(-p_i_star * sin_dtheta &
+      !                          + u_i_star * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+      !                          - v_i_star * (cos_d2theta / 4.0_rk))
 
-      ! v = sum((p_i / rho_a_tilde) * cos_dtheta &
-      !         - u_i * (cos_d2theta / 4.0_rk) &
-      !         + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+      v = sum((p_i / rho_a_tilde) * cos_dtheta &
+              - u_i * (cos_d2theta / 4.0_rk) &
+              + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
-      v = (a_tilde / pi) * sum(p_i_star * cos_dtheta &
-                               - u_i_star * (cos_d2theta / 4.0_rk) &
-                               + v_i_star * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+      ! v = (a_tilde / pi) * sum(p_i_star * cos_dtheta &
+      !                          - u_i_star * (cos_d2theta / 4.0_rk) &
+      !                          + v_i_star * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
     end associate
     primitive_variables = [density, u, v, pressure]
@@ -468,13 +508,13 @@ contains
 
     error_code = 0 ! All ok at first
 
-    do i = 1, mach_cone%n_neighbor_cells
-      if(mach_cone%p_prime_in_cell(i)) then
-        p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
-                            xy=mach_cone%p_prime_xy, &
-                            cell_ij=mach_cone%p_prime_ij(:, i))
-      end if
-    end do
+    ! do i = 1, mach_cone%n_neighbor_cells
+    !   if(mach_cone%p_prime_in_cell(i)) then
+    !     p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
+    !                         xy=mach_cone%p_prime_xy, &
+    !                         cell_ij=mach_cone%p_prime_ij(:, i))
+    !   end if
+    ! end do
 
     rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
     rho_a_tilde_sq = mach_cone%reference_density * mach_cone%reference_sound_speed**2
@@ -486,8 +526,8 @@ contains
               cos_dtheta=>mach_cone%cos_dtheta, &
               sin_d2theta=>mach_cone%sin_d2theta, &
               cos_d2theta=>mach_cone%cos_d2theta, &
-              rho_p_prime=>p_prime_prim_vars(1), &
-              pressure_p_prime=>p_prime_prim_vars(4), &
+              rho_p_prime=>mach_cone%p_prime_density, &
+              pressure_p_prime=>mach_cone%p_prime_pressure, &
               u_i_star=>mach_cone%normed_arc_primitive_vars(2, :, :), &
               v_i_star=>mach_cone%normed_arc_primitive_vars(3, :, :), &
               p_i_star=>mach_cone%normed_arc_primitive_vars(4, :, :), &
@@ -495,31 +535,31 @@ contains
               v_i=>mach_cone%arc_primitive_vars(3, :, :), &
               p_i=>mach_cone%arc_primitive_vars(4, :, :))
 
-      ! pressure = sum(p_i * dtheta &
-      !                - rho_a_tilde * u_i * sin_dtheta &
-      !                + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
+      pressure = sum(p_i * dtheta &
+                     - rho_a_tilde * u_i * sin_dtheta &
+                     + rho_a_tilde * v_i * cos_dtheta) / (2.0_rk * pi)
 
-      pressure = sum(p_i_star * dtheta - u_i_star * sin_dtheta - v_i_star * cos_dtheta) * (rho_a_tilde_sq / (2.0_rk * pi))
+      ! pressure = sum(p_i_star * dtheta - u_i_star * sin_dtheta - v_i_star * cos_dtheta) * (rho_a_tilde_sq / (2.0_rk * pi))
 
       ! ! Note: the a_tilde**2 term is not combined on purpose, so that floating point subtraction is more accurate
       density = rho_p_prime + (pressure / a_tilde**2) - (pressure_p_prime / a_tilde**2)
       ! ! density = rho_p_prime + ((pressure - pressure_p_prime) / a_tilde**2)
 
-      ! u = sum((-p_i / rho_a_tilde) * sin_dtheta &
-      !         + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
-      !         - v_i * (cos_d2theta / 4.0_rk)) / pi
+      u = sum((-p_i / rho_a_tilde) * sin_dtheta &
+              + u_i * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+              - v_i * (cos_d2theta / 4.0_rk)) / pi
 
-      u = (a_tilde / pi) * sum(-p_i_star * sin_dtheta &
-                               + u_i_star * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
-                               - v_i_star * (cos_d2theta / 4.0_rk))
+      ! u = (a_tilde / pi) * sum(-p_i_star * sin_dtheta &
+      !                          + u_i_star * ((dtheta / 2.0_rk) + (sin_d2theta / 4.0_rk)) &
+      !                          - v_i_star * (cos_d2theta / 4.0_rk))
 
-      ! v = sum((p_i / rho_a_tilde) * cos_dtheta &
-      !         - u_i * (cos_d2theta / 4.0_rk) &
-      !         + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+      v = sum((p_i / rho_a_tilde) * cos_dtheta &
+              - u_i * (cos_d2theta / 4.0_rk) &
+              + v_i * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
-      v = (a_tilde / pi) * sum(p_i_star * cos_dtheta &
-                               - u_i_star * (cos_d2theta / 4.0_rk) &
-                               + v_i_star * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
+      ! v = (a_tilde / pi) * sum(p_i_star * cos_dtheta &
+      !                          - u_i_star * (cos_d2theta / 4.0_rk) &
+      !                          + v_i_star * ((dtheta / 2.0_rk) - (sin_d2theta / 4.0_rk))) / pi
 
     end associate
     primitive_variables = [density, u, v, pressure]
