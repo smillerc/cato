@@ -71,6 +71,8 @@ module mod_midpoint_mach_cone
     integer(ik) :: n_neighbor_cells = N_CELLS           !< Number of neighbor cells
     real(rk) :: radius = -1.0_rk                  !< Radius of the cone
     real(rk) :: tau = 1.0e-10_rk                  !< Time evolution increment
+    real(rk) :: p_prime_density = 0.0
+    real(rk) :: p_prime_pressure = 0.0
     real(rk) :: reference_density = 0.0_rk        !< Reference density (e.g. neighbor averaged)
     real(rk) :: reference_u = 0.0_rk              !< Reference x velocity (e.g. neighbor averaged)
     real(rk) :: reference_v = 0.0_rk              !< Reference y velocity (e.g. neighbor averaged)
@@ -142,7 +144,7 @@ contains
     if(cone%cone_is_transonic) then
       call cone%get_transonic_cone_extents(origin=cone%p_prime_xy, &
                                            radius=cone%radius)
-      cone%reference_sound_speed = cone%radius / cone%tau
+      ! cone%reference_sound_speed = cone%radius / cone%tau
     else
       call get_cone_extents(tau=cone%tau, xy=cone%p_xy, &
                             vel=[cone%reference_u, cone%reference_v], &
@@ -183,14 +185,18 @@ contains
     real(rk) :: ave_p
     real(rk), dimension(N_CELLS) :: mach_number, sound_speed
     integer(ik) :: i, n_supersonic_cells
+    real(rk) :: n
     real(rk) :: gamma, mach_u, mach_v
+    logical, dimension(N_CELLS) :: mask
 
     gamma = eos%get_gamma()
 
     n_supersonic_cells = 0
+    self%sound_speed = 0.0_rk
     do i = 1, N_CELLS
       self%sound_speed(i) = sqrt(gamma * self%recon_state(4, i) / self%recon_state(1, i))
     end do
+    self%reference_sound_speed = sum(self%sound_speed) / real(N_CELLS, rk)
 
     do i = 1, N_CELLS
       mach_number(i) = sqrt(self%recon_state(2, i)**2 + &
@@ -217,24 +223,20 @@ contains
     end if
 
     self%reference_density = sum(self%recon_state(1, :)) / real(N_CELLS, rk)
-    ave_p = sum(self%recon_state(4, :)) / real(N_CELLS, rk)
-    self%reference_sound_speed = sqrt(gamma * ave_p / self%reference_density)
     self%reference_u = sum(self%recon_state(2, :)) / real(N_CELLS, rk)
     self%reference_v = sum(self%recon_state(3, :)) / real(N_CELLS, rk)
-    ! self%reference_mach_number = sqrt(self%reference_u**2 + self%reference_v**2) / &
-    !                              self%reference_sound_speed
 
-    associate(u_tilde=>self%reference_u, mach_u=>abs(self%reference_u / self%reference_sound_speed), &
-              v_tilde=>self%reference_v, mach_v=>abs(self%reference_v / self%reference_sound_speed))
-      if(mach_u < TINY_MACH) self%reference_u = 0.0_rk
-      if(mach_v < TINY_MACH) self%reference_v = 0.0_rk
-      if(mach_u < TINY_MACH .and. mach_v < TINY_MACH) then
-        self%cone_is_centered = .true.
-      else
-        self%cone_is_centered = .false.
-      end if
+    ! associate(u_tilde=>self%reference_u, mach_u=>abs(self%reference_u / self%reference_sound_speed), &
+    !           v_tilde=>self%reference_v, mach_v=>abs(self%reference_v / self%reference_sound_speed))
+    !   if(mach_u < TINY_MACH) self%reference_u = 0.0_rk
+    !   if(mach_v < TINY_MACH) self%reference_v = 0.0_rk
+    !   if(mach_u < TINY_MACH .and. mach_v < TINY_MACH) then
+    !     self%cone_is_centered = .true.
+    !   else
+    !     self%cone_is_centered = .false.
+    !   end if
 
-    end associate
+    ! end associate
 
   end subroutine get_reference_state
 
@@ -368,114 +370,119 @@ contains
     ! If we know the cone is at the origin and the grid is orthogonal, then
     ! the angles are easily known ahead of time, so we can skip the additional
     ! math needed to find the intersection angles
-    if(self%cone_is_centered .and. grid_is_orthogonal) then
+    ! if(self%cone_is_centered .and. grid_is_orthogonal) then
 
-      self%dtheta(1, :) = pi ! all of the 1st arcs are a half of the circle
-      self%n_arcs_per_cell = 1
-      self%p_prime_in_cell = [.true., .false.]
-      select case(trim(self%cone_location))
-      case('left/right midpoint', 'left/right')
+    !   self%dtheta(1, :) = pi ! all of the 1st arcs are a half of the circle
+    !   self%n_arcs_per_cell = 1
+    !   self%p_prime_in_cell = [.true., .false.]
+    !   select case(trim(self%cone_location))
+    !   case('left/right midpoint', 'left/right')
 
-        ! left/right midpoint
-        !       cell 1
-        !      (i-1,j)
-        !  N4----M3----N3
-        !  |            |
-        !  M4    C1     M2
-        !  |            |
-        !  N1----M1----N2
-        !
-        !  P1----O-----P2  edge vector
-        !
-        !  N4----M3----N3
-        !  |           |
-        !  M4    C2    M2
-        !  |           |
-        !  N1----M1----N2
-        !       cell 2
-        !      (i,j-1)
+    !     ! left/right midpoint
+    !     !       cell 1
+    !     !      (i-1,j)
+    !     !  N4----M3----N3
+    !     !  |            |
+    !     !  M4    C1     M2
+    !     !  |            |
+    !     !  N1----M1----N2
+    !     !
+    !     !  P1----O-----P2  edge vector
+    !     !
+    !     !  N4----M3----N3
+    !     !  |           |
+    !     !  M4    C2    M2
+    !     !  |           |
+    !     !  N1----M1----N2
+    !     !       cell 2
+    !     !      (i,j-1)
 
-        ! Cell 1 (up): 180 -> 360
-        self%sin_dtheta(1, 1) = 0.0_rk
-        self%cos_dtheta(1, 1) = -2.0_rk
-        self%sin_d2theta(1, 1) = 0.0_rk
-        self%cos_d2theta(1, 1) = 0.0_rk
+    !     ! Cell 1 (up): 180 -> 360
+    !     self%sin_dtheta(1, 1) = 0.0_rk
+    !     self%cos_dtheta(1, 1) = -2.0_rk
+    !     self%sin_d2theta(1, 1) = 0.0_rk
+    !     self%cos_d2theta(1, 1) = 0.0_rk
 
-        ! Cell 2 (down):  0 -> 180
-        self%sin_dtheta(1, 2) = 0.0_rk
-        self%cos_dtheta(1, 2) = 2.0_rk
-        self%sin_d2theta(1, 2) = 0.0_rk
-        self%cos_d2theta(1, 2) = 0.0_rk
+    !     ! Cell 2 (down):  0 -> 180
+    !     self%sin_dtheta(1, 2) = 0.0_rk
+    !     self%cos_dtheta(1, 2) = 2.0_rk
+    !     self%sin_d2theta(1, 2) = 0.0_rk
+    !     self%cos_d2theta(1, 2) = 0.0_rk
 
-      case('down/up midpoint', 'down/up')
+    !   case('down/up midpoint', 'down/up')
 
-        ! down/up midpoint
-        !       cell 1          edge          cell 2
-        !      (i-1,j)         vector          (i,j)
-        !  N4----M3----N3       P2       N4----M3----N3
-        !  |           |        |       |            |
-        !  M4    C1    M2       O       M4    C2     M2
-        !  |           |        |       |            |
-        !  N1----M1----N2      P1       N1----M1----N2
+    !     ! down/up midpoint
+    !     !       cell 1          edge          cell 2
+    !     !      (i-1,j)         vector          (i,j)
+    !     !  N4----M3----N3       P2       N4----M3----N3
+    !     !  |           |        |       |            |
+    !     !  M4    C1    M2       O       M4    C2     M2
+    !     !  |           |        |       |            |
+    !     !  N1----M1----N2      P1       N1----M1----N2
 
-        ! Cell 1 (left):  90 -> 270
-        self%sin_dtheta(1, 1) = -2.0_rk
-        self%cos_dtheta(1, 1) = 0.0_rk
-        self%sin_d2theta(1, 1) = 0.0_rk
-        self%cos_d2theta(1, 1) = 0.0_rk
+    !     ! Cell 1 (left):  90 -> 270
+    !     self%sin_dtheta(1, 1) = -2.0_rk
+    !     self%cos_dtheta(1, 1) = 0.0_rk
+    !     self%sin_d2theta(1, 1) = 0.0_rk
+    !     self%cos_d2theta(1, 1) = 0.0_rk
 
-        ! Cell 2 (right): 270 -> 90
-        self%sin_dtheta(1, 2) = 2.0_rk
-        self%cos_dtheta(1, 2) = 0.0_rk
-        self%sin_d2theta(1, 2) = 0.0_rk
-        self%cos_d2theta(1, 2) = 0.0_rk
-      case default
-        write(*, '(3(a))') "Unknown type of midpoint location (down/up or left/right only):'", trim(self%cone_location), "'"
-        error stop "Unknown type of midpoint location (down/up or left/right only)"
-      end select
+    !     ! Cell 2 (right): 270 -> 90
+    !     self%sin_dtheta(1, 2) = 2.0_rk
+    !     self%cos_dtheta(1, 2) = 0.0_rk
+    !     self%sin_d2theta(1, 2) = 0.0_rk
+    !     self%cos_d2theta(1, 2) = 0.0_rk
+    !   case default
+    !     write(*, '(3(a))') "Unknown type of midpoint location (down/up or left/right only):'", trim(self%cone_location), "'"
+    !     error stop "Unknown type of midpoint location (down/up or left/right only)"
+    !   end select
 
-    else
-      call self%find_arc_angles(cell_indices, edge_vectors, theta_ib, theta_ie, n_arcs_per_cell)
+    ! else
+    call self%find_arc_angles(cell_indices, edge_vectors, theta_ib, theta_ie, n_arcs_per_cell)
 
-      ! Precompute for a bit of speed
-      self%n_arcs_per_cell = n_arcs_per_cell
-      max_n_arcs = maxval(n_arcs_per_cell)
+    ! Precompute for a bit of speed
+    self%n_arcs_per_cell = n_arcs_per_cell
+    max_n_arcs = maxval(n_arcs_per_cell)
 
-      if(max_n_arcs == 1) then ! most cells will only have 1 arc in each
-        do i = 1, N_CELLS
+    if(max_n_arcs == 1) then ! most cells will only have 1 arc in each
+      do i = 1, N_CELLS
 
-          self%dtheta(1, i) = abs(theta_ie(1, i) - theta_ib(1, i))
-          sin_theta_ib(1, i) = sin(theta_ib(1, i))
-          cos_theta_ib(1, i) = cos(theta_ib(1, i))
-          sin_theta_ie(1, i) = sin(theta_ie(1, i))
-          cos_theta_ie(1, i) = cos(theta_ie(1, i))
-        end do
-      else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
-        do i = 1, N_CELLS
-          do arc = 1, max_n_arcs
-            self%dtheta(arc, i) = abs(theta_ie(arc, i) - theta_ib(arc, i))
-            sin_theta_ib(arc, i) = sin(theta_ib(arc, i))
-            cos_theta_ib(arc, i) = cos(theta_ib(arc, i))
-            sin_theta_ie(arc, i) = sin(theta_ie(arc, i))
-            cos_theta_ie(arc, i) = cos(theta_ie(arc, i))
-          end do
-        end do
-      end if
-
+        self%dtheta(1, i) = abs(theta_ie(1, i) - theta_ib(1, i))
+        sin_theta_ib(1, i) = sin(theta_ib(1, i))
+        cos_theta_ib(1, i) = cos(theta_ib(1, i))
+        sin_theta_ie(1, i) = sin(theta_ie(1, i))
+        cos_theta_ie(1, i) = cos(theta_ie(1, i))
+      end do
+    else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
       do i = 1, N_CELLS
         do arc = 1, max_n_arcs
-          if(ieee_is_nan(sin_theta_ib(arc, i))) sin_theta_ib(arc, i) = 0.0_rk
-          if(ieee_is_nan(cos_theta_ib(arc, i))) cos_theta_ib(arc, i) = 0.0_rk
-          if(ieee_is_nan(sin_theta_ie(arc, i))) sin_theta_ie(arc, i) = 0.0_rk
-          if(ieee_is_nan(cos_theta_ie(arc, i))) cos_theta_ie(arc, i) = 0.0_rk
+          self%dtheta(arc, i) = abs(theta_ie(arc, i) - theta_ib(arc, i))
+          sin_theta_ib(arc, i) = sin(theta_ib(arc, i))
+          cos_theta_ib(arc, i) = cos(theta_ib(arc, i))
+          sin_theta_ie(arc, i) = sin(theta_ie(arc, i))
+          cos_theta_ie(arc, i) = cos(theta_ie(arc, i))
         end do
       end do
-
-      self%sin_dtheta = sin_theta_ie - sin_theta_ib
-      self%cos_dtheta = cos_theta_ie - cos_theta_ib
-      self%sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
-      self%cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
     end if
+
+    ! do i = 1, N_CELLS
+    !   do arc = 1, max_n_arcs
+    !     if(ieee_is_nan(sin_theta_ib(arc, i))) sin_theta_ib(arc, i) = 0.0_rk
+    !     if(ieee_is_nan(cos_theta_ib(arc, i))) cos_theta_ib(arc, i) = 0.0_rk
+    !     if(ieee_is_nan(sin_theta_ie(arc, i))) sin_theta_ie(arc, i) = 0.0_rk
+    !     if(ieee_is_nan(cos_theta_ie(arc, i))) cos_theta_ie(arc, i) = 0.0_rk
+    !   end do
+    ! end do
+
+    where(abs(sin_theta_ib) < 1e-5_rk) sin_theta_ib = 0.0_rk
+    where(abs(sin_theta_ie) < 1e-5_rk) sin_theta_ie = 0.0_rk
+    where(abs(cos_theta_ib) < 1e-5_rk) cos_theta_ib = 0.0_rk
+    where(abs(cos_theta_ie) < 1e-5_rk) cos_theta_ie = 0.0_rk
+
+    self%sin_dtheta = sin_theta_ie - sin_theta_ib
+    self%cos_dtheta = cos_theta_ie - cos_theta_ib
+    self%sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
+    self%cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
+    ! end if
 
   end subroutine precompute_trig_angles
 
@@ -520,6 +527,7 @@ contains
 
     call super_circle(origins=cone_origins, radii=cone_radii, &
                       new_origin=origin, new_radius=radius)
+    radius = radius * 0.8_rk
   end subroutine get_transonic_cone_extents
 
   subroutine determine_p_prime_cell(self)
@@ -529,27 +537,25 @@ contains
     !< choses the first cell from the list of cells that "contain" P'
 
     class(midpoint_mach_cone_t), intent(inout) :: self
-    integer(ik) :: p_prime_cell, i
-    real(rk) :: max_p
+    integer(ik) :: p_prime_cell, i, n_prime_cells
+    real(rk) :: ave_p, ave_rho
     integer(ik), dimension(2) :: p_prime_ij
 
-    max_p = 0.0_rk
+    n_prime_cells = 0
+    ave_p = 0.0_rk
+    ave_rho = 0.0_rk
     p_prime_ij = [0, 0]
 
-    if(count(self%p_prime_in_cell) > 1) then
-      do i = 1, N_CELLS
-        if(self%p_prime_in_cell(i)) then
-          if(self%recon_state(4, i) > max_p) then
-            max_p = self%recon_state(4, i)
-            p_prime_ij = self%p_prime_ij(:, i)
-            p_prime_cell = i
-          end if
-        end if
-      end do
+    do i = 1, N_CELLS
+      if(self%p_prime_in_cell(i)) then
+        n_prime_cells = n_prime_cells + 1
+        ave_p = ave_p + self%recon_state(4, i)
+        ave_rho = ave_rho + self%recon_state(1, i)
+      end if
+    end do
 
-      self%p_prime_in_cell = .false.
-      self%p_prime_in_cell(p_prime_cell) = .true.
-    end if
+    self%p_prime_pressure = ave_p / real(n_prime_cells, rk)
+    self%p_prime_density = ave_rho / real(n_prime_cells, rk)
   end subroutine determine_p_prime_cell
 
   subroutine sanity_checks(self)
