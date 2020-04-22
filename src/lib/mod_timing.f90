@@ -112,7 +112,7 @@ contains
               dy=>fv%grid%cell_size(2, :, :), &
               cs=>sound_speed)
 
-      delta_t = minval(cfl * ((dx / (u + cs)) + (dy / (v + cs))))
+      delta_t = minval(cfl / (((u + cs) / dx) + ((v + cs) / dy)))
     end associate
 
     deallocate(u)
