@@ -7,8 +7,6 @@ module mod_globals
   logical, parameter :: enable_debug_print = .false.
   logical, parameter :: enable_file_and_line_stats = .false.
 
-  real(rk), parameter :: TINY_DIST = 1.0e-20_rk ! cm
-  real(rk), parameter :: TINY_MACH = 5.0e-6_rk
   real(rk), parameter :: PRESSURE_FLOOR = 1.0e4_rk
   real(rk), parameter :: DENSITY_FLOOR = 1.0e-6_rk
 
@@ -26,7 +24,7 @@ module mod_globals
   logical, parameter :: track_single_cell_cone = .false.
   integer(ik) :: single_cell_cone_unit
 
-  logical, parameter :: enable_debug_cone_output = .true.
+  logical, parameter :: enable_debug_cone_output = .false.
   integer(ik) :: du_midpoint_unit
   integer(ik) :: lr_midpoint_unit
   integer(ik) :: corner_unit

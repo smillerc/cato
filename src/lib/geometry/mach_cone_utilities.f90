@@ -26,8 +26,8 @@ contains
       radius = sound_speed * tau
 
       ! For very small distances, just make it coincide with P
-      if(abs(origin(1) - x) < TINY_DIST) origin(1) = x
-      if(abs(origin(2) - y) < TINY_DIST) origin(2) = y
+      ! if(abs(origin(1) - x) < TINY_DIST) origin(1) = x
+      ! if(abs(origin(2) - y) < TINY_DIST) origin(2) = y
     end associate
   end subroutine get_cone_extents
 

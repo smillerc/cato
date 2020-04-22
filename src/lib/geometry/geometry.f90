@@ -350,8 +350,8 @@ contains
       end associate
     end if
 
-    if(abs(new_origin(1)) < TINY_DIST) new_origin(1) = 0.0_rk
-    if(abs(new_origin(2)) < TINY_DIST) new_origin(2) = 0.0_rk
+    ! if(abs(new_origin(1)) < TINY_DIST) new_origin(1) = 0.0_rk
+    ! if(abs(new_origin(2)) < TINY_DIST) new_origin(2) = 0.0_rk
   end subroutine super_circle
 
   logical pure function circle_inside_circle(origins, radii) result(is_inside)

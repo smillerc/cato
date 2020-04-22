@@ -1,7 +1,7 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_MACH
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -488,32 +488,32 @@ contains
   subroutine residual_smoother(self)
     class(fluid_t), intent(inout) :: self
 
-    integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: i, j
-    real(rk) :: eps
-    real(rk) :: u, v
-    real(rk), dimension(:, :), allocatable :: sound_speed
+    ! integer(ik) :: ilo, ihi, jlo, jhi
+    ! integer(ik) :: i, j
+    ! real(rk) :: eps
+    ! real(rk) :: u, v
+    ! real(rk), dimension(:, :), allocatable :: sound_speed
 
-    call self%get_sound_speed(sound_speed)
+    ! call self%get_sound_speed(sound_speed)
 
-    ilo = lbound(self%conserved_vars, dim=2)
-    ihi = ubound(self%conserved_vars, dim=2)
-    jlo = lbound(self%conserved_vars, dim=3)
-    jhi = ubound(self%conserved_vars, dim=3)
+    ! ilo = lbound(self%conserved_vars, dim=2)
+    ! ihi = ubound(self%conserved_vars, dim=2)
+    ! jlo = lbound(self%conserved_vars, dim=3)
+    ! jhi = ubound(self%conserved_vars, dim=3)
 
-    do j = jlo, jhi
-      do i = ilo, ihi
-        u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
-        v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
-        if(abs(u) / sound_speed(i, j) < TINY_MACH) then
-          self%conserved_vars(2, i, j) = 0.0_rk
-        end if
-        if(abs(u) / sound_speed(i, j) < TINY_MACH) then
-          self%conserved_vars(3, i, j) = 0.0_rk
-        end if
-      end do
-    end do
-    deallocate(sound_speed)
+    ! do j = jlo, jhi
+    !   do i = ilo, ihi
+    !     u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
+    !     v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
+    !     if(abs(u) / sound_speed(i, j) < TINY_MACH) then
+    !       self%conserved_vars(2, i, j) = 0.0_rk
+    !     end if
+    !     if(abs(u) / sound_speed(i, j) < TINY_MACH) then
+    !       self%conserved_vars(3, i, j) = 0.0_rk
+    !     end if
+    !   end do
+    ! end do
+    ! deallocate(sound_speed)
 
   end subroutine
 

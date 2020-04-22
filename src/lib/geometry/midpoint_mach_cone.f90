@@ -45,8 +45,8 @@ module mod_midpoint_mach_cone
     real(rk), dimension(2, N_CELLS) :: cos_d2theta = 0.0_rk
     !< ((arc 1:2), (cell 1:N_CELLS)); cos(2*theta_ie) - cos(2*theta_ib)
 
-    integer(ik), dimension(2, N_CELLS) :: p_prime_ij = 0
-    !< ((i,j), (cell 1:N_CELLS)) i,j location of P' or the apex of the Mach cone (global, not relative to P0)
+    integer(ik), dimension(2) :: p_prime_ij = 0
+    !< (i,j) location of P' or the apex of the Mach cone (global, not relative to P0)
 
     real(rk), dimension(2, 2, N_CELLS) :: edge_vectors = 0.0_rk
     !< ((x,y), (tail,head), (vector 1:N_CELLS)); set of vectors that define the cell edges
@@ -86,7 +86,6 @@ module mod_midpoint_mach_cone
     character(len=32) :: cone_location = 'midpoint'       !< Corner or midpoint cone?
   contains
     procedure, private :: get_reference_state
-    procedure, private :: determine_p_prime_cell
     procedure, private :: sanity_checks
     procedure, private :: find_arc_angles
     procedure, private :: precompute_trig_angles
@@ -141,17 +140,17 @@ contains
 
     call cone%get_reference_state(reconstructed_state)
 
-    if(cone%cone_is_transonic) then
-      call cone%get_transonic_cone_extents(origin=cone%p_prime_xy, &
-                                           radius=cone%radius)
-      ! cone%reference_sound_speed = cone%radius / cone%tau
-    else
-      call get_cone_extents(tau=cone%tau, xy=cone%p_xy, &
-                            vel=[cone%reference_u, cone%reference_v], &
-                            sound_speed=cone%reference_sound_speed, &
-                            origin=cone%p_prime_xy, &
-                            radius=cone%radius)
-    end if
+    ! if(cone%cone_is_transonic) then
+    !   call cone%get_transonic_cone_extents(origin=cone%p_prime_xy, &
+    !                                        radius=cone%radius)
+    !   ! cone%reference_sound_speed = cone%radius / cone%tau
+    ! else
+    call get_cone_extents(tau=cone%tau, xy=cone%p_xy, &
+                          vel=[cone%reference_u, cone%reference_v], &
+                          sound_speed=cone%reference_sound_speed, &
+                          origin=cone%p_prime_xy, &
+                          radius=cone%radius)
+    ! end if
 
     call cone%precompute_trig_angles(cell_indices, edge_vectors)
 
@@ -169,7 +168,6 @@ contains
     cone%normed_arc_primitive_vars(4, :, :) = cone%normed_arc_primitive_vars(4, :, :) / &
                                               (cone%reference_density * cone%reference_sound_speed**2)
 
-    call cone%determine_p_prime_cell()
     call cone%sanity_checks()
 
   end function new_midpoint_cone
@@ -209,12 +207,12 @@ contains
 
     ! Use the mach number to eliminate small velocities
     ! (this scales with the problem better than an absolute velocity value)
-    do i = 1, N_CELLS
-      mach_u = abs(self%recon_state(2, i) / self%sound_speed(i))
-      mach_v = abs(self%recon_state(3, i) / self%sound_speed(i))
-      if(mach_u < TINY_MACH) self%recon_state(2, i) = 0.0_rk
-      if(mach_v < TINY_MACH) self%recon_state(3, i) = 0.0_rk
-    end do
+    ! do i = 1, N_CELLS
+    !   mach_u = abs(self%recon_state(2, i) / self%sound_speed(i))
+    !   mach_v = abs(self%recon_state(3, i) / self%sound_speed(i))
+    !   if(mach_u < TINY_MACH) self%recon_state(2, i) = 0.0_rk
+    !   if(mach_v < TINY_MACH) self%recon_state(3, i) = 0.0_rk
+    ! end do
 
     if(n_supersonic_cells == N_CELLS .or. n_supersonic_cells == 0) then
       self%cone_is_transonic = .false.
@@ -281,7 +279,7 @@ contains
     !  |           |        |       |            |
     !  N1----M1----N2      P1       N1----M1----N2
 
-    ! left/right midpoint
+    ! left/ritheta_ieght midpoint
     !       cell 1
     !      (i-1,j)
     !  N4----M3----N3
@@ -326,7 +324,7 @@ contains
                                                         vec_2_head=second_vector, &
                                                         p_prime_vector=p_prime_vector)
       self%p_prime_in_cell(i) = p_prime_in_cell
-      if(p_prime_in_cell) self%p_prime_ij(:, i) = cell_indices(:, i)
+      if(p_prime_in_cell) self%p_prime_ij = cell_indices(:, i)
       call get_arc_segments_new(origin=origin, &
                                 vec_1_head=first_vector, &
                                 vec_2_head=second_vector, &
@@ -443,35 +441,15 @@ contains
     self%n_arcs_per_cell = n_arcs_per_cell
     max_n_arcs = maxval(n_arcs_per_cell)
 
-    if(max_n_arcs == 1) then ! most cells will only have 1 arc in each
-      do i = 1, N_CELLS
-
-        self%dtheta(1, i) = abs(theta_ie(1, i) - theta_ib(1, i))
-        sin_theta_ib(1, i) = sin(theta_ib(1, i))
-        cos_theta_ib(1, i) = cos(theta_ib(1, i))
-        sin_theta_ie(1, i) = sin(theta_ie(1, i))
-        cos_theta_ie(1, i) = cos(theta_ie(1, i))
+    do i = 1, N_CELLS
+      do arc = 1, max_n_arcs
+        self%dtheta(arc, i) = abs(theta_ie(arc, i) - theta_ib(arc, i))
+        sin_theta_ib(arc, i) = sin(theta_ib(arc, i))
+        cos_theta_ib(arc, i) = cos(theta_ib(arc, i))
+        sin_theta_ie(arc, i) = sin(theta_ie(arc, i))
+        cos_theta_ie(arc, i) = cos(theta_ie(arc, i))
       end do
-    else ! occasionally, some will have 2 arcs in a cell, so we loop through them all
-      do i = 1, N_CELLS
-        do arc = 1, max_n_arcs
-          self%dtheta(arc, i) = abs(theta_ie(arc, i) - theta_ib(arc, i))
-          sin_theta_ib(arc, i) = sin(theta_ib(arc, i))
-          cos_theta_ib(arc, i) = cos(theta_ib(arc, i))
-          sin_theta_ie(arc, i) = sin(theta_ie(arc, i))
-          cos_theta_ie(arc, i) = cos(theta_ie(arc, i))
-        end do
-      end do
-    end if
-
-    ! do i = 1, N_CELLS
-    !   do arc = 1, max_n_arcs
-    !     if(ieee_is_nan(sin_theta_ib(arc, i))) sin_theta_ib(arc, i) = 0.0_rk
-    !     if(ieee_is_nan(cos_theta_ib(arc, i))) cos_theta_ib(arc, i) = 0.0_rk
-    !     if(ieee_is_nan(sin_theta_ie(arc, i))) sin_theta_ie(arc, i) = 0.0_rk
-    !     if(ieee_is_nan(cos_theta_ie(arc, i))) cos_theta_ie(arc, i) = 0.0_rk
-    !   end do
-    ! end do
+    end do
 
     where(abs(sin_theta_ib) < 1e-5_rk) sin_theta_ib = 0.0_rk
     where(abs(sin_theta_ie) < 1e-5_rk) sin_theta_ie = 0.0_rk
@@ -480,8 +458,13 @@ contains
 
     self%sin_dtheta = sin_theta_ie - sin_theta_ib
     self%cos_dtheta = cos_theta_ie - cos_theta_ib
+    where(abs(self%sin_dtheta) < 1e-3_rk) self%sin_dtheta = 0.0_rk
+    where(abs(self%cos_dtheta) < 1e-3_rk) self%cos_dtheta = 0.0_rk
+
     self%sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
     self%cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
+    where(abs(self%sin_d2theta) < 1e-3_rk) self%sin_d2theta = 0.0_rk
+    where(abs(self%cos_d2theta) < 1e-3_rk) self%cos_d2theta = 0.0_rk
     ! end if
 
   end subroutine precompute_trig_angles
@@ -530,34 +513,6 @@ contains
     radius = radius * 0.8_rk
   end subroutine get_transonic_cone_extents
 
-  subroutine determine_p_prime_cell(self)
-    !< Sometimes when u and v tilde (reference velocities) are 0, P' and P are collocated. When this
-    !< is the case, P' needs to be chosen from one of the neighbor cells. This subroutine scans all
-    !< the neighbor cells and picks the one with the highest pressure (if any). If not, then it juse
-    !< choses the first cell from the list of cells that "contain" P'
-
-    class(midpoint_mach_cone_t), intent(inout) :: self
-    integer(ik) :: p_prime_cell, i, n_prime_cells
-    real(rk) :: ave_p, ave_rho
-    integer(ik), dimension(2) :: p_prime_ij
-
-    n_prime_cells = 0
-    ave_p = 0.0_rk
-    ave_rho = 0.0_rk
-    p_prime_ij = [0, 0]
-
-    do i = 1, N_CELLS
-      if(self%p_prime_in_cell(i)) then
-        n_prime_cells = n_prime_cells + 1
-        ave_p = ave_p + self%recon_state(4, i)
-        ave_rho = ave_rho + self%recon_state(1, i)
-      end if
-    end do
-
-    self%p_prime_pressure = ave_p / real(n_prime_cells, rk)
-    self%p_prime_density = ave_rho / real(n_prime_cells, rk)
-  end subroutine determine_p_prime_cell
-
   subroutine sanity_checks(self)
     !< Do some sanity checks to make sure the mach cone is valid
     class(midpoint_mach_cone_t), intent(in) :: self
@@ -605,10 +560,10 @@ contains
     write(unit, '(a, es14.6, ",", es14.6, a)', iostat=iostat, iomsg=iomsg) &
       "dist = [", self%p_prime_xy - self%p_xy, "]"//new_line('a')
 
-    do i = 1, N_CELLS
-      write(unit, '(a, i7,",",i7, a, i0, a)', iostat=iostat, iomsg=iomsg) &
-        'cone["P'//"'(i,j)"//'"] = [', self%p_prime_ij(:, i), "] # Cell: ", i, new_line('a')
-    end do
+    ! do i = 1, N_CELLS
+    write(unit, '(a, i7,",",i7, a, i0, a)', iostat=iostat, iomsg=iomsg) &
+      'cone["P'//"'(i,j)"//'"] = [', self%p_prime_ij, "] # Cell: ", i, new_line('a')
+    ! end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) "# Edge Vectors: tail (x,y) -> head (x,y)"//new_line('a')
