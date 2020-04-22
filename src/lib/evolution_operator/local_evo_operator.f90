@@ -165,7 +165,7 @@ contains
         !   call print_recon_data('p', i, j, self%reconstructed_state)
         ! end if
 
-        mach_cone = new_midpoint_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
+        mach_cone = new_midpoint_cone(tau=self%time_step / 2.0_rk, edge_vectors=midpoint_edge_vectors, &
                                       reconstructed_state=reconstructed_midpoint_state, &
                                       cell_indices=neighbor_cell_indices, &
                                       cone_location='left/right midpoint')
@@ -175,7 +175,7 @@ contains
 
         if(enable_debug_cone_output) then
           ! header -> "i j origin_x origin_y p_prime_x p_prime_y radius"
-          write(lr_midpoint_unit, '(i0, 1x, es10.4, 1x, 2(i0, 1x), 10(es14.5))') &
+          write(lr_midpoint_unit, '(i0, 1x, es14.5, 1x, 2(i0, 1x), 10(es14.5))') &
             self%iteration, self%time, i, j, mach_cone%p_xy, mach_cone%p_prime_xy, mach_cone%radius, &
             mach_cone%reference_density, mach_cone%reference_u, mach_cone%reference_v, mach_cone%reference_sound_speed
         end if
@@ -255,7 +255,7 @@ contains
         ! Cell 2: cell to the right -> use M4 from the right cell
         point_idx = 4
         reconstructed_midpoint_state(:, 2) = self%reconstructed_state(:, point_idx, midpoint_idx, i, j)
-        mach_cone = new_midpoint_cone(tau=self%tau, edge_vectors=midpoint_edge_vectors, &
+        mach_cone = new_midpoint_cone(tau=self%time_step / 2.0_rk, edge_vectors=midpoint_edge_vectors, &
                                       reconstructed_state=reconstructed_midpoint_state, &
                                       cell_indices=neighbor_cell_indices, &
                                       cone_location='down/up midpoint')
@@ -265,7 +265,7 @@ contains
 
         if(enable_debug_cone_output) then
           ! header -> "i j origin_x origin_y p_prime_x p_prime_y radius"
-          write(du_midpoint_unit, '(i0, 1x, es10.4, 1x, 2(i0, 1x), 10(es14.5))') &
+          write(du_midpoint_unit, '(i0, 1x, es14.5, 1x, 2(i0, 1x), 10(es14.5))') &
             self%iteration, self%time, i, j, mach_cone%p_xy, mach_cone%p_prime_xy, mach_cone%radius, &
             mach_cone%reference_density, mach_cone%reference_u, mach_cone%reference_v, mach_cone%reference_sound_speed
         end if
@@ -385,7 +385,7 @@ contains
         ! Cell 4: upper left cell -> corner is in the lower right (N2) of its parent cell
         reconstructed_corner_state(:, 4) = self%reconstructed_state(:, 2, corner_idx, i - 1, j)
 
-        mach_cone = new_corner_cone(tau=self%tau, edge_vectors=corner_edge_vectors, &
+        mach_cone = new_corner_cone(tau=self%time_step / 2.0_rk, edge_vectors=corner_edge_vectors, &
                                     reconstructed_state=reconstructed_corner_state, &
                                     cell_indices=neighbor_cell_indices, &
                                     cone_location='corner')
@@ -395,7 +395,7 @@ contains
 
         if(enable_debug_cone_output) then
           ! header -> "i j origin_x origin_y p_prime_x p_prime_y radius"
-          write(corner_unit, '(i0, 1x, es10.4, 1x, 2(i0, 1x), 10(es14.5))') &
+          write(corner_unit, '(i0, 1x, es14.5, 1x, 2(i0, 1x), 10(es14.5))') &
             self%iteration, self%time, i, j, mach_cone%p_xy, mach_cone%p_prime_xy, mach_cone%radius, &
             mach_cone%reference_density, mach_cone%reference_u, mach_cone%reference_v, mach_cone%reference_sound_speed
         end if
@@ -427,17 +427,12 @@ contains
     real(rk), dimension(4) :: p_prime_prim_vars !< [rho, u, v, p] at P'
     real(rk) :: pressure, density, u, v, u1, v1
     real(rk) :: rho_a_tilde, rho_a_tilde_sq, p_star
-    integer(ik) :: i, arc, max_n_arcs
+    integer(ik) :: i, j
 
     error_code = 0 ! All ok at first
 
-    ! do i = 1, mach_cone%n_neighbor_cells
-    !   if(mach_cone%p_prime_in_cell(i)) then
-    !     p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
-    !                         xy=mach_cone%p_prime_xy, &
-    !                         cell_ij=mach_cone%p_prime_ij(:, i))
-    !   end if
-    ! end do
+    p_prime_prim_vars = self%reconstruction_operator%reconstruct_point(xy=mach_cone%p_prime_xy, &
+                                                                       cell_ij=mach_cone%p_prime_ij)
 
     rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
     rho_a_tilde_sq = mach_cone%reference_density * mach_cone%reference_sound_speed**2
@@ -449,8 +444,8 @@ contains
               cos_dtheta=>mach_cone%cos_dtheta, &
               sin_d2theta=>mach_cone%sin_d2theta, &
               cos_d2theta=>mach_cone%cos_d2theta, &
-              rho_p_prime=>mach_cone%p_prime_density, &
-              pressure_p_prime=>mach_cone%p_prime_pressure, &
+              rho_p_prime=>p_prime_prim_vars(1), &
+              pressure_p_prime=>p_prime_prim_vars(4), &
               u_i_star=>mach_cone%normed_arc_primitive_vars(2, :, :), &
               v_i_star=>mach_cone%normed_arc_primitive_vars(3, :, :), &
               p_i_star=>mach_cone%normed_arc_primitive_vars(4, :, :), &
@@ -508,13 +503,8 @@ contains
 
     error_code = 0 ! All ok at first
 
-    ! do i = 1, mach_cone%n_neighbor_cells
-    !   if(mach_cone%p_prime_in_cell(i)) then
-    !     p_prime_prim_vars = self%reconstruction_operator%reconstruct_point( &
-    !                         xy=mach_cone%p_prime_xy, &
-    !                         cell_ij=mach_cone%p_prime_ij(:, i))
-    !   end if
-    ! end do
+    p_prime_prim_vars = self%reconstruction_operator%reconstruct_point(xy=mach_cone%p_prime_xy, &
+                                                                       cell_ij=mach_cone%p_prime_ij)
 
     rho_a_tilde = mach_cone%reference_density * mach_cone%reference_sound_speed
     rho_a_tilde_sq = mach_cone%reference_density * mach_cone%reference_sound_speed**2
@@ -526,8 +516,8 @@ contains
               cos_dtheta=>mach_cone%cos_dtheta, &
               sin_d2theta=>mach_cone%sin_d2theta, &
               cos_d2theta=>mach_cone%cos_d2theta, &
-              rho_p_prime=>mach_cone%p_prime_density, &
-              pressure_p_prime=>mach_cone%p_prime_pressure, &
+              rho_p_prime=>p_prime_prim_vars(1), &
+              pressure_p_prime=>p_prime_prim_vars(4), &
               u_i_star=>mach_cone%normed_arc_primitive_vars(2, :, :), &
               v_i_star=>mach_cone%normed_arc_primitive_vars(3, :, :), &
               p_i_star=>mach_cone%normed_arc_primitive_vars(4, :, :), &

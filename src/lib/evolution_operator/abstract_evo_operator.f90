@@ -31,6 +31,7 @@ module mod_abstract_evo_operator
 
     integer(ik) :: iteration
     real(rk) :: time
+    real(rk) :: time_step
   contains
     procedure(initialize), public, deferred :: initialize
     procedure(evolve_location), public, deferred :: evolve_leftright_midpoints

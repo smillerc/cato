@@ -312,6 +312,7 @@ contains
     call self%bc_minus_y%set_time(time)
 
     self%evolution_operator%time = time
+    self%evolution_operator%time_step = delta_t
     self%evolution_operator%iteration = iteration
 
   end subroutine set_time
