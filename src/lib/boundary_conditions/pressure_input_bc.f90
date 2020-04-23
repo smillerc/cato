@@ -266,7 +266,7 @@ contains
 
             ! Outflow
             if(outflow) then
-              ! print*, 'outflow!'
+              print *, 'outflow!'
               rho_new = abs((gamma * P_2) / (u / mach)) ! Set density to make the flow supersonic
               if(rho_new > ave_rho) then
                 self%edge_primitive_vars(1, bottom:top) = ave_rho
@@ -275,11 +275,11 @@ contains
               end if
 
             else ! Inflow
-              ! print*, 'inflow!'
+              print *, 'inflow!'
               self%edge_primitive_vars(1, bottom:top) = rho_1 * (P_2 / P_1)**(1.0_rk / gamma)
             end if
-            ! write(*,'(a, 12(es10.3,1x))') 'edge p  ', P_1
-            ! write(*,'(a, 12(es10.3,1x))') 'input p ', P_2
+            write(*, '(a, 12(es10.3,1x))') 'edge p  ', P_1
+            write(*, '(a, 12(es10.3,1x))') 'input p ', P_2
             ! write(*,'(a, 12(es10.3,1x))') 'edge rho', rho_1
             ! write(*,'(a, 12(es10.3,1x))') 'new rho ', self%edge_primitive_vars(1, bottom:top)
             ! write(*,'(a, 12(es10.3,1x))') 'new u   ', self%edge_primitive_vars(2, bottom:top)
