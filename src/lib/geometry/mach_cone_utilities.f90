@@ -2,7 +2,6 @@ module mod_mach_cone_utilties
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi, rad2deg
-  use mod_globals, only: TINY_DIST
   use mod_vector, only: vector_t, operator(.cross.)
 
   implicit none

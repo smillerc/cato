@@ -2,7 +2,6 @@ module mod_geometry
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi, rad2deg
-  use mod_globals, only: TINY_DIST
   use mod_floating_point_utils, only: near_zero, equal
 
   implicit none

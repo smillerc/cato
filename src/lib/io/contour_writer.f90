@@ -104,7 +104,7 @@ contains
   subroutine write_contour(self, fluid, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
     class(fluid_t), intent(in) :: fluid
-    class(finite_volume_scheme_t), intent(in) :: fv_scheme
+    class(finite_volume_scheme_t), intent(inout) :: fv_scheme
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     character(50) :: char_buff
@@ -139,7 +139,7 @@ contains
 
   subroutine write_hdf5(self, fluid, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
-    class(finite_volume_scheme_t), intent(in) :: fv_scheme
+    class(finite_volume_scheme_t), intent(inout) :: fv_scheme
     class(fluid_t), intent(in) :: fluid
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
@@ -150,14 +150,13 @@ contains
     real(rk), dimension(:, :), allocatable :: io_data_buffer
     integer(ik), dimension(:, :), allocatable :: int_data_buffer
 
-    allocate(primitive_vars, mold=fluid%conserved_vars)
-    call fluid%get_primitive_vars(primitive_vars, lbounds=lbound(fluid%conserved_vars))
+    print *, 'getting prim vars from fluid for i/o'
+    call fluid%get_primitive_vars(primitive_vars, fv_scheme)
 
     call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
                                    status='new', action='w', comp_lvl=6)
 
     ! Header info
-
     call self%hdf5_file%add('/title', fv_scheme%title)
 
     call self%hdf5_file%add('/iteration', iteration)
@@ -260,36 +259,36 @@ contains
 
     ! Primitive Variables
     dataset_name = '/density'
-    io_data_buffer = primitive_vars(1, ilo:ihi, jlo:jhi)
+    io_data_buffer = primitive_vars(1, :, :)
     io_data_buffer = io_data_buffer * io_density_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    io_data_buffer = primitive_vars(2, ilo:ihi, jlo:jhi)
+    io_data_buffer = primitive_vars(2, :, :)
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    io_data_buffer = primitive_vars(3, ilo:ihi, jlo:jhi)
+    io_data_buffer = primitive_vars(3, :, :)
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    io_data_buffer = primitive_vars(4, ilo:ihi, jlo:jhi)
+    io_data_buffer = primitive_vars(4, :, :)
     io_data_buffer = io_data_buffer * io_pressure_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
     dataset_name = '/total_energy'
-    associate(rhoE=>fluid%conserved_vars(4, ilo:ihi, jlo:jhi), &
-              rho=>fluid%conserved_vars(1, ilo:ihi, jlo:jhi))
+    associate(rhoE=>fluid%conserved_vars(4, :, :), &
+              rho=>fluid%conserved_vars(1, :, :))
       io_data_buffer = rhoE / rho
     end associate
     io_data_buffer = io_data_buffer * io_pressure_units
@@ -306,14 +305,15 @@ contains
 
     ! Volume
     dataset_name = '/volume'
-    io_data_buffer = fv_scheme%grid%cell_volume(ilo:ihi, jlo:jhi)
+    io_data_buffer = fv_scheme%grid%cell_volume(:, :)
     io_data_buffer = io_data_buffer * io_volume_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
-    deallocate(primitive_vars)
-    deallocate(io_data_buffer)
+    if(allocated(primitive_vars)) deallocate(primitive_vars)
+    if(allocated(int_data_buffer)) deallocate(int_data_buffer)
+    if(allocated(io_data_buffer)) deallocate(io_data_buffer)
     call self%hdf5_file%finalize()
   end subroutine
 

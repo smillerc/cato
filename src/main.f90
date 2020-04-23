@@ -99,6 +99,7 @@ program cato
                                lbounds=lbound(U%conserved_vars))
     ! Integrate in time
     call U%integrate(fv, delta_t, error_code)
+
     if(error_code /= 0) then
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'

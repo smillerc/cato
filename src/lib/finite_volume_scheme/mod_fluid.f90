@@ -255,7 +255,7 @@ contains
     ! Locals
     class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
     type(fluid_t), allocatable :: local_d_dt !< dU/dt
-    integer(ik) :: alloc_status, error_code
+    integer(ik) :: alloc_status, error_code, i, j
 
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
     !< ((rho, u, v, p), i, j); Primitive variables at each cell center
@@ -306,18 +306,7 @@ contains
     end associate
 
     allocate(local_d_dt, source=self)
-    allocate(primitive_vars, mold=self%conserved_vars)
-
-    call local_d_dt%get_primitive_vars(primitive_vars, lbounds=lbound(self%conserved_vars))
-
-    ! First put primitive vars in ghost layers
-    call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
-
-    ! print*, '+x'
-    ! write(*, "(a, 12(es10.3, 1x))") 'fluid rho ', primitive_vars(1,fv%grid%ihi_bc_cell, :)
-    ! write(*, "(a, 12(es10.3, 1x))") 'fluid u   ', primitive_vars(2,fv%grid%ihi_bc_cell, :)
-    ! write(*, "(a, 12(es10.3, 1x))") 'fluid v   ', primitive_vars(3,fv%grid%ihi_bc_cell, :)
-    ! write(*, "(a, 12(es10.3, 1x))") 'fluid p   ', primitive_vars(4,fv%grid%ihi_bc_cell, :)
+    call local_d_dt%get_primitive_vars(primitive_vars, fv)
 
     ! Now we can reconstruct the entire domain
     call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
@@ -336,16 +325,13 @@ contains
 
     call fv%apply_cell_gradient_bc()
 
-    ! call print_recon_data('rho', 601, 1, reconstructed_state, primitive_vars)
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
     call fv%evolution_operator%evolve_downup_midpoints(evolved_state=evolved_downup_midpoints_state, &
                                                        lbounds=lbound(evolved_downup_midpoints_state), &
                                                        error_code=error_code)
-
     if(error_code /= 0) then
       fv%error_code = error_code
-      ! error stop 'Error code!'
     end if
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
@@ -696,8 +682,9 @@ contains
     !< Calculate the sound speed for the entire domain
     class(fluid_t), intent(in) :: self
     real(rk), dimension(:, :), intent(out), allocatable :: sound_speed
-
     integer(ik) :: ilo, ihi, jlo, jhi
+
+    call debug_print('Running fluid_t%calculate_sound_speed()', __FILE__, __LINE__)
 
     ilo = lbound(self%conserved_vars, dim=2)
     ihi = ubound(self%conserved_vars, dim=2)
@@ -705,8 +692,6 @@ contains
     jhi = ubound(self%conserved_vars, dim=3)
 
     if(.not. allocated(sound_speed)) allocate(sound_speed(ilo:ihi, jlo:jhi))
-
-    call debug_print('Running fluid_t%calculate_sound_speed()', __FILE__, __LINE__)
 
     call eos%sound_speed_from_conserved(conserved_vars=self%conserved_vars, &
                                         sound_speed=sound_speed)
@@ -730,36 +715,19 @@ contains
     deallocate(sound_speed)
   end function get_max_sound_speed
 
-  subroutine get_primitive_vars(self, primitive_vars, lbounds)
+  subroutine get_primitive_vars(self, primitive_vars, fv)
     !< Convert the current conserved_vars [rho, rho u, rho v, rho E] to primitive [rho, u, v, p]. Note, the
     !< work is done in the EOS module due to the energy to pressure conversion
     class(fluid_t), intent(in) :: self
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: primitive_vars
-    integer(ik) :: i, j, ilo, jlo, ihi, jhi
-    real(rk), dimension(:, :), allocatable :: sound_speed
+    class(finite_volume_scheme_t), intent(inout) :: fv
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: primitive_vars
+    integer(ik) :: i
 
     call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
-    call self%get_sound_speed(sound_speed)
-    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars, lbounds=lbound(self%conserved_vars))
+    allocate(primitive_vars, mold=self%conserved_vars)
 
-    ilo = lbound(self%conserved_vars, dim=2)
-    ihi = ubound(self%conserved_vars, dim=2)
-    jlo = lbound(self%conserved_vars, dim=3)
-    jhi = ubound(self%conserved_vars, dim=3)
-
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(abs(primitive_vars(2, i, j)) / sound_speed(i, j) < TINY_MACH) then
-          primitive_vars(2, i, j) = 0.0_rk
-        end if
-        if(abs(primitive_vars(3, i, j)) / sound_speed(i, j) < TINY_MACH) then
-          primitive_vars(3, i, j) = 0.0_rk
-        end if
-      end do
-    end do
-
-    deallocate(sound_speed)
+    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
+    call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
   end subroutine get_primitive_vars
 
   subroutine sanity_check(self, error_code)

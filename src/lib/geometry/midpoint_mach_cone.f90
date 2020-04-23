@@ -2,7 +2,7 @@ module mod_midpoint_mach_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: ieee_arithmetic
   use math_constants, only: pi, rad2deg
-  use mod_globals, only: TINY_MACH, grid_is_orthogonal
+  use mod_globals, only: grid_is_orthogonal
   use mod_floating_point_utils, only: near_zero, equal
   use mod_eos, only: eos
   use mod_vector, only: vector_t
