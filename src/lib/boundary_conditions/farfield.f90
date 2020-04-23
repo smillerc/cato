@@ -8,22 +8,22 @@ module mod_farfield
   implicit none
 
   private
-  public :: farfield ! only the ff is exposed, the others are used internaly
+  ! public :: farfield ! only the ff is exposed, the others are used internaly
 
 contains
-  function farfield() result(boundary_prim_vars)
-  end function farfield
+  ! function farfield() result(boundary_prim_vars)
+  ! end function farfield
 
-  function subsonic_outflow() result(boundary_prim_vars)
-  end function subsonic_outflow
+  ! function subsonic_outflow() result(boundary_prim_vars)
+  ! end function subsonic_outflow
 
-  function subsonic_inflow() result(boundary_prim_vars)
-  end function subsonic_inflow
+  ! function subsonic_inflow() result(boundary_prim_vars)
+  ! end function subsonic_inflow
 
-  function supersonic_outflow() result(boundary_prim_vars)
-  end function supersonic_outflow
+  ! function supersonic_outflow() result(boundary_prim_vars)
+  ! end function supersonic_outflow
 
-  function supersonic_inflow() result(boundary_prim_vars)
-  end function supersonic_inflow
+  ! function supersonic_inflow() result(boundary_prim_vars)
+  ! end function supersonic_inflow
 
 end module mod_farfield

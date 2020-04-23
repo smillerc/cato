@@ -4,7 +4,8 @@ module mod_inlet_outlet
   !> Author: Sam Miller
   !> Notes:
   !> References:
-  !      [1] Computational Fluid Dynamics: Principles and Applications, Jiri Blazek
+  !      [1] J. Blazek, "Computational Fluid Dynamics: Principles and Applications",
+  !          https://doi.org/10.1016/C2013-0-19038-1
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
@@ -33,7 +34,8 @@ contains
     real(rk) :: gamma !< ideal gas gamma
     real(rk) :: cp !< specific head capactity at constant pressure of the gas
     real(rk) :: cos_theta
-    real(rk) :: tot_vel !< total velocity in the domain, e.g. norm2(vel vector)
+    real(rk) :: v_tot_d !< total velocity in the domain, e.g. norm2(vel vector)
+    real(rk) :: v_tot_b !< total velocity at the boundary
     real(rk) :: v_dot_n !< domain velocity vector dotted with the normal of the boundary face
     real(rk) :: T_b   !< temperature at the boundary
     real(rk) :: p_b   !< pressure at the boundary
@@ -55,16 +57,16 @@ contains
               theta=>inlet_flow_angle, &
               R_minus=>riemann_inv, R=>universal_gas_constant)
 
-      v_dot_n = u * nx + v * n_y
+      v_dot_n = u * n_x + v * n_y
 
-      tot_vel = sqrt(u**2 + v**2)
-      if(tot_vel > 0.0_rk) cos_theta = -v_dot_n / tot_vel
+      v_tot_d = sqrt(u**2 + v**2)
+      if(v_tot_d > 0.0_rk) cos_theta = -v_dot_n / v_tot_d
 
       ! domain sound speed
       cs_d = eos%sound_speed(pressure=p, density=rho)
 
       ! stagnation sound speed
-      cs_0_sq = cs_d**2 + ((gamma - 1.0_rk) / 2.0_rk) * tot_vel**2
+      cs_0_sq = cs_d**2 + ((gamma - 1.0_rk) / 2.0_rk) * v_tot_d**2
 
       ! outgoing Riemann invariant R-
       R_minus = v_dot_n - (2.0_rk * cs_d / (gamma - 1.0_rk))
@@ -79,22 +81,24 @@ contains
       T_b = T_0 * (cs_b**2 / cs_0_sq)
       p_b = p_0 * (T_b / T_0)**(gamma / (gamma - 1.0_rk))
       rho_b = p_b / (R * T_b)
-      total_v_b = sqrt(2.0_rk * cp * (T_0 - T_b))
+      v_tot_b = sqrt(2.0_rk * cp * (T_0 - T_b))
 
-      u_b = total_v_b * cos(theta)
-      v_b = total_v_b * sin(theta)
+      u_b = v_tot_b * cos(theta)
+      v_b = v_tot_b * sin(theta)
     end associate
 
     boundary_prim_vars = [rho_b, u_b, v_b, p_b]
 
   end function subsonic_inlet
 
-  pure function subsonic_outlet(domain_prim_vars, exit_pressure) result(boundary_prim_vars)
+  pure function subsonic_outlet(domain_prim_vars, exit_pressure, boundary_norm) result(boundary_prim_vars)
     !< Set the boundary to be a subsonic outlet. The only input parameter is the exit pressure
     !< Refer to Section 8.4 in Ref [1]
 
+    real(rk), dimension(4) :: boundary_prim_vars !< (rho, u, v, p); primitive vars at the boundary
     real(rk), intent(in) :: exit_pressure !< specified pressure at the exit boundary
     real(rk), dimension(4), intent(in) :: domain_prim_vars !< (rho, u, v, p); primitive vars w/in the domain (real values)
+    real(rk), dimension(2), intent(in) :: boundary_norm  !< normal vector to the boundary edge
 
     real(rk) :: T_b     !< temperature at the boundary
     real(rk) :: p_b     !< pressure at the boundary
@@ -106,6 +110,7 @@ contains
     p_b = exit_pressure
 
     associate(rho_d=>domain_prim_vars(1), u_d=>domain_prim_vars(2), &
+              n_x=>boundary_norm(1), n_y=>boundary_norm(2), &
               v_d=>domain_prim_vars(3), p_d=>domain_prim_vars(4))
 
       cs_d = eos%sound_speed(pressure=p_d, density=rho_d)

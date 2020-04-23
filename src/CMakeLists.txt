@@ -46,6 +46,8 @@ add_library(
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
   lib/boundary_conditions/vacuum_bc.f90
+  lib/boundary_conditions/inlet_outlet.f90
+  lib/boundary_conditions/farfield.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/reflection_bc.f90

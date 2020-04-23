@@ -12,7 +12,7 @@ module mod_eos
   implicit none
 
   private
-  public :: set_equation_of_state, eos
+  public :: set_equation_of_state, eos, universal_gas_constant
 
   real(rk), parameter :: universal_gas_constant = 8.31446261815324e7_rk !< R in ergs/(mol K)
 
@@ -25,6 +25,8 @@ module mod_eos
   contains
     procedure, public :: get_gamma
     procedure, public :: set_gamma
+    procedure, public :: get_cp
+    procedure, public :: get_cv
     procedure, public :: calculate_total_energy
     procedure, public :: sound_speed
     procedure, public :: sound_speed_from_primitive
@@ -67,12 +69,12 @@ contains
 
   real(rk) pure function get_cp(self) result(cp)
     class(eos_t), intent(in) :: self
-    cp = self%cp
+    cp = self%c_p
   end function get_cp
 
   real(rk) pure function get_cv(self) result(cv)
     class(eos_t), intent(in) :: self
-    cv = self%cv
+    cv = self%c_v
   end function get_cv
 
   subroutine set_equation_of_state(input)
