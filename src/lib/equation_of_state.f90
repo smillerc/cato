@@ -29,6 +29,7 @@ module mod_eos
     procedure, public :: get_cv
     procedure, public :: calculate_total_energy
     procedure, public :: sound_speed
+    procedure, public :: temperature
     procedure, public :: sound_speed_from_primitive
     procedure, public :: sound_speed_from_conserved
     procedure, private :: conserved_to_primitive_2d
@@ -103,6 +104,15 @@ contains
     ! elsewhere and allow for a final IO contour dump
     sound_speed = sqrt(self%gamma * abs(pressure / density))
   end function sound_speed
+
+  elemental real(rk) function temperature(self, pressure, density)
+    !< Calculate sound speed
+    class(eos_t), intent(in) :: self
+    real(rk), intent(in) :: pressure
+    real(rk), intent(in) :: density
+
+    temperature = pressure / (density * self%R)
+  end function temperature
 
   subroutine sound_speed_from_primitive(self, primitive_vars, sound_speed)
     !< Calculate sound speed using the primitive variables [rho, u, v, p]

@@ -54,7 +54,7 @@ module mod_units
   real(rk), parameter :: giga_pascal = 1e-10_rk !< barye to GPa conversion
 
   ! Temperature
-  real(rk), parameter :: kelvin_to_electron_volt = 1.160451812e4_rk
+  real(rk), parameter :: kelvin_to_electron_volt = 1.160451812e-4_rk
 
   ! Energy
   real(rk), parameter :: joule = 1e-7_rk ! erg to joules
