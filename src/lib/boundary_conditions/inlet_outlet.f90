@@ -16,8 +16,8 @@ module mod_inlet_outlet
   public :: subsonic_inlet, subsonic_outlet, supersonic_inlet, supersonic_outlet
 
 contains
-  pure function subsonic_inlet(domain_prim_vars, boundary_norm, inlet_total_temp, &
-                               inlet_total_press, inlet_flow_angle) result(boundary_prim_vars)
+  function subsonic_inlet(domain_prim_vars, boundary_norm, inlet_total_temp, &
+                          inlet_total_press, inlet_flow_angle) result(boundary_prim_vars)
     !< Set the subsonic inlet conditions by using the outgoing Riemann invariant and sound speed
 
     real(rk), dimension(4) :: boundary_prim_vars !< (rho, u, v, p); primitive vars at the boundary
@@ -42,6 +42,7 @@ contains
     real(rk) :: rho_b !< density at the boundary
     real(rk) :: u_b   !< x-velocity at the boundary
     real(rk) :: v_b   !< y-velocity at the boundary
+    real(rk) :: first_term, second_term, third_term
 
     gamma = eos%get_gamma()
     cp = eos%get_cp()
@@ -58,8 +59,8 @@ contains
               R_minus=>riemann_inv, R=>universal_gas_constant)
 
       v_dot_n = u * n_x + v * n_y
-
       v_tot_d = sqrt(u**2 + v**2)
+
       if(v_tot_d > 0.0_rk) cos_theta = -v_dot_n / v_tot_d
 
       ! domain sound speed
@@ -71,18 +72,22 @@ contains
       ! outgoing Riemann invariant R-
       R_minus = v_dot_n - (2.0_rk * cs_d / (gamma - 1.0_rk))
 
-      ! boundary sound speed
-      cs_b = (-R_minus * (gamma - 1.0_rk) / ((gamma - 1.0_rk) * cos_theta**2 + 2.0_rk)) * &
-             (1.0_rk + cos_theta * &
-              sqrt(((((gamma - 1.0_rk) * cos_theta**2 + 2.0_rk) * cs_0_sq) / ((gamma - 1.0_rk) * R_minus**2)) - &
-                   ((gamma - 1.0_rk) / 2.0_rk)))
+      ! See Eq 8.33 in Ref [1] for boundary sound speed b_b
+      first_term = -R_minus * (gamma - 1.0_rk) / ((gamma - 1.0_rk) * cos_theta**2 + 2.0_rk)
+
+      if(abs(cos_theta) > 0.0_rk) then
+        second_term = (((gamma - 1.0_rk) * cos_theta**2 + 2.0_rk) * cs_0_sq) / ((gamma - 1.0_rk) * R_minus**2)
+        third_term = (gamma - 1.0_rk) / 2.0_rk
+        cs_b = first_term * (1.0_rk + cos_theta * sqrt(second_term - third_term))
+      else
+        cs_b = first_term
+      end if
 
       ! boundary state
       T_b = T_0 * (cs_b**2 / cs_0_sq)
       p_b = p_0 * (T_b / T_0)**(gamma / (gamma - 1.0_rk))
       rho_b = p_b / (R * T_b)
-      v_tot_b = sqrt(2.0_rk * cp * (T_0 - T_b))
-
+      v_tot_b = sqrt(2.0_rk * cp * abs(T_0 - T_b))
       u_b = v_tot_b * cos(theta)
       v_b = v_tot_b * sin(theta)
     end associate
