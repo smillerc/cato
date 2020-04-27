@@ -197,7 +197,7 @@ contains
 
   end subroutine find_extrema
 
-  function interpolate(self, i, j, x, y, cell_gradient) result(u_tilde)
+  pure function interpolate(self, i, j, x, y, cell_gradient) result(u_tilde)
     !< Given the cell gradient and location, interpolate the value
     real(rk), dimension(4) :: u_tilde !< (rho, u, v, p); interpolated primitive variables
     class(abstract_reconstruction_t), intent(in) :: self

@@ -87,6 +87,20 @@ module mod_grid
     real(rk), dimension(:, :, :, :), allocatable :: cell_edge_norm_vectors
     !< ((x,y), edge, i, j); normal direction vector of each face
 
+    real(rk), dimension(:, :, :, :), allocatable :: corner_edge_vectors
+    !< ((x,y), (vector_1:4), i, j); edge vector set for each corner
+    real(rk), dimension(:, :), allocatable :: corner_edge_vectors_scale
+
+    real(rk), dimension(:, :, :, :), allocatable :: downup_midpoint_edge_vectors
+    !< ((x,y), (vector_1:2), i, j); edge vector set for each downup midpoint
+    real(rk), dimension(:, :), allocatable :: downup_midpoint_edge_vectors_scale
+
+    real(rk), dimension(:, :, :, :), allocatable :: leftright_midpoint_edge_vectors
+    !< ((x,y), (vector_1:2), i, j); edge vector set for each leftright midpoint
+    real(rk), dimension(:, :), allocatable :: leftright_midpoint_edge_vectors_scale
+
+    logical :: scale_edge_vectors = .true.
+
   contains
     procedure(initialize), deferred :: initialize
     procedure(get_2d_data), deferred, public :: get_x
@@ -97,6 +111,8 @@ module mod_grid
     procedure(get_4d_data), deferred, public :: get_cell_edge_norm_vectors
     procedure(get_midpoint_vectors), deferred, public :: get_midpoint_vectors
     procedure(get_corner_vectors), deferred, public :: get_corner_vectors
+    procedure(get_midpoint_vectors_scaled_and_shifted), deferred, public :: get_midpoint_vectors_scaled_and_shifted
+    procedure(get_corner_vectors_scaled_and_shifted), deferred, public :: get_corner_vectors_scaled_and_shifted
     procedure(copy_grid), public, deferred :: copy
     generic :: assignment(=) => copy
   end type grid_t
@@ -179,6 +195,19 @@ module mod_grid
       character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
       real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (head,tail), (vector1:vector4))
     end function
+
+    subroutine get_corner_vectors_scaled_and_shifted(self)
+      !< Public interface to get_corner_vectors_scaled_and_shifted
+      import :: grid_t
+      class(grid_t), intent(inout) :: self
+    end subroutine
+
+    subroutine get_midpoint_vectors_scaled_and_shifted(self, edge)
+      !< Public interface to get_midpoint_vectors_scaled_and_shifted
+      import :: grid_t
+      class(grid_t), intent(inout) :: self
+      character(len=*), intent(in) :: edge ! 'bottom', 'top', 'left', 'right'
+    end subroutine
   end interface
 
 end module mod_grid

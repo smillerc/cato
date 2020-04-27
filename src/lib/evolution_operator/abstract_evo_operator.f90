@@ -26,6 +26,10 @@ module mod_abstract_evo_operator
     class(abstract_reconstruction_t), pointer :: reconstruction_operator => null()
     !< pointer to the R_Omega operator used to provide values at the P' location
 
+    integer(ik), dimension(:, :, :, :), allocatable :: leftright_midpoint_neighbors
+    integer(ik), dimension(:, :, :, :), allocatable :: downup_midpoint_neighbors
+    integer(ik), dimension(:, :, :, :), allocatable :: corner_neighbors
+
     character(:), allocatable :: name  !< Name of the evolution operator
     real(rk) :: tau !< time increment to evolve
 

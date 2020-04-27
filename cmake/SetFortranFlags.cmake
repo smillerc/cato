@@ -40,8 +40,9 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
     set(GNUNATIVE "-march=native")
   endif()
 
-  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${Coarray_COMPILE_OPTIONS}")
+#  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
+  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g \
  -Wall -Wextra -Wpedantic -Wconversion \
@@ -82,5 +83,5 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   endif()
 
   set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds")
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -ipo -parallel -mtune=${TARGET_ARCHITECTURE}")
+  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -mtune=${TARGET_ARCHITECTURE}")
 endif()
