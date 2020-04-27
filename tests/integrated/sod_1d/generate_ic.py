@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath("../../.."))
 from scripts import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
-shock_tube = make_1d_in_x_uniform_grid(n_cells=200, limits=(0, 1.0))
+shock_tube = make_1d_in_x_uniform_grid(n_cells=1000, limits=(0, 1.0))
 
 # Set the initial conditions
 shock_tube["u"] = shock_tube["u"] * 0.0
