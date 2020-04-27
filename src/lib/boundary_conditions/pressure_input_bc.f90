@@ -3,6 +3,7 @@ module mod_pressure_input_bc
   use mod_globals, only: debug_print
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
+  use mod_inlet_outlet, only: subsonic_inlet, subsonic_outlet, supersonic_inlet, supersonic_outlet
   use linear_interpolation_module, only: linear_interp_1d
   use mod_eos, only: eos
   implicit none
@@ -13,6 +14,7 @@ module mod_pressure_input_bc
   type, extends(boundary_condition_t) :: pressure_input_bc_t
     logical :: constant_pressure = .false.
     real(rk) :: pressure_input = 0.0_rk
+    real(rk) :: temperature_input = 273.0_rk !K
     real(rk) :: scale_factor = 1.0_rk !< scaling factor (e.g. 1x, 2x) to scale the input up/down
 
     ! Temporal inputs
@@ -171,15 +173,19 @@ contains
     integer(ik) :: right_ghost  !< Max i ghost cell index
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
-
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
     logical :: inflow
     logical :: outflow
 
     real(rk) :: desired_boundary_pressure, boundary_density, gamma, ave_u, min_u, max_u, u, v, rho_new, ave_rho
-    real(rk) :: mach
+    real(rk) :: mach_u, mach_v, mach, cs
     real(rk), dimension(:), allocatable :: edge_pressure
+    real(rk), dimension(:, :), allocatable :: domain_prim_vars
+    real(rk), dimension(4) :: boundary_prim_vars
 
     gamma = eos%get_gamma()
+    inflow = .false.
+    outflow = .false.
 
     left_ghost = lbound(primitive_vars, dim=2)
     right_ghost = ubound(primitive_vars, dim=2)
@@ -190,106 +196,61 @@ contains
     bottom = bottom_ghost + 1
     top = top_ghost - 1
 
-    inflow = .false.
-    outflow = .false.
-    mach = 1.5_rk
-    ! Since we know the pressure/density in the fluid edge cell,
-    ! and we also know what we want the pressure to be on the boundary (ghost)
-    ! We use the isentropic relation rho2/rho2 = (P2/P1)^(gamma-1) to find the density
-    ! in the ghost zone
-    !           |
-    !  Fluid    |   Ghost
-    !  P1,      |    P2
-    !  rho_1    |  rho2
-    !           |
+    desired_boundary_pressure = self%get_desired_pressure()
+
+    if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
+
+    select case(self%location)
+    case('+x', '-x')
+      allocate(self%edge_primitive_vars(4, bottom_ghost:top_ghost))
+      allocate(domain_prim_vars(4, bottom_ghost:top_ghost))
+    case('+y', '-y')
+      allocate(self%edge_primitive_vars(4, left_ghost:right_ghost))
+      allocate(domain_prim_vars(4, left_ghost:right_ghost))
+    end select
+
+    self%edge_primitive_vars = 0.0_rk
+    domain_prim_vars = 0.0_rk
 
     select case(self%location)
     case('+x')
       call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
-      if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
-      allocate(self%edge_primitive_vars(4, bottom_ghost:top_ghost))
-      self%edge_primitive_vars = 0.0_rk
+      domain_prim_vars = primitive_vars(:, right, bottom_ghost:top_ghost)
+      domain_prim_vars(3, :) = 0.0_rk ! no y-velocity please
 
-      allocate(edge_pressure(bottom:top))
+      do j = bottom, top
+        associate(rho=>domain_prim_vars(1, j), u=>domain_prim_vars(2, j), &
+                  v=>domain_prim_vars(3, j), p=>domain_prim_vars(4, j))
 
-      min_u = minval(primitive_vars(2, right, bottom:top))
-      max_u = maxval(primitive_vars(2, right, bottom:top))
-      ave_u = sum(primitive_vars(2, right, bottom:top)) / size(primitive_vars(2, right, bottom:top))
-      ave_rho = sum(primitive_vars(1, right, bottom:top)) / size(primitive_vars(1, right, bottom:top))
-      primitive_vars(1, right, bottom:top) = ave_rho
-
-      ! defaults
-      u = ave_u
-      v = 0.0_rk
-
-      if(ave_u < 0.0_rk) then
-        inflow = .true.
-        outflow = .false.
-        u = min_u
-      else
-        inflow = .false.
-        outflow = .true.
-        u = max_u
-      end if
-
-      ! Default to zero-gradient
-      self%edge_primitive_vars(1, :) = sum(primitive_vars(1, right, bottom:top)) / size(primitive_vars(1, right, bottom:top))
-      self%edge_primitive_vars(2, :) = u
-      self%edge_primitive_vars(3, :) = v
-
-      edge_pressure(bottom:top) = sum(primitive_vars(4, right, bottom:top)) / size(primitive_vars(4, right, bottom:top))
-      desired_boundary_pressure = self%get_desired_pressure()
-
-      self%edge_primitive_vars(4, bottom:top) = edge_pressure(bottom:top)
-
-      if(desired_boundary_pressure <= 0.0_rk) then
-        ! Default to zero-gradient if the input pressure goes <= 0
-        self%edge_primitive_vars(1, bottom:top) = primitive_vars(1, right, bottom:top)
-        self%edge_primitive_vars(2, bottom:top) = primitive_vars(2, right, bottom:top)
-        self%edge_primitive_vars(3, bottom:top) = primitive_vars(3, right, bottom:top)
-        self%edge_primitive_vars(4, bottom:top) = primitive_vars(4, right, bottom:top)
-      else
-        ! Pressure on the right-most column of fluid cells
-
-        ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
-        associate(rho_1=>primitive_vars(1, right, bottom:top), &
-                  P_1=>edge_pressure(bottom:top), &
-                  P_2=>desired_boundary_pressure)
-
-          if(self%get_time() > self%max_time) then  ! switch to a zero gradient
-            self%edge_primitive_vars(1, bottom:top) = primitive_vars(1, right, bottom:top)
-            self%edge_primitive_vars(4, bottom:top) = edge_pressure
-          else
-
-            self%edge_primitive_vars(4, bottom:top) = P_2
-
-            ! Outflow
-            if(outflow) then
-              ! print*, 'outflow!'
-              rho_new = abs((gamma * P_2) / (u / mach)) ! Set density to make the flow supersonic
-              if(rho_new > ave_rho) then
-                self%edge_primitive_vars(1, bottom:top) = ave_rho
-              else
-                self%edge_primitive_vars(1, bottom:top) = rho_new
-              end if
-
-            else ! Inflow
-              ! print*, 'inflow!'
-              self%edge_primitive_vars(1, bottom:top) = rho_1 * (P_2 / P_1)**(1.0_rk / gamma)
-            end if
-            ! write(*,'(a, 12(es10.3,1x))') 'edge p  ', P_1
-            ! write(*,'(a, 12(es10.3,1x))') 'input p ', P_2
-            ! write(*,'(a, 12(es10.3,1x))') 'edge rho', rho_1
-            ! write(*,'(a, 12(es10.3,1x))') 'new rho ', self%edge_primitive_vars(1, bottom:top)
-            ! write(*,'(a, 12(es10.3,1x))') 'new u   ', self%edge_primitive_vars(2, bottom:top)
-            ! write(*,'(a, 12(es10.3,1x))') 'new p   ', self%edge_primitive_vars(4, bottom:top)
-            ! print*
-
-          end if
+          cs = eos%sound_speed(pressure=p, density=rho)
+          mach_u = u / cs
         end associate
 
-      end if
+        if(mach_u > 0.0_rk) then ! outlet
+          if(mach_u > 1.0_rk) then
+            boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars(:, j))
+          else
+            boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars(:, j), &
+                                                 exit_pressure=desired_boundary_pressure, &
+                                                 boundary_norm=[1.0_rk, 0.0_rk])
+          end if
+        else ! inlet
+          if(abs(mach_u) > 1.0_rk) then
+            error stop "Supersonic inlet not configured yet"
+            ! boundary_prim_vars = supersonic_inlet()
+          else
+            boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars(:, j), &
+                                                boundary_norm=[1.0_rk, 0.0_rk], &
+                                                inlet_total_temp=self%temperature_input, &
+                                                inlet_total_press=desired_boundary_pressure, &
+                                                inlet_flow_angle=0.0_rk)
+          end if
+        end if
+
+        self%edge_primitive_vars(:, j) = boundary_prim_vars
+
+      end do
 
       primitive_vars(:, right_ghost, bottom:top) = self%edge_primitive_vars(:, bottom:top)
     case default

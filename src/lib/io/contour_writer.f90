@@ -150,7 +150,6 @@ contains
     real(rk), dimension(:, :), allocatable :: io_data_buffer
     integer(ik), dimension(:, :), allocatable :: int_data_buffer
 
-    print *, 'getting prim vars from fluid for i/o'
     call fluid%get_primitive_vars(primitive_vars, fv_scheme)
 
     call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
@@ -303,6 +302,16 @@ contains
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
+    dataset_name = '/temperature'
+    associate(p=>primitive_vars(4, :, :), &
+              rho=>primitive_vars(1, :, :))
+      io_data_buffer = eos%temperature(pressure=p, density=rho)
+    end associate
+    io_data_buffer = io_data_buffer * io_temperature_units
+    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Temperature')
+    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_temperature_label))
+
     ! Volume
     dataset_name = '/volume'
     io_data_buffer = fv_scheme%grid%cell_volume(:, :)
@@ -360,6 +369,12 @@ contains
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Sound Speed '//trim(unit_label)//'">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/sound_speed</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    unit_label = "["//trim(io_temperature_label)//"]"
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Temperature '//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/temperature</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
     unit_label = "["//trim(io_pressure_label)//"]"
