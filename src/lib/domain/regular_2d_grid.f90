@@ -7,6 +7,7 @@ module mod_regular_2d_grid
   use hdf5_interface, only: hdf5_file
   use mod_globals, only: debug_print
   use mod_floating_point_utils, only: equal
+  use mod_nondimensionalization, only: l_0
 
   implicit none
 
@@ -318,6 +319,10 @@ contains
       self%node_y(imin:imax, jmin:jmax) = y!(1:imax,1:jmax)
     end associate
 
+    ! Non-dimensionalize
+    self%node_x = self%node_x / l_0
+    self%node_y = self%node_y / l_0
+
     self%xmin = minval(self%node_x)
     self%xmax = maxval(self%node_x)
     self%ymin = minval(self%node_y)
@@ -367,10 +372,11 @@ contains
     self%ni_cell = self%ni_node - 1
     self%nj_cell = self%nj_node - 1
 
-    self%xmin = input%xmin
-    self%xmax = input%xmax
-    self%ymin = input%ymin
-    self%ymax = input%ymax
+    ! Load and non-dimensionalize
+    self%xmin = input%xmin / l_0
+    self%xmax = input%xmax / l_0
+    self%ymin = input%ymin / l_0
+    self%ymax = input%ymax / l_0
 
     self%x_length = abs(self%xmax - self%xmin)
     if(self%x_length <= 0) error stop "grid%x_length <= 0"

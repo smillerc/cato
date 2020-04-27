@@ -1,7 +1,8 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_MACH
+  use mod_nondimensionalization, only: rho_0, v_0, p_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -180,6 +181,12 @@ contains
 
     call h5%finalize()
 
+    ! Non-dimensionalize
+    density = density / rho_0
+    x_velocity = x_velocity / v_0
+    y_velocity = y_velocity / v_0
+    pressure = pressure / p_0
+
     if(any(near_zero(pressure))) then
       error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5"
     end if
@@ -208,17 +215,24 @@ contains
     !< from the grid class, but this will just initialize them to the values found in the .ini file
     class(fluid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
+    real(rk) :: density, x_velocity, y_velocity, pressure
+
+    ! Non-dimensionalize
+    density = input%init_density / rho_0
+    x_velocity = input%init_x_velocity / v_0
+    y_velocity = input%init_y_velocity / v_0
+    pressure = input%init_pressure / p_0
 
     call debug_print('Initializing fluid_t from .ini', __FILE__, __LINE__)
     write(*, '(a,4(f0.3, 1x))') 'Initializing with [rho,u,v,p]: ', &
       input%init_density, input%init_x_velocity, input%init_y_velocity, input%init_pressure
-    self%conserved_vars(1, :, :) = input%init_density
-    self%conserved_vars(2, :, :) = input%init_density * input%init_x_velocity
-    self%conserved_vars(3, :, :) = input%init_density * input%init_y_velocity
-    self%conserved_vars(4, :, :) = input%init_density * eos%calculate_total_energy(pressure=input%init_pressure, &
-                                                                                   density=input%init_density, &
-                                                                                   x_velocity=input%init_x_velocity, &
-                                                                                   y_velocity=input%init_y_velocity)
+    self%conserved_vars(1, :, :) = density
+    self%conserved_vars(2, :, :) = density * x_velocity
+    self%conserved_vars(3, :, :) = density * y_velocity
+    self%conserved_vars(4, :, :) = density * eos%calculate_total_energy(pressure=pressure, &
+                                                                        density=density, &
+                                                                        x_velocity=x_velocity, &
+                                                                        y_velocity=y_velocity)
 
     if(near_zero(input%init_pressure)) then
       error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5"
@@ -474,11 +488,11 @@ contains
   subroutine residual_smoother(self)
     class(fluid_t), intent(inout) :: self
 
-    ! integer(ik) :: ilo, ihi, jlo, jhi
-    ! integer(ik) :: i, j
-    ! real(rk) :: eps
-    ! real(rk) :: u, v
-    ! real(rk), dimension(:, :), allocatable :: sound_speed
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j
+    real(rk) :: eps
+    real(rk) :: u, v
+    real(rk), dimension(:, :), allocatable :: sound_speed
 
     ! call self%get_sound_speed(sound_speed)
 
@@ -491,10 +505,12 @@ contains
     !   do i = ilo, ihi
     !     u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
     !     v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
-    !     if(abs(u) / sound_speed(i, j) < TINY_MACH) then
+
+    !     if(abs(u / sound_speed(i, j)) < TINY_MACH) then
     !       self%conserved_vars(2, i, j) = 0.0_rk
     !     end if
-    !     if(abs(u) / sound_speed(i, j) < TINY_MACH) then
+
+    !     if(abs(v / sound_speed(i, j)) < TINY_MACH) then
     !       self%conserved_vars(3, i, j) = 0.0_rk
     !     end if
     !   end do
@@ -552,14 +568,22 @@ contains
 
   pure subroutine add_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a + b
-    real(rk), dimension(:, :, :), intent(in), contiguous :: a
-    real(rk), dimension(:, :, :), intent(in), contiguous :: b
-    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
+    real(rk), dimension(:, :, :), intent(in) :: a
+    real(rk), dimension(:, :, :), intent(in) :: b
+    real(rk), dimension(:, :, :), intent(inout) :: c
     integer(ik) :: i, j, k
+    integer(ik) :: ilo, ihi, jlo, jhi, klo, khi
 
-    do k = lbound(a, dim=3), ubound(a, dim=3)
-      do j = lbound(a, dim=2), ubound(a, dim=2)
-        do i = lbound(a, dim=1), ubound(a, dim=1)
+    ilo = lbound(a, dim=1)
+    ihi = ubound(a, dim=1)
+    jlo = lbound(a, dim=2)
+    jhi = ubound(a, dim=2)
+    klo = lbound(a, dim=3)
+    khi = ubound(a, dim=3)
+
+    do concurrent(k=klo:khi)
+      do concurrent(j=jlo:jhi)
+        do i = ilo, ihi
           c(i, j, k) = a(i, j, k) + b(i, j, k)
         end do
       end do
@@ -568,14 +592,22 @@ contains
 
   pure subroutine subtract_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a - b
-    real(rk), dimension(:, :, :), intent(in), contiguous :: a
-    real(rk), dimension(:, :, :), intent(in), contiguous :: b
-    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
+    real(rk), dimension(:, :, :), intent(in) :: a
+    real(rk), dimension(:, :, :), intent(in) :: b
+    real(rk), dimension(:, :, :), intent(inout) :: c
     integer(ik) :: i, j, k
+    integer(ik) :: ilo, ihi, jlo, jhi, klo, khi
 
-    do k = lbound(a, dim=3), ubound(a, dim=3)
-      do j = lbound(a, dim=2), ubound(a, dim=2)
-        do i = lbound(a, dim=1), ubound(a, dim=1)
+    ilo = lbound(a, dim=1)
+    ihi = ubound(a, dim=1)
+    jlo = lbound(a, dim=2)
+    jhi = ubound(a, dim=2)
+    klo = lbound(a, dim=3)
+    khi = ubound(a, dim=3)
+
+    do concurrent(k=klo:khi)
+      do concurrent(j=jlo:jhi)
+        do i = ilo, ihi
           c(i, j, k) = a(i, j, k) - b(i, j, k)
         end do
       end do
@@ -584,14 +616,22 @@ contains
 
   pure subroutine mult_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :, :), intent(in), contiguous :: a
-    real(rk), dimension(:, :, :), intent(in), contiguous :: b
-    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
+    real(rk), dimension(:, :, :), intent(in) :: a
+    real(rk), dimension(:, :, :), intent(in) :: b
+    real(rk), dimension(:, :, :), intent(inout) :: c
     integer(ik) :: i, j, k
+    integer(ik) :: ilo, ihi, jlo, jhi, klo, khi
 
-    do k = lbound(a, dim=3), ubound(a, dim=3)
-      do j = lbound(a, dim=2), ubound(a, dim=2)
-        do i = lbound(a, dim=1), ubound(a, dim=1)
+    ilo = lbound(a, dim=1)
+    ihi = ubound(a, dim=1)
+    jlo = lbound(a, dim=2)
+    jhi = ubound(a, dim=2)
+    klo = lbound(a, dim=3)
+    khi = ubound(a, dim=3)
+
+    do concurrent(k=klo:khi)
+      do concurrent(j=jlo:jhi)
+        do i = ilo, ihi
           c(i, j, k) = a(i, j, k) * b(i, j, k)
         end do
       end do
@@ -600,14 +640,22 @@ contains
 
   pure subroutine mult_field_by_real(a, b, c)
     !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :, :), intent(in), contiguous :: a
+    real(rk), dimension(:, :, :), intent(in) :: a
     real(rk), intent(in) :: b
-    real(rk), dimension(:, :, :), intent(inout), contiguous :: c
+    real(rk), dimension(:, :, :), intent(inout) :: c
     integer(ik) :: i, j, k
+    integer(ik) :: ilo, ihi, jlo, jhi, klo, khi
 
-    do k = lbound(a, dim=3), ubound(a, dim=3)
-      do j = lbound(a, dim=2), ubound(a, dim=2)
-        do i = lbound(a, dim=1), ubound(a, dim=1)
+    ilo = lbound(a, dim=1)
+    ihi = ubound(a, dim=1)
+    jlo = lbound(a, dim=2)
+    jhi = ubound(a, dim=2)
+    klo = lbound(a, dim=3)
+    khi = ubound(a, dim=3)
+
+    do concurrent(k=klo:khi)
+      do concurrent(j=jlo:jhi)
+        do i = ilo, ihi
           c(i, j, k) = a(i, j, k) * b
         end do
       end do
@@ -693,8 +741,7 @@ contains
 
     if(.not. allocated(sound_speed)) allocate(sound_speed(ilo:ihi, jlo:jhi))
 
-    call eos%sound_speed_from_conserved(conserved_vars=self%conserved_vars, &
-                                        sound_speed=sound_speed)
+    call eos%sound_speed_from_conserved(conserved_vars=self%conserved_vars, sound_speed=sound_speed)
   end subroutine get_sound_speed
 
   real(rk) function get_max_sound_speed(self) result(max_cs)

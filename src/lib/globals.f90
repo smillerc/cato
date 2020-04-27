@@ -7,6 +7,7 @@ module mod_globals
   logical, parameter :: enable_debug_print = .false.
   logical, parameter :: enable_file_and_line_stats = .false.
 
+  real(rk), parameter :: TINY_MACH = 1.0e-5_rk
   real(rk), parameter :: PRESSURE_FLOOR = 1.0e4_rk
   real(rk), parameter :: DENSITY_FLOOR = 1.0e-6_rk
 
@@ -100,19 +101,19 @@ contains
     integer, intent(in), optional :: line_number
 
     if(enable_debug_print) then
-      if(this_image() == 1) then
+!      if(this_image() == 1) then
 
-        if(enable_file_and_line_stats) then
-          if(present(file) .and. present(line_number)) then
-            write(std_out, '(a,a,i0,3(a))') file, ':', line_number, ' "', str, '"'
-          else
-            write(std_out, '(a)') str
-          end if
+      if(enable_file_and_line_stats) then
+        if(present(file) .and. present(line_number)) then
+          write(std_out, '(a,a,i0,3(a))') file, ':', line_number, ' "', str, '"'
         else
           write(std_out, '(a)') str
         end if
-
+      else
+        write(std_out, '(a)') str
       end if
+
+!      end if
     end if
   end subroutine
 

@@ -64,6 +64,8 @@ find_package(
   COMPONENTS Fortran_HL
   REQUIRED)
 
+find_package(OpenMP)
+
 if(NOT SERIAL_BUILD)
   set(SERIAL_BUILD Off)
   # Set for coarray compile type

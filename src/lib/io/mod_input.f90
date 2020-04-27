@@ -13,6 +13,11 @@ module mod_input
     character(:), allocatable :: title  !< Name of the simulation
     character(:), allocatable :: unit_system !< Type of units to output (CGS, ICF, MKS, etc...)
 
+    ! reference state
+    real(rk) :: reference_time
+    real(rk) :: reference_length
+    real(rk) :: reference_density
+
     ! grid
     character(len=32) :: grid_type = '2d_regular'  !< Structure/layout of the grid, e.g. '2d_regular'
     real(rk) :: xmin = 0.0_rk   !< Minimum extent of the grid in x (ignored for .h5 initial grids)
@@ -120,9 +125,9 @@ contains
 
     file_exists = .false.
 
-    if(this_image() == 1) then
-      write(output_unit, '(a)') 'Reading input file: '//trim(filename)
-    end if
+!    if(this_image() == 1) then
+    write(output_unit, '(a)') 'Reading input file: '//trim(filename)
+!    end if
 
     inquire(file=filename, exist=file_exists)
     if(.not. file_exists) error stop "Input .ini file not found"
@@ -167,9 +172,9 @@ contains
 
       inquire(file=self%restart_file, exist=file_exists)
       if(.not. file_exists) then
-        if(this_image() == 1) then
-          write(*, '(a)') 'Restart file not found: "'//trim(self%restart_file)//'"'
-        end if
+!        if(this_image() == 1) then
+        write(*, '(a)') 'Restart file not found: "'//trim(self%restart_file)//'"'
+!        end if
         error stop "Restart file not found"
       end if
     end if
@@ -184,9 +189,9 @@ contains
 
         inquire(file=self%initial_condition_file, exist=file_exists)
         if(.not. file_exists) then
-          if(this_image() == 1) then
-            write(*, '(a)') 'Initial conditions file not found: "'//trim(self%initial_condition_file)//'"'
-          end if
+!          if(this_image() == 1) then
+          write(*, '(a)') 'Initial conditions file not found: "'//trim(self%initial_condition_file)//'"'
+!          end if
           error stop "Initial conditions file not found"
         end if
 

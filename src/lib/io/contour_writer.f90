@@ -4,6 +4,7 @@ module mod_contour_writer
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
   use mod_fluid, only: fluid_t
   use mod_units
+  use mod_nondimensionalization, only: rho_0, v_0, p_0, t_0, l_0, e_0
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
   use mod_input, only: input_t
@@ -192,14 +193,14 @@ contains
     allocate(io_data_buffer(ilo:ihi, jlo:jhi))
 
     dataset_name = '/x'
-    io_data_buffer = fv_scheme%grid%node_x(ilo:ihi, jlo:jhi)
+    io_data_buffer = fv_scheme%grid%node_x(ilo:ihi, jlo:jhi) * l_0
     io_data_buffer = io_data_buffer * io_length_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'X Coordinate')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
     dataset_name = '/y'
-    io_data_buffer = fv_scheme%grid%node_y(ilo:ihi, jlo:jhi)
+    io_data_buffer = fv_scheme%grid%node_y(ilo:ihi, jlo:jhi) * l_0
     io_data_buffer = io_data_buffer * io_length_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Y Coordinate')
@@ -258,28 +259,28 @@ contains
 
     ! Primitive Variables
     dataset_name = '/density'
-    io_data_buffer = primitive_vars(1, :, :)
+    io_data_buffer = primitive_vars(1, :, :) * rho_0
     io_data_buffer = io_data_buffer * io_density_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    io_data_buffer = primitive_vars(2, :, :)
+    io_data_buffer = primitive_vars(2, :, :) * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    io_data_buffer = primitive_vars(3, :, :)
+    io_data_buffer = primitive_vars(3, :, :) * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    io_data_buffer = primitive_vars(4, :, :)
+    io_data_buffer = primitive_vars(4, :, :) * p_0
     io_data_buffer = io_data_buffer * io_pressure_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
@@ -288,7 +289,7 @@ contains
     dataset_name = '/total_energy'
     associate(rhoE=>fluid%conserved_vars(4, :, :), &
               rho=>fluid%conserved_vars(1, :, :))
-      io_data_buffer = rhoE / rho
+      io_data_buffer = (rhoE / rho) * e_0
     end associate
     io_data_buffer = io_data_buffer * io_pressure_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
@@ -297,7 +298,7 @@ contains
 
     dataset_name = '/sound_speed'
     call fluid%get_sound_speed(io_data_buffer)
-    io_data_buffer = io_data_buffer * io_velocity_units
+    io_data_buffer = io_data_buffer * v_0 * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
@@ -314,7 +315,7 @@ contains
 
     ! Volume
     dataset_name = '/volume'
-    io_data_buffer = fv_scheme%grid%cell_volume(:, :)
+    io_data_buffer = fv_scheme%grid%cell_volume(:, :) * l_0**3
     io_data_buffer = io_data_buffer * io_volume_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')
