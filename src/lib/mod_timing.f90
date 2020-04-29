@@ -3,6 +3,7 @@ module mod_timing
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
+  use mod_nondimensionalization, only: t_0
   use mod_fluid, only: fluid_t
 
   implicit none

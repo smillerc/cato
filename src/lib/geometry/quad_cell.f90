@@ -145,6 +145,7 @@ contains
     integer, dimension(4) :: tail_idx = [1, 2, 3, 4]
     integer :: i
     real(rk) :: dx, dy
+    real(rk), dimension(2) :: vec_x, vec_y
 
     do i = 1, 4
 
@@ -159,7 +160,9 @@ contains
         dx = x_head - x_mid
         dy = y_head - y_mid
 
-        vec = vector_t(x=[x_mid, x_mid + dy], y=[y_mid, y_mid - dx])
+        vec_x = [x_mid, x_mid + dy]
+        vec_y = [y_mid, y_mid - dx]
+        vec = vector_t(x=vec_x, y=vec_y)
         norm_vec = .unitnorm.vec
 
         n(:, i) = [norm_vec%x, norm_vec%y]

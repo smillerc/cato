@@ -274,7 +274,7 @@ contains
       !   end if
       ! end if
 
-      call self%source_term%apply_source(conserved_vars=conserved_vars, lbounds=lbound(conserved_vars), time=self%time)
+      call self%source_term%apply_source(conserved_vars=conserved_vars, lbounds=lbounds, time=self%time)
     end if
 
   end subroutine apply_source_terms
@@ -286,13 +286,16 @@ contains
     integer(ik), dimension(3), intent(in) :: cell_lbounds  !< lower bound of the cell-based arrays
     real(rk), dimension(cell_lbounds(1):, cell_lbounds(2):, cell_lbounds(3):), intent(in), target :: primitive_vars
     real(rk), dimension(:, :, :, cell_lbounds(2):, cell_lbounds(3):), intent(out) :: reconstructed_state
+    integer(ik), dimension(5) :: recon_bounds
 
     call debug_print('Running finite_volume_scheme_t%reconstruct()', __FILE__, __LINE__)
     call self%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
-                                                                 lbounds=lbound(primitive_vars))
+                                                                 lbounds=cell_lbounds)
     call self%reconstruction_operator%set_grid_pointer(self%grid)
+
+    recon_bounds = lbound(reconstructed_state)
     call self%reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_state, &
-                                                         lbounds=lbound(reconstructed_state))
+                                                         lbounds=recon_bounds)
 
   end subroutine reconstruct
 
@@ -334,19 +337,19 @@ contains
     do priority = max_priority_bc, 0, -1
 
       if(self%bc_plus_x%priority == priority) then
-        call self%bc_plus_x%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbound(primitive_vars))
+        call self%bc_plus_x%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbounds)
       end if
 
       if(self%bc_plus_y%priority == priority) then
-        call self%bc_plus_y%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbound(primitive_vars))
+        call self%bc_plus_y%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbounds)
       end if
 
       if(self%bc_minus_x%priority == priority) then
-        call self%bc_minus_x%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbound(primitive_vars))
+        call self%bc_minus_x%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbounds)
       end if
 
       if(self%bc_minus_y%priority == priority) then
-        call self%bc_minus_y%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbound(primitive_vars))
+        call self%bc_minus_y%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbounds)
       end if
 
     end do
@@ -371,22 +374,22 @@ contains
 
       if(self%bc_plus_x%priority == priority) then
         call self%bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
-                                                         lbounds=lbound(reconstructed_state))
+                                                         lbounds=lbounds)
       end if
 
       if(self%bc_plus_y%priority == priority) then
         call self%bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
-                                                         lbounds=lbound(reconstructed_state))
+                                                         lbounds=lbounds)
       end if
 
       if(self%bc_minus_x%priority == priority) then
         call self%bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
-                                                          lbounds=lbound(reconstructed_state))
+                                                          lbounds=lbounds)
       end if
 
       if(self%bc_minus_y%priority == priority) then
         call self%bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
-                                                          lbounds=lbound(reconstructed_state))
+                                                          lbounds=lbounds)
       end if
 
     end do
@@ -398,32 +401,34 @@ contains
 
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
+    integer(ik), dimension(4) :: bounds
 
     max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
                           self%bc_minus_x%priority, self%bc_minus_y%priority)
 
+    bounds = lbound(self%reconstruction_operator%cell_gradient)
     if(self%reconstruction_operator%order > 1) then
       call debug_print('Running apply_cell_gradient_bc', __FILE__, __LINE__)
       do priority = max_priority_bc, 0, -1
 
         if(self%bc_plus_x%priority == priority) then
           call self%bc_plus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient, &
-                                                     lbounds=lbound(self%reconstruction_operator%cell_gradient))
+                                                     lbounds=bounds)
         end if
 
         if(self%bc_plus_y%priority == priority) then
           call self%bc_plus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient, &
-                                                     lbounds=lbound(self%reconstruction_operator%cell_gradient))
+                                                     lbounds=bounds)
         end if
 
         if(self%bc_minus_x%priority == priority) then
           call self%bc_minus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient, &
-                                                      lbounds=lbound(self%reconstruction_operator%cell_gradient))
+                                                      lbounds=bounds)
         end if
 
         if(self%bc_minus_y%priority == priority) then
           call self%bc_minus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient, &
-                                                      lbounds=lbound(self%reconstruction_operator%cell_gradient))
+                                                      lbounds=bounds)
         end if
 
       end do

@@ -60,9 +60,13 @@ contains
 
     call date_and_time(values=dt)
 
-    ! make the results folder look like: 'results_2019_08_12-21_50' -> results_YYYY_MM_DD-HH_mm
-    write(str_buff, '(a, i4, 5(a, i2.2))') &
-      'results_', dt(1), '_', dt(2), '_', dt(3), '-', dt(5), '_', dt(6)
+    if(input%append_date_to_result_folder) then
+      ! make the results folder look like: 'results_2019_08_12-21_50' -> results_YYYY_MM_DD-HH_mm
+      write(str_buff, '(a, i4, 5(a, i2.2))') &
+        'results_', dt(1), '_', dt(2), '_', dt(3), '-', dt(5), '_', dt(6)
+    else
+      str_buff = 'results'
+    end if
 
     writer%results_folder = trim(str_buff)
     call execute_command_line('mkdir -p '//writer%results_folder, exitstat=estat, cmdstat=cstat, cmdmsg=cmsg)
@@ -147,9 +151,13 @@ contains
     character(32) :: dataset_name
 
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: time_w_dims, delta_t_w_dims
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
     real(rk), dimension(:, :), allocatable :: io_data_buffer
     integer(ik), dimension(:, :), allocatable :: int_data_buffer
+
+    time_w_dims = time * io_time_units * t_0
+    delta_t_w_dims = fv_scheme%delta_t * t_0
 
     call fluid%get_primitive_vars(primitive_vars, fv_scheme)
 
@@ -163,11 +171,11 @@ contains
     call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
     call self%hdf5_file%writeattr('/iteration', 'units', 'dimensionless')
 
-    call self%hdf5_file%add('/time', time * io_time_units)
+    call self%hdf5_file%add('/time', time_w_dims)
     call self%hdf5_file%writeattr('/time', 'description', 'Simulation Time')
     call self%hdf5_file%writeattr('/time', 'units', io_time_label)
 
-    call self%hdf5_file%add('/delta_t', fv_scheme%delta_t)
+    call self%hdf5_file%add('/delta_t', delta_t_w_dims)
     call self%hdf5_file%writeattr('/delta_t', 'description', 'Simulation Timestep')
     call self%hdf5_file%writeattr('/delta_t', 'units', 'seconds')
 
@@ -350,7 +358,7 @@ contains
     write(xdmf_unit, '(a)') '<Xdmf version="2.2">'
     write(xdmf_unit, '(a)') '  <Domain>'
     write(xdmf_unit, '(a)') '    <Grid GridType="Uniform" Name="grid">'
-    write(xdmf_unit, '(a,g0.3,a)') '      <Time Value="', time * io_time_units, ' '//trim(io_time_label)//'"/>'
+    write(xdmf_unit, '(a,g0.3,a)') '      <Time Value="', time * io_time_units * t_0, ' '//trim(io_time_label)//'"/>'
     write(xdmf_unit, '(a)') '      <Topology NumberOfElements="'//node_shape//'" TopologyType="2DSMesh"/>'
 
     write(xdmf_unit, '(a)') '      <Geometry GeometryType="X_Y">'

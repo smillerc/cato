@@ -14,9 +14,9 @@ module mod_input
     character(:), allocatable :: unit_system !< Type of units to output (CGS, ICF, MKS, etc...)
 
     ! reference state
-    real(rk) :: reference_time
-    real(rk) :: reference_length
-    real(rk) :: reference_density
+    real(rk) :: reference_time = 1.0_rk
+    real(rk) :: reference_length = 1.0_rk
+    real(rk) :: reference_density = 1.0_rk
 
     ! grid
     character(len=32) :: grid_type = '2d_regular'  !< Structure/layout of the grid, e.g. '2d_regular'
@@ -63,6 +63,7 @@ module mod_input
 
     ! io
     character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
+    logical :: append_date_to_result_folder = .false.
     logical :: plot_reconstruction_states = .false.
     logical :: plot_reference_states = .false.
     logical :: plot_evolved_states = .false.
@@ -141,6 +142,11 @@ contains
     call cfg%get("general", "units", char_buffer, 'cgs')
     self%unit_system = trim(char_buffer)
 
+    ! Reference state
+    call cfg%get("reference_state", "reference_time", self%reference_time)
+    call cfg%get("reference_state", "reference_length", self%reference_length)
+    call cfg%get("reference_state", "reference_density", self%reference_density)
+
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     ! call cfg%get("time", "initial_delta_t", self%initial_delta_t)
@@ -164,7 +170,7 @@ contains
     ! Restart files
     call cfg%get("restart", "restart_from_file", self%restart_from_file, .false.)
 
-    print *, 'Reading from restart?', self%restart_from_file
+    write(*, '(a, l2)') 'Reading from restart?', self%restart_from_file
 
     if(self%restart_from_file) then
       call cfg%get("restart", "restart_file", char_buffer)
@@ -284,6 +290,7 @@ contains
     self%contour_io_format = trim(char_buffer)
 
     call cfg%get("io", "contour_interval_dt", self%contour_interval_dt, 0.1_rk)
+    call cfg%get("io", "append_date_to_result_folder", self%append_date_to_result_folder, .false.)
     call cfg%get("io", "plot_reconstruction_states", self%plot_reconstruction_states, .false.)
     call cfg%get("io", "plot_reference_states", self%plot_reference_states, .false.)
     call cfg%get("io", "plot_evolved_states", self%plot_evolved_states, .false.)

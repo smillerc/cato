@@ -111,8 +111,8 @@ module mod_grid
     procedure(get_4d_data), deferred, public :: get_cell_edge_norm_vectors
     procedure(get_midpoint_vectors), deferred, public :: get_midpoint_vectors
     procedure(get_corner_vectors), deferred, public :: get_corner_vectors
-    procedure(get_midpoint_vectors_scaled_and_shifted), deferred, public :: get_midpoint_vectors_scaled_and_shifted
-    procedure(get_corner_vectors_scaled_and_shifted), deferred, public :: get_corner_vectors_scaled_and_shifted
+    procedure(get_midpoint_persistent_vectors), deferred, public :: get_midpoint_persistent_vectors
+    procedure(get_corner_persistent_vectors), deferred, public :: get_corner_persistent_vectors
     procedure(copy_grid), public, deferred :: copy
     generic :: assignment(=) => copy
   end type grid_t
@@ -196,18 +196,22 @@ module mod_grid
       real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (head,tail), (vector1:vector4))
     end function
 
-    subroutine get_corner_vectors_scaled_and_shifted(self)
+    subroutine get_corner_persistent_vectors(self, scale, shift)
       !< Public interface to get_corner_vectors_scaled_and_shifted
       import :: grid_t
       class(grid_t), intent(inout) :: self
-    end subroutine
+      logical, intent(in) :: scale
+      logical, intent(in) :: shift
+    end subroutine get_corner_persistent_vectors
 
-    subroutine get_midpoint_vectors_scaled_and_shifted(self, edge)
+    subroutine get_midpoint_persistent_vectors(self, edge, scale, shift)
       !< Public interface to get_midpoint_vectors_scaled_and_shifted
       import :: grid_t
       class(grid_t), intent(inout) :: self
       character(len=*), intent(in) :: edge ! 'bottom', 'top', 'left', 'right'
-    end subroutine
+      logical, intent(in) :: scale
+      logical, intent(in) :: shift
+    end subroutine get_midpoint_persistent_vectors
   end interface
 
 end module mod_grid

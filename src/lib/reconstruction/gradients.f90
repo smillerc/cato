@@ -68,7 +68,7 @@ contains
     gradient = gradient / volumes(1)
   end function green_gauss_gradient
 
-  function green_gauss_gradient_limited(prim_vars, volumes, edge_lengths, edge_normals) result(gradient)
+  pure function green_gauss_gradient_limited(prim_vars, volumes, edge_lengths, edge_normals) result(gradient)
     !< Summary: Estimate the gradient of the cell using the standar Green-Gauss reconstruction. This only
     !<          works well for orthogonal rectangular cells. Use the modified Green-Gauss for any other grids.
     !< Note: In the inputs below, the current cell in question is always the first in line
@@ -88,8 +88,8 @@ contains
 
     gradient = 0.0_rk
 
-    call ieee_get_underflow_mode(underflow_mode)
-    call ieee_set_underflow_mode(.false.)
+    ! call ieee_get_underflow_mode(underflow_mode)
+    ! call ieee_set_underflow_mode(.false.)
 
     associate(v=>volumes, U=>prim_vars, U_f=>face_prim_vars)
       U_f(:, 1) = U(:, 1) - 0.5_rk * limit(U(:, 4) - U(:, 1), U(:, 1) - U(:, 2))  ! bottom
@@ -110,7 +110,7 @@ contains
 
     gradient = gradient / volumes(1)
 
-    call ieee_set_underflow_mode(underflow_mode)
+    ! call ieee_set_underflow_mode(underflow_mode)
   end function green_gauss_gradient_limited
 
   elemental function limit(a, b) result(phi)

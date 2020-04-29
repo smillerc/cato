@@ -46,30 +46,16 @@ module mod_regular_2d_grid
     procedure, private :: initialize_from_hdf5
     procedure, private :: initialize_from_ini
     procedure, private :: populate_element_specifications
-    ! procedure, public :: get_ihi
-    ! procedure, public :: get_ilo
-    ! procedure, public :: get_jlo
-    ! procedure, public :: get_jhi
-    ! procedure, public :: get_ni
-    ! procedure, public :: get_nj
-    ! procedure, public :: get_xmin
-    ! procedure, public :: get_xmax
-    ! procedure, public :: get_ymin
-    ! procedure, public :: get_ymax
-    ! procedure, public :: get_x_length
-    ! procedure, public :: get_y_length
     procedure, public :: get_x
     procedure, public :: get_y
-    ! procedure, public :: get_dx
-    ! procedure, public :: get_dy
     procedure, public :: get_cell_volumes
     procedure, public :: get_cell_centroid_xy
     procedure, public :: get_cell_edge_lengths
     procedure, public :: get_cell_edge_norm_vectors
     procedure, public :: get_midpoint_vectors
-    procedure, public :: get_midpoint_vectors_scaled_and_shifted
     procedure, public :: get_corner_vectors
-    procedure, public :: get_corner_vectors_scaled_and_shifted
+    procedure, public :: get_midpoint_persistent_vectors
+    procedure, public :: get_corner_persistent_vectors
     procedure, public :: finalize
     procedure, public :: copy
     procedure, public :: print_grid_stats
@@ -152,19 +138,19 @@ contains
               imin_cell=>self%ilo_cell, imax_cell=>self%ihi_cell, &
               jmin_cell=>self%jlo_cell, jmax_cell=>self%jhi_cell)
 
-      allocate(self%corner_edge_vectors(2, 4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
+      allocate(self%corner_edge_vectors(2, 0:4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%corner_edge_vectors"
 
       allocate(self%corner_edge_vectors_scale(imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%corner_edge_vectors_scale"
 
-      allocate(self%downup_midpoint_edge_vectors(2, 2, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
+      allocate(self%downup_midpoint_edge_vectors(2, 0:2, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%downup_midpoint_edge_vectors"
 
       allocate(self%downup_midpoint_edge_vectors_scale(imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%downup_midpoint_edge_vectors_scale"
 
-      allocate(self%leftright_midpoint_edge_vectors(2, 2, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
+      allocate(self%leftright_midpoint_edge_vectors(2, 0:2, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%leftright_midpoint_edge_vectors"
 
       allocate(self%leftright_midpoint_edge_vectors_scale(imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
@@ -173,9 +159,9 @@ contains
 
     call self%populate_element_specifications()
 
-    call self%get_corner_vectors_scaled_and_shifted()
-    call self%get_midpoint_vectors_scaled_and_shifted(edge='left')
-    call self%get_midpoint_vectors_scaled_and_shifted(edge='bottom')
+    call self%get_corner_persistent_vectors(scale=.false., shift=.false.)
+    call self%get_midpoint_persistent_vectors(edge='left', scale=.false., shift=.false.)
+    call self%get_midpoint_persistent_vectors(edge='bottom', scale=.false., shift=.false.)
 
     call self%print_grid_stats()
   end subroutine
@@ -248,24 +234,35 @@ contains
   subroutine print_grid_stats(self)
     class(regular_2d_grid_t), intent(inout) :: self
 
+    print *
     write(*, '(a)') "Grid stats:"
-    write(*, '(a)') "===================="
+    write(*, '(a)') "========================="
     write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_node, ' -> ', self%ihi_node
     write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_node, ' -> ', self%jhi_node
     write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_cell, ' -> ', self%ihi_cell
     write(*, '(a, i6, a, i6)') "j cells: ", self%jlo_cell, ' -> ', self%jhi_cell
     write(*, *)
     write(*, '(a)') "Ghost Regions"
+    write(*, '(a)') "-------------"
     write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_bc_node, ' & ', self%ihi_bc_node
     write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_bc_node, ' & ', self%jhi_bc_node
     write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_bc_cell, ' & ', self%ihi_bc_cell
     write(*, '(a, i6, a, i6)') "j cells: ", self%jlo_bc_cell, ' & ', self%jhi_bc_cell
     write(*, *)
     write(*, '(a)') "Totals"
+    write(*, '(a)') "------"
     write(*, '(a, i0)') "ni_nodes: ", self%ni_node
     write(*, '(a, i0)') "nj_nodes: ", self%nj_node
     write(*, '(a, i0)') "ni_cells: ", self%ni_cell
     write(*, '(a, i0)') "nj_cells: ", self%nj_cell
+    write(*, *)
+    write(*, '(a)') "Extents"
+    write(*, '(a)') "-------"
+    write(*, '(2(a, es10.3))') "x range [non-dim] (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_x(self%ihi_node, self%jhi_node)
+    write(*, '(2(a, es10.3))') "y range [non-dim] (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_y(self%ihi_node, self%jhi_node)
+    write(*, '(2(a, es10.3))') "x range [dim]     (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_x(self%ihi_node, self%jhi_node) * l_0
+    write(*, '(2(a, es10.3))') "y range [dim]     (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_y(self%ihi_node, self%jhi_node) * l_0
+    write(*, '(a)') "========================="
     write(*, *)
 
   end subroutine
@@ -684,115 +681,10 @@ contains
 
   end function get_midpoint_vectors
 
-  subroutine get_midpoint_vectors_scaled_and_shifted(self, edge)
-    !< Public interface to get_midpoint_vectors
-    class(regular_2d_grid_t), intent(inout) :: self
-    character(len=*), intent(in) :: edge ! 'bottom', 'top', 'left', 'right'
-    ! scale_and_shift will enable scaling the lengths of all the vectors to near 1. It will
-    ! use the smallest length of the set and divide all the vectors by it. Shifting will move
-    ! the entire set to the origin at (0,0).
-
-    integer(ik) :: i, j, v
-    integer(ik), parameter :: N = 1 !< node index, aka, N1, N2 (see pic below)
-    real(rk), dimension(2) :: vector_length
-    real(rk), dimension(2) :: origin
-
-    ! Corner/midpoint index convention         Cell Indexing convention
-    ! --------------------------------         ------------------------
-    !
-    !   C----M----C----M----C
-    !   |         |         |                             E3
-    !   O    x    O    x    O                      N4-----M3----N3
-    !   |         |         |                      |            |
-    !   C----M----C----M----C                  E4  M4     C     M2  E2
-    !   |         |         |                      |            |
-    !   O    x    O    x    O                      N1----M1----N2
-    !   |         |         |                            E1
-    !   C----M----C----M----C
-    !
-    ! For left/right midpoints, the edge vectors go left then right.
-    ! The neighboring cells are above (i,j) and below (i,j-1)
-    ! For quad cells, N - corner, M - midpoint, E - edge
-
-    ! self%cell_node_xy indexing convention
-    !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
-    !< e.g. 1 - all corners, 2 - all midpoints
-
-    select case(trim(edge))
-    case('left')
-      ! Left edge of cell (i,j)
-      !  |         C2(N4)     |
-      !  |         |          |
-      !  |         M4         |
-      !  | (i-1,j) |  (i,j)   |
-      !  |         C1(N1)     |
-      do j = self%jlo_cell, self%jhi_cell
-        do i = self%ilo_node, self%ihi_node
-
-          origin = self%cell_node_xy(:, 4, 2, i, j) ! origin (M1)
-          self%downup_midpoint_edge_vectors(:, 1, i, j) = self%cell_node_xy(:, 1, N, i, j) ! vector 1 (N1)
-          self%downup_midpoint_edge_vectors(:, 2, i, j) = self%cell_node_xy(:, 4, N, i, j) ! vector 2 (N4)
-
-          ! shift to origin
-          do v = 1, 2
-            self%downup_midpoint_edge_vectors(:, v, i, j) = self%downup_midpoint_edge_vectors(:, v, i, j) - origin
-          end do
-
-          ! get the length of each vector
-          do v = 1, 2
-            vector_length(v) = sqrt(self%downup_midpoint_edge_vectors(1, v, i, j)**2 + &
-                                    self%downup_midpoint_edge_vectors(2, v, i, j)**2)
-          end do
-
-          ! scale by the smallest length
-          self%downup_midpoint_edge_vectors_scale(i, j) = minval(vector_length)
-          self%downup_midpoint_edge_vectors(:, :, i, j) = self%downup_midpoint_edge_vectors(:, :, i, j) &
-                                                          / minval(vector_length)
-
-        end do
-      end do
-
-    case('bottom')
-      ! Bottom edge of cell (i,j)
-      !       |          |
-      !       |  (i,j)   |
-      !  (N1) C1---M1---C2 (N2)
-      !       | (i,j-1)  |
-      !       |          |
-      do j = self%jlo_node, self%jhi_node
-        do i = self%ilo_cell, self%ihi_cell
-          origin = self%cell_node_xy(:, 1, 2, i, j) ! origin (M1)
-          self%leftright_midpoint_edge_vectors(:, 1, i, j) = self%cell_node_xy(:, 1, N, i, j) ! vector 1 (N1)
-          self%leftright_midpoint_edge_vectors(:, 2, i, j) = self%cell_node_xy(:, 2, N, i, j) ! vector 2 (N2)
-
-          ! shift to origin
-          do v = 1, 2
-            self%leftright_midpoint_edge_vectors(:, v, i, j) = self%leftright_midpoint_edge_vectors(:, v, i, j) - origin
-          end do
-
-          ! get the length of each vector
-          do v = 1, 2
-            vector_length(v) = sqrt(self%leftright_midpoint_edge_vectors(1, v, i, j)**2 + &
-                                    self%leftright_midpoint_edge_vectors(2, v, i, j)**2)
-          end do
-
-          ! scale by the smallest length
-          self%leftright_midpoint_edge_vectors_scale(i, j) = minval(vector_length)
-          self%leftright_midpoint_edge_vectors(:, :, i, j) = self%leftright_midpoint_edge_vectors(:, :, i, j) &
-                                                             / minval(vector_length)
-
-        end do
-      end do
-
-    case default
-      error stop "Invalid location for midpoint edge vector request"
-    end select
-
-  end subroutine get_midpoint_vectors_scaled_and_shifted
-
   pure function get_corner_vectors(self, cell_ij, corner) result(vectors)
     !< Public interface to get_corner_vectors
     class(regular_2d_grid_t), intent(in) :: self
+
     integer(ik), dimension(2), intent(in) :: cell_ij
     character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
     real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (tail,head), (vector1:vector4))
@@ -866,7 +758,132 @@ contains
 
   end function get_corner_vectors
 
-  subroutine get_corner_vectors_scaled_and_shifted(self)
+  subroutine get_midpoint_persistent_vectors(self, edge, scale, shift)
+    !< Public interface to get_midpoint_vectors
+    class(regular_2d_grid_t), intent(inout) :: self
+    character(len=*), intent(in) :: edge ! 'bottom', 'top', 'left', 'right'
+    logical, intent(in) :: scale
+    logical, intent(in) :: shift
+    ! scale_and_shift will enable scaling the lengths of all the vectors to near 1. It will
+    ! use the smallest length of the set and divide all the vectors by it. Shifting will move
+    ! the entire set to the origin at (0,0).
+
+    integer(ik) :: i, j, v
+    integer(ik), parameter :: N = 1 !< node index, aka, N1, N2 (see pic below)
+    real(rk), dimension(2) :: vector_length
+    real(rk), dimension(2) :: origin
+
+    ! Corner/midpoint index convention         Cell Indexing convention
+    ! --------------------------------         ------------------------
+    !
+    !   C----M----C----M----C
+    !   |         |         |                             E3
+    !   O    x    O    x    O                      N4-----M3----N3
+    !   |         |         |                      |            |
+    !   C----M----C----M----C                  E4  M4     C     M2  E2
+    !   |         |         |                      |            |
+    !   O    x    O    x    O                      N1----M1----N2
+    !   |         |         |                            E1
+    !   C----M----C----M----C
+    !
+    ! For left/right midpoints, the edge vectors go left then right.
+    ! The neighboring cells are above (i,j) and below (i,j-1)
+    ! For quad cells, N - corner, M - midpoint, E - edge
+
+    ! self%cell_node_xy indexing convention
+    !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
+    !< e.g. 1 - all corners, 2 - all midpoints
+
+    select case(trim(edge))
+    case('left')
+      ! Left edge of cell (i,j)
+      !  |         C2(N4)     |
+      !  |         |          |
+      !  |         M4         |
+      !  | (i-1,j) |  (i,j)   |
+      !  |         C1(N1)     |
+      do j = self%jlo_cell, self%jhi_cell
+        do i = self%ilo_node, self%ihi_node
+
+          origin = self%cell_node_xy(:, 4, 2, i, j) ! origin (M1)
+          self%downup_midpoint_edge_vectors(:, 0, i, j) = origin
+          self%downup_midpoint_edge_vectors(:, 1, i, j) = self%cell_node_xy(:, 1, N, i, j) ! vector 1 (N1)
+          self%downup_midpoint_edge_vectors(:, 2, i, j) = self%cell_node_xy(:, 4, N, i, j) ! vector 2 (N4)
+
+          ! shift to origin
+          if(shift) then
+            do v = 1, 2
+              self%downup_midpoint_edge_vectors(:, v, i, j) = self%downup_midpoint_edge_vectors(:, v, i, j) - origin
+            end do
+          end if
+
+          ! get the length of each vector
+          if(scale) then
+            do v = 1, 2
+              vector_length(v) = sqrt(self%downup_midpoint_edge_vectors(1, v, i, j)**2 + &
+                                      self%downup_midpoint_edge_vectors(2, v, i, j)**2)
+            end do
+
+            ! scale by the smallest length
+            self%downup_midpoint_edge_vectors_scale(i, j) = minval(vector_length)
+            self%downup_midpoint_edge_vectors(:, :, i, j) = self%downup_midpoint_edge_vectors(:, :, i, j) &
+                                                            / minval(vector_length)
+          end if
+
+        end do
+      end do
+
+      if(.not. scale) then
+        self%downup_midpoint_edge_vectors_scale = 1.0_rk
+      end if
+
+    case('bottom')
+      ! Bottom edge of cell (i,j)
+      !       |          |
+      !       |  (i,j)   |
+      !  (N1) C1---M1---C2 (N2)
+      !       | (i,j-1)  |
+      !       |          |
+      do j = self%jlo_node, self%jhi_node
+        do i = self%ilo_cell, self%ihi_cell
+          origin = self%cell_node_xy(:, 1, 2, i, j) ! origin (M1)
+          self%leftright_midpoint_edge_vectors(:, 0, i, j) = origin
+          self%leftright_midpoint_edge_vectors(:, 1, i, j) = self%cell_node_xy(:, 1, N, i, j) ! vector 1 (N1)
+          self%leftright_midpoint_edge_vectors(:, 2, i, j) = self%cell_node_xy(:, 2, N, i, j) ! vector 2 (N2)
+
+          ! shift to origin
+          if(shift) then
+            do v = 1, 2
+              self%leftright_midpoint_edge_vectors(:, v, i, j) = self%leftright_midpoint_edge_vectors(:, v, i, j) - origin
+            end do
+          end if
+
+          ! get the length of each vector
+          if(scale) then
+            do v = 1, 2
+              vector_length(v) = sqrt(self%leftright_midpoint_edge_vectors(1, v, i, j)**2 + &
+                                      self%leftright_midpoint_edge_vectors(2, v, i, j)**2)
+            end do
+
+            ! scale by the smallest length
+            self%leftright_midpoint_edge_vectors_scale(i, j) = minval(vector_length)
+            self%leftright_midpoint_edge_vectors(:, :, i, j) = self%leftright_midpoint_edge_vectors(:, :, i, j) &
+                                                               / minval(vector_length)
+          end if
+        end do
+      end do
+
+      if(.not. scale) then
+        self%leftright_midpoint_edge_vectors_scale = 1.0_rk
+      end if
+
+    case default
+      error stop "Invalid location for midpoint edge vector request"
+    end select
+
+  end subroutine get_midpoint_persistent_vectors
+
+  subroutine get_corner_persistent_vectors(self, scale, shift)
     !< Public interface to get_corner_vectors
     class(regular_2d_grid_t), intent(inout) :: self
 
@@ -874,6 +891,8 @@ contains
     ! use the smallest length of the set and divide all the vectors by it. Shifting will move
     ! the entire set to the origin at (0,0).
 
+    logical, intent(in) :: scale
+    logical, intent(in) :: shift
     real(rk), dimension(2) :: origin
     real(rk), dimension(4) :: vector_length
 
@@ -924,27 +943,36 @@ contains
         origin = self%cell_node_xy(:, 1, 1, i, j)
 
         N = 1
+        self%corner_edge_vectors(:, 0, i, j) = origin
         self%corner_edge_vectors(:, 1, i, j) = self%cell_node_xy(:, 2, N, i - 1, j - 1)  ! vector 1
         self%corner_edge_vectors(:, 2, i, j) = self%cell_node_xy(:, 2, N, i, j)          ! vector 2
         self%corner_edge_vectors(:, 3, i, j) = self%cell_node_xy(:, 4, N, i, j)          ! vector 3
         self%corner_edge_vectors(:, 4, i, j) = self%cell_node_xy(:, 4, N, i - 1, j - 1)  ! vector 4
 
         ! shift to origin
-        do v = 1, 4
-          self%corner_edge_vectors(:, v, i, j) = self%corner_edge_vectors(:, v, i, j) - origin
-        end do
+        if(shift) then
+          do v = 1, 4
+            self%corner_edge_vectors(:, v, i, j) = self%corner_edge_vectors(:, v, i, j) - origin
+          end do
+        end if
 
         ! get the length of each vector
-        do v = 1, 4
-          vector_length(v) = sqrt(self%corner_edge_vectors(1, v, i, j)**2 + &
-                                  self%corner_edge_vectors(2, v, i, j)**2)
-        end do
+        if(scale) then
+          do v = 1, 4
+            vector_length(v) = sqrt(self%corner_edge_vectors(1, v, i, j)**2 + &
+                                    self%corner_edge_vectors(2, v, i, j)**2)
+          end do
 
-        ! scale by the smallest length
-        self%corner_edge_vectors_scale(i, j) = minval(vector_length)
-        self%corner_edge_vectors(:, :, i, j) = self%corner_edge_vectors(:, :, i, j) / minval(vector_length)
+          ! scale by the smallest length
+          self%corner_edge_vectors_scale(i, j) = minval(vector_length)
+          self%corner_edge_vectors(:, :, i, j) = self%corner_edge_vectors(:, :, i, j) / minval(vector_length)
+        end if
       end do
     end do
-  end subroutine get_corner_vectors_scaled_and_shifted
+
+    if(.not. scale) then
+      self%corner_edge_vectors_scale = 1.0_rk
+    end if
+  end subroutine get_corner_persistent_vectors
 
 end module mod_regular_2d_grid

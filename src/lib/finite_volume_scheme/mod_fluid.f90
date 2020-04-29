@@ -2,7 +2,7 @@ module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_MACH
-  use mod_nondimensionalization, only: rho_0, v_0, p_0
+  use mod_nondimensionalization, only: rho_0, v_0, p_0, e_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
   use mod_surrogate, only: surrogate
@@ -93,19 +93,6 @@ contains
     else
       call self%initialize_from_ini(input)
     end if
-
-    write(*, '(a)') 'Initial fluid stats'
-    write(*, '(a)') '======================================'
-    write(*, '(a, f0.4)') 'EOS Gamma:                 ', eos%get_gamma()
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho:              ', &
-      minval(self%conserved_vars(1, :, :)), maxval(self%conserved_vars(1, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho u:            ', &
-      minval(self%conserved_vars(2, :, :)), maxval(self%conserved_vars(2, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho v:            ', &
-      minval(self%conserved_vars(3, :, :)), maxval(self%conserved_vars(3, :, :))
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max rho E:            ', &
-      minval(self%conserved_vars(4, :, :)), maxval(self%conserved_vars(4, :, :))
-    write(*, *)
 
   end subroutine initialize
 
@@ -208,6 +195,20 @@ contains
                                                                                   y_velocity=y_velocity)
     end associate
 
+    write(*, '(a)') 'Initial fluid stats'
+    write(*, '(a)') '==================================================='
+    write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max y-velocity [dim]:     ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
+    write(*, '(a, 2(es10.3, 1x))') 'Min/Max pressure   [dim]:     ', minval(pressure) * p_0, maxval(pressure) * p_0
+    write(*, '(a)') '==================================================='
+    write(*, *)
+
   end subroutine initialize_from_hdf5
 
   subroutine initialize_from_ini(self, input)
@@ -291,6 +292,9 @@ contains
     !< e.g. 1 - all corners, 2 - all midpoints. Note, this DOES repeat nodes, since corners and midpoints are
     !< shared by neighboring cells, but each point has its own reconstructed value based on the parent cell's state
 
+    integer(ik), dimension(3) :: bounds
+    integer(ik), dimension(5) :: recon_bounds
+
     call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
     associate(imin=>fv%grid%ilo_bc_cell, imax=>fv%grid%ihi_bc_cell, &
@@ -323,45 +327,54 @@ contains
     call local_d_dt%get_primitive_vars(primitive_vars, fv)
 
     ! Now we can reconstruct the entire domain
+    bounds = lbound(primitive_vars)
     call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
-                                                               lbounds=lbound(primitive_vars))
-
+                                                               lbounds=bounds)
     call fv%reconstruct(primitive_vars=primitive_vars, &
-                        cell_lbounds=lbound(primitive_vars), &
+                        cell_lbounds=bounds, &
                         reconstructed_state=reconstructed_state)
 
+    recon_bounds = lbound(reconstructed_state)
     call fv%evolution_operator%set_reconstructed_state_pointer( &
       reconstructed_state_target=reconstructed_state, &
-      lbounds=lbound(reconstructed_state))
+      lbounds=recon_bounds)
 
     ! Apply the reconstructed state to the ghost layers
-    call fv%apply_reconstructed_state_bc(reconstructed_state, lbounds=lbound(reconstructed_state))
-
+    call fv%apply_reconstructed_state_bc(reconstructed_state, lbounds=recon_bounds)
     call fv%apply_cell_gradient_bc()
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_downup_midpoints(evolved_state=evolved_downup_midpoints_state, &
-                                                       lbounds=lbound(evolved_downup_midpoints_state), &
-                                                       error_code=error_code)
+    bounds = lbound(evolved_downup_midpoints_state)
+    call fv%evolution_operator%evolve(evolved_state=evolved_downup_midpoints_state, &
+                                      location='down/up midpoint', &
+                                      lbounds=bounds, &
+                                      error_code=error_code)
+
     if(error_code /= 0) then
       fv%error_code = error_code
     end if
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_leftright_midpoints(evolved_state=evolved_leftright_midpoints_state, &
-                                                          lbounds=lbound(evolved_leftright_midpoints_state), &
-                                                          error_code=error_code)
+    bounds = lbound(evolved_leftright_midpoints_state)
+    call fv%evolution_operator%evolve(evolved_state=evolved_leftright_midpoints_state, &
+                                      location='left/right midpoint', &
+                                      lbounds=bounds, &
+                                      error_code=error_code)
+
     if(error_code /= 0) then
       fv%error_code = error_code
     end if
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
-    call fv%evolution_operator%evolve_corners(evolved_state=evolved_corner_state, &
-                                              lbounds=lbound(evolved_corner_state), &
-                                              error_code=error_code)
+    bounds = lbound(evolved_corner_state)
+    call fv%evolution_operator%evolve(evolved_state=evolved_corner_state, &
+                                      location='corner', &
+                                      lbounds=bounds, &
+                                      error_code=error_code)
+
     if(error_code /= 0) then
       fv%error_code = error_code
     end if
@@ -769,12 +782,14 @@ contains
     class(finite_volume_scheme_t), intent(inout) :: fv
     real(rk), dimension(:, :, :), allocatable, intent(out) :: primitive_vars
     integer(ik) :: i
+    integer(ik), dimension(3) :: bounds
 
     call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
     allocate(primitive_vars, mold=self%conserved_vars)
 
     call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
-    call fv%apply_primitive_vars_bc(primitive_vars, lbound(primitive_vars))
+    bounds = lbound(primitive_vars)
+    call fv%apply_primitive_vars_bc(primitive_vars, bounds)
   end subroutine get_primitive_vars
 
   subroutine sanity_check(self, error_code)

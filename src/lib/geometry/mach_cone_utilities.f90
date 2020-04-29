@@ -1,14 +1,16 @@
 module mod_mach_cone_utilties
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: ieee_arithmetic
   use math_constants, only: pi, rad2deg
   use mod_vector, only: vector_t, operator(.cross.)
 
   implicit none
 
+  real(rk), parameter :: TINY_DIST_RATIO = 1.0e-8_rk
 contains
 
-  pure subroutine get_cone_extents(tau, xy, vel, sound_speed, origin, radius)
+  subroutine get_cone_extents(tau, xy, vel, sound_speed, origin, radius)
     !< Given a velocity and sound speed, determine the extents of the mach cone
 
     real(rk), intent(in) :: tau                 !< time increment
@@ -18,15 +20,28 @@ contains
 
     real(rk), dimension(2), intent(out) :: origin      !< origin of the cone/circle
     real(rk), intent(out) :: radius      !< radius of the cone/circle
+    real(rk) :: dx, dy
 
     associate(x=>xy(1), y=>xy(2), &
               u=>vel(1), v=>vel(2))
       origin = [x - tau * u, y - tau * v]
       radius = sound_speed * tau
 
-      ! For very small distances, just make it coincide with P
-      ! if(abs(origin(1) - x) < TINY_DIST) origin(1) = x
-      ! if(abs(origin(2) - y) < TINY_DIST) origin(2) = y
+      dx = abs(origin(1) - x)
+      dy = abs(origin(2) - y)
+
+      if(abs(dx / radius) < TINY_DIST_RATIO) origin(1) = x
+      if(abs(dy / radius) < TINY_DIST_RATIO) origin(2) = y
+      ! if(ieee_is_nan(radius)) then
+      !   print *, 'Error: radius is NaN'
+      !   print *, "origin: ", origin
+      !   print *, "radius: ", radius
+      !   print *, "dx    : ", dx
+      !   print *, "dy    : ", dy
+      !   print *, "cs    : ", sound_speed
+      !   print *, "tau   : ", tau
+      !   error stop "Radius is NaN!"
+      ! end if
     end associate
   end subroutine get_cone_extents
 
