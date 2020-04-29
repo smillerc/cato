@@ -84,7 +84,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
   if(ENABLE_PROFILING)
     set(CMAKE_Fortran_FLAGS
-        "${CMAKE_Fortran_FLAGS} -p -g -qopt-report-phase=all -qopt-report-annotate-position=both -qopt-report=5"
+        "${CMAKE_Fortran_FLAGS} -g -qopt-report-phase=all -qopt-report-annotate-position=both -qopt-report=5"
     )
   endif()
 

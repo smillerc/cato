@@ -13,8 +13,6 @@ module mod_local_evo_operator
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_input, only: input_t
   use mod_mach_cone_collection, only: mach_cone_collection_t
-  use mod_corner_mach_cone, only: corner_mach_cone_t, new_corner_cone
-  use mod_midpoint_mach_cone, only: midpoint_mach_cone_t, new_midpoint_cone
 
   use mod_grid, only: grid_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t

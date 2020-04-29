@@ -2,7 +2,7 @@ module mod_geometry
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi, rad2deg
-  use mod_floating_point_utils, only: near_zero, equal
+  use mod_floating_point_utils, only: near_zero, equal, EPS
 
   implicit none
 
@@ -38,7 +38,7 @@ contains
     real(rk), dimension(2, 2) :: line !< ((x,y), (tail,head)); Single line point locations
     real(rk), dimension(2) :: intersection_angles_per_line !< intersection angles
     real(rk), dimension(2, 2) :: intersection_angles !< intersection angles for all lines
-    integer(ik) :: i
+    integer(ik) :: i, n_int
     logical, dimension(2) :: valid_intersections
     logical, dimension(2, 2) :: total_valid_intersections !< ((intersection 1, intersection 2), (line 1, line 2)); valid intersections for each line
 
@@ -55,18 +55,22 @@ contains
     line(:, 2) = vector_1
     ! For a given line & circle intersection, find the angle with respect to the x-axis for each intersection point
     call get_intersection_angles(line_xy=line, circle_xy=circle_xy, circle_radius=circle_radius, &
-                                 arc_angles=intersection_angles_per_line, valid_intersections=valid_intersections)
+                                 arc_angles=intersection_angles_per_line, &
+                                 valid_intersections=valid_intersections, &
+                                 n_intersections=n_int)
     intersection_angles(1, :) = intersection_angles_per_line
-    n_intersections(1) = count(valid_intersections)
+    n_intersections(1) = n_int
     total_valid_intersections(:, 1) = valid_intersections
 
     ! Line 2
     line(:, 2) = vector_2
     ! For a given line & circle intersection, find the angle with respect to the x-axis for each intersection point
     call get_intersection_angles(line_xy=line, circle_xy=circle_xy, circle_radius=circle_radius, &
-                                 arc_angles=intersection_angles_per_line, valid_intersections=valid_intersections)
+                                 arc_angles=intersection_angles_per_line, &
+                                 valid_intersections=valid_intersections, &
+                                 n_intersections=n_int)
     intersection_angles(2, :) = intersection_angles_per_line
-    n_intersections(2) = count(valid_intersections)
+    n_intersections(2) = n_int
     total_valid_intersections(:, 2) = valid_intersections
 
     ! Find arc starting and ending angles
@@ -153,7 +157,7 @@ contains
     end associate
   end subroutine get_theta_start_end
 
-  pure subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections)
+  pure subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections, n_intersections)
     !< Given a arbitrary line from (x1,y1) to (x2,y2) and a circle at (x,y) with a given radius, find
     !< the angle that a the vector from the circle's center to the intersection point(s) has with respect
     !< to the x-axis
@@ -164,6 +168,7 @@ contains
     real(rk), intent(in) :: circle_radius
 
     ! Output
+    integer(ik), intent(out) :: n_intersections
     logical, dimension(2), intent(out) :: valid_intersections !< (point_1, point_2); .true. or .false.
     real(rk), dimension(2), intent(out):: arc_angles
 
@@ -171,6 +176,7 @@ contains
     integer(ik) :: i
     real(rk), dimension(2, 2) :: intersection_xy !< ((x,y), (point_1, point_2))
 
+    n_intersections = 0
     intersection_xy = 0.0_rk
     valid_intersections = .false.
 
@@ -181,6 +187,7 @@ contains
     do i = 1, 2
       if(valid_intersections(i)) then
         arc_angles(i) = intersection_angle_from_x_axis(circle_xy, intersection_xy(:, i))
+        n_intersections = n_intersections + 1
       end if
     end do
   end subroutine get_intersection_angles
@@ -199,36 +206,48 @@ contains
     integer(ik) :: i
     real(rk), dimension(2) :: t !< scale factor (should be between 0 and 1) of where the intersection point is along the line
     real(rk) :: a, b, c  !< quadratic formula variables
-
+    real(rk) :: x0, x1, dx
+    real(rk) :: y0, y1, dy
+    real(rk) :: root_1, root_2
+    
     t = 0.0_rk
     discriminiant = 0.0_rk
     a = 0.0_rk
     b = 0.0_rk
     c = 0.0_rk
 
-    associate(x0=>line_xy(1, 1), x1=>line_xy(1, 2), y0=>line_xy(2, 1), y1=>line_xy(2, 2), &
-              r=>circle_radius, h=>circle_xy(1), k=>circle_xy(2))
-      a = (x1 - x0)**2 + (y1 - y0)**2
-      b = 2 * (x1 - x0) * (x0 - h) + 2 * (y1 - y0) * (y0 - k)
+    x0 = line_xy(1, 1) 
+    x1 = line_xy(1, 2)
+    dx = x1 - x0
+
+    y0 = line_xy(2, 1) 
+    y1 = line_xy(2, 2)
+    dy = y1 - y0
+              
+
+    associate(r=>circle_radius, h=>circle_xy(1), k=>circle_xy(2))
+      a = dx**2 + dy**2
+      b = 2.0_rk * dx * (x0 - h) + 2.0_rk * dy * (y0 - k)
       c = (x0 - h)**2 + (y0 - k)**2 - r**2
     end associate
 
-    discriminiant = b**2 - 4 * a * c
+    discriminiant = b**2 - 4.0_rk * a * c
 
     if(discriminiant > 0.0_rk) then
       sqrt_discriminiant = sqrt(discriminiant)
-
+      root_1 = -b + sqrt_discriminiant
+      root_2 = -b - sqrt_discriminiant
       ! This used the alternative quadratic formula better suited for floating point operations
-      if(near_zero(-b + sqrt_discriminiant)) then
+      if(abs(root_1) < EPS) then
         t(1) = 0.0_rk ! t_1 -> 0 when intersection is at the vector start point
       else
-        t(1) = (2 * c) / (-b + sqrt_discriminiant)
+        t(1) = (2.0_rk * c) / root_1
       end if
 
-      if(near_zero(-b - sqrt_discriminiant)) then
+      if(abs(root_2) < EPS) then
         t(2) = 1.0_rk  ! t_2 -> 1 when intersection is at the vector end point
       else
-        t(2) = (2 * c) / (-b - sqrt_discriminiant)
+        t(2) = (2.0_rk * c) / root_2
       end if
     end if
 
@@ -246,14 +265,12 @@ contains
 
     intersection_xy = 0.0_rk
     if(discriminiant > 0.0_rk) then
-      associate(x0=>line_xy(1, 1), x1=>line_xy(1, 2), &
-                y0=>line_xy(2, 1), y1=>line_xy(2, 2))
+      do i = 1, 2
         ! x_t
-        intersection_xy(1, :) = (x1 - x0) * t + x0
-
+        intersection_xy(1, i) = dx * t(i) + x0
         ! y_t
-        intersection_xy(2, :) = (y1 - y0) * t + y0
-      end associate
+        intersection_xy(2, i) = dy * t(i) + y0
+      end do
     end if
   end subroutine find_line_circle_intersections
 

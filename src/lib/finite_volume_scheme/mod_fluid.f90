@@ -463,8 +463,8 @@ contains
         left_midpoint = evolved_downup_midpoints_state(:, i, j)
         delta_l = grid%cell_edge_lengths(:, i, j)
 
-        do concurrent(edge=1:4)
-          do concurrent(xy=1:2)
+        do edge = 1, 4
+          do xy = 1, 2
             n_hat(xy, edge) = grid%cell_edge_norm_vectors(xy, edge, i, j)
           end do
         end do
