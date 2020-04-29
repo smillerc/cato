@@ -2,6 +2,7 @@ module mod_pressure_input_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
   use mod_boundary_conditions, only: boundary_condition_t
+  use mod_nondimensionalization, only: p_0, rho_0, t_0
   use mod_input, only: input_t
   use mod_inlet_outlet, only: subsonic_inlet, subsonic_outlet, supersonic_inlet, supersonic_outlet
   use linear_interpolation_module, only: linear_interp_1d
@@ -15,6 +16,7 @@ module mod_pressure_input_bc
     logical :: constant_pressure = .false.
     real(rk) :: pressure_input = 0.0_rk
     real(rk) :: temperature_input = 273.0_rk !K
+    real(rk) :: density_input = 1e-3_rk !K
     real(rk) :: scale_factor = 1.0_rk !< scaling factor (e.g. 1x, 2x) to scale the input up/down
 
     ! Temporal inputs
@@ -43,13 +45,14 @@ contains
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
+    bc%density_input = 1e-3_rk / rho_0
     bc%constant_pressure = input%apply_constant_bc_pressure
     bc%scale_factor = input%bc_pressure_scale_factor
     if(.not. bc%constant_pressure) then
       bc%input_filename = trim(input%bc_pressure_input_file)
       call bc%read_pressure_input()
     else
-      bc%pressure_input = input%constant_bc_pressure_value
+      bc%pressure_input = input%constant_bc_pressure_value / p_0 ! non-dimensionalize
     end if
 
   end function pressure_input_bc_constructor
@@ -149,13 +152,14 @@ contains
     if(self%constant_pressure) then
       desired_pressure = self%pressure_input
     else
-      call self%temporal_pressure_input%evaluate(x=self%get_time(), f=desired_pressure, istat=interp_stat)
+      call self%temporal_pressure_input%evaluate(x=self%get_time() * t_0, f=desired_pressure, istat=interp_stat)
       if(interp_stat /= 0) then
         error stop "Unable to interpolate pressure within pressure_input_bc_t%get_desired_pressure()"
       end if
     end if
 
-    desired_pressure = desired_pressure * self%scale_factor
+    ! apply scale factor (for user convienence) and non-dimensional scale factor
+    desired_pressure = desired_pressure * self%scale_factor / p_0
   end function get_desired_pressure
 
   subroutine apply_pressure_input_primitive_var_bc(self, primitive_vars, lbounds)
@@ -240,9 +244,14 @@ contains
             error stop "Supersonic inlet not configured yet"
             ! boundary_prim_vars = supersonic_inlet()
           else
+            ! boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars(:, j), &
+            !                                     boundary_norm=[1.0_rk, 0.0_rk], &
+            !                                     inlet_total_temp=self%temperature_input, &
+            !                                     inlet_total_press=desired_boundary_pressure, &
+            !                                     inlet_flow_angle=0.0_rk)
             boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars(:, j), &
                                                 boundary_norm=[1.0_rk, 0.0_rk], &
-                                                inlet_total_temp=self%temperature_input, &
+                                                inlet_density=self%density_input, &
                                                 inlet_total_press=desired_boundary_pressure, &
                                                 inlet_flow_angle=0.0_rk)
           end if
