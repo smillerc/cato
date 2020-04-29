@@ -40,8 +40,12 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
     set(GNUNATIVE "-march=native")
   endif()
 
-#  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
+  # set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
   set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
+  if(USE_OPENMP)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+  endif()
+
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
   set(CMAKE_Fortran_FLAGS_DEBUG
       "-O0 -g \
@@ -49,9 +53,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -fimplicit-none -fbacktrace \
  -fcheck=all -ffpe-trap=zero,overflow,invalid,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE
-      "-O3 -funroll-loops -finline-functions -floop-parallelize-all -ftree-parallelize-loops=6 ${GNUNATIVE}"
-  )
+  set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -funroll-loops -finline-functions ${GNUNATIVE}")
 
   if(ENABLE_PROFILING)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -pg -g")
@@ -69,6 +71,10 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
       "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770 ${Coarray_COMPILE_OPTIONS}"
   )
 
+  if(USE_OPENMP)
+    set(IFORT_FLAGS "${IFORT_FLAGS} ${OpenMP_Fortran_FLAGS}")
+  endif()
+
   # Fortran 2018 standards check based on the version
   if(CMAKE_Fortran_COMPILER_VERSION VERSION_LESS 19.0.3)
     set(CMAKE_Fortran_FLAGS "-stand f15 ${IFORT_FLAGS}")
@@ -82,6 +88,6 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     )
   endif()
 
-  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds")
+  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check all")
   set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -mtune=${TARGET_ARCHITECTURE}")
 endif()

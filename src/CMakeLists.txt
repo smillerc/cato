@@ -26,6 +26,7 @@ add_library(
   geometry
   lib/geometry/mach_cone_utilities.f90
   lib/geometry/midpoint_mach_cone.f90
+  lib/geometry/mach_cone_collection.f90
   lib/geometry/corner_mach_cone.f90
   lib/geometry/geometry.f90
   lib/domain/grid_type.f90
@@ -84,7 +85,7 @@ target_link_libraries(
          io
          finterp
          functional # functional # ${Coarray_LIBRARIES}
-         OpenMP::OpenMP_Fortran
+        #  OpenMP::OpenMP_Fortran
          ${HDF5_LIBRARIES}
          ${HDF5_HL_LIBRARIES})
 

@@ -72,3 +72,4 @@ tests/integrated/*/advi
 tests/integrated/*/out
 *.csv
 *.xlsx
+instruments*

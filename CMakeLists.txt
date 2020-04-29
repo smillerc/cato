@@ -34,6 +34,13 @@ optimizeforarchitecture()
 include(ProcessorCount)
 processorcount(N_CORES)
 
+if(NOT USE_OPENMP)
+  set(USE_OPENMP Off)
+else()
+  add_compile_definitions(USE_OPENMP)
+  find_package(OpenMP)
+endif()
+
 # Enable ctest unit testing
 if(NOT ENABLE_TESTING)
   set(ENABLE_TESTING Off)
@@ -63,8 +70,6 @@ find_package(
   HDF5
   COMPONENTS Fortran_HL
   REQUIRED)
-
-find_package(OpenMP)
 
 if(NOT SERIAL_BUILD)
   set(SERIAL_BUILD Off)
