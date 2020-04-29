@@ -5,6 +5,7 @@ module mod_abstract_evo_operator
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
+  use mod_mach_cone_collection, only: mach_cone_collection_t
 
   implicit none
 
@@ -30,6 +31,10 @@ module mod_abstract_evo_operator
     integer(ik), dimension(:, :, :, :), allocatable :: downup_midpoint_neighbors
     integer(ik), dimension(:, :, :, :), allocatable :: corner_neighbors
 
+    type(mach_cone_collection_t) :: leftright_midpoint_mach_cones
+    type(mach_cone_collection_t) :: downup_midpoint_mach_cones
+    type(mach_cone_collection_t) :: corner_mach_cones
+
     character(:), allocatable :: name  !< Name of the evolution operator
     real(rk) :: tau !< time increment to evolve
 
@@ -38,9 +43,7 @@ module mod_abstract_evo_operator
     real(rk) :: time_step
   contains
     procedure(initialize), public, deferred :: initialize
-    procedure(evolve_location), public, deferred :: evolve_leftright_midpoints
-    procedure(evolve_location), public, deferred :: evolve_downup_midpoints
-    procedure(evolve_location), public, deferred :: evolve_corners
+    procedure(evolve_location), public, deferred :: evolve
     procedure, public, non_overridable :: set_grid_pointer
     procedure, public, non_overridable :: set_reconstructed_state_pointer
     procedure, public, non_overridable :: set_reconstruction_operator_pointer
@@ -69,15 +72,16 @@ module mod_abstract_evo_operator
       class(abstract_evo_operator_t), intent(inout) :: out_evo
     end subroutine
 
-    subroutine evolve_location(self, evolved_state, lbounds, error_code)
+    subroutine evolve_location(self, location, evolved_state, lbounds, error_code)
       import :: abstract_evo_operator_t
       import :: rk, ik
-      class(abstract_evo_operator_t), intent(in) :: self
+      class(abstract_evo_operator_t), intent(inout) :: self
       ! !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
+
       integer(ik), dimension(3), intent(in) :: lbounds
       integer(ik), intent(out) :: error_code
-      ! real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(in) :: reference_state
-      ! !< ((rho,u,v,p), i, j); Reference state (tilde) at each location
+      character(len=*), intent(in) :: location !< Mach cone location ['corner', 'left/right midpoint', or 'down/up midpoint']
+
       real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
       !< ((rho,u,v,p), i, j); Reconstructed U at each location
     end subroutine

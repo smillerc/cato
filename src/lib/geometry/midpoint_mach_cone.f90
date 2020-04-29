@@ -2,11 +2,11 @@ module mod_midpoint_mach_cone
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: ieee_arithmetic
   use math_constants, only: pi, rad2deg
-  use mod_globals, only: grid_is_orthogonal
+  use mod_globals, only: grid_is_orthogonal, TINY_MACH
   use mod_floating_point_utils, only: near_zero, equal
   use mod_eos, only: eos
   use mod_vector, only: vector_t
-  use mod_geometry, only: super_circle, get_arc_segments_new
+  use mod_geometry, only: super_circle, find_arc_segments
   use mod_mach_cone_utilties, only: get_cone_extents, determine_if_p_prime_is_in_cell
 
   implicit none
@@ -15,6 +15,7 @@ module mod_midpoint_mach_cone
   public :: midpoint_mach_cone_t, new_midpoint_cone
 
   integer(ik), parameter :: N_CELLS = 2
+  real(rk), parameter :: TINY_PARAM = 1e-15_rk
 
   type :: midpoint_mach_cone_t
     real(rk), dimension(4, N_CELLS) :: recon_state = 0.0_rk
@@ -23,12 +24,6 @@ module mod_midpoint_mach_cone
     logical, dimension(N_CELLS) :: cell_is_supersonic = .false.
     !< (cell 1:N_CELLS); Is each neighbor cell supersonic or not? This is needed for transonic mach cones in
     !< order to apply an entropy fix for transonic rarefaction regions.
-
-    ! real(rk), dimension(2, N_CELLS) :: theta_ie = 0.0_rk
-    ! !< ((arc 1:2), (cell 1:N_CELLS)); arc end angle
-
-    ! real(rk), dimension(2, N_CELLS) :: theta_ib = 0.0_rk
-    ! !< ((arc 1:2), (cell 1:N_CELLS)); arc begin angle
 
     real(rk), dimension(2, N_CELLS) :: dtheta = 0.0_rk
     !< ((arc 1:2), (cell 1:N_CELLS)); theta_ie - theta_ib [radians]
@@ -48,8 +43,8 @@ module mod_midpoint_mach_cone
     integer(ik), dimension(2) :: p_prime_ij = 0
     !< (i,j) location of P' or the apex of the Mach cone (global, not relative to P0)
 
-    real(rk), dimension(2, 2, N_CELLS) :: edge_vectors = 0.0_rk
-    !< ((x,y), (tail,head), (vector 1:N_CELLS)); set of vectors that define the cell edges
+    real(rk), dimension(2, 0:N_CELLS) :: edge_vectors = 0.0_rk
+    !< ((x,y), (origin, vector 1:N_CELLS)); set of vectors that define the cell edges
 
     integer(ik), dimension(N_CELLS) :: n_arcs_per_cell = 0
     !< (cell 1:N_CELLS); Number of arcs that each cell contributes (0, 1, or 2)
@@ -103,8 +98,8 @@ contains
     real(rk), intent(in) :: tau  !< time increment, tau -> 0 (very small number)
     character(len=*), intent(in) :: cone_location !< corner, down/up midpoint, left/right midpoint
 
-    real(rk), dimension(2, 2, N_CELLS), intent(in) :: edge_vectors
-    !< ((x,y), (tail,head), (vector 1:N_CELLS)); set of vectors that define the cell edges
+    real(rk), dimension(2, 0:N_CELLS), intent(in) :: edge_vectors
+    !< ((x,y), (origin, vector 1:N_CELLS)); set of vectors that define the cell edges
 
     integer(ik), dimension(2, N_CELLS), intent(in) :: cell_indices
     !< ((i,j), cell 1:N_CELLS); set of indices for the neighboring cells -> needed to find P' i,j index
@@ -116,7 +111,7 @@ contains
     integer(ik) :: l, i, arc
 
     cone%tau = tau
-    cone%p_xy = [edge_vectors(1, 1, 1), edge_vectors(2, 1, 1)]
+    cone%p_xy = edge_vectors(:, 0)
     cone%cone_location = trim(cone_location)
     cone%edge_vectors = edge_vectors
 
@@ -130,6 +125,13 @@ contains
       write(std_err, '(a, 2(es10.3,1x))') 'Reconstructed pressure states [' // trim(cone%cone_location) //'] (cell 1:2): ', reconstructed_state(4, :)
       write(std_err, '(a, 2("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
       error stop "Error in midpoint_mach_cone_t initialization, pressure in the reconstructed state is < 0"
+    end if
+
+    if(any(ieee_is_nan(reconstructed_state))) then
+      write(std_err, *) "NaNs in the recon state!"
+      write(std_err, '(a, 4("[",i0,", ", i0,"] "))') 'Midpoint [i, j] cell indices: ', cell_indices
+      write(std_err, *) reconstructed_state
+      error stop "NaNs in the recon state!"
     end if
 
     do i = 1, N_CELLS
@@ -152,7 +154,7 @@ contains
                           radius=cone%radius)
     ! end if
 
-    call cone%precompute_trig_angles(cell_indices, edge_vectors)
+    call cone%precompute_trig_angles(cell_indices)
 
     ! Assign the primitive state variables to each arc contained in each cell
     do i = 1, N_CELLS
@@ -238,12 +240,11 @@ contains
 
   end subroutine get_reference_state
 
-  subroutine find_arc_angles(self, cell_indices, edge_vectors, theta_ib, theta_ie, n_arcs_per_cell)
+  subroutine find_arc_angles(self, cell_indices, theta_ib, theta_ie, n_arcs_per_cell)
     !< Find the starting and ending angle of each arc that is held within each cell
 
     class(midpoint_mach_cone_t), intent(inout) :: self
 
-    real(rk), dimension(2, 2, N_CELLS), intent(in) :: edge_vectors
     integer(ik), dimension(2, N_CELLS), intent(in) :: cell_indices
     !< ((i,j), cell 1:N_CELLS); set of indices for the neighboring cells -> needed to find P' i,j index
 
@@ -302,12 +303,12 @@ contains
     ! if P' is in the neighboring cell or not
     ! edge_vector_ordering = [2, 1] [1, 2]
 
-    vector_1_head = [edge_vectors(1, 2, 1), edge_vectors(2, 2, 1)] ! (x,y)
-    vector_2_head = [edge_vectors(1, 2, 2), edge_vectors(2, 2, 2)] ! (x,y)
-    origin = [edge_vectors(1, 1, 1), edge_vectors(2, 1, 1)] ! (x,y)
+    vector_1_head = self%edge_vectors(:, 1)
+    vector_2_head = self%edge_vectors(:, 2)
+    origin = self%p_xy
 
-    p_prime_vector = vector_t(x=[edge_vectors(1, 1, 1), self%p_prime_xy(1)], &
-                              y=[edge_vectors(2, 1, 1), self%p_prime_xy(2)])
+    p_prime_vector = vector_t(x=[self%p_xy(1), self%p_prime_xy(1)], &
+                              y=[self%p_xy(2), self%p_prime_xy(2)])
 
     do i = 1, N_CELLS
       select case(i)
@@ -325,12 +326,12 @@ contains
                                                         p_prime_vector=p_prime_vector)
       self%p_prime_in_cell(i) = p_prime_in_cell
       if(p_prime_in_cell) self%p_prime_ij = cell_indices(:, i)
-      call get_arc_segments_new(origin=origin, &
-                                vec_1_head=first_vector, &
-                                vec_2_head=second_vector, &
-                                origin_in_cell=p_prime_in_cell, &
-                                circle_xy=self%p_prime_xy, circle_radius=self%radius, &
-                                arc_segments=theta_ib_ie, n_arcs=n_arcs)
+      call find_arc_segments(origin=origin, &
+                             vector_1=first_vector, &
+                             vector_2=second_vector, &
+                             origin_in_cell=p_prime_in_cell, &
+                             circle_xy=self%p_prime_xy, circle_radius=self%radius, &
+                             arc_segments=theta_ib_ie, n_arcs=n_arcs)
       n_arcs_per_cell(i) = n_arcs
       theta_ib(:, i) = theta_ib_ie(1, :)
       theta_ie(:, i) = theta_ib_ie(2, :)
@@ -338,7 +339,7 @@ contains
 
   end subroutine find_arc_angles
 
-  subroutine precompute_trig_angles(self, cell_indices, edge_vectors)
+  subroutine precompute_trig_angles(self, cell_indices)
     !< Precompute some of the trig values, like sin(theta_ie), etc. to save compute time. If
     !< the grid is orthogonal and the references state is at rest, then the math
     !< gets even easier
@@ -351,7 +352,6 @@ contains
     real(rk), dimension(2, N_CELLS) :: theta_ie
     !< ((arc1, arc2), (cell 1:N_CELLS)); ending angle [rad] for the arc contained in each cell
 
-    real(rk), dimension(2, 2, N_CELLS), intent(in) :: edge_vectors
     integer(ik), dimension(2, N_CELLS), intent(in) :: cell_indices
     !< ((i,j), cell 1:N_CELLS); set of indices for the neighboring cells -> needed to find P' i,j index
 
@@ -435,14 +435,14 @@ contains
     !   end select
 
     ! else
-    call self%find_arc_angles(cell_indices, edge_vectors, theta_ib, theta_ie, n_arcs_per_cell)
+    call self%find_arc_angles(cell_indices, theta_ib, theta_ie, n_arcs_per_cell)
 
     ! Precompute for a bit of speed
     self%n_arcs_per_cell = n_arcs_per_cell
     max_n_arcs = maxval(n_arcs_per_cell)
 
     do i = 1, N_CELLS
-      do arc = 1, max_n_arcs
+      do arc = 1, 2
         self%dtheta(arc, i) = abs(theta_ie(arc, i) - theta_ib(arc, i))
         sin_theta_ib(arc, i) = sin(theta_ib(arc, i))
         cos_theta_ib(arc, i) = cos(theta_ib(arc, i))
@@ -451,20 +451,27 @@ contains
       end do
     end do
 
-    where(abs(sin_theta_ib) < 1e-5_rk) sin_theta_ib = 0.0_rk
-    where(abs(sin_theta_ie) < 1e-5_rk) sin_theta_ie = 0.0_rk
-    where(abs(cos_theta_ib) < 1e-5_rk) cos_theta_ib = 0.0_rk
-    where(abs(cos_theta_ie) < 1e-5_rk) cos_theta_ie = 0.0_rk
+    ! print*, self%dtheta
+
+    where(abs(sin_theta_ib) < TINY_PARAM) sin_theta_ib = 0.0_rk
+    where(abs(sin_theta_ie) < TINY_PARAM) sin_theta_ie = 0.0_rk
+    where(abs(cos_theta_ib) < TINY_PARAM) cos_theta_ib = 0.0_rk
+    where(abs(cos_theta_ie) < TINY_PARAM) cos_theta_ie = 0.0_rk
+    ! print*, minval(sin_theta_ie),maxval(sin_theta_ie)
+    ! print*, minval(sin_theta_ib),maxval(sin_theta_ib)
+    ! print*, minval(cos_theta_ie),maxval(cos_theta_ie)
+    ! print*, minval(cos_theta_ib),maxval(cos_theta_ib)
+    ! print*
 
     self%sin_dtheta = sin_theta_ie - sin_theta_ib
     self%cos_dtheta = cos_theta_ie - cos_theta_ib
-    where(abs(self%sin_dtheta) < 1e-3_rk) self%sin_dtheta = 0.0_rk
-    where(abs(self%cos_dtheta) < 1e-3_rk) self%cos_dtheta = 0.0_rk
+    ! where(abs(self%sin_dtheta) < TINY_PARAM) self%sin_dtheta = 0.0_rk
+    ! where(abs(self%cos_dtheta) < TINY_PARAM) self%cos_dtheta = 0.0_rk
 
     self%sin_d2theta = 2.0_rk * sin_theta_ie * cos_theta_ie - 2.0_rk * sin_theta_ib * cos_theta_ib
     self%cos_d2theta = (2.0_rk * cos_theta_ie**2 - 1.0_rk) - (2.0_rk * cos_theta_ib**2 - 1.0_rk)
-    where(abs(self%sin_d2theta) < 1e-3_rk) self%sin_d2theta = 0.0_rk
-    where(abs(self%cos_d2theta) < 1e-3_rk) self%cos_d2theta = 0.0_rk
+    ! where(abs(self%sin_d2theta) < TINY_PARAM) self%sin_d2theta = 0.0_rk
+    ! where(abs(self%cos_d2theta) < TINY_PARAM) self%cos_d2theta = 0.0_rk
     ! end if
 
   end subroutine precompute_trig_angles
@@ -544,6 +551,7 @@ contains
     integer, intent(in) :: v_list(:)      !< parameters from fmt spec.
     integer, intent(out) :: iostat        !< non zero on error, etc.
     character(*), intent(inout) :: iomsg  !< define if iostat non zero.
+    real(rk) :: vlen
 
     integer(ik) :: i
 
@@ -570,7 +578,12 @@ contains
 
     do i = 1, N_CELLS
       write(unit, '(a, i0, a, 2(es10.3, ", ", es10.3, a))', iostat=iostat, iomsg=iomsg) "vector_", i, " = [[", &
-        self%edge_vectors(:, 1, i), "], [", self%edge_vectors(:, 2, i), "] ]"//new_line('a')
+        self%edge_vectors(1, i), "], [", self%edge_vectors(2, i), "] ]"//new_line('a')
+    end do
+
+    do i = 1, N_CELLS
+      vlen = norm2(self%edge_vectors(:, i) - self%edge_vectors(:, 0))
+      write(unit, '(a, i0, a, es10.3, a)', iostat=iostat, iomsg=iomsg) "vector_", i, "_len = ", vlen, ''//new_line('a')
     end do
 
     write(unit, '(a)', iostat=iostat, iomsg=iomsg) new_line('a')
