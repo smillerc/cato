@@ -110,16 +110,8 @@ contains
     integer(ik) :: i, j
 
     i = cell_ij(1); j = cell_ij(2)
-    ! centroid_xy = self%grid%get_cell_centroid_xy(i, j)
     V_bar = self%interpolate(i=i, j=j, x=xy(1), y=xy(2))
-    ! if (i == 601 .or. i == 602) then
-    ! print*, 'reconstructing point, ij:', cell_ij
-    ! print*, 'reconstructing point, xy:', xy
-    ! print*, 'grad_u(:,1)', self%cell_gradient(:,1,i,j)
-    ! print*, 'grad_u(:,2)', self%cell_gradient(:,2,i,j)
-    ! print*, 'cell_ave:', self%primitive_vars(:,i,j)
-    ! print*, 'V_bar:', V_bar
-    ! end if
+
   end function reconstruct_point
 
   subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
@@ -188,7 +180,7 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
 
     real(rk), dimension(4, 5) :: prim_vars  !< primitive variables of current and neighbor cells
-    real(rk), dimension(5) :: volumes  !< volume of each cell
+    real(rk) :: volume  !< volume of each cell
     real(rk), dimension(4) :: edge_lengths  !< length of each face
     real(rk), dimension(2, 4) :: edge_normals  !< normal vectors of each face
 
@@ -213,11 +205,11 @@ contains
         prim_vars(:, 4) = self%primitive_vars(:, i, j + 1)  ! top
         prim_vars(:, 5) = self%primitive_vars(:, i - 1, j)  ! left
 
-        volumes(1) = self%grid%cell_volume(i, j)      ! current
-        volumes(2) = self%grid%cell_volume(i, j - 1)  ! bottom
-        volumes(3) = self%grid%cell_volume(i + 1, j)  ! right
-        volumes(4) = self%grid%cell_volume(i, j + 1)  ! top
-        volumes(5) = self%grid%cell_volume(i - 1, j)  ! left
+        volume = self%grid%cell_volume(i, j)      ! current
+        ! volumes(2) = self%grid%cell_volume(i, j - 1)  ! bottom
+        ! volumes(3) = self%grid%cell_volume(i + 1, j)  ! right
+        ! volumes(4) = self%grid%cell_volume(i, j + 1)  ! top
+        ! volumes(5) = self%grid%cell_volume(i - 1, j)  ! left
 
         ! Edge (face) interface data
         edge_lengths(1) = self%grid%cell_edge_lengths(1, i, j - 1)  ! bottom
@@ -230,9 +222,10 @@ contains
         edge_normals(:, 3) = self%grid%cell_edge_norm_vectors(:, 3, i, j + 1)  ! top
         edge_normals(:, 4) = self%grid%cell_edge_norm_vectors(:, 4, i - 1, j)  ! left
 
-        self%cell_gradient(:, :, i, j) = green_gauss_gradient_limited(prim_vars, volumes, edge_lengths, edge_normals)
+        self%cell_gradient(:, :, i, j) = green_gauss_gradient_limited(prim_vars, volume, edge_lengths, edge_normals)
       end do
     end do
+    ! error stop
   end subroutine estimate_gradients
 
 end module mod_second_order_sgg_structured_reconstruction

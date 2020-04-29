@@ -224,17 +224,5 @@ contains
               x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
       u_tilde = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
     end associate
-
-    ! if(u_tilde(1) < DENSITY_FLOOR) then
-    !   print *, 'Hitting density floor'
-    !   u_tilde(1) = DENSITY_FLOOR
-    ! end if
-    ! if(u_tilde(4) < PRESSURE_FLOOR) then
-    !   print *, 'Hitting pressure floor'
-    !   u_tilde(4) = PRESSURE_FLOOR
-    ! end if
-    ! if(abs(u_tilde(2)) < TINY_VEL .and. abs(u_tilde(2)) > 0.0_rk) u_tilde(2) = 0.0_rk
-    ! if(abs(u_tilde(3)) < TINY_VEL .and. abs(u_tilde(3)) > 0.0_rk) u_tilde(3) = 0.0_rk
-
   end function interpolate
 end module mod_abstract_reconstruction

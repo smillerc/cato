@@ -7,8 +7,7 @@ module mod_floating_point_utils
   public :: near_zero, equal, EPS
 
   real(rk), parameter :: TINY_RK = tiny(1.0_rk)
-  real(rk), parameter :: TINY_FACTOR = 5.0_rk
-  real(rk), parameter :: EPS = TINY_FACTOR * TINY_RK
+  real(rk), parameter :: EPS = epsilon(1.0_rk)
 
   interface near_zero
     module procedure :: near_zero_base, near_zero_custom
@@ -21,9 +20,7 @@ module mod_floating_point_utils
 contains
 
   elemental function near_zero_base(number) result(return_value)
-    !< Test if a floading point is near 0. Use this instead of doing a
-    !< `if (number == 0.0_rk)` check. Taken from "Modern Fortran: Style and Usage"
-    !<  by N. Clerman and W. Spector in Chapter 13, Section 2, Rule 171
+    !< Test if a floading point is near 0
     real(rk), intent(in) :: number
     logical :: return_value
 
@@ -39,7 +36,11 @@ contains
     logical :: return_value
     real(rk) :: local_epsilon
 
-    if(abs(epsilon) >= TINY_RK) local_epsilon = abs(epsilon)
+    if(abs(epsilon) >= EPS) then
+      local_epsilon = abs(epsilon)
+    else
+      local_epsilon = EPS
+    end if
     return_value = abs(number) < local_epsilon
 
   end function near_zero_custom
@@ -63,7 +64,11 @@ contains
     logical :: return_value
     real(rk) :: local_epsilon
 
-    if(abs(epsilon) >= TINY_RK) local_epsilon = abs(epsilon)
+    if(abs(epsilon) >= EPS) then
+      local_epsilon = abs(epsilon)
+    else
+      local_epsilon = EPS
+    end if
     return_value = abs(lhs - rhs) < local_epsilon
 
   end function equal_custom

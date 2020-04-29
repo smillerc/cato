@@ -288,8 +288,8 @@ contains
     end do
 
     self%radius = self%tau * self%reference_sound_speed
-    where(abs(self%p0_x - self%p_prime_x) / self%radius < TINY_DIST_RATIO) self%p_prime_x = self%p0_x
-    where(abs(self%p0_y - self%p_prime_y) / self%radius < TINY_DIST_RATIO) self%p_prime_y = self%p0_y
+    ! where(abs(self%p0_x - self%p_prime_x) / self%radius < TINY_DIST_RATIO) self%p_prime_x = self%p0_x
+    ! where(abs(self%p0_y - self%p_prime_y) / self%radius < TINY_DIST_RATIO) self%p_prime_y = self%p0_y
 
     call self%compute_trig_angles()
 
@@ -344,8 +344,8 @@ contains
     gamma = eos%get_gamma()
 
     n_cells_real = real(self%n_neighbor_cells, rk)
-    !$omp parallel default(shared) private(i,j,c)
 
+    !$omp parallel default(shared) private(i,j,c)
     !$omp do
     do j = 1, self%nj
       do i = 1, self%ni
@@ -357,13 +357,6 @@ contains
     end do
     !$omp end do
     !$omp end parallel
-
-    ! self%reference_density = sum(self%recon_rho, dim=1) / n_cells_real
-    ! self%reference_u =       sum(self%recon_u, dim=1) / n_cells_real
-    ! self%reference_v =       sum(self%recon_v, dim=1) / n_cells_real
-    ! self%reference_sound_speed = sqrt(gamma * (sum(self%recon_p, dim=1) / n_cells_real) &
-    !                                   / self%reference_density)
-
   end subroutine get_reference_state
 
   subroutine compute_trig_angles(self)
@@ -439,10 +432,10 @@ contains
     do j = 1, self%nj
       do i = 1, self%ni
         do idx = 1, idx_max
-          self%sin_dtheta(idx, i, j) = sin_theta_ie(idx, i, j) - sin_theta_ib(idx, i, j)
-          self%cos_dtheta(idx, i, j) = cos_theta_ie(idx, i, j) - cos_theta_ib(idx, i, j)
-          self%sin_d2theta(idx, i, j) = 2.0_rk * sin_theta_ie(idx, i, j) * cos_theta_ie(idx, i, j) - 2.0_rk * sin_theta_ib(idx, i, j) * cos_theta_ib(idx, i, j)
-       self%cos_d2theta(idx, i, j) = (2.0_rk * cos_theta_ie(idx, i, j)**2 - 1.0_rk) - (2.0_rk * cos_theta_ib(idx, i, j)**2 - 1.0_rk)
+          if(abs(sin_theta_ib(idx, i, j)) < 1e-15_rk) sin_theta_ib(idx, i, j) = 0.0_rk
+          if(abs(cos_theta_ib(idx, i, j)) < 1e-15_rk) cos_theta_ib(idx, i, j) = 0.0_rk
+          if(abs(sin_theta_ie(idx, i, j)) < 1e-15_rk) sin_theta_ie(idx, i, j) = 0.0_rk
+          if(abs(cos_theta_ie(idx, i, j)) < 1e-15_rk) cos_theta_ie(idx, i, j) = 0.0_rk
         end do
       end do
     end do
@@ -452,10 +445,12 @@ contains
     do j = 1, self%nj
       do i = 1, self%ni
         do idx = 1, idx_max
-          if(abs(self%sin_dtheta(idx, i, j)) < 1e-15_rk) self%sin_dtheta(idx, i, j) = 0.0_rk
-          if(abs(self%cos_dtheta(idx, i, j)) < 1e-15_rk) self%cos_dtheta(idx, i, j) = 0.0_rk
-          if(abs(self%sin_d2theta(idx, i, j)) < 1e-15_rk) self%sin_d2theta(idx, i, j) = 0.0_rk
-          if(abs(self%cos_d2theta(idx, i, j)) < 1e-15_rk) self%cos_d2theta(idx, i, j) = 0.0_rk
+          self%sin_dtheta(idx, i, j) = sin_theta_ie(idx, i, j) - sin_theta_ib(idx, i, j)
+          self%cos_dtheta(idx, i, j) = cos_theta_ie(idx, i, j) - cos_theta_ib(idx, i, j)
+          self%sin_d2theta(idx, i, j) = 2.0_rk * sin_theta_ie(idx, i, j) * cos_theta_ie(idx, i, j) - &
+                                        2.0_rk * sin_theta_ib(idx, i, j) * cos_theta_ib(idx, i, j)
+          self%cos_d2theta(idx, i, j) = (2.0_rk * cos_theta_ie(idx, i, j)**2 - 1.0_rk) - &
+                                        (2.0_rk * cos_theta_ib(idx, i, j)**2 - 1.0_rk)
         end do
       end do
     end do

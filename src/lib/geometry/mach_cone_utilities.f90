@@ -30,8 +30,8 @@ contains
       dx = abs(origin(1) - x)
       dy = abs(origin(2) - y)
 
-      if(abs(dx / radius) < TINY_DIST_RATIO) origin(1) = x
-      if(abs(dy / radius) < TINY_DIST_RATIO) origin(2) = y
+      ! if(abs(dx / radius) < TINY_DIST_RATIO) origin(1) = x
+      ! if(abs(dy / radius) < TINY_DIST_RATIO) origin(2) = y
       ! if(ieee_is_nan(radius)) then
       !   print *, 'Error: radius is NaN'
       !   print *, "origin: ", origin

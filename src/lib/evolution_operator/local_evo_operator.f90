@@ -9,6 +9,7 @@ module mod_local_evo_operator
 
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: near_zero, equal
+  ! use mod_globals, only: TINY_MACH
   use math_constants, only: pi, rad2deg
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_input, only: input_t
@@ -387,6 +388,15 @@ contains
         end do
       end do
       !$omp end do
+
+      ! !$omp do
+      ! do j = 1, cones%nj
+      !   do i = 1, cones%ni
+      !     if(abs(x_vel(i, j) / a_tilde(i,j)) < 1e-8_rk ) x_vel(i, j) = 0.0_rk
+      !     if(abs(y_vel(i, j) / a_tilde(i,j)) < 1e-8_rk ) y_vel(i, j) = 0.0_rk
+      !   end do
+      ! end do
+      ! !$omp end do
 
       !$omp do
       do j = 1, cones%nj

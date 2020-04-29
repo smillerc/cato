@@ -1,7 +1,7 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, TINY_MACH
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
   use mod_nondimensionalization, only: rho_0, v_0, p_0, e_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero
@@ -341,7 +341,7 @@ contains
 
     ! Apply the reconstructed state to the ghost layers
     call fv%apply_reconstructed_state_bc(reconstructed_state, lbounds=recon_bounds)
-    call fv%apply_cell_gradient_bc()
+    ! call fv%apply_cell_gradient_bc()
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
@@ -514,20 +514,30 @@ contains
     ! jlo = lbound(self%conserved_vars, dim=3)
     ! jhi = ubound(self%conserved_vars, dim=3)
 
+    ! !$omp parallel default(shared) private(i,j,u,v,ilo,ihi,jlo,jhi)
+    ! !$omp do
     ! do j = jlo, jhi
     !   do i = ilo, ihi
     !     u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
     !     v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
 
-    !     if(abs(u / sound_speed(i, j)) < TINY_MACH) then
+    !     if(abs(u / sound_speed(i, j)) < 1e-8_rk) then
     !       self%conserved_vars(2, i, j) = 0.0_rk
     !     end if
 
-    !     if(abs(v / sound_speed(i, j)) < TINY_MACH) then
+    !     if(abs(v / sound_speed(i, j)) < 1e-8_rk) then
     !       self%conserved_vars(3, i, j) = 0.0_rk
     !     end if
     !   end do
     ! end do
+    ! !$omp end do
+    ! !$omp end parallel
+
+    ! ! print*, minval((self%conserved_vars(2, :,:) / self%conserved_vars(1, :,:))/sound_speed)
+    ! ! print*, maxval((self%conserved_vars(2, :,:) / self%conserved_vars(1, :,:))/sound_speed)
+    ! ! print*, minval((self%conserved_vars(3, :,:) / self%conserved_vars(1, :,:))/sound_speed)
+    ! ! print*, maxval((self%conserved_vars(3, :,:) / self%conserved_vars(1, :,:))/sound_speed)
+
     ! deallocate(sound_speed)
 
   end subroutine
@@ -781,15 +791,40 @@ contains
     class(fluid_t), intent(in) :: self
     class(finite_volume_scheme_t), intent(inout) :: fv
     real(rk), dimension(:, :, :), allocatable, intent(out) :: primitive_vars
-    integer(ik) :: i
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
     integer(ik), dimension(3) :: bounds
+    real(rk), dimension(:, :), allocatable :: sound_speed
 
     call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
     allocate(primitive_vars, mold=self%conserved_vars)
 
     call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
     bounds = lbound(primitive_vars)
+
     call fv%apply_primitive_vars_bc(primitive_vars, bounds)
+    call self%get_sound_speed(sound_speed)
+
+    ilo = lbound(primitive_vars, dim=2)
+    ihi = ubound(primitive_vars, dim=2)
+    jlo = lbound(primitive_vars, dim=3)
+    jhi = ubound(primitive_vars, dim=3)
+
+    ! !$omp parallel default(shared) private(i,j,ilo,ihi,jlo,jhi)
+    ! !$omp do
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(abs(primitive_vars(2, i, j) / sound_speed(i, j)) < 1e-8_rk) then
+          primitive_vars(2, i, j) = 0.0_rk
+        end if
+
+        if(abs(primitive_vars(3, i, j) / sound_speed(i, j)) < 1e-8_rk) then
+          primitive_vars(3, i, j) = 0.0_rk
+        end if
+      end do
+    end do
+    ! !$omp end do
+    ! !$omp end parallel
+
   end subroutine get_primitive_vars
 
   subroutine sanity_check(self, error_code)
