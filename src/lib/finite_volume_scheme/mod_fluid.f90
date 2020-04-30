@@ -48,6 +48,7 @@ module mod_fluid
     procedure, public :: t => time_derivative
     procedure, public :: residual_smoother
     procedure, public :: sanity_check
+    procedure, public :: get_primitive_vars
     procedure, nopass, private :: flux_edges
     procedure, pass(lhs), public :: type_plus_type => add_fluid
     procedure, pass(lhs), public :: type_minus_type => subtract_fluid
@@ -223,15 +224,16 @@ contains
       error stop "Some (or all) of the density array is ~0 in fluid_t%initialize_from_hdf5"
     end if
 
-    associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, imax=>finite_volume_scheme%grid%ihi_bc_cell, &
-              jmin=>finite_volume_scheme%grid%jlo_bc_cell, jmax=>finite_volume_scheme%grid%jhi_bc_cell)
+    ! associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, imax=>finite_volume_scheme%grid%ihi_bc_cell, &
+    !           jmin=>finite_volume_scheme%grid%jlo_bc_cell, jmax=>finite_volume_scheme%grid%jhi_bc_cell)
 
-      self%rho(imin:imax, jmin:jmax) = density
-      self%rho_u(imin:imax, jmin:jmax) = density * x_velocity
-      self%rho_v(imin:imax, jmin:jmax) = density * y_velocity
-      self%rho_E(imin:imax, jmin:jmax) = density * eos%total_energy(p=pressure, rho=density, &
-                                                                    u=x_velocity, v=y_velocity)
-    end associate
+    self%rho = density
+    self%u = x_velocity
+    self%v = y_velocity
+    self%p = pressure
+    ! end associate
+    call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
+                                    rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
     write(*, '(a)') 'Initial fluid stats'
     write(*, '(a)') '==================================================='
@@ -265,11 +267,13 @@ contains
     call debug_print('Initializing fluid_t from .ini', __FILE__, __LINE__)
     write(*, '(a,4(f0.3, 1x))') 'Initializing with [rho,u,v,p]: ', &
       input%init_density, input%init_x_velocity, input%init_y_velocity, input%init_pressure
+
     self%rho = density
-    self%rho_u = density * x_velocity
-    self%rho_v = density * y_velocity
-    self%rho_E = density * eos%total_energy(p=pressure, rho=density, &
-                                            u=x_velocity, v=y_velocity)
+    self%u = x_velocity
+    self%v = y_velocity
+    self%p = pressure
+    call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
+                                    rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
     if(near_zero(input%init_pressure)) then
       error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5"
@@ -324,20 +328,20 @@ contains
     type(fluid_t), allocatable :: local_d_dt !< dU/dt
     integer(ik) :: alloc_status, error_code, i, j
 
-    real(rk), dimension(:, :), allocatable :: evolved_corner_rho !< (i,j); Reconstructed rho
-    real(rk), dimension(:, :), allocatable :: evolved_corner_u !< (i,j); Reconstructed u
-    real(rk), dimension(:, :), allocatable :: evolved_corner_v !< (i,j); Reconstructed v
-    real(rk), dimension(:, :), allocatable :: evolved_corner_p !< (i,j); Reconstructed p
+    real(rk), dimension(:, :), allocatable :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
+    real(rk), dimension(:, :), allocatable :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
+    real(rk), dimension(:, :), allocatable :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
+    real(rk), dimension(:, :), allocatable :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
 
-    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_rho !< (i,j); Reconstructed rho
-    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_u !< (i,j); Reconstructed u
-    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_v !< (i,j); Reconstructed v
-    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_p !< (i,j); Reconstructed p
+    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
+    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
+    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
+    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
 
-    real(rk), dimension(:, :), allocatable :: evolved_du_mid_rho !< (i,j); Reconstructed rho
-    real(rk), dimension(:, :), allocatable :: evolved_du_mid_u !< (i,j); Reconstructed u
-    real(rk), dimension(:, :), allocatable :: evolved_du_mid_v !< (i,j); Reconstructed v
-    real(rk), dimension(:, :), allocatable :: evolved_du_mid_p !< (i,j); Reconstructed p
+    real(rk), dimension(:, :), allocatable :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
+    real(rk), dimension(:, :), allocatable :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
+    real(rk), dimension(:, :), allocatable :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
+    real(rk), dimension(:, :), allocatable :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
 
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
     !< ((rho, u, v, p), i, j); Primitive variables at each cell center
@@ -406,7 +410,9 @@ contains
     end associate
 
     allocate(local_d_dt, source=self)
-    call local_d_dt%get_primitive_vars(primitive_vars, fv)
+    if(.not. local_d_dt%prim_vars_updated) then
+      call local_d_dt%get_primitive_vars()
+    end if
 
     ! Now we can reconstruct the entire domain
     bounds = lbound(primitive_vars)
@@ -464,11 +470,11 @@ contains
     nullify(fv%reconstruction_operator%primitive_vars)
     nullify(fv%evolution_operator%reconstructed_state)
 
-    call self%flux_edges(grid=fv%grid, &
-                         evolved_corner_state=evolved_corner_state, &
-                         evolved_leftright_midpoints_state=evolved_leftright_midpoints_state, &
-                         evolved_downup_midpoints_state=evolved_downup_midpoints_state, &
-                         dU_dt=local_d_dt%conserved_vars)
+    ! call self%flux_edges(grid=fv%grid, &
+    !                      evolved_corner_state=evolved_corner_state, &
+    !                      evolved_leftright_midpoints_state=evolved_leftright_midpoints_state, &
+    !                      evolved_downup_midpoints_state=evolved_downup_midpoints_state, &
+    !                      dU_dt=local_d_dt%conserved_vars)
 
     call move_alloc(local_d_dt, d_dt)
     call d_dt%set_temp(calling_function='fluid_t%time_derivative (d_dt)', line=__LINE__)
@@ -498,7 +504,10 @@ contains
     real(rk), dimension(:, grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_downup_midpoints_state
     real(rk), dimension(:, grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: dU_dt
 
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo = 0
+    integer(ik) :: ihi = 0
+    integer(ik) :: jlo = 0
+    integer(ik) :: jhi = 0
     integer(ik) :: i, j, edge, xy
     real(rk), dimension(4) :: top_left_corner, top_right_corner, bottom_left_corner, bottom_right_corner
     real(rk), dimension(4) :: bottom_midpoint, right_midpoint, top_midpoint, left_midpoint
@@ -582,11 +591,14 @@ contains
   subroutine residual_smoother(self)
     class(fluid_t), intent(inout) :: self
 
-    integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: i, j
-    real(rk) :: eps
-    real(rk) :: u, v
-    real(rk), dimension(:, :), allocatable :: sound_speed
+    ! integer(ik) :: ilo = 0
+    integer(ik) :: ihi = 0
+    integer(ik) :: jlo = 0
+    integer(ik) :: jhi = 0
+    ! integer(ik) :: i, j
+    ! real(rk) :: eps
+    ! real(rk) :: u, v
+    ! real(rk), dimension(:, :), allocatable :: sound_speed
 
     ! call self%get_sound_speed(sound_speed)
 
@@ -682,22 +694,25 @@ contains
     real(rk), dimension(:, :), intent(in) :: b
     real(rk), dimension(:, :), intent(inout) :: c
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo = 0
+    integer(ik) :: ihi = 0
+    integer(ik) :: jlo = 0
+    integer(ik) :: jhi = 0
 
     ilo = lbound(a, dim=1)
     ihi = ubound(a, dim=1)
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
 
-    !$omp parallel default(none), private(i,j,ilo,jlo) &
+    !$omp parallel default(none), private(i, j, ilo, ihi, jlo, jhi) &
     !$omp shared(a,b,c)
-    !$omp simd
+    !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
         c(i, j) = a(i, j) + b(i, j)
       end do
     end do
-    !$omp end simd
+    !$omp end do simd
     !$omp end parallel
 
   end subroutine add_fields
@@ -708,22 +723,25 @@ contains
     real(rk), dimension(:, :), intent(in) :: b
     real(rk), dimension(:, :), intent(inout) :: c
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo = 0
+    integer(ik) :: ihi = 0
+    integer(ik) :: jlo = 0
+    integer(ik) :: jhi = 0
 
     ilo = lbound(a, dim=1)
     ihi = ubound(a, dim=1)
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
 
-    !$omp parallel default(none), private(i,j,ilo,jlo) &
+    !$omp parallel default(none), private(i, j, ilo, ihi, jlo, jhi) &
     !$omp shared(a,b,c)
-    !$omp simd
+    !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
         c(i, j) = a(i, j) - b(i, j)
       end do
     end do
-    !$omp end simd
+    !$omp end do simd
     !$omp end parallel
 
   end subroutine subtract_fields
@@ -734,22 +752,25 @@ contains
     real(rk), dimension(:, :), intent(in) :: b
     real(rk), dimension(:, :), intent(inout) :: c
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo = 0
+    integer(ik) :: ihi = 0
+    integer(ik) :: jlo = 0
+    integer(ik) :: jhi = 0
 
     ilo = lbound(a, dim=1)
     ihi = ubound(a, dim=1)
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
 
-    !$omp parallel default(none), private(i,j,ilo,jlo) &
+    !$omp parallel default(none), private(i, j, ilo, ihi, jlo, jhi) &
     !$omp shared(a,b,c)
-    !$omp simd
+    !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
         c(i, j) = a(i, j) * b(i, j)
       end do
     end do
-    !$omp end simd
+    !$omp end do simd
     !$omp end parallel
 
   end subroutine mult_fields
@@ -760,22 +781,25 @@ contains
     real(rk), intent(in) :: b
     real(rk), dimension(:, :), intent(inout) :: c
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo = 0
+    integer(ik) :: ihi = 0
+    integer(ik) :: jlo = 0
+    integer(ik) :: jhi = 0
 
     ilo = lbound(a, dim=1)
     ihi = ubound(a, dim=1)
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
 
-    !$omp parallel default(none), private(i,j,ilo,jlo) &
+    !$omp parallel default(none), private(i, j, ilo, ihi, jlo, jhi) &
     !$omp shared(a,b,c)
-    !$omp simd
+    !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
         c(i, j) = a(i, j) * b
       end do
     end do
-    !$omp end simd
+    !$omp end do simd
     !$omp end parallel
   end subroutine mult_field_by_real
 
@@ -834,7 +858,10 @@ contains
     class(integrand_t), intent(in) :: rhs
     integer(ik) :: alloc_status
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo = 0
+    integer(ik) :: ihi = 0
+    integer(ik) :: jlo = 0
+    integer(ik) :: jhi = 0
 
     alloc_status = 0
     call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
@@ -849,14 +876,14 @@ contains
       lhs%rho_E = rhs%rho_E
       call eos%conserved_to_primitive(rho=lhs%rho, rho_u=lhs%rho_u, rho_v=lhs%rho_v, &
                                       rho_E=lhs%rho_E, u=lhs%u, v=lhs%v, p=lhs%p)
-      lhs%cs = eos%sound_speed(p=lhs%p, rho=lhs%rho)
+      call eos%sound_speed(p=lhs%p, rho=lhs%rho, cs=lhs%cs)
 
       ilo = lbound(lhs%rho, dim=1)
       ihi = ubound(lhs%rho, dim=1)
       jlo = lbound(lhs%rho, dim=2)
       jhi = ubound(lhs%rho, dim=2)
 
-      !$omp parallel default(shared) private(i,j,ilo,jlo)
+      !$omp parallel default(shared) private(i, j, ilo, ihi, jlo, jhi)
       !$omp simd
       do j = jlo, jhi
         do i = ilo, ihi
@@ -887,44 +914,83 @@ contains
     negative_numbers = .false.
     invalid_numbers = .false.
 
-    ilo = lbound(self%conserved_vars, dim=2)
-    ihi = ubound(self%conserved_vars, dim=2)
-    jlo = lbound(self%conserved_vars, dim=3)
-    jhi = ubound(self%conserved_vars, dim=3)
+    ilo = lbound(self%rho, dim=1)
+    ihi = ubound(self%rho, dim=1)
+    jlo = lbound(self%rho, dim=2)
+    jhi = ubound(self%rho, dim=2)
+
+    !$omp parallel default(none), &
+    !$omp private(i, j, ilo, ihi, jlo, jhi) &
+    !$omp shared(self)
+    !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
-        if(.not. any(ieee_is_finite(self%conserved_vars(:, i, j)))) then
-          write(std_err, '(2(a,i0), a, 4(es10.3))') 'Infinite numbers in conserved_vars(:, ', i, ', ', j, ')', &
-            self%conserved_vars(:, i, j)
-          invalid_numbers = .true.
-        end if
-
-        if(any(ieee_is_nan(self%conserved_vars(:, i, j)))) then
-          write(std_err, '(2(a,i0), a, 4(es10.3))') 'NaNs in conserved_vars(:, ', i, ', ', j, ')', &
-            self%conserved_vars(:, i, j)
-          invalid_numbers = .true.
+        if(self%rho(i, j) < 0.0_rk) then
+          error stop "Error: Negative density found in fluid_t%sanity_check()"
         end if
       end do
     end do
+    !$omp end do simd nowait
 
-    if(minval(self%conserved_vars(1, :, :)) < 0.0_rk) then
-      write(std_err, '(a, 2(i0, 1x), a, es10.3)') "Error: Negative density at fluid_t%conserved_vars(1,i,j): (", &
-        minloc(self%conserved_vars(1, :, :)), ") density = ", minval(self%conserved_vars(1, :, :))
-      negative_numbers = .true.
-    end if
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(self%p(i, j) < 0.0_rk) then
+          error stop "Error: Negative pressure found in fluid_t%sanity_check()"
+        end if
+      end do
+    end do
+    !$omp end do simd nowait
 
-    if(minval(self%conserved_vars(4, :, :)) < 0.0_rk) then
-      write(std_err, '(a, 2(i0, 1x))') "Error: Negative rho E (density * total energy) at fluid_t%conserved_vars(4,i,j): ", &
-        minloc(self%conserved_vars(4, :, :))
-      negative_numbers = .true.
-    end if
+    ! NaN checks
 
-    if(invalid_numbers .or. negative_numbers) then
-      write(std_out, '(a)') "Invalid or negative numbers in the conserved variables [rho, rho u, rho v, rho E]"
-      write(std_err, '(a)') "Invalid or negative numbers in the conserved variables [rho, rho u, rho v, rho E]"
-      error_code = 1
-    end if
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(ieee_is_nan(self%rho(i, j))) then
+          error stop "Error: NaN density found in fluid_t%sanity_check()"
+        end if
+      end do
+    end do
+    !$omp end do simd nowait
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(ieee_is_nan(self%u(i, j))) then
+          error stop "Error: NaN x-velocity found in fluid_t%sanity_check()"
+        end if
+      end do
+    end do
+    !$omp end do simd nowait
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(ieee_is_nan(self%v(i, j))) then
+          error stop "Error: NaN y-velocity found in fluid_t%sanity_check()"
+        end if
+      end do
+    end do
+    !$omp end do simd nowait
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(ieee_is_nan(self%p(i, j))) then
+          write(std_err, '(a, i0, ", ", i0, a)') "NaN pressure found at (", i, j, ")"
+          error stop "Error: NaN pressure found in fluid_t%sanity_check()"
+        end if
+      end do
+    end do
+    !$omp end do simd nowait
+
+    !$omp end parallel
 
   end subroutine sanity_check
+
+  subroutine get_primitive_vars(self)
+    class(fluid_t), intent(inout) :: self
+    call eos%conserved_to_primitive(rho=self%rho, rho_u=self%rho_u, rho_v=self%rho_v, &
+                                    rho_E=self%rho_E, u=self%u, v=self%v, p=self%p)
+    self%prim_vars_updated = .true.
+  end subroutine
 
 end module mod_fluid

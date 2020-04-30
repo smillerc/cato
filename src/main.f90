@@ -108,14 +108,15 @@ program cato
     write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
   end if
 
-  bounds = lbound(U%conserved_vars)
+  ! bounds = lbound(U%rho)
 
   do while(time < max_time .and. iteration < input%max_iterations)
 
-    write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units * t_0, ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s'
+    write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units * t_0, &
+      ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s'
 
-    call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
-                               lbounds=bounds)
+    ! call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
+    !                            lbounds=bounds)
     ! Integrate in time
     call U%integrate(fv, delta_t, error_code)
 

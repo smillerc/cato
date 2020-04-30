@@ -95,30 +95,13 @@ contains
     real(rk), intent(in) :: cfl
     class(finite_volume_scheme_t), intent(in) :: fv
     class(fluid_t), intent(in) :: fluid
-    real(rk), dimension(:, :), allocatable :: u, v
-    real(rk), dimension(:, :), allocatable :: sound_speed
-
-    allocate(u(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
-    u = 0.0_rk
-    allocate(v(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
-    v = 0.0_rk
-    allocate(sound_speed(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
-    sound_speed = 0.0_rk
-
-    call fluid%get_sound_speed(sound_speed)
-    u = abs(fluid%conserved_vars(2, :, :)) / fluid%conserved_vars(1, :, :)
-    v = abs(fluid%conserved_vars(3, :, :)) / fluid%conserved_vars(1, :, :)
 
     associate(dx=>fv%grid%cell_size(1, :, :), &
-              dy=>fv%grid%cell_size(2, :, :), &
-              cs=>sound_speed)
+              dy=>fv%grid%cell_size(2, :, :))
 
-      delta_t = minval(cfl / (((u + cs) / dx) + ((v + cs) / dy)))
+      delta_t = minval(cfl / (((fluid%u + fluid%cs) / dx) + ((fluid%v + fluid%cs) / dy)))
     end associate
 
-    deallocate(u)
-    deallocate(v)
-    deallocate(sound_speed)
   end function
 
 end module mod_timing

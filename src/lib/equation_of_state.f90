@@ -32,11 +32,23 @@ module mod_eos
     procedure, public :: set_gamma
     procedure, public :: get_cp
     procedure, public :: get_cv
-    procedure, public :: total_energy
-    procedure, public :: sound_speed
-    procedure, public :: temperature
-    procedure, public :: conserved_to_primitive
-    procedure, public :: primitive_to_conserved
+    procedure, private :: total_energy_2d
+    procedure, private :: sound_speed_2d
+    procedure, private :: temperature_2d
+    procedure, private :: conserved_to_primitive_2d
+    procedure, private :: primitive_to_conserved_2d
+    procedure, private :: total_energy_0d
+    procedure, private :: sound_speed_0d
+    procedure, private :: temperature_0d
+    procedure, private :: conserved_to_primitive_0d
+    procedure, private :: primitive_to_conserved_0d
+
+    generic, public :: total_energy => total_energy_2d, total_energy_0d
+    generic, public :: sound_speed => sound_speed_0d, sound_speed_2d
+    generic, public :: temperature => temperature_0d, temperature_2d
+    generic, public :: conserved_to_primitive => conserved_to_primitive_0d, conserved_to_primitive_2d
+    generic, public :: primitive_to_conserved => primitive_to_conserved_0d, primitive_to_conserved_2d
+
   end type eos_t
 
   interface new_eos
@@ -78,79 +90,268 @@ contains
     eos = constructor(input)
   end subroutine set_equation_of_state
 
-  elemental real(rk) function total_energy(self, rho, u, v, p) result(E)
+  impure subroutine total_energy_2d(self, rho, u, v, p, E)
     !< Calculate total energy
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :), intent(in) :: rho   !< density
+    real(rk), dimension(:, :), intent(in) :: u    !< x-velocity
+    real(rk), dimension(:, :), intent(in) :: v    !< y-velocity
+    real(rk), dimension(:, :), intent(in) :: p    !< pressure
+    real(rk), dimension(:, :), intent(inout) :: E    !< total energy
 
-    !$omp declare simd
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: gamma_m_one
+
+    gamma_m_one = self%gamma - 1.0_rk
+    ilo = lbound(rho, dim=1)
+    ihi = ubound(rho, dim=1)
+    jlo = lbound(rho, dim=2)
+    jhi = ubound(rho, dim=2)
+
+    !$omp parallel default(none) &
+    !$omp shared(rho, u, v, p, E) &
+    !$omp private(i, j, ilo, ihi, jlo, jhi, gamma_m_one)
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        E(i, j) = (p(i, j) / (rho(i, j) * gamma_m_one)) + ((u(i, j)**2 + v(i, j)**2) / 2.0_rk)
+      end do
+    end do
+    !$omp end do simd
+    !$omp end parallel
+  end subroutine total_energy_2d
+
+  impure subroutine sound_speed_2d(self, p, rho, cs)
+    !< Calculate sound speed
+
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :), intent(in) :: p   !< pressure
+    real(rk), dimension(:, :), intent(in) :: rho !< density
+    real(rk), dimension(:, :), intent(inout) :: cs !< sound speed
+
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: gamma
+
+    gamma = self%gamma
+    ilo = lbound(rho, dim=1)
+    ihi = ubound(rho, dim=1)
+    jlo = lbound(rho, dim=2)
+    jhi = ubound(rho, dim=2)
+
+    !$omp parallel default(none) &
+    !$omp shared(rho, p, cs) &
+    !$omp private(i, j, ilo, ihi, jlo, jhi, gamma)
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        cs(i, j) = sqrt(gamma * p(i, j) / rho(i, j))
+      end do
+    end do
+    !$omp end do simd
+    !$omp end parallel
+  end subroutine sound_speed_2d
+
+  impure subroutine temperature_2d(self, p, rho, t)
+    !< Calculate sound speed
+
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :), intent(in) :: p
+    real(rk), dimension(:, :), intent(in) :: rho
+    real(rk), dimension(:, :), intent(inout) :: t
+
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: R
+
+    R = self%R
+    ilo = lbound(rho, dim=1)
+    ihi = ubound(rho, dim=1)
+    jlo = lbound(rho, dim=2)
+    jhi = ubound(rho, dim=2)
+
+    !$omp parallel default(none) &
+    !$omp shared(rho, p, t) &
+    !$omp private(i, j, ilo, ihi, jlo, jhi, R)
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        t(i, j) = p(i, j) / (rho(i, j) * R)
+      end do
+    end do
+    !$omp end do simd
+    !$omp end parallel
+  end subroutine temperature_2d
+
+  impure subroutine conserved_to_primitive_2d(self, rho, rho_u, rho_v, rho_E, u, v, p)
+    !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
+    !< is in the EOS class due to requirement of converting energy into pressure
+
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :), intent(in) :: rho   !< density
+    real(rk), dimension(:, :), intent(in) :: rho_u !< density * x-velocity
+    real(rk), dimension(:, :), intent(in) :: rho_v !< density * y-velocity
+    real(rk), dimension(:, :), intent(in) :: rho_E !< density * total energy
+    real(rk), dimension(:, :), intent(inout) :: u    !< x-velocity
+    real(rk), dimension(:, :), intent(inout) :: v    !< y-velocity
+    real(rk), dimension(:, :), intent(inout) :: p    !< pressure
+
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: gamma_m_one
+
+    gamma_m_one = self%gamma - 1.0_rk
+    ilo = lbound(rho, dim=1)
+    ihi = ubound(rho, dim=1)
+    jlo = lbound(rho, dim=2)
+    jhi = ubound(rho, dim=2)
+
+    !$omp parallel default(none) &
+    !$omp shared(rho, u, v, p, rho_u, rho_v, rho_E) &
+    !$omp private(i, j, ilo, ihi, jlo, jhi, gamma_m_one)
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        u(i, j) = rho_u(i, j) / rho(i, j)
+        v(i, j) = rho_v(i, j) / rho(i, j)
+        p(i, j) = rho(i, j) * gamma_m_one * ((rho_E(i, j) / rho(i, j)) - ((u(i, j)**2 + v(i, j)**2) / 2.0_rk))
+      end do
+    end do
+    !$omp end do simd
+    !$omp end parallel
+
+  end subroutine conserved_to_primitive_2d
+
+  impure subroutine primitive_to_conserved_2d(self, rho, u, v, p, rho_u, rho_v, rho_E)
+    !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
+    !< is in the EOS class due to requirement of converting energy into pressure
+
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :), intent(in) :: rho
+    real(rk), dimension(:, :), intent(in) :: u
+    real(rk), dimension(:, :), intent(in) :: v
+    real(rk), dimension(:, :), intent(in) :: p
+    real(rk), dimension(:, :), intent(inout) :: rho_u
+    real(rk), dimension(:, :), intent(inout) :: rho_v
+    real(rk), dimension(:, :), intent(inout) :: rho_E
+
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: gamma_m_one
+
+    gamma_m_one = self%gamma - 1.0_rk
+
+    ilo = lbound(rho, dim=1)
+    ihi = ubound(rho, dim=1)
+    jlo = lbound(rho, dim=2)
+    jhi = ubound(rho, dim=2)
+
+    !$omp parallel default(none) &
+    !$omp shared(rho, u, v, p, rho_u, rho_v, rho_E) &
+    !$omp private(i, j, ilo, ihi, jlo, jhi, gamma_m_one)
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        rho_u(i, j) = u(i, j) * rho(i, j)
+        rho_v(i, j) = v(i, j) * rho(i, j)
+        rho_E(i, j) = (p(i, j) / gamma_m_one) + rho(i, j) * ((u(i, j)**2 + v(i, j)**2) / 2.0_rk)
+      end do
+    end do
+    !$omp end do simd
+    !$omp end parallel
+
+  end subroutine primitive_to_conserved_2d
+
+  pure subroutine total_energy_0d(self, rho, u, v, p, E)
+    !< Calculate total energy
     class(eos_t), intent(in) :: self
     real(rk), intent(in) :: rho   !< density
     real(rk), intent(in) :: u    !< x-velocity
     real(rk), intent(in) :: v    !< y-velocity
     real(rk), intent(in) :: p    !< pressure
+    real(rk), intent(inout) :: E    !< total energy
 
-    E = (p / (rho * (self%gamma - 1.0_rk))) + ((u**2 + v**2) / 2.0_rk)
-  end function total_energy
+    ! Locals
+    real(rk) :: gamma_m_one
 
-  elemental real(rk) function sound_speed(self, p, rho)
+    gamma_m_one = self%gamma - 1.0_rk
+
+    E = (p / (rho * gamma_m_one)) + ((u**2 + v**2) / 2.0_rk)
+
+  end subroutine total_energy_0d
+
+  pure subroutine sound_speed_0d(self, p, rho, cs)
     !< Calculate sound speed
 
-    !$omp declare simd
     class(eos_t), intent(in) :: self
     real(rk), intent(in) :: p   !< pressure
     real(rk), intent(in) :: rho !< density
+    real(rk), intent(inout) :: cs !< sound speed
 
-    sound_speed = sqrt(self%gamma * p / rho)
-  end function sound_speed
+    cs = sqrt(self%gamma * p / rho)
 
-  elemental real(rk) function temperature(self, pressure, density)
+  end subroutine sound_speed_0d
+
+  pure subroutine temperature_0d(self, p, rho, t)
     !< Calculate sound speed
 
-    !$omp declare simd
     class(eos_t), intent(in) :: self
-    real(rk), intent(in) :: pressure
-    real(rk), intent(in) :: density
+    real(rk), intent(in) :: p
+    real(rk), intent(in) :: rho
+    real(rk), intent(inout) :: t
 
-    temperature = pressure / (density * self%R)
-  end function temperature
+    t = p / (rho * self%R)
 
-  elemental subroutine conserved_to_primitive(self, rho, rho_u, rho_v, rho_E, u, v, p)
+  end subroutine temperature_0d
+
+  pure subroutine conserved_to_primitive_0d(self, rho, rho_u, rho_v, rho_E, u, v, p)
     !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
     !< is in the EOS class due to requirement of converting energy into pressure
 
-    !$omp declare simd
     class(eos_t), intent(in) :: self
     real(rk), intent(in) :: rho   !< density
     real(rk), intent(in) :: rho_u !< density * x-velocity
     real(rk), intent(in) :: rho_v !< density * y-velocity
     real(rk), intent(in) :: rho_E !< density * total energy
-    real(rk), intent(out) :: u    !< x-velocity
-    real(rk), intent(out) :: v    !< y-velocity
-    real(rk), intent(out) :: p    !< pressure
+    real(rk), intent(inout) :: u    !< x-velocity
+    real(rk), intent(inout) :: v    !< y-velocity
+    real(rk), intent(inout) :: p    !< pressure
+
+    ! Locals
+    real(rk) :: gamma_m_one
+
+    gamma_m_one = self%gamma - 1.0_rk
 
     u = rho_u / rho
     v = rho_v / rho
-    p = rho * (self%gamma - 1.0_rk) * ((rho_E / rho) - ((u**2 + v**2) / 2.0_rk))
+    p = rho * gamma_m_one * ((rho_E / rho) - ((u**2 + v**2) / 2.0_rk))
 
-  end subroutine conserved_to_primitive
+  end subroutine conserved_to_primitive_0d
 
-  elemental subroutine primitive_to_conserved(self, rho, u, v, p, rho_u, rho_v, rho_E)
+  pure subroutine primitive_to_conserved_0d(self, rho, u, v, p, rho_u, rho_v, rho_E)
     !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
     !< is in the EOS class due to requirement of converting energy into pressure
 
-    !$omp declare simd
     class(eos_t), intent(in) :: self
     real(rk), intent(in) :: rho
     real(rk), intent(in) :: u
     real(rk), intent(in) :: v
     real(rk), intent(in) :: p
-    real(rk), intent(out) :: rho_u
-    real(rk), intent(out) :: rho_v
-    real(rk), intent(out) :: rho_E
+    real(rk), intent(inout) :: rho_u
+    real(rk), intent(inout) :: rho_v
+    real(rk), intent(inout) :: rho_E
+
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: gamma_m_one
+
+    gamma_m_one = self%gamma - 1.0_rk
 
     rho_u = u * rho
     rho_v = v * rho
-    rho_E = (p / (self%gamma - 1.0_rk)) + rho * ((u**2 + v**2) / 2.0_rk)
+    rho_E = (p / gamma_m_one) + rho * ((u**2 + v**2) / 2.0_rk)
 
-  end subroutine primitive_to_conserved
+  end subroutine primitive_to_conserved_0d
 
 end module mod_eos

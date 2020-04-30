@@ -159,14 +159,11 @@ contains
     time_w_dims = time * io_time_units * t_0
     delta_t_w_dims = fv_scheme%delta_t * t_0
 
-    call fluid%get_primitive_vars(primitive_vars, fv_scheme)
-
     call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
                                    status='new', action='w', comp_lvl=6)
 
     ! Header info
     call self%hdf5_file%add('/title', fv_scheme%title)
-
     call self%hdf5_file%add('/iteration', iteration)
     call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
     call self%hdf5_file%writeattr('/iteration', 'units', 'dimensionless')
@@ -267,36 +264,36 @@ contains
 
     ! Primitive Variables
     dataset_name = '/density'
-    io_data_buffer = primitive_vars(1, :, :) * rho_0
+    io_data_buffer = fluid%rho * rho_0
     io_data_buffer = io_data_buffer * io_density_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    io_data_buffer = primitive_vars(2, :, :) * v_0
+    io_data_buffer = fluid%u * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    io_data_buffer = primitive_vars(3, :, :) * v_0
+    io_data_buffer = fluid%v * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    io_data_buffer = primitive_vars(4, :, :) * p_0
+    io_data_buffer = fluid%p * p_0
     io_data_buffer = io_data_buffer * io_pressure_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
     dataset_name = '/total_energy'
-    associate(rhoE=>fluid%conserved_vars(4, :, :), &
-              rho=>fluid%conserved_vars(1, :, :))
+    associate(rhoE=>fluid%rho_E, &
+              rho=>fluid%rho)
       io_data_buffer = (rhoE / rho) * e_0
     end associate
     io_data_buffer = io_data_buffer * io_pressure_units
@@ -305,16 +302,15 @@ contains
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_energy_label))
 
     dataset_name = '/sound_speed'
-    call fluid%get_sound_speed(io_data_buffer)
-    io_data_buffer = io_data_buffer * v_0 * io_velocity_units
+    io_data_buffer = fluid%cs * v_0 * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/temperature'
-    associate(p=>primitive_vars(4, :, :), &
-              rho=>primitive_vars(1, :, :))
-      io_data_buffer = eos%temperature(pressure=p, density=rho)
+    associate(p=>fluid%p, &
+              rho=>fluid%rho)
+      call eos%temperature(p=p, rho=rho, t=io_data_buffer)
     end associate
     io_data_buffer = io_data_buffer * io_temperature_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
@@ -348,7 +344,7 @@ contains
 
     open(newunit=xdmf_unit, file=self%results_folder//'/'//self%xdmf_filename, status='replace')
 
-    write(char_buff, '(2(i0,1x))') .reverse.shape(fluid%conserved_vars(1, self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+    write(char_buff, '(2(i0,1x))') .reverse.shape(fluid%rho(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     cell_shape = trim(char_buff)
 
     write(char_buff, '(2(i0,1x))') .reverse.shape(fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node))

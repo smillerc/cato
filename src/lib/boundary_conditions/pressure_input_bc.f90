@@ -227,7 +227,7 @@ contains
         associate(rho=>domain_prim_vars(1, j), u=>domain_prim_vars(2, j), &
                   v=>domain_prim_vars(3, j), p=>domain_prim_vars(4, j))
 
-          cs = eos%sound_speed(p=p, rho=rho)
+          call eos%sound_speed(p=p, rho=rho, cs=cs)
           mach_u = u / cs
         end associate
 

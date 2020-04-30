@@ -53,7 +53,7 @@ contains
               p=>primitive_variables(4), &
               H=>flux_tensor%state)
 
-      total_energy = eos%total_energy(p=p, rho=rho, u=u, v=v)
+      call eos%total_energy(p=p, rho=rho, u=u, v=v, E=total_energy)
 
       ! F
       H(:, 1) = [rho * u, &
