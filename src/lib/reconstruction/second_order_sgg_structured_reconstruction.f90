@@ -23,7 +23,7 @@ module mod_second_order_sgg_structured_reconstruction
     procedure, public :: reconstruct_domain
     procedure, public :: reconstruct_point
     procedure, private :: estimate_gradients
-    procedure, public :: copy
+    ! procedure, public :: copy
     final :: finalize
   end type
 
@@ -67,36 +67,34 @@ contains
     call debug_print('Running second_order_sgg_structured_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
-    if(associated(self%primitive_vars)) nullify(self%primitive_vars)
-    if(allocated(self%cell_gradient)) then
-      deallocate(self%cell_gradient, stat=alloc_status)
-      if(alloc_status /= 0) then
-        error stop "Unable to deallocate second_order_sgg_structured_reconstruction_t%cell_gradient"
-      end if
-    end if
+    if(associated(self%rho)) nullify(self%rho)
+    if(associated(self%u)) nullify(self%u)
+    if(associated(self%v)) nullify(self%v)
+    if(associated(self%p)) nullify(self%p)
+    if(allocated(self%cell_gradient)) deallocate(self%cell_gradient)
   end subroutine finalize
 
-  subroutine copy(out_recon, in_recon)
-    class(abstract_reconstruction_t), intent(in) :: in_recon
-    class(second_order_sgg_structured_reconstruction_t), intent(inout) :: out_recon
+  ! subroutine copy(out_recon, in_recon)
+  !   class(abstract_reconstruction_t), intent(in) :: in_recon
+  !   class(second_order_sgg_structured_reconstruction_t), intent(inout) :: out_recon
 
-    call debug_print('Running second_order_sgg_structured_reconstruction_t%copy()', __FILE__, __LINE__)
+  !   call debug_print('Running second_order_sgg_structured_reconstruction_t%copy()', __FILE__, __LINE__)
 
-    if(associated(out_recon%grid)) nullify(out_recon%grid)
-    out_recon%grid => in_recon%grid
+  !   if(associated(out_recon%grid)) nullify(out_recon%grid)
+  !   out_recon%grid => in_recon%grid
 
-    if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
-    out_recon%primitive_vars => in_recon%primitive_vars
+  !   if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
+  !   out_recon%primitive_vars => in_recon%primitive_vars
 
-    if(allocated(out_recon%name)) deallocate(out_recon%name)
-    allocate(out_recon%name, source=in_recon%name)
+  !   if(allocated(out_recon%name)) deallocate(out_recon%name)
+  !   allocate(out_recon%name, source=in_recon%name)
 
-    if(allocated(out_recon%cell_gradient)) deallocate(out_recon%cell_gradient)
-    allocate(out_recon%cell_gradient, source=in_recon%cell_gradient)
+  !   if(allocated(out_recon%cell_gradient)) deallocate(out_recon%cell_gradient)
+  !   allocate(out_recon%cell_gradient, source=in_recon%cell_gradient)
 
-    out_recon%limiter = in_recon%limiter
-    out_recon%domain_has_been_reconstructed = .false.
-  end subroutine
+  !   out_recon%limiter = in_recon%limiter
+  !   out_recon%domain_has_been_reconstructed = .false.
+  ! end subroutine
 
   function reconstruct_point(self, xy, cell_ij) result(V_bar)
     !< Reconstruct the value of the primitive variables (U) at location (x,y)
@@ -172,10 +170,12 @@ contains
     self%domain_has_been_reconstructed = .true.
   end subroutine reconstruct_domain
 
-  subroutine estimate_gradients(self)
+  subroutine estimate_gradients(self, v)
     !< Estimate the slope-limited gradient of the primitive variables in the cell (i,j). This assumes
     !< a quadrilateral structured grid
     class(second_order_sgg_structured_reconstruction_t), intent(inout) :: self
+    real(rk), dimension(:, :), intent(in) :: v !< (i,j); data to estimate the gradient of
+
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
 
@@ -191,19 +191,19 @@ contains
 
     phi_lim = 0.0_rk
 
-    ilo = lbound(self%primitive_vars, dim=2) + 1
-    ihi = ubound(self%primitive_vars, dim=2) - 1
-    jlo = lbound(self%primitive_vars, dim=3) + 1
-    jhi = ubound(self%primitive_vars, dim=3) - 1
+    ilo = lbound(self%rho, dim=1) + 1
+    ihi = ubound(self%rho, dim=1) - 1
+    jlo = lbound(self%rho, dim=2) + 1
+    jhi = ubound(self%rho, dim=2) - 1
 
     do j = jlo, jhi
       do i = ilo, ihi
         ! current cell and neighbor cell [bottom, right, top, left] information for gradient estimation
-        prim_vars(:, 1) = self%primitive_vars(:, i, j)      ! current
-        prim_vars(:, 2) = self%primitive_vars(:, i, j - 1)  ! bottom
-        prim_vars(:, 3) = self%primitive_vars(:, i + 1, j)  ! right
-        prim_vars(:, 4) = self%primitive_vars(:, i, j + 1)  ! top
-        prim_vars(:, 5) = self%primitive_vars(:, i - 1, j)  ! left
+        prim_vars(:, 1) = v(i, j)      ! current
+        prim_vars(:, 2) = v(i, j - 1)  ! bottom
+        prim_vars(:, 3) = v(i + 1, j)  ! right
+        prim_vars(:, 4) = v(i, j + 1)  ! top
+        prim_vars(:, 5) = v(i - 1, j)  ! left
 
         volume = self%grid%cell_volume(i, j)      ! current
         ! volumes(2) = self%grid%cell_volume(i, j - 1)  ! bottom

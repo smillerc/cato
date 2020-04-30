@@ -16,7 +16,7 @@ module mod_first_order_reconstruction
     procedure, public :: initialize => init_first_order
     procedure, public :: reconstruct_domain
     procedure, public :: reconstruct_point
-    procedure, public :: copy
+    ! procedure, public :: copy
     final :: finalize
   end type
 
@@ -48,31 +48,41 @@ contains
     call debug_print('Running first_order_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
-    if(associated(self%primitive_vars)) nullify(self%primitive_vars)
-    if(allocated(self%cell_gradient)) then
-      deallocate(self%cell_gradient, stat=alloc_status)
-      if(alloc_status /= 0) then
-        error stop "Unable to deallocate first_order_reconstruction_t%cell_gradient"
-      end if
-    end if
+    if(associated(self%grid)) nullify(self%grid)
+    if(associated(self%rho)) nullify(self%rho)
+    if(associated(self%u)) nullify(self%u)
+    if(associated(self%v)) nullify(self%v)
+    if(associated(self%p)) nullify(self%p)
+
+    if(allocated(self%cell_gradient)) deallocate(self%cell_gradient)
+
   end subroutine finalize
 
-  subroutine copy(out_recon, in_recon)
-    class(abstract_reconstruction_t), intent(in) :: in_recon
-    class(first_order_reconstruction_t), intent(inout) :: out_recon
+  ! subroutine copy(out_recon, in_recon)
+  !   class(abstract_reconstruction_t), intent(in) :: in_recon
+  !   class(first_order_reconstruction_t), intent(inout) :: out_recon
 
-    call debug_print('Running first_order_reconstruction_t%copy()', __FILE__, __LINE__)
+  !   call debug_print('Running first_order_reconstruction_t%copy()', __FILE__, __LINE__)
 
-    if(associated(out_recon%grid)) nullify(out_recon%grid)
-    out_recon%grid => in_recon%grid
+  !   if(associated(out_recon%grid)) nullify(out_recon%grid)
+  !   out_recon%grid => in_recon%grid
 
-    if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
-    out_recon%primitive_vars => in_recon%primitive_vars
+  !   if(associated(out_recon%rho)) nullify(out_recon%primitive_vars)
+  !   out_recon%primitive_vars => in_recon%primitive_vars
 
-    if(allocated(out_recon%name)) deallocate(out_recon%name)
-    allocate(out_recon%name, source=in_recon%name)
+  !   if(associated(out_recon%u)) nullify(out_recon%primitive_vars)
+  !   out_recon%primitive_vars => in_recon%primitive_vars
 
-  end subroutine
+  !   if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
+  !   out_recon%primitive_vars => in_recon%primitive_vars
+
+  !   if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
+  !   out_recon%primitive_vars => in_recon%primitive_vars
+
+  !   if(allocated(out_recon%name)) deallocate(out_recon%name)
+  !   allocate(out_recon%name, source=in_recon%name)
+
+  ! end subroutine
 
   pure function reconstruct_point(self, xy, cell_ij) result(U_bar)
     !< Reconstruct the value of the primitive variables (U) at location (x,y)
@@ -84,8 +94,8 @@ contains
     integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
     integer(ik) :: i, j
 
-    i = cell_ij(1); j = cell_ij(2)
-    U_bar = self%primitive_vars(:, i, j)
+    ! i = cell_ij(1); j = cell_ij(2)
+    ! U_bar = self%primitive_vars(:, i, j)
 
   end function reconstruct_point
 
@@ -101,29 +111,50 @@ contains
     !< The node/midpoint dimension just selects which set of points,
     !< e.g. 1 - all corners, 2 - all midpoints
 
-    integer(ik) :: i, j  !< cell i,j index
-    integer(ik) :: n  !< node index -> i.e. is it a corner (1), or midpoint (2)
-    integer(ik) :: p  !< point index -> which point in the grid element (corner 1-4, or midpoint 1-4)
-    integer(ik) :: phi, nhi, ilo, ihi, jlo, jhi
+    ! integer(ik) :: i, j  !< cell i,j index
+    ! integer(ik) :: n  !< node index -> i.e. is it a corner (1), or midpoint (2)
+    ! integer(ik) :: p  !< point index -> which point in the grid element (corner 1-4, or midpoint 1-4)
+    ! integer(ik) :: phi, nhi, ilo, ihi, jlo, jhi
 
-    ! Bounds do not include ghost cells. Ghost cells get their
-    ! reconstructed values and gradients from the boundary conditions
-    phi = ubound(reconstructed_domain, dim=2)
-    nhi = ubound(reconstructed_domain, dim=3)
-    ilo = lbound(reconstructed_domain, dim=4) + 1
-    ihi = ubound(reconstructed_domain, dim=4) - 1
-    jlo = lbound(reconstructed_domain, dim=5) + 1
-    jhi = ubound(reconstructed_domain, dim=5) - 1
+    ! ! Bounds do not include ghost cells. Ghost cells get their
+    ! ! reconstructed values and gradients from the boundary conditions
+    ! phi = ubound(reconstructed_domain, dim=2)
+    ! nhi = ubound(reconstructed_domain, dim=3)
+    ! ilo = lbound(reconstructed_domain, dim=4) + 1
+    ! ihi = ubound(reconstructed_domain, dim=4) - 1
+    ! jlo = lbound(reconstructed_domain, dim=5) + 1
+    ! jhi = ubound(reconstructed_domain, dim=5) - 1
 
-    do j = jlo, jhi
-      do i = ilo, ihi
-        do n = 1, nhi ! First do corners, then to midpoints
-          do p = 1, phi  ! Loop through each point (N1-N4, and M1-M4)
-            reconstructed_domain(:, p, n, i, j) = self%primitive_vars(:, i, j)
-          end do
-        end do
-      end do
-    end do
+    ! do j = jlo, jhi
+    !   do i = ilo, ihi
+    !     do n = 1, nhi ! First do corners, then to midpoints
+    !       do p = 1, phi  ! Loop through each point (N1-N4, and M1-M4)
+    !         reconstructed_domain(:, p, n, i, j) = self%primitive_vars(:, i, j)
+    !       end do
+    !     end do
+    !   end do
+    ! end do
+
+    ! ilo = lbound(self%rho, dim=1)
+    ! ihi = ubound(self%rho, dim=1)
+    ! jlo = lbound(self%rho, dim=2)
+    ! jhi = ubound(self%rho, dim=2)
+
+    ! !$omp parallel default(none), &
+    ! !$omp private(i, j, ilo, ihi, jlo, jhi) &
+    ! !$omp shared(self, reconstructed_domain)
+    ! !$omp do simd
+    ! do j = jlo, jhi
+    !   do i = ilo, ihi
+    !     do n = 1, 2 ! First do corners, then to midpoints
+    !       do p = 1, 4  ! Loop through each point (N1-N4, and M1-M4)
+    !         reconstructed_domain(:, p, n, i, j) = self%primitive_vars(:, i, j)
+    !       end do
+    !     end do
+    !   end do
+    ! end do
+    ! !$omp end do simd
+    ! !$omp end parallel
 
   end subroutine reconstruct_domain
 

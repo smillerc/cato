@@ -18,7 +18,10 @@ module mod_abstract_reconstruction
     class(grid_t), pointer :: grid => null()
     !< Pointer to the grid object, which should be managed by the finite_volume_scheme_t puppeteer class
 
-    real(rk), dimension(:, :, :), pointer :: primitive_vars => null()
+    real(rk), dimension(:, :), pointer :: rho => null() !< (i,j); pointer to primitive density data
+    real(rk), dimension(:, :), pointer :: u => null()   !< (i,j); pointer to primitive x-velocity data
+    real(rk), dimension(:, :), pointer :: v => null()   !< (i,j); pointer to primitive y-velocity data
+    real(rk), dimension(:, :), pointer :: p => null()   !< (i,j); pointer to primitive pressure data
     !< Pointer to the primitive variables for each cell (rho, u, v, p)
 
     integer(ik), public :: order = 0  !< Reconstruction order
@@ -46,8 +49,8 @@ module mod_abstract_reconstruction
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct_point), public, deferred :: reconstruct_point
     procedure(reconstruct_domain), public, deferred :: reconstruct_domain
-    procedure(copy_recon), public, deferred :: copy
-    generic :: assignment(=) => copy
+    ! procedure(copy_recon), public, deferred :: copy
+    ! generic :: assignment(=) => copy
   end type abstract_reconstruction_t
 
   abstract interface
@@ -112,22 +115,30 @@ contains
     if(.not. associated(self%grid)) self%grid => grid
   end subroutine set_grid_pointer
 
-  subroutine set_primitive_vars_pointer(self, primitive_vars, lbounds)
+  subroutine set_primitive_vars_pointer(self, rho, u, v, p, lbounds)
     !< Associate the primitive variables with data. The lbounds argument
     !< is due to the way in which the conserved vars array is indexed (due to ghost cells).
     !< This is normaly indexed starting at 0 for the i (2nd) and j (3rd) indices.
     class(abstract_reconstruction_t), intent(inout) :: self
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), &
-      intent(in), target :: primitive_vars
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), target :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), target :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), target :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), target :: p
 
-    if(.not. associated(self%primitive_vars)) self%primitive_vars => primitive_vars
+    if(.not. associated(self%rho)) self%rho => rho
+    if(.not. associated(self%u)) self%u => u
+    if(.not. associated(self%v)) self%v => v
+    if(.not. associated(self%p)) self%p => p
   end subroutine set_primitive_vars_pointer
 
   subroutine nullify_pointer_members(self)
     class(abstract_reconstruction_t), intent(inout) :: self
-    nullify(self%grid)
-    nullify(self%primitive_vars)
+    if(associated(self%grid)) nullify(self%grid)
+    if(associated(self%rho)) nullify(self%rho)
+    if(associated(self%u)) nullify(self%u)
+    if(associated(self%v)) nullify(self%v)
+    if(associated(self%p)) nullify(self%p)
   end subroutine nullify_pointer_members
 
   subroutine find_extrema(self, i, j, U_max, U_min)
@@ -143,57 +154,57 @@ contains
     ! call debug_print('Running abstract_reconstruction_t%find_extrema()', __FILE__, __LINE__)
 
     ! Find the extrema at each node point
-    associate(U=>self%primitive_vars)
+    ! associate(U=>self%primitive_vars)
 
-      ! C1
-      do l = 1, 4
-        U_max(l, 1, c) = max(U(l, i, j), U(l, i - 1, j), U(l, i - 1, j - 1), U(l, i, j - 1))
-        U_min(l, 1, c) = min(U(l, i, j), U(l, i - 1, j), U(l, i - 1, j - 1), U(l, i, j - 1))
-      end do
+    !   ! C1
+    !   do l = 1, 4
+    !     U_max(l, 1, c) = max(U(l, i, j), U(l, i - 1, j), U(l, i - 1, j - 1), U(l, i, j - 1))
+    !     U_min(l, 1, c) = min(U(l, i, j), U(l, i - 1, j), U(l, i - 1, j - 1), U(l, i, j - 1))
+    !   end do
 
-      ! C2
-      do l = 1, 4
-        U_max(l, 2, c) = max(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j - 1), U(l, i, j - 1))
-        U_min(l, 2, c) = min(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j - 1), U(l, i, j - 1))
-      end do
+    !   ! C2
+    !   do l = 1, 4
+    !     U_max(l, 2, c) = max(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j - 1), U(l, i, j - 1))
+    !     U_min(l, 2, c) = min(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j - 1), U(l, i, j - 1))
+    !   end do
 
-      ! C3
-      do l = 1, 4
-        U_max(l, 3, c) = max(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j + 1), U(l, i, j + 1))
-        U_min(l, 3, c) = min(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j + 1), U(l, i, j + 1))
-      end do
+    !   ! C3
+    !   do l = 1, 4
+    !     U_max(l, 3, c) = max(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j + 1), U(l, i, j + 1))
+    !     U_min(l, 3, c) = min(U(l, i, j), U(l, i + 1, j), U(l, i + 1, j + 1), U(l, i, j + 1))
+    !   end do
 
-      ! C4
-      do l = 1, 4
-        U_max(l, 4, c) = max(U(l, i, j), U(l, i, j + 1), U(l, i - 1, j + 1), U(l, i - 1, j))
-        U_min(l, 4, c) = min(U(l, i, j), U(l, i, j + 1), U(l, i - 1, j + 1), U(l, i - 1, j))
-      end do
+    !   ! C4
+    !   do l = 1, 4
+    !     U_max(l, 4, c) = max(U(l, i, j), U(l, i, j + 1), U(l, i - 1, j + 1), U(l, i - 1, j))
+    !     U_min(l, 4, c) = min(U(l, i, j), U(l, i, j + 1), U(l, i - 1, j + 1), U(l, i - 1, j))
+    !   end do
 
-      ! M1
-      do l = 1, 4
-        U_max(l, 1, m) = max(U(l, i, j), U(l, i, j - 1))
-        U_min(l, 1, m) = min(U(l, i, j), U(l, i, j - 1))
-      end do
+    !   ! M1
+    !   do l = 1, 4
+    !     U_max(l, 1, m) = max(U(l, i, j), U(l, i, j - 1))
+    !     U_min(l, 1, m) = min(U(l, i, j), U(l, i, j - 1))
+    !   end do
 
-      ! M2
-      do l = 1, 4
-        U_max(l, 2, m) = max(U(l, i, j), U(l, i + 1, j))
-        U_min(l, 2, m) = min(U(l, i, j), U(l, i + 1, j))
-      end do
+    !   ! M2
+    !   do l = 1, 4
+    !     U_max(l, 2, m) = max(U(l, i, j), U(l, i + 1, j))
+    !     U_min(l, 2, m) = min(U(l, i, j), U(l, i + 1, j))
+    !   end do
 
-      ! M3
-      do l = 1, 4
-        U_max(l, 3, m) = max(U(l, i, j), U(l, i, j + 1))
-        U_min(l, 3, m) = min(U(l, i, j), U(l, i, j + 1))
-      end do
+    !   ! M3
+    !   do l = 1, 4
+    !     U_max(l, 3, m) = max(U(l, i, j), U(l, i, j + 1))
+    !     U_min(l, 3, m) = min(U(l, i, j), U(l, i, j + 1))
+    !   end do
 
-      ! M4
-      do l = 1, 4
-        U_max(l, 4, m) = max(U(l, i, j), U(l, i - 1, j))
-        U_min(l, 4, m) = min(U(l, i, j), U(l, i - 1, j))
-      end do
+    !   ! M4
+    !   do l = 1, 4
+    !     U_max(l, 4, m) = max(U(l, i, j), U(l, i - 1, j))
+    !     U_min(l, 4, m) = min(U(l, i, j), U(l, i - 1, j))
+    !   end do
 
-    end associate
+    ! end associate
 
   end subroutine find_extrema
 
@@ -208,21 +219,21 @@ contains
     real(rk), dimension(4, 2) :: grad_u
     real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
 
-    centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
+    ! centroid_xy = self%grid%get_cell_centroid_xy(i=i, j=j)
 
-    ! The gradient can be supplied in the case when we wish to use
-    ! the limited or unlimited version
-    if(present(cell_gradient)) then
-      grad_u = cell_gradient ! the provided (typically limited) gradient
-    else
-      grad_u(:, 1) = self%cell_gradient(:, 1, i, j) ! the unlimited gradient
-      grad_u(:, 2) = self%cell_gradient(:, 2, i, j) ! the unlimited gradient
-    end if
+    ! ! The gradient can be supplied in the case when we wish to use
+    ! ! the limited or unlimited version
+    ! if(present(cell_gradient)) then
+    !   grad_u = cell_gradient ! the provided (typically limited) gradient
+    ! else
+    !   grad_u(:, 1) = self%cell_gradient(:, 1, i, j) ! the unlimited gradient
+    !   grad_u(:, 2) = self%cell_gradient(:, 2, i, j) ! the unlimited gradient
+    ! end if
 
-    associate(cell_ave=>self%primitive_vars(:, i, j), &
-              dU_dx=>grad_u(:, 1), dU_dy=>grad_u(:, 2), &
-              x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
-      u_tilde = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
-    end associate
+    ! associate(cell_ave=>self%primitive_vars(:, i, j), &
+    !           dU_dx=>grad_u(:, 1), dU_dy=>grad_u(:, 2), &
+    !           x_ij=>centroid_xy(1), y_ij=>centroid_xy(2))
+    !   u_tilde = cell_ave + dU_dx * (x - x_ij) + dU_dy * (y - y_ij)
+    ! end associate
   end function interpolate
 end module mod_abstract_reconstruction
