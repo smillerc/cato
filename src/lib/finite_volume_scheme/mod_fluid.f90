@@ -794,6 +794,8 @@ contains
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     integer(ik), dimension(3) :: bounds
     real(rk), dimension(:, :), allocatable :: sound_speed
+    real(rk), dimension(:, :), allocatable :: mach_u
+    real(rk), dimension(:, :), allocatable :: mach_v
 
     call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
     allocate(primitive_vars, mold=self%conserved_vars)
@@ -803,27 +805,37 @@ contains
 
     call fv%apply_primitive_vars_bc(primitive_vars, bounds)
     call self%get_sound_speed(sound_speed)
+    allocate(mach_u, mold=sound_speed)
+    allocate(mach_v, mold=sound_speed)
 
     ilo = lbound(primitive_vars, dim=2)
     ihi = ubound(primitive_vars, dim=2)
     jlo = lbound(primitive_vars, dim=3)
     jhi = ubound(primitive_vars, dim=3)
 
-    ! !$omp parallel default(shared) private(i,j,ilo,ihi,jlo,jhi)
-    ! !$omp do
+    !!$omp parallel default(none) private(i,j,ilo,ihi,jlo,jhi) &
+    !!$omp shared(primitive_vars, sound_speed, mach_u, mach_v)
+    !!$omp do
     do j = jlo, jhi
       do i = ilo, ihi
-        if(abs(primitive_vars(2, i, j) / sound_speed(i, j)) < 1e-8_rk) then
-          primitive_vars(2, i, j) = 0.0_rk
-        end if
-
-        if(abs(primitive_vars(3, i, j) / sound_speed(i, j)) < 1e-8_rk) then
-          primitive_vars(3, i, j) = 0.0_rk
-        end if
+        mach_u(i, j) = abs(primitive_vars(2, i, j) / sound_speed(i, j))
+        mach_v(i, j) = abs(primitive_vars(3, i, j) / sound_speed(i, j))
       end do
     end do
-    ! !$omp end do
-    ! !$omp end parallel
+    !!$omp end do
+    !!$omp do
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(mach_u(i, j) < 1e-8_rk) primitive_vars(2, i, j) = 0.0_rk
+        if(mach_v(i, j) < 1e-8_rk) primitive_vars(3, i, j) = 0.0_rk
+      end do
+    end do
+    !!$omp end do
+    !!$omp end parallel
+
+    deallocate(sound_speed)
+    deallocate(mach_u)
+    deallocate(mach_v)
 
   end subroutine get_primitive_vars
 
