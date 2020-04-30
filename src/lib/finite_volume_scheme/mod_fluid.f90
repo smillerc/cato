@@ -1,6 +1,11 @@
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
+
+#ifdef USE_OPENMP
+  use omp_lib
+#endif /* USE_OPENMP */
+
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
   use mod_nondimensionalization, only: rho_0, v_0, p_0, e_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
@@ -26,16 +31,22 @@ module mod_fluid
   public :: fluid_t, new_fluid
 
   type, extends(integrand_t) :: fluid_t
-    real(rk), dimension(:, :, :), allocatable :: conserved_vars !< ((rho, rho*u, rho*v, rho*E), i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: rho    !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: rho_u  !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: rho_v  !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: rho_E  !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: u      !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: v      !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: p      !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: cs     !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: mach   !< (i, j); Conserved quantities
+    logical :: prim_vars_updated = .false.
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
     procedure, private :: initialize_from_hdf5
     procedure, public :: t => time_derivative
-    procedure, public :: get_sound_speed
     procedure, public :: residual_smoother
-    procedure, public :: get_max_sound_speed
-    procedure, public :: get_primitive_vars
     procedure, public :: sanity_check
     procedure, nopass, private :: flux_edges
     procedure, pass(lhs), public :: type_plus_type => add_fluid
@@ -76,11 +87,41 @@ contains
               jmin=>finite_volume_scheme%grid%jlo_bc_cell, &
               jmax=>finite_volume_scheme%grid%jhi_bc_cell)
 
-      allocate(self%conserved_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) then
-        error stop "Unable to allocate fluid_t%conserved_vars"
-      end if
-      self%conserved_vars = 0.0_rk
+      allocate(self%rho(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%rho"
+      self%rho = 0.0_rk
+
+      allocate(self%u(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%u"
+      self%u = 0.0_rk
+
+      allocate(self%v(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%v"
+      self%v = 0.0_rk
+
+      allocate(self%p(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%p"
+      self%p = 0.0_rk
+
+      allocate(self%rho_u(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%rho_u"
+      self%rho_u = 0.0_rk
+
+      allocate(self%rho_v(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%rho_v"
+      self%rho_v = 0.0_rk
+
+      allocate(self%rho_E(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%rho_E"
+      self%rho_E = 0.0_rk
+
+      allocate(self%cs(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%cs"
+      self%cs = 0.0_rk
+
+      allocate(self%mach(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%mach"
+      self%mach = 0.0_rk
     end associate
 
     time_integrator => time_integrator_factory(input)
@@ -185,14 +226,11 @@ contains
     associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, imax=>finite_volume_scheme%grid%ihi_bc_cell, &
               jmin=>finite_volume_scheme%grid%jlo_bc_cell, jmax=>finite_volume_scheme%grid%jhi_bc_cell)
 
-      self%conserved_vars(1, imin:imax, jmin:jmax) = density
-      self%conserved_vars(2, imin:imax, jmin:jmax) = density * x_velocity
-      self%conserved_vars(3, imin:imax, jmin:jmax) = density * y_velocity
-      self%conserved_vars(4, imin:imax, jmin:jmax) = density &
-                                                     * eos%calculate_total_energy(pressure=pressure, &
-                                                                                  density=density, &
-                                                                                  x_velocity=x_velocity, &
-                                                                                  y_velocity=y_velocity)
+      self%rho(imin:imax, jmin:jmax) = density
+      self%rho_u(imin:imax, jmin:jmax) = density * x_velocity
+      self%rho_v(imin:imax, jmin:jmax) = density * y_velocity
+      self%rho_E(imin:imax, jmin:jmax) = density * eos%total_energy(p=pressure, rho=density, &
+                                                                    u=x_velocity, v=y_velocity)
     end associate
 
     write(*, '(a)') 'Initial fluid stats'
@@ -227,13 +265,11 @@ contains
     call debug_print('Initializing fluid_t from .ini', __FILE__, __LINE__)
     write(*, '(a,4(f0.3, 1x))') 'Initializing with [rho,u,v,p]: ', &
       input%init_density, input%init_x_velocity, input%init_y_velocity, input%init_pressure
-    self%conserved_vars(1, :, :) = density
-    self%conserved_vars(2, :, :) = density * x_velocity
-    self%conserved_vars(3, :, :) = density * y_velocity
-    self%conserved_vars(4, :, :) = density * eos%calculate_total_energy(pressure=pressure, &
-                                                                        density=density, &
-                                                                        x_velocity=x_velocity, &
-                                                                        y_velocity=y_velocity)
+    self%rho = density
+    self%rho_u = density * x_velocity
+    self%rho_v = density * y_velocity
+    self%rho_E = density * eos%total_energy(p=pressure, rho=density, &
+                                            u=x_velocity, v=y_velocity)
 
     if(near_zero(input%init_pressure)) then
       error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5"
@@ -249,7 +285,15 @@ contains
     class(fluid_t), intent(inout) :: self
 
     call debug_print('Running fluid_t%force_finalization()', __FILE__, __LINE__)
-    if(allocated(self%conserved_vars)) deallocate(self%conserved_vars)
+    if(allocated(self%rho)) deallocate(self%rho)
+    if(allocated(self%u)) deallocate(self%u)
+    if(allocated(self%v)) deallocate(self%v)
+    if(allocated(self%p)) deallocate(self%p)
+    if(allocated(self%rho_u)) deallocate(self%rho_u)
+    if(allocated(self%rho_v)) deallocate(self%rho_v)
+    if(allocated(self%rho_E)) deallocate(self%rho_E)
+    if(allocated(self%cs)) deallocate(self%cs)
+    if(allocated(self%mach)) deallocate(self%mach)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine force_finalization
 
@@ -257,7 +301,15 @@ contains
     type(fluid_t), intent(inout) :: self
 
     call debug_print('Running fluid_t%finalize()', __FILE__, __LINE__)
-    if(allocated(self%conserved_vars)) deallocate(self%conserved_vars)
+    if(allocated(self%rho)) deallocate(self%rho)
+    if(allocated(self%u)) deallocate(self%u)
+    if(allocated(self%v)) deallocate(self%v)
+    if(allocated(self%p)) deallocate(self%p)
+    if(allocated(self%rho_u)) deallocate(self%rho_u)
+    if(allocated(self%rho_v)) deallocate(self%rho_v)
+    if(allocated(self%rho_E)) deallocate(self%rho_E)
+    if(allocated(self%cs)) deallocate(self%cs)
+    if(allocated(self%mach)) deallocate(self%mach)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine finalize
 
@@ -271,6 +323,21 @@ contains
     class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
     type(fluid_t), allocatable :: local_d_dt !< dU/dt
     integer(ik) :: alloc_status, error_code, i, j
+
+    real(rk), dimension(:, :), allocatable :: evolved_corner_rho !< (i,j); Reconstructed rho
+    real(rk), dimension(:, :), allocatable :: evolved_corner_u !< (i,j); Reconstructed u
+    real(rk), dimension(:, :), allocatable :: evolved_corner_v !< (i,j); Reconstructed v
+    real(rk), dimension(:, :), allocatable :: evolved_corner_p !< (i,j); Reconstructed p
+
+    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_rho !< (i,j); Reconstructed rho
+    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_u !< (i,j); Reconstructed u
+    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_v !< (i,j); Reconstructed v
+    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_p !< (i,j); Reconstructed p
+
+    real(rk), dimension(:, :), allocatable :: evolved_du_mid_rho !< (i,j); Reconstructed rho
+    real(rk), dimension(:, :), allocatable :: evolved_du_mid_u !< (i,j); Reconstructed u
+    real(rk), dimension(:, :), allocatable :: evolved_du_mid_v !< (i,j); Reconstructed v
+    real(rk), dimension(:, :), allocatable :: evolved_du_mid_p !< (i,j); Reconstructed p
 
     real(rk), dimension(:, :, :), allocatable :: primitive_vars
     !< ((rho, u, v, p), i, j); Primitive variables at each cell center
@@ -320,6 +387,21 @@ contains
       ! down/up midpoints
       allocate(evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state"
+
+      allocate(evolved_corner_rho(imin_node:imax_node, jmin_node:jmax_node))
+      allocate(evolved_corner_u(imin_node:imax_node, jmin_node:jmax_node))
+      allocate(evolved_corner_v(imin_node:imax_node, jmin_node:jmax_node))
+      allocate(evolved_corner_p(imin_node:imax_node, jmin_node:jmax_node))
+
+      allocate(evolved_lr_mid_rho(imin_cell:imax_cell, jmin_node:jmax_node))
+      allocate(evolved_lr_mid_u(imin_cell:imax_cell, jmin_node:jmax_node))
+      allocate(evolved_lr_mid_v(imin_cell:imax_cell, jmin_node:jmax_node))
+      allocate(evolved_lr_mid_p(imin_cell:imax_cell, jmin_node:jmax_node))
+
+      allocate(evolved_du_mid_rho(imin_node:imax_node, jmin_cell:jmax_cell))
+      allocate(evolved_du_mid_u(imin_node:imax_node, jmin_cell:jmax_cell))
+      allocate(evolved_du_mid_v(imin_node:imax_node, jmin_cell:jmax_cell))
+      allocate(evolved_du_mid_p(imin_node:imax_node, jmin_cell:jmax_cell))
 
     end associate
 
@@ -392,20 +474,18 @@ contains
     call d_dt%set_temp(calling_function='fluid_t%time_derivative (d_dt)', line=__LINE__)
 
     ! Now deallocate everything
-    deallocate(primitive_vars, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate primitive_vars in fluid_t%time_derivative()"
-
-    deallocate(evolved_corner_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state in fluid_t%time_derivative()"
-
-    deallocate(evolved_downup_midpoints_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state in fluid_t%time_derivative()"
-
-    deallocate(evolved_leftright_midpoints_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state in fluid_t%time_derivative()"
-
-    deallocate(reconstructed_state, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state"
+    deallocate(evolved_corner_rho)
+    deallocate(evolved_corner_u)
+    deallocate(evolved_corner_v)
+    deallocate(evolved_corner_p)
+    deallocate(evolved_lr_mid_rho)
+    deallocate(evolved_lr_mid_u)
+    deallocate(evolved_lr_mid_v)
+    deallocate(evolved_lr_mid_p)
+    deallocate(evolved_du_mid_rho)
+    deallocate(evolved_du_mid_u)
+    deallocate(evolved_du_mid_v)
+    deallocate(evolved_du_mid_p)
 
   end function time_derivative
 
@@ -455,13 +535,14 @@ contains
 
         top_left_corner = evolved_corner_state(:, i, j + 1)
         bottom_left_corner = evolved_corner_state(:, i, j)
-        top_right_corner = evolved_corner_state(:, i + 1, j + 1)
-        bottom_right_corner = evolved_corner_state(:, i + 1, j)
         bottom_midpoint = evolved_leftright_midpoints_state(:, i, j)
-        top_midpoint = evolved_leftright_midpoints_state(:, i, j + 1)
-        right_midpoint = evolved_downup_midpoints_state(:, i + 1, j)
         left_midpoint = evolved_downup_midpoints_state(:, i, j)
         delta_l = grid%cell_edge_lengths(:, i, j)
+
+        top_midpoint = evolved_leftright_midpoints_state(:, i, j + 1)
+        right_midpoint = evolved_downup_midpoints_state(:, i + 1, j)
+        top_right_corner = evolved_corner_state(:, i + 1, j + 1)
+        bottom_right_corner = evolved_corner_state(:, i + 1, j)
 
         do edge = 1, 4
           do xy = 1, 2
@@ -555,8 +636,11 @@ contains
     select type(rhs)
     class is(fluid_t)
       allocate(local_difference, source=lhs)
-      ! local_difference%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
-      call add_fields(a=lhs%conserved_vars, b=rhs%conserved_vars, c=local_difference%conserved_vars) ! c=a-b
+      call subtract_fields(a=lhs%rho, b=rhs%rho, c=local_difference%rho) ! c=a+b
+      call subtract_fields(a=lhs%rho_u, b=rhs%rho_u, c=local_difference%rho_u) ! c=a+b
+      call subtract_fields(a=lhs%rho_v, b=rhs%rho_v, c=local_difference%rho_v) ! c=a+b
+      call subtract_fields(a=lhs%rho_E, b=rhs%rho_E, c=local_difference%rho_E) ! c=a+b
+      local_difference%prim_vars_updated = .false.
     class default
       error stop 'fluid_t%subtract_fluid: unsupported rhs class'
     end select
@@ -578,8 +662,11 @@ contains
     select type(rhs)
     class is(fluid_t)
       allocate(local_sum, source=lhs)
-      ! local_sum%conserved_vars = lhs%conserved_vars + rhs%conserved_vars
-      call add_fields(a=lhs%conserved_vars, b=rhs%conserved_vars, c=local_sum%conserved_vars) ! c=a+b
+      call add_fields(a=lhs%rho, b=rhs%rho, c=local_sum%rho) ! c=a+b
+      call add_fields(a=lhs%rho_u, b=rhs%rho_u, c=local_sum%rho_u) ! c=a+b
+      call add_fields(a=lhs%rho_v, b=rhs%rho_v, c=local_sum%rho_v) ! c=a+b
+      call add_fields(a=lhs%rho_E, b=rhs%rho_E, c=local_sum%rho_E) ! c=a+b
+      local_sum%prim_vars_updated = .false.
     class default
       error stop 'fluid_t%add_fluid: unsupported rhs class'
     end select
@@ -589,100 +676,107 @@ contains
     call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
   end function add_fluid
 
-  pure subroutine add_fields(a, b, c)
+  subroutine add_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a + b
-    real(rk), dimension(:, :, :), intent(in) :: a
-    real(rk), dimension(:, :, :), intent(in) :: b
-    real(rk), dimension(:, :, :), intent(inout) :: c
+    real(rk), dimension(:, :), intent(in) :: a
+    real(rk), dimension(:, :), intent(in) :: b
+    real(rk), dimension(:, :), intent(inout) :: c
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi, klo, khi
+    integer(ik) :: ilo, ihi, jlo, jhi
 
     ilo = lbound(a, dim=1)
     ihi = ubound(a, dim=1)
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
-    klo = lbound(a, dim=3)
-    khi = ubound(a, dim=3)
 
-    do concurrent(k=klo:khi)
-      do concurrent(j=jlo:jhi)
-        do i = ilo, ihi
-          c(i, j, k) = a(i, j, k) + b(i, j, k)
-        end do
+    !$omp parallel default(none), private(i,j,ilo,jlo) &
+    !$omp shared(a,b,c)
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        c(i, j) = a(i, j) + b(i, j)
       end do
     end do
+    !$omp end simd
+    !$omp end parallel
+
   end subroutine add_fields
 
-  pure subroutine subtract_fields(a, b, c)
+  subroutine subtract_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a - b
-    real(rk), dimension(:, :, :), intent(in) :: a
-    real(rk), dimension(:, :, :), intent(in) :: b
-    real(rk), dimension(:, :, :), intent(inout) :: c
+    real(rk), dimension(:, :), intent(in) :: a
+    real(rk), dimension(:, :), intent(in) :: b
+    real(rk), dimension(:, :), intent(inout) :: c
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi, klo, khi
+    integer(ik) :: ilo, ihi, jlo, jhi
 
     ilo = lbound(a, dim=1)
     ihi = ubound(a, dim=1)
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
-    klo = lbound(a, dim=3)
-    khi = ubound(a, dim=3)
 
-    do concurrent(k=klo:khi)
-      do concurrent(j=jlo:jhi)
-        do i = ilo, ihi
-          c(i, j, k) = a(i, j, k) - b(i, j, k)
-        end do
+    !$omp parallel default(none), private(i,j,ilo,jlo) &
+    !$omp shared(a,b,c)
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        c(i, j) = a(i, j) - b(i, j)
       end do
     end do
+    !$omp end simd
+    !$omp end parallel
+
   end subroutine subtract_fields
 
-  pure subroutine mult_fields(a, b, c)
+  subroutine mult_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :, :), intent(in) :: a
-    real(rk), dimension(:, :, :), intent(in) :: b
-    real(rk), dimension(:, :, :), intent(inout) :: c
+    real(rk), dimension(:, :), intent(in) :: a
+    real(rk), dimension(:, :), intent(in) :: b
+    real(rk), dimension(:, :), intent(inout) :: c
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi, klo, khi
+    integer(ik) :: ilo, ihi, jlo, jhi
 
     ilo = lbound(a, dim=1)
     ihi = ubound(a, dim=1)
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
-    klo = lbound(a, dim=3)
-    khi = ubound(a, dim=3)
 
-    do concurrent(k=klo:khi)
-      do concurrent(j=jlo:jhi)
-        do i = ilo, ihi
-          c(i, j, k) = a(i, j, k) * b(i, j, k)
-        end do
+    !$omp parallel default(none), private(i,j,ilo,jlo) &
+    !$omp shared(a,b,c)
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        c(i, j) = a(i, j) * b(i, j)
       end do
     end do
+    !$omp end simd
+    !$omp end parallel
+
   end subroutine mult_fields
 
-  pure subroutine mult_field_by_real(a, b, c)
+  subroutine mult_field_by_real(a, b, c)
     !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :, :), intent(in) :: a
+    real(rk), dimension(:, :), intent(in) :: a
     real(rk), intent(in) :: b
-    real(rk), dimension(:, :, :), intent(inout) :: c
+    real(rk), dimension(:, :), intent(inout) :: c
     integer(ik) :: i, j, k
-    integer(ik) :: ilo, ihi, jlo, jhi, klo, khi
+    integer(ik) :: ilo, ihi, jlo, jhi
 
     ilo = lbound(a, dim=1)
     ihi = ubound(a, dim=1)
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
-    klo = lbound(a, dim=3)
-    khi = ubound(a, dim=3)
 
-    do concurrent(k=klo:khi)
-      do concurrent(j=jlo:jhi)
-        do i = ilo, ihi
-          c(i, j, k) = a(i, j, k) * b
-        end do
+    !$omp parallel default(none), private(i,j,ilo,jlo) &
+    !$omp shared(a,b,c)
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        c(i, j) = a(i, j) * b
       end do
     end do
+    !$omp end simd
+    !$omp end parallel
   end subroutine mult_field_by_real
 
   function fluid_mul_real(lhs, rhs) result(product)
@@ -699,8 +793,11 @@ contains
     allocate(local_product, source=lhs, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
 
-    ! local_product%conserved_vars = lhs%conserved_vars * rhs
-    call mult_field_by_real(a=lhs%conserved_vars, b=rhs, c=local_product%conserved_vars)
+    call mult_field_by_real(a=lhs%rho, b=rhs, c=local_product%rho)
+    call mult_field_by_real(a=lhs%rho_u, b=rhs, c=local_product%rho_u)
+    call mult_field_by_real(a=lhs%rho_v, b=rhs, c=local_product%rho_v)
+    call mult_field_by_real(a=lhs%rho_E, b=rhs, c=local_product%rho_E)
+    local_product%prim_vars_updated = .false.
 
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
@@ -721,8 +818,11 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%real_mul_fluid"
 
     local_product%time_integrator = rhs%time_integrator
-    ! local_product%conserved_vars = rhs%conserved_vars * lhs
-    call mult_field_by_real(a=rhs%conserved_vars, b=lhs, c=local_product%conserved_vars)
+    call mult_field_by_real(a=rhs%rho, b=lhs, c=local_product%rho)
+    call mult_field_by_real(a=rhs%rho_u, b=lhs, c=local_product%rho_u)
+    call mult_field_by_real(a=rhs%rho_v, b=lhs, c=local_product%rho_v)
+    call mult_field_by_real(a=rhs%rho_E, b=lhs, c=local_product%rho_E)
+    local_product%prim_vars_updated = .false.
 
     call move_alloc(local_product, product)
     call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
@@ -733,6 +833,8 @@ contains
     class(fluid_t), intent(inout) :: lhs
     class(integrand_t), intent(in) :: rhs
     integer(ik) :: alloc_status
+    integer(ik) :: i, j, k
+    integer(ik) :: ilo, ihi, jlo, jhi
 
     alloc_status = 0
     call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
@@ -741,103 +843,37 @@ contains
     select type(rhs)
     class is(fluid_t)
       lhs%time_integrator = rhs%time_integrator
-      lhs%conserved_vars = rhs%conserved_vars
+      lhs%rho = rhs%rho
+      lhs%rho_u = rhs%rho_u
+      lhs%rho_v = rhs%rho_v
+      lhs%rho_E = rhs%rho_E
+      call eos%conserved_to_primitive(rho=lhs%rho, rho_u=lhs%rho_u, rho_v=lhs%rho_v, &
+                                      rho_E=lhs%rho_E, u=lhs%u, v=lhs%v, p=lhs%p)
+      lhs%cs = eos%sound_speed(p=lhs%p, rho=lhs%rho)
+
+      ilo = lbound(lhs%rho, dim=1)
+      ihi = ubound(lhs%rho, dim=1)
+      jlo = lbound(lhs%rho, dim=2)
+      jhi = ubound(lhs%rho, dim=2)
+
+      !$omp parallel default(shared) private(i,j,ilo,jlo)
+      !$omp simd
+      do j = jlo, jhi
+        do i = ilo, ihi
+          lhs%mach(i, j) = sqrt(lhs%u(i, j)**2 + lhs%v(i, j)**2) / lhs%cs(i, j)
+        end do
+      end do
+      !$omp end simd
+      !$omp end parallel
+
+      lhs%prim_vars_updated = .true.
+
     class default
       error stop 'Error in fluid_t%assign_fluid: unsupported class'
     end select
 
     call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
   end subroutine assign_fluid
-
-  subroutine get_sound_speed(self, sound_speed)
-    !< Calculate the sound speed for the entire domain
-    class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(out), allocatable :: sound_speed
-    integer(ik) :: ilo, ihi, jlo, jhi
-
-    call debug_print('Running fluid_t%calculate_sound_speed()', __FILE__, __LINE__)
-
-    ilo = lbound(self%conserved_vars, dim=2)
-    ihi = ubound(self%conserved_vars, dim=2)
-    jlo = lbound(self%conserved_vars, dim=3)
-    jhi = ubound(self%conserved_vars, dim=3)
-
-    if(.not. allocated(sound_speed)) allocate(sound_speed(ilo:ihi, jlo:jhi))
-
-    call eos%sound_speed_from_conserved(conserved_vars=self%conserved_vars, sound_speed=sound_speed)
-  end subroutine get_sound_speed
-
-  real(rk) function get_max_sound_speed(self) result(max_cs)
-    !< Find the maximum sound speed in the domain
-    class(fluid_t), intent(in) :: self
-    real(rk), dimension(:, :), allocatable :: sound_speed
-    integer(ik) :: ilo, ihi, jlo, jhi
-    max_cs = 0.0_rk
-    call debug_print('Running fluid_t%get_max_sound_speed()', __FILE__, __LINE__)
-
-    call self%get_sound_speed(sound_speed)
-    ilo = lbound(sound_speed, dim=1) + 1
-    ihi = ubound(sound_speed, dim=1) - 1
-    jlo = lbound(sound_speed, dim=2) + 1
-    jhi = ubound(sound_speed, dim=2) - 1
-
-    max_cs = maxval(sound_speed(ilo:ihi, jlo:jhi))
-    deallocate(sound_speed)
-  end function get_max_sound_speed
-
-  subroutine get_primitive_vars(self, primitive_vars, fv)
-    !< Convert the current conserved_vars [rho, rho u, rho v, rho E] to primitive [rho, u, v, p]. Note, the
-    !< work is done in the EOS module due to the energy to pressure conversion
-    class(fluid_t), intent(in) :: self
-    class(finite_volume_scheme_t), intent(inout) :: fv
-    real(rk), dimension(:, :, :), allocatable, intent(out) :: primitive_vars
-    integer(ik) :: i, j, ilo, ihi, jlo, jhi
-    integer(ik), dimension(3) :: bounds
-    real(rk), dimension(:, :), allocatable :: sound_speed
-    real(rk), dimension(:, :), allocatable :: mach_u
-    real(rk), dimension(:, :), allocatable :: mach_v
-
-    call debug_print('Running fluid_t%get_primitive_vars()', __FILE__, __LINE__)
-    allocate(primitive_vars, mold=self%conserved_vars)
-
-    call eos%conserved_to_primitive(self%conserved_vars, primitive_vars)
-    bounds = lbound(primitive_vars)
-
-    call fv%apply_primitive_vars_bc(primitive_vars, bounds)
-    call self%get_sound_speed(sound_speed)
-    allocate(mach_u, mold=sound_speed)
-    allocate(mach_v, mold=sound_speed)
-
-    ilo = lbound(primitive_vars, dim=2)
-    ihi = ubound(primitive_vars, dim=2)
-    jlo = lbound(primitive_vars, dim=3)
-    jhi = ubound(primitive_vars, dim=3)
-
-    !!$omp parallel default(none) private(i,j,ilo,ihi,jlo,jhi) &
-    !!$omp shared(primitive_vars, sound_speed, mach_u, mach_v)
-    !!$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        mach_u(i, j) = abs(primitive_vars(2, i, j) / sound_speed(i, j))
-        mach_v(i, j) = abs(primitive_vars(3, i, j) / sound_speed(i, j))
-      end do
-    end do
-    !!$omp end do
-    !!$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(mach_u(i, j) < 1e-8_rk) primitive_vars(2, i, j) = 0.0_rk
-        if(mach_v(i, j) < 1e-8_rk) primitive_vars(3, i, j) = 0.0_rk
-      end do
-    end do
-    !!$omp end do
-    !!$omp end parallel
-
-    deallocate(sound_speed)
-    deallocate(mach_u)
-    deallocate(mach_v)
-
-  end subroutine get_primitive_vars
 
   subroutine sanity_check(self, error_code)
     !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.

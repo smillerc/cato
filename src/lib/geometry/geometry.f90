@@ -209,21 +209,20 @@ contains
     real(rk) :: x0, x1, dx
     real(rk) :: y0, y1, dy
     real(rk) :: root_1, root_2
-    
+
     t = 0.0_rk
     discriminiant = 0.0_rk
     a = 0.0_rk
     b = 0.0_rk
     c = 0.0_rk
 
-    x0 = line_xy(1, 1) 
+    x0 = line_xy(1, 1)
     x1 = line_xy(1, 2)
     dx = x1 - x0
 
-    y0 = line_xy(2, 1) 
+    y0 = line_xy(2, 1)
     y1 = line_xy(2, 2)
     dy = y1 - y0
-              
 
     associate(r=>circle_radius, h=>circle_xy(1), k=>circle_xy(2))
       a = dx**2 + dy**2

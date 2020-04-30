@@ -73,7 +73,7 @@ contains
       if(v_tot_d > 0.0_rk) cos_theta = -v_dot_n / v_tot_d
 
       ! domain sound speed
-      cs_d = eos%sound_speed(pressure=p, density=rho)
+      cs_d = eos%sound_speed(p=p, rho=rho)
 
       ! stagnation sound speed
       cs_0_sq = cs_d**2 + ((gamma - 1.0_rk) / 2.0_rk) * v_tot_d**2
@@ -138,7 +138,7 @@ contains
               n_x=>boundary_norm(1), n_y=>boundary_norm(2), &
               v_d=>domain_prim_vars(3), p_d=>domain_prim_vars(4))
 
-      cs_d = eos%sound_speed(pressure=p_d, density=rho_d)
+      cs_d = eos%sound_speed(p=p_d, rho=rho_d)
 
       rho_b = rho_d + (p_b - p_d) / cs_d**2
       u_b = u_d + n_x * (p_d - p_b) / (rho_d * cs_d)

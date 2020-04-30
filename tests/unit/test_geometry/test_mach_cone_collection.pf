@@ -68,7 +68,7 @@ contains
                               cone_location='left/right midpoint')
     ! call mach_cone(1,1)
     ! P' should be in the cell below the midpoint
-    @assertEqual([1.0_rk, 0.96_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([1.0_rk, 0.96_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
 
     !print*, mach_cone
@@ -129,9 +129,9 @@ contains
                               reconstructed_state=midpoint_state, &
                               cell_indices=neighbor_cell_indices, &
                               cone_location='left/right midpoint')
-    call mach_cone%print(i,j)
+    call mach_cone%print(i, j)
     ! P' should be in the cell below the midpoint
-    @assertEqual([0.0_rk, -0.01_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.0_rk, -0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
 
     ! These values are known a priori (this is a test after all)
@@ -145,7 +145,7 @@ contains
     @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
 
     data_buffer = cos(theta_ie) - cos(theta_ib)
-    print*, data_buffer
+    print *, data_buffer
     @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
 
     data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
@@ -206,7 +206,7 @@ contains
     !print*, mach_cone
 
     ! P' should be in the cell above the midpoint
-    @assertEqual([0.0_rk, 0.01_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.0_rk, 0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.true., .false.], mach_cone%p_prime_in_cell(:, i, j))
 
     ! These values are known a priori (this is a test after all)
@@ -276,7 +276,7 @@ contains
                               cell_indices=neighbor_cell_indices, &
                               cone_location='down/up midpoint')
     ! P' should be in the cell below the midpoint
-    @assertEqual([0.04_rk, 0.0_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.04_rk, 0.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
 
     ! These values are known a priori (this is a test after all)
@@ -346,7 +346,7 @@ contains
                               cone_location='down/up midpoint')
     ! P' should be in the cell on the left
     ! call mach_cone(1,1)
-    @assertEqual([-2.01_rk, -1.0_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([-2.01_rk, -1.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.true., .false.], mach_cone%p_prime_in_cell(:, i, j))
 
     ! These values are known a priori (this is a test after all)
@@ -417,7 +417,7 @@ contains
                               cone_location='down/up midpoint')
     ! call mach_cone%print(i,j)
     ! P' should be collocated with P0 at the midpoint
-    @assertEqual([0.0_rk, 0.0_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.0_rk, 0.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.true., .true.], mach_cone%p_prime_in_cell(:, i, j))
     ! @assertEqual(.true., mach_cone%cone_is_centered(i, j))
 
@@ -487,7 +487,7 @@ contains
                               cell_indices=neighbor_cell_indices, &
                               cone_location='left/right midpoint')
     ! P' should be in the cell below the midpoint
-    @assertEqual([0.0_rk, 0.0_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.0_rk, 0.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.true., .true.], mach_cone%p_prime_in_cell(:, i, j))
     ! @assertEqual(.true., mach_cone%cone_is_centered(i, j))
 
@@ -566,7 +566,7 @@ contains
                               cell_indices=neighbor_cell_indices, &
                               cone_location='corner')
     ! P' should be collocated with P0 at the corner
-    @assertEqual([0.0_rk, 0.0_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.0_rk, 0.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual(.true., mach_cone%p_prime_in_cell(:, i, j))
     @assertEqual(1, mach_cone%n_arcs_per_cell(:, i, j))
 
@@ -657,7 +657,7 @@ contains
                               cone_location='corner')
     ! P' should be in the cell to the upper right
     @assertEqual([0, 1, 2, 1], mach_cone%n_arcs_per_cell(:, i, j))
-    @assertEqual([1.01_rk, 3.01_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([1.01_rk, 3.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.false., .false., .true., .false.], mach_cone%p_prime_in_cell(:, i, j))
 
     theta_11 = 0.0_rk           ! vector 1, intersection 1 (no intersection)
@@ -750,7 +750,7 @@ contains
                               cell_indices=neighbor_cell_indices, &
                               cone_location='corner')
     ! P' should be in the lower right cell
-    @assertEqual([0.01_rk, -0.01_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.01_rk, -0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell(:, i, j))
 
     theta_11 = 2.4568734506_rk  ! vector 1, intersection 1
@@ -843,7 +843,7 @@ contains
                               cell_indices=neighbor_cell_indices, &
                               cone_location='corner')
     ! P' should be in the cell below the midpoint
-    @assertEqual([0.005_rk, -0.005_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.005_rk, -0.005_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell(:, i, j))
 
     theta_11 = 1.9684957419_rk  ! vector 1, intersection 1 (not valid intersection)
@@ -936,7 +936,7 @@ contains
                               cell_indices=neighbor_cell_indices, &
                               cone_location='corner')
     ! P' should be in the cell below the midpoint
-    @assertEqual([-0.01_rk, -0.01_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([-0.01_rk, -0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell(:, i, j))
 
     theta_11 = 0.6847192030_rk  ! vector 1, intersection 1 (not valid intersection)
@@ -1029,7 +1029,7 @@ contains
                               cell_indices=neighbor_cell_indices, &
                               cone_location='corner')
     ! P' should be in the cell below the midpoint
-    @assertEqual([-0.01_rk, 0.01_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([-0.01_rk, 0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([.false., .false., .false., .true.], mach_cone%p_prime_in_cell(:, i, j))
 
     theta_11 = 0.6847192030_rk  ! vector 1, intersection 1 (not valid intersection)
@@ -1103,7 +1103,7 @@ contains
     i = 1
     j = 1
     edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk]
-    edge_vectors(:, 2, i, j) = [0.0_rk,  1.0_rk]
+    edge_vectors(:, 2, i, j) = [0.0_rk, 1.0_rk]
     vector_scaling = 1.0_rk
 
     ! cell ordering is 1) left, 2) right
