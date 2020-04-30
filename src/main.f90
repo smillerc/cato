@@ -76,11 +76,14 @@ program cato
     call contour_writer%write_contour(U, fv, time, iteration)
   end if
 
-  print *
-  write(std_out, '(a)') '--------------------------------------------'
-  write(std_out, '(a)') ' Starting time loop:'
-  write(std_out, '(a)') '--------------------------------------------'
-  print *
+  if (this_image() == 1) then
+    print *
+    write(std_out, '(a)') '--------------------------------------------'
+    write(std_out, '(a)') ' Starting time loop:'
+    write(std_out, '(a)') '--------------------------------------------'
+    print *
+  end if
+  error stop
 
   call timer%start()
   delta_t = 0.1_rk * get_timestep(cfl=input%cfl, fv=fv, fluid=U)
