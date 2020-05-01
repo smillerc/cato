@@ -96,10 +96,18 @@ contains
     class(finite_volume_scheme_t), intent(in) :: fv
     class(fluid_t), intent(in) :: fluid
 
+    integer(ik) :: ilo, ihi, jlo, jhi
+
+    ilo = fv%grid%ilo_cell
+    ihi = fv%grid%ihi_cell 
+    jlo = fv%grid%jlo_cell 
+    jhi = fv%grid%jhi_cell
+
     associate(dx=>fv%grid%cell_size(1, :, :), &
               dy=>fv%grid%cell_size(2, :, :))
 
-      delta_t = minval(cfl / (((fluid%u + fluid%cs) / dx) + ((fluid%v + fluid%cs) / dy)))
+      delta_t = minval(cfl / (((fluid%u(ilo:ihi,jlo:jhi) + fluid%cs(ilo:ihi,jlo:jhi)) / dx(ilo:ihi,jlo:jhi)) + &
+                              ((fluid%v(ilo:ihi,jlo:jhi) + fluid%cs(ilo:ihi,jlo:jhi)) / dy(ilo:ihi,jlo:jhi))))
     end associate
 
   end function

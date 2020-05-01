@@ -111,9 +111,13 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volume"
       self%cell_volume = 0.0_rk
 
-      allocate(self%cell_size(2, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_size"
-      self%cell_size = 0.0_rk
+      allocate(self%cell_dx(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_dx"
+      self%cell_dx = 0.0_rk
+
+      allocate(self%cell_dy(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_dy"
+      self%cell_dy = 0.0_rk
 
       allocate(self%cell_centroid_xy(2, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroid_xy"
@@ -496,7 +500,8 @@ contains
         self%cell_edge_lengths(:, i, j) = quad%edge_lengths
         self%cell_node_xy(:, :, :, i, j) = quad%get_cell_node_xy_set()
         self%cell_edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
-        self%cell_size(:, i, j) = [quad%min_dx, quad%min_dy]
+        self%cell_dx(i, j) = quad%min_dx
+        self%cell_dy(i, j) = quad%min_dy
 
       end do
     end do
@@ -513,55 +518,19 @@ contains
     integer(ik) :: alloc_status
 
     call debug_print('Running regular_2d_grid_t%finalize()', __FILE__, __LINE__)
-    if(allocated(self%cell_volume)) then
-      deallocate(self%cell_volume, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_volume"
-    end if
-
-    if(allocated(self%node_x)) then
-      deallocate(self%node_x, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%node_x"
-    end if
-
-    if(allocated(self%node_y)) then
-      deallocate(self%node_y, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%node_y"
-    end if
-
-    if(allocated(self%cell_centroid_xy)) then
-      deallocate(self%cell_centroid_xy, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_centroid_xy"
-    end if
-
-    if(allocated(self%cell_edge_lengths)) then
-      deallocate(self%cell_edge_lengths, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_lengths"
-    end if
-
-    if(allocated(self%cell_node_xy)) then
-      deallocate(self%cell_node_xy, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_node_xy"
-    end if
-
-    if(allocated(self%cell_edge_norm_vectors)) then
-      deallocate(self%cell_edge_norm_vectors, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%cell_edge_norm_vectors"
-    end if
-
-    if(allocated(self%corner_edge_vectors)) then
-      deallocate(self%corner_edge_vectors, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%corner_edge_vectors"
-    end if
-
-    if(allocated(self%downup_midpoint_edge_vectors)) then
-      deallocate(self%downup_midpoint_edge_vectors, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%downup_midpoint_edge_vectors"
-    end if
-
-    if(allocated(self%leftright_midpoint_edge_vectors)) then
-      deallocate(self%leftright_midpoint_edge_vectors, stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to deallocate regular_2d_grid_t%leftright_midpoint_edge_vectors"
-    end if
+    
+    if(allocated(self%cell_volume)) deallocate(self%cell_volume)
+    if(allocated(self%node_x)) deallocate(self%node_x)
+    if(allocated(self%node_y)) deallocate(self%node_y)
+    if(allocated(self%cell_centroid_xy)) deallocate(self%cell_centroid_xy)
+    if(allocated(self%cell_edge_lengths)) deallocate(self%cell_edge_lengths)
+    if(allocated(self%cell_node_xy)) deallocate(self%cell_node_xy)
+    if(allocated(self%cell_edge_norm_vectors)) deallocate(self%cell_edge_norm_vectors)
+    if(allocated(self%corner_edge_vectors)) deallocate(self%corner_edge_vectors)
+    if(allocated(self%downup_midpoint_edge_vectors)) deallocate(self%downup_midpoint_edge_vectors)
+    if(allocated(self%leftright_midpoint_edge_vectors)) deallocate(self%leftright_midpoint_edge_vectors)
+    if(allocated(self%cell_dx)) deallocate(self%cell_dx)
+    if(allocated(self%cell_dy)) deallocate(self%cell_dy)
 
   end subroutine finalize
 
