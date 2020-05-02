@@ -53,6 +53,7 @@ add_library(
   lib/source_terms/mod_source.f90
   lib/source_terms/energy_source.f90
   lib/fluid/fluxes.f90
+  lib/fluid/flux_array.f90
   lib/fluid/mod_fluid.f90
   lib/evolution_operator/abstract_evo_operator.f90
   lib/evolution_operator/local_evo_operator.f90
@@ -83,7 +84,7 @@ target_link_libraries(
          io
          finterp
          functional # functional # ${Coarray_LIBRARIES}
-        #  OpenMP::OpenMP_Fortran
+         # OpenMP::OpenMP_Fortran
          ${HDF5_LIBRARIES}
          ${HDF5_HL_LIBRARIES})
 

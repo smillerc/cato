@@ -11,7 +11,6 @@ module mod_flux_tensor
 
   type flux_tensor_t
     real(rk), dimension(4, 2) :: state  !< ((i,j), conserved_quantites)
-    !< TODO: fix the stride to (4,2) for better access
   contains
     procedure, pass(lhs), private :: assign_from_flux
     procedure, pass(flux) :: real_mul_flux
