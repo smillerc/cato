@@ -42,12 +42,12 @@ add_library(
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
-  lib/boundary_conditions/vacuum_bc.f90
+  # lib/boundary_conditions/vacuum_bc.f90
   lib/boundary_conditions/inlet_outlet.f90
-  lib/boundary_conditions/farfield.f90
+  # lib/boundary_conditions/farfield.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
-  lib/boundary_conditions/reflection_bc.f90
+  # lib/boundary_conditions/reflection_bc.f90
   lib/boundary_conditions/bc_factory.f90
   lib/source_terms/source_factory.f90
   lib/source_terms/mod_source.f90

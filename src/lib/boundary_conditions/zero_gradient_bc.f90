@@ -13,7 +13,6 @@ module mod_zero_gradient_bc
   contains
     procedure, public :: apply_primitive_var_bc => apply_zero_gradient_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_zero_gradient_reconstructed_state_bc
-    procedure, public :: apply_cell_gradient_bc => apply_zero_gradient_cell_gradient_bc
     procedure, public :: copy => copy_zero_gradient_bc
   end type
 contains
@@ -33,12 +32,14 @@ contains
     class(zero_gradient_bc_t), intent(inout) :: out_bc
   end subroutine
 
-  subroutine apply_zero_gradient_primitive_var_bc(self, primitive_vars, lbounds)
-    !< Apply zero_gradient boundary conditions to the conserved state vector field
+  subroutine apply_zero_gradient_primitive_var_bc(self, rho, u, v, p, lbounds)
+
     class(zero_gradient_bc_t), intent(inout) :: self
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
-    !< ((rho, u ,v, p), i, j); Conserved variables for each cell
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
 
     integer(ik) :: left         !< Min i real cell index
     integer(ik) :: right        !< Max i real cell index
@@ -49,10 +50,10 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    left_ghost = lbound(primitive_vars, dim=2)
-    right_ghost = ubound(primitive_vars, dim=2)
-    bottom_ghost = lbound(primitive_vars, dim=3)
-    top_ghost = ubound(primitive_vars, dim=3)
+    left_ghost = lbound(rho, dim=1)
+    right_ghost = ubound(rho, dim=1)
+    bottom_ghost = lbound(rho, dim=2)
+    top_ghost = ubound(rho, dim=2)
     left = left_ghost + 1
     right = right_ghost - 1
     bottom = bottom_ghost + 1
@@ -61,30 +62,45 @@ contains
     select case(self%location)
     case('+x')
       call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', __FILE__, __LINE__)
-      primitive_vars(:, right_ghost, :) = primitive_vars(:, right, :)
+      rho(right_ghost, :) = rho(right, :)
+      u(right_ghost, :) = u(right, :)
+      v(right_ghost, :) = v(right, :)
+      p(right_ghost, :) = p(right, :)
+
     case('-x')
       call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -x', __FILE__, __LINE__)
-      primitive_vars(:, left_ghost, :) = primitive_vars(:, left, :)
+      rho(left_ghost, :) = rho(left, :)
+      u(left_ghost, :) = u(left, :)
+      v(left_ghost, :) = v(left, :)
+      p(left_ghost, :) = p(left, :)
     case('+y')
       call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', __FILE__, __LINE__)
-      primitive_vars(:, :, top_ghost) = primitive_vars(:, :, top)
+      rho(:, top_ghost) = rho(:, top)
+      u(:, top_ghost) = u(:, top)
+      v(:, top_ghost) = v(:, top)
+      p(:, top_ghost) = p(:, top)
     case('-y')
       call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', __FILE__, __LINE__)
-      primitive_vars(:, :, bottom_ghost) = primitive_vars(:, :, bottom)
+      rho(:, bottom_ghost) = rho(:, bottom)
+      u(:, bottom_ghost) = u(:, bottom)
+      v(:, bottom_ghost) = v(:, bottom)
+      p(:, bottom_ghost) = p(:, bottom)
     case default
       error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc()"
     end select
 
   end subroutine apply_zero_gradient_primitive_var_bc
 
-  subroutine apply_zero_gradient_reconstructed_state_bc(self, reconstructed_state, lbounds)
-    !< Apply zero_gradient boundary conditions to the reconstructed state vector field
+  subroutine apply_zero_gradient_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
+    !< Apply zero gradient boundary conditions to the reconstructed state vector field
 
     class(zero_gradient_bc_t), intent(inout) :: self
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
+
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
 
     integer(ik) :: left         !< Min i real cell index
     integer(ik) :: right        !< Max i real cell index
@@ -95,10 +111,10 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    left_ghost = lbound(reconstructed_state, dim=4)
-    right_ghost = ubound(reconstructed_state, dim=4)
-    bottom_ghost = lbound(reconstructed_state, dim=5)
-    top_ghost = ubound(reconstructed_state, dim=5)
+    left_ghost = lbound(recon_rho, dim=2)
+    right_ghost = ubound(recon_rho, dim=2)
+    bottom_ghost = lbound(recon_rho, dim=3)
+    top_ghost = ubound(recon_rho, dim=3)
     left = left_ghost + 1
     right = right_ghost - 1
     bottom = bottom_ghost + 1
@@ -107,61 +123,34 @@ contains
     select case(self%location)
     case('+x')
       call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() +x', __FILE__, __LINE__)
-      reconstructed_state(:, :, :, right_ghost, :) = reconstructed_state(:, :, :, right, :)
+      recon_rho(:, right_ghost, :) = recon_rho(:, right, :)
+      recon_u(:, right_ghost, :) = recon_u(:, right, :)
+      recon_v(:, right_ghost, :) = recon_v(:, right, :)
+      recon_p(:, right_ghost, :) = recon_p(:, right, :)
+
     case('-x')
       call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() -x', __FILE__, __LINE__)
-      reconstructed_state(:, :, :, left_ghost, :) = reconstructed_state(:, :, :, left, :)
+      recon_rho(:, left_ghost, :) = recon_rho(:, left, :)
+      recon_u(:, left_ghost, :) = recon_u(:, left, :)
+      recon_v(:, left_ghost, :) = recon_v(:, left, :)
+      recon_p(:, left_ghost, :) = recon_p(:, left, :)
     case('+y')
       call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() +y', __FILE__, __LINE__)
-      reconstructed_state(:, :, :, :, top_ghost) = reconstructed_state(:, :, :, :, top)
+      recon_rho(:, :, top_ghost) = recon_rho(:, :, top)
+      recon_u(:, :, top_ghost) = recon_u(:, :, top)
+      recon_v(:, :, top_ghost) = recon_v(:, :, top)
+      recon_p(:, :, top_ghost) = recon_p(:, :, top)
     case('-y')
       call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() -y', __FILE__, __LINE__)
-      reconstructed_state(:, :, :, :, bottom_ghost) = reconstructed_state(:, :, :, :, bottom)
+
+      recon_rho(:, :, bottom_ghost) = recon_rho(:, :, bottom)
+      recon_u(:, :, bottom_ghost) = recon_u(:, :, bottom)
+      recon_v(:, :, bottom_ghost) = recon_v(:, :, bottom)
+      recon_p(:, :, bottom_ghost) = recon_p(:, :, bottom)
     case default
       error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc()"
     end select
 
   end subroutine apply_zero_gradient_reconstructed_state_bc
 
-  subroutine apply_zero_gradient_cell_gradient_bc(self, cell_gradient, lbounds)
-    !< Apply zero_gradient boundary conditions to the reconstructed state vector field
-
-    class(zero_gradient_bc_t), intent(in) :: self
-    integer(ik), dimension(4), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):), intent(inout) :: cell_gradient
-    !< ((rho, u ,v, p), (d/dx, d/dy), i, j); Gradient of each cell's primitive variables
-
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
-
-    left_ghost = lbound(cell_gradient, dim=3)
-    right_ghost = ubound(cell_gradient, dim=3)
-    bottom_ghost = lbound(cell_gradient, dim=4)
-    top_ghost = ubound(cell_gradient, dim=4)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
-
-    select case(self%location)
-    case('+x')
-      cell_gradient(:, :, right_ghost, :) = 0.0_rk
-    case('-x')
-      cell_gradient(:, :, left_ghost, :) = 0.0_rk
-    case('+y')
-      cell_gradient(:, :, :, top_ghost) = 0.0_rk
-    case('-y')
-      cell_gradient(:, :, :, bottom_ghost) = 0.0_rk
-    case default
-      error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc()"
-    end select
-
-  end subroutine apply_zero_gradient_cell_gradient_bc
 end module mod_zero_gradient_bc

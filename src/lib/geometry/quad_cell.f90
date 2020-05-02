@@ -37,7 +37,7 @@ module mod_quad_cell
 
   contains
     procedure, public :: initialize
-    procedure, public :: get_cell_node_xy_set
+    procedure, public :: get_cell_point_coords
     procedure, private :: calculate_volume
     procedure, private :: calculate_centroid
     procedure, private :: calculate_edge_stats
@@ -173,12 +173,23 @@ contains
 
   end subroutine
 
-  pure function get_cell_node_xy_set(self) result(set)
+  pure subroutine get_cell_point_coords(self, x, y)
     class(quad_cell_t), intent(in) :: self
-    real(rk), dimension(2, 4, 2) :: set  !< ((x,y), (point_1:point_4), (corner=1, midpoint=2))
-    set(1, :, 1) = self%x
-    set(2, :, 1) = self%y
-    set(:, :, 2) = self%edge_midpoints
-  end function
+    real(rk), dimension(8), intent(out) :: x !< coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+    real(rk), dimension(8), intent(out) :: y !< coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+
+    ! Corners
+    x(1) = self%x(1); y(1) = self%y(1)
+    x(3) = self%x(2); y(3) = self%y(2)
+    x(5) = self%x(3); y(5) = self%y(3)
+    x(7) = self%x(4); y(7) = self%y(4)
+
+    ! Midpoints
+    x(2) = self%edge_midpoints(1, 1); y(2) = self%edge_midpoints(2, 1)
+    x(4) = self%edge_midpoints(1, 2); y(4) = self%edge_midpoints(2, 2)
+    x(6) = self%edge_midpoints(1, 3); y(6) = self%edge_midpoints(2, 3)
+    x(8) = self%edge_midpoints(1, 4); y(8) = self%edge_midpoints(2, 4)
+
+  end subroutine
 
 end module mod_quad_cell

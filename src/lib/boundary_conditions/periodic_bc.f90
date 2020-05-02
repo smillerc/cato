@@ -16,7 +16,6 @@ module mod_periodic_bc
     ! procedure, public :: initialize => init_periodic_bc
     procedure, public :: apply_primitive_var_bc => apply_periodic_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_periodic_reconstructed_state_bc
-    procedure, public :: apply_cell_gradient_bc => apply_periodic_cell_gradient_bc
     procedure, public :: copy => copy_periodic_bc
 
   end type periodic_bc_t
@@ -53,13 +52,14 @@ contains
     out_bc%location = in_bc%location
   end subroutine copy_periodic_bc
 
-  subroutine apply_periodic_primitive_var_bc(self, primitive_vars, lbounds)
-    !< Apply periodic boundary conditions to the conserved state vector field
-    !//TODO: fix lbounds
+  subroutine apply_periodic_primitive_var_bc(self, rho, u, v, p, lbounds)
+
     class(periodic_bc_t), intent(inout) :: self
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
-    !< ((rho, u ,v, p), i, j); Conserved variables for each cell
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
 
     integer(ik) :: left         !< Min i real cell index
     integer(ik) :: right        !< Max i real cell index
@@ -70,10 +70,10 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    left_ghost = lbound(primitive_vars, dim=2)
-    right_ghost = ubound(primitive_vars, dim=2)
-    bottom_ghost = lbound(primitive_vars, dim=3)
-    top_ghost = ubound(primitive_vars, dim=3)
+    left_ghost = lbound(rho, dim=1)
+    right_ghost = ubound(rho, dim=1)
+    bottom_ghost = lbound(rho, dim=2)
+    top_ghost = ubound(rho, dim=2)
     left = left_ghost + 1
     right = right_ghost - 1
     bottom = bottom_ghost + 1
@@ -83,41 +83,90 @@ contains
     case('+x')
       call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() +x', __FILE__, __LINE__)
       if(self%do_corners) then
-        primitive_vars(:, right_ghost, top_ghost) = primitive_vars(:, left, bottom)
-        primitive_vars(:, right_ghost, bottom_ghost) = primitive_vars(:, left, top)
-        primitive_vars(:, right_ghost, bottom:top) = primitive_vars(:, left, bottom:top)
+        rho(right_ghost, top_ghost) = rho(left, bottom)
+        u(right_ghost, top_ghost) = u(left, bottom)
+        v(right_ghost, top_ghost) = v(left, bottom)
+        p(right_ghost, top_ghost) = p(left, bottom)
+        rho(right_ghost, bottom_ghost) = rho(left, top)
+        u(right_ghost, bottom_ghost) = u(left, top)
+        v(right_ghost, bottom_ghost) = v(left, top)
+        p(right_ghost, bottom_ghost) = p(left, top)
+        rho(right_ghost, bottom:top) = rho(left, bottom:top)
+        u(right_ghost, bottom:top) = u(left, bottom:top)
+        v(right_ghost, bottom:top) = v(left, bottom:top)
+        p(right_ghost, bottom:top) = p(left, bottom:top)
+
       else
-        primitive_vars(:, right_ghost, :) = primitive_vars(:, left, :)
+        rho(right_ghost, :) = rho(left, :)
+        u(right_ghost, :) = u(left, :)
+        v(right_ghost, :) = v(left, :)
+        p(right_ghost, :) = p(left, :)
       end if
 
     case('-x')
       call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() -x', __FILE__, __LINE__)
       if(self%do_corners) then
-        primitive_vars(:, left_ghost, top_ghost) = primitive_vars(:, right, bottom)
-        primitive_vars(:, left_ghost, bottom_ghost) = primitive_vars(:, right, top)
-        primitive_vars(:, left_ghost, bottom:top) = primitive_vars(:, right, bottom:top)
+        rho(left_ghost, top_ghost) = rho(right, bottom)
+        u(left_ghost, top_ghost) = u(right, bottom)
+        v(left_ghost, top_ghost) = v(right, bottom)
+        p(left_ghost, top_ghost) = p(right, bottom)
+        rho(left_ghost, bottom_ghost) = rho(right, top)
+        u(left_ghost, bottom_ghost) = u(right, top)
+        v(left_ghost, bottom_ghost) = v(right, top)
+        p(left_ghost, bottom_ghost) = p(right, top)
+        rho(left_ghost, bottom:top) = rho(right, bottom:top)
+        u(left_ghost, bottom:top) = u(right, bottom:top)
+        v(left_ghost, bottom:top) = v(right, bottom:top)
+        p(left_ghost, bottom:top) = p(right, bottom:top)
       else
-        primitive_vars(:, left_ghost, :) = primitive_vars(:, right, :)
+        rho(left_ghost, :) = rho(right, :)
+        u(left_ghost, :) = u(right, :)
+        v(left_ghost, :) = v(right, :)
+        p(left_ghost, :) = p(right, :)
       end if
 
     case('+y')
       call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() +y', __FILE__, __LINE__)
       if(self%do_corners) then
-        primitive_vars(:, left_ghost, top_ghost) = primitive_vars(:, right, bottom)
-        primitive_vars(:, right_ghost, top_ghost) = primitive_vars(:, left, bottom)
-        primitive_vars(:, left:right, top_ghost) = primitive_vars(:, left:right, bottom)
+        rho(left_ghost, top_ghost) = rho(right, bottom)
+        u(left_ghost, top_ghost) = u(right, bottom)
+        v(left_ghost, top_ghost) = v(right, bottom)
+        p(left_ghost, top_ghost) = p(right, bottom)
+        rho(right_ghost, top_ghost) = rho(left, bottom)
+        u(right_ghost, top_ghost) = u(left, bottom)
+        v(right_ghost, top_ghost) = v(left, bottom)
+        p(right_ghost, top_ghost) = p(left, bottom)
+        rho(left:right, top_ghost) = rho(left:right, bottom)
+        u(left:right, top_ghost) = u(left:right, bottom)
+        v(left:right, top_ghost) = v(left:right, bottom)
+        p(left:right, top_ghost) = p(left:right, bottom)
       else
-        primitive_vars(:, :, top_ghost) = primitive_vars(:, :, bottom)
+        rho(:, top_ghost) = rho(:, bottom)
+        u(:, top_ghost) = u(:, bottom)
+        v(:, top_ghost) = v(:, bottom)
+        p(:, top_ghost) = p(:, bottom)
       end if
 
     case('-y')
       call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() -y', __FILE__, __LINE__)
       if(self%do_corners) then
-        primitive_vars(:, left_ghost, bottom_ghost) = primitive_vars(:, right, top)
-        primitive_vars(:, right_ghost, bottom_ghost) = primitive_vars(:, left, top)
-        primitive_vars(:, left:right, bottom_ghost) = primitive_vars(:, left:right, top)
+        rho(left_ghost, bottom_ghost) = rho(right, top)
+        u(left_ghost, bottom_ghost) = u(right, top)
+        v(left_ghost, bottom_ghost) = v(right, top)
+        p(left_ghost, bottom_ghost) = p(right, top)
+        rho(right_ghost, bottom_ghost) = rho(left, top)
+        u(right_ghost, bottom_ghost) = u(left, top)
+        v(right_ghost, bottom_ghost) = v(left, top)
+        p(right_ghost, bottom_ghost) = p(left, top)
+        rho(left:right, bottom_ghost) = rho(left:right, top)
+        u(left:right, bottom_ghost) = u(left:right, top)
+        v(left:right, bottom_ghost) = v(left:right, top)
+        p(left:right, bottom_ghost) = p(left:right, top)
       else
-        primitive_vars(:, :, bottom_ghost) = primitive_vars(:, :, top)
+        rho(:, bottom_ghost) = rho(:, top)
+        u(:, bottom_ghost) = u(:, top)
+        v(:, bottom_ghost) = v(:, top)
+        p(:, bottom_ghost) = p(:, top)
       end if
 
     case default
@@ -126,14 +175,16 @@ contains
 
   end subroutine apply_periodic_primitive_var_bc
 
-  subroutine apply_periodic_reconstructed_state_bc(self, reconstructed_state, lbounds)
+  subroutine apply_periodic_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
     !< Apply periodic boundary conditions to the reconstructed state vector field
 
     class(periodic_bc_t), intent(inout) :: self
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
+
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
 
     integer(ik) :: left         !< Min i real cell index
     integer(ik) :: right        !< Max i real cell index
@@ -144,10 +195,10 @@ contains
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
 
-    left_ghost = lbound(reconstructed_state, dim=4)
-    right_ghost = ubound(reconstructed_state, dim=4)
-    bottom_ghost = lbound(reconstructed_state, dim=5)
-    top_ghost = ubound(reconstructed_state, dim=5)
+    left_ghost = lbound(recon_rho, dim=2)
+    right_ghost = ubound(recon_rho, dim=2)
+    bottom_ghost = lbound(recon_rho, dim=3)
+    top_ghost = ubound(recon_rho, dim=3)
     left = left_ghost + 1
     right = right_ghost - 1
     bottom = bottom_ghost + 1
@@ -157,126 +208,92 @@ contains
     case('+x')
       call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() +x', __FILE__, __LINE__)
       if(self%do_corners) then
-        reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-        reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-        reconstructed_state(:, :, :, right_ghost, bottom:top) = reconstructed_state(:, :, :, left, bottom:top)
+        recon_rho(:, right_ghost, top_ghost) = recon_rho(:, left, bottom)
+        recon_u(:, right_ghost, top_ghost) = recon_u(:, left, bottom)
+        recon_v(:, right_ghost, top_ghost) = recon_v(:, left, bottom)
+        recon_p(:, right_ghost, top_ghost) = recon_p(:, left, bottom)
+        recon_rho(:, right_ghost, bottom_ghost) = recon_rho(:, left, top)
+        recon_u(:, right_ghost, bottom_ghost) = recon_u(:, left, top)
+        recon_v(:, right_ghost, bottom_ghost) = recon_v(:, left, top)
+        recon_p(:, right_ghost, bottom_ghost) = recon_p(:, left, top)
+        recon_rho(:, right_ghost, bottom:top) = recon_rho(:, left, bottom:top)
+        recon_u(:, right_ghost, bottom:top) = recon_u(:, left, bottom:top)
+        recon_v(:, right_ghost, bottom:top) = recon_v(:, left, bottom:top)
+        recon_p(:, right_ghost, bottom:top) = recon_p(:, left, bottom:top)
       else
-        reconstructed_state(:, :, :, right_ghost, :) = reconstructed_state(:, :, :, left, :)
+        recon_rho(:, right_ghost, :) = recon_rho(:, left, :)
+        recon_u(:, right_ghost, :) = recon_u(:, left, :)
+        recon_v(:, right_ghost, :) = recon_v(:, left, :)
+        recon_p(:, right_ghost, :) = recon_p(:, left, :)
       end if
 
     case('-x')
       call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() -x', __FILE__, __LINE__)
       if(self%do_corners) then
-        reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-        reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-        reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
+        recon_rho(:, left_ghost, top_ghost) = recon_rho(:, right, bottom)
+        recon_u(:, left_ghost, top_ghost) = recon_u(:, right, bottom)
+        recon_v(:, left_ghost, top_ghost) = recon_v(:, right, bottom)
+        recon_p(:, left_ghost, top_ghost) = recon_p(:, right, bottom)
+        recon_rho(:, left_ghost, bottom_ghost) = recon_rho(:, right, top)
+        recon_u(:, left_ghost, bottom_ghost) = recon_u(:, right, top)
+        recon_v(:, left_ghost, bottom_ghost) = recon_v(:, right, top)
+        recon_p(:, left_ghost, bottom_ghost) = recon_p(:, right, top)
+        recon_rho(:, left_ghost, bottom:top) = recon_rho(:, right, bottom:top)
+        recon_u(:, left_ghost, bottom:top) = recon_u(:, right, bottom:top)
+        recon_v(:, left_ghost, bottom:top) = recon_v(:, right, bottom:top)
+        recon_p(:, left_ghost, bottom:top) = recon_p(:, right, bottom:top)
       else
-        reconstructed_state(:, :, :, left_ghost, :) = reconstructed_state(:, :, :, right, :)
+        recon_rho(:, left_ghost, :) = recon_rho(:, right, :)
+        recon_u(:, left_ghost, :) = recon_u(:, right, :)
+        recon_v(:, left_ghost, :) = recon_v(:, right, :)
+        recon_p(:, left_ghost, :) = recon_p(:, right, :)
       end if
     case('+y')
       call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() +y', __FILE__, __LINE__)
       if(self%do_corners) then
-        reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-        reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-        reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
+        recon_rho(:, left_ghost, top_ghost) = recon_rho(:, right, bottom)
+        recon_u(:, left_ghost, top_ghost) = recon_u(:, right, bottom)
+        recon_v(:, left_ghost, top_ghost) = recon_v(:, right, bottom)
+        recon_p(:, left_ghost, top_ghost) = recon_p(:, right, bottom)
+        recon_rho(:, right_ghost, top_ghost) = recon_rho(:, left, bottom)
+        recon_u(:, right_ghost, top_ghost) = recon_u(:, left, bottom)
+        recon_v(:, right_ghost, top_ghost) = recon_v(:, left, bottom)
+        recon_p(:, right_ghost, top_ghost) = recon_p(:, left, bottom)
+        recon_rho(:, left:right, top_ghost) = recon_rho(:, left:right, bottom)
+        recon_u(:, left:right, top_ghost) = recon_u(:, left:right, bottom)
+        recon_v(:, left:right, top_ghost) = recon_v(:, left:right, bottom)
+        recon_p(:, left:right, top_ghost) = recon_p(:, left:right, bottom)
       else
-        reconstructed_state(:, :, :, :, top_ghost) = reconstructed_state(:, :, :, :, bottom)
+        recon_rho(:, :, top_ghost) = recon_rho(:, :, bottom)
+        recon_u(:, :, top_ghost) = recon_u(:, :, bottom)
+        recon_v(:, :, top_ghost) = recon_v(:, :, bottom)
+        recon_p(:, :, top_ghost) = recon_p(:, :, bottom)
       end if
     case('-y')
       call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() -y', __FILE__, __LINE__)
       if(self%do_corners) then
-        reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-        reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-        reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
+        recon_rho(:, left_ghost, bottom_ghost) = recon_rho(:, right, top)
+        recon_u(:, left_ghost, bottom_ghost) = recon_u(:, right, top)
+        recon_v(:, left_ghost, bottom_ghost) = recon_v(:, right, top)
+        recon_p(:, left_ghost, bottom_ghost) = recon_p(:, right, top)
+        recon_rho(:, right_ghost, bottom_ghost) = recon_rho(:, left, top)
+        recon_u(:, right_ghost, bottom_ghost) = recon_u(:, left, top)
+        recon_v(:, right_ghost, bottom_ghost) = recon_v(:, left, top)
+        recon_p(:, right_ghost, bottom_ghost) = recon_p(:, left, top)
+        recon_rho(:, left:right, bottom_ghost) = recon_rho(:, left:right, top)
+        recon_u(:, left:right, bottom_ghost) = recon_u(:, left:right, top)
+        recon_v(:, left:right, bottom_ghost) = recon_v(:, left:right, top)
+        recon_p(:, left:right, bottom_ghost) = recon_p(:, left:right, top)
       else
-        reconstructed_state(:, :, :, :, bottom_ghost) = reconstructed_state(:, :, :, :, top)
+        recon_rho(:, :, bottom_ghost) = recon_rho(:, :, top)
+        recon_u(:, :, bottom_ghost) = recon_u(:, :, top)
+        recon_v(:, :, bottom_ghost) = recon_v(:, :, top)
+        recon_p(:, :, bottom_ghost) = recon_p(:, :, top)
       end if
     case default
       error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_reconstructed_state_bc()"
     end select
 
   end subroutine apply_periodic_reconstructed_state_bc
-
-  subroutine apply_periodic_cell_gradient_bc(self, cell_gradient, lbounds)
-    !< Apply periodic boundary conditions to the cell gradient state vector field
-
-    class(periodic_bc_t), intent(in) :: self
-    integer(ik), dimension(4), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):), intent(inout) :: cell_gradient
-    !< ((d/dx, d/dy), (rho, u ,v, p), i, j); Gradient of each cell's conserved quantities
-
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
-
-    left_ghost = lbound(cell_gradient, dim=3)
-    right_ghost = ubound(cell_gradient, dim=3)
-    bottom_ghost = lbound(cell_gradient, dim=4)
-    top_ghost = ubound(cell_gradient, dim=4)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
-
-    if(size(cell_gradient, dim=1) /= 4) then
-      error stop "Error in periodic_bc_t%apply_periodic_cell_gradient_bc(), dimension 1 /= 4 (rho,u,v,p)"
-    end if
-
-    if(size(cell_gradient, dim=2) /= 2) then
-      error stop "Error in periodic_bc_t%apply_periodic_cell_gradient_bc(), dimension 2 /= 2 (d/dx, d/dy)"
-    end if
-
-    select case(self%location)
-    case('+x')
-      call debug_print('Running periodic_bc_t%apply_periodic_cell_gradient_bc() +x', __FILE__, __LINE__)
-      if(self%do_corners) then
-        cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
-        cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
-        cell_gradient(:, :, right_ghost, bottom:top) = cell_gradient(:, :, left, bottom:top)
-      else
-        cell_gradient(:, :, right_ghost, :) = cell_gradient(:, :, left, :)
-      end if
-
-    case('-x')
-      call debug_print('Running periodic_bc_t%apply_periodic_cell_gradient_bc() -x', __FILE__, __LINE__)
-      if(self%do_corners) then
-        cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
-        cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
-        cell_gradient(:, :, left_ghost, bottom:top) = cell_gradient(:, :, right, bottom:top)
-      else
-        cell_gradient(:, :, left_ghost, :) = cell_gradient(:, :, right, :)
-      end if
-
-    case('+y')
-      call debug_print('Running periodic_bc_t%apply_periodic_cell_gradient_bc() +y', __FILE__, __LINE__)
-      if(self%do_corners) then
-        cell_gradient(:, :, left_ghost, top_ghost) = cell_gradient(:, :, right, bottom)
-        cell_gradient(:, :, right_ghost, top_ghost) = cell_gradient(:, :, left, bottom)
-        cell_gradient(:, :, left:right, top_ghost) = cell_gradient(:, :, left:right, bottom)
-      else
-        cell_gradient(:, :, :, top_ghost) = cell_gradient(:, :, :, bottom)
-      end if
-
-    case('-y')
-      call debug_print('Running periodic_bc_t%apply_periodic_cell_gradient_bc() -y', __FILE__, __LINE__)
-      if(self%do_corners) then
-        cell_gradient(:, :, left_ghost, bottom_ghost) = cell_gradient(:, :, right, top)
-        cell_gradient(:, :, right_ghost, bottom_ghost) = cell_gradient(:, :, left, top)
-        cell_gradient(:, :, left:right, bottom_ghost) = cell_gradient(:, :, left:right, top)
-      else
-        cell_gradient(:, :, :, bottom_ghost) = cell_gradient(:, :, :, top)
-      end if
-
-    case default
-      error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_cell_gradient_bc()"
-    end select
-
-  end subroutine apply_periodic_cell_gradient_bc
 
 end module mod_periodic_bc

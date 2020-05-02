@@ -53,8 +53,8 @@ module mod_grid
     ! once at the beginning of the simulation or on demand
 
     real(rk), dimension(:, :), allocatable :: cell_volume !< (i,j); volume of each cell
-    real(rk), dimension(:, :), allocatable :: cell_dx !< ( i, j); dx, dy spacing of each cell
-    real(rk), dimension(:, :), allocatable :: cell_dy !< ( i, j); dx, dy spacing of each cell
+    real(rk), dimension(:, :), allocatable :: cell_dx !< ( i, j); dx spacing of each cell
+    real(rk), dimension(:, :), allocatable :: cell_dy !< ( i, j); dy spacing of each cell
 
     !  Numbering convention for a 2D quadrilateral cell
     !
@@ -75,21 +75,27 @@ module mod_grid
     real(rk), dimension(:, :), allocatable :: node_x !< (i, j); x location of each node
     real(rk), dimension(:, :), allocatable :: node_y !< (i, j); y location of each node
 
-    real(rk), dimension(:, :, :), allocatable :: cell_centroid_xy
-    !< ((x,y), i, j); (x,y) location of the cell centroid
+    real(rk), dimension(:, :), allocatable :: cell_centroid_x
+    !< (i, j); x location of the cell centroid
+
+    real(rk), dimension(:, :), allocatable :: cell_centroid_y
+    !< (i, j); y location of the cell centroid
 
     real(rk), dimension(:, :, :), allocatable :: cell_edge_lengths
     !< ((edge_1:edge_n), i, j); length of each edge
 
-    real(rk), dimension(:, :, :, :, :), allocatable :: cell_node_xy
-    !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
-    !< e.g. 1 - all corners, 2 - all midpoints
+    real(rk), dimension(:, :, :), allocatable :: cell_node_x
+    !< ((1:8), i, j); x coordinate of corners and midpoints for each cell (c1,m1,c2,m2,c3,m3,c4,m4)
+
+    real(rk), dimension(:, :, :), allocatable :: cell_node_y
+    !< ((1:8), i, j); y coordinate of corners and midpoints for each cell (c1,m1,c2,m2,c3,m3,c4,m4)
 
     real(rk), dimension(:, :, :, :), allocatable :: cell_edge_norm_vectors
     !< ((x,y), edge, i, j); normal direction vector of each face
 
     real(rk), dimension(:, :, :, :), allocatable :: corner_edge_vectors
     !< ((x,y), (vector_1:4), i, j); edge vector set for each corner
+
     real(rk), dimension(:, :), allocatable :: corner_edge_vectors_scale
 
     real(rk), dimension(:, :, :, :), allocatable :: downup_midpoint_edge_vectors
@@ -107,11 +113,11 @@ module mod_grid
     procedure(get_2d_data), deferred, public :: get_x
     procedure(get_2d_data), deferred, public :: get_y
     procedure(get_2d_data), deferred, public :: get_cell_volumes
-    procedure(get_cell_centroid_xy), deferred, public :: get_cell_centroid_xy
+    ! procedure(get_cell_centroid_xy), deferred, public :: get_cell_centroid_xy
     procedure(get_cell_edge_lengths), deferred, public :: get_cell_edge_lengths
     procedure(get_4d_data), deferred, public :: get_cell_edge_norm_vectors
-    procedure(get_midpoint_vectors), deferred, public :: get_midpoint_vectors
-    procedure(get_corner_vectors), deferred, public :: get_corner_vectors
+    ! procedure(get_midpoint_vectors), deferred, public :: get_midpoint_vectors
+    ! procedure(get_corner_vectors), deferred, public :: get_corner_vectors
     procedure(get_midpoint_persistent_vectors), deferred, public :: get_midpoint_persistent_vectors
     procedure(get_corner_persistent_vectors), deferred, public :: get_corner_persistent_vectors
     procedure(copy_grid), public, deferred :: copy

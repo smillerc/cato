@@ -343,7 +343,10 @@ contains
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
 
-    real(rk), dimension(:, :, :), allocatable :: primitive_vars
+    real(rk), dimension(:, :, :), allocatable :: rho
+    real(rk), dimension(:, :, :), allocatable :: u
+    real(rk), dimension(:, :, :), allocatable :: v
+    real(rk), dimension(:, :, :), allocatable :: p
     !< ((rho, u, v, p), i, j); Primitive variables at each cell center
 
     real(rk), dimension(:, :, :), allocatable :: evolved_corner_state
@@ -358,21 +361,26 @@ contains
     !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go left/right
     !< (edges 1 (bottom edge) and 3 (top edge))
 
-    real(rk), dimension(:, :, :, :, :), allocatable, target :: reconstructed_state
-    !< (((rho, u, v, p)), point, node/midpoint, i, j); The node/midpoint dimension just selects which set of points,
-    !< e.g. 1 - all corners, 2 - all midpoints. Note, this DOES repeat nodes, since corners and midpoints are
-    !< shared by neighboring cells, but each point has its own reconstructed value based on the parent cell's state
+    real(rk), dimension(:, :, :), allocatable, target :: rho_recon_state
+    !< ((corner1:midpoint4), i, j); reconstructed density, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+    real(rk), dimension(:, :, :), allocatable, target :: u_recon_state
+    !< ((corner1:midpoint4), i, j); reconstructed x-velocity, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+    real(rk), dimension(:, :, :), allocatable, target :: v_recon_state
+    !< ((corner1:midpoint4), i, j); reconstructed y-velocity, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+    real(rk), dimension(:, :, :), allocatable, target :: p_recon_state
+    !< ((corner1:midpoint4), i, j); reconstructed pressure, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
-    integer(ik), dimension(3) :: bounds
-    integer(ik), dimension(5) :: recon_bounds
+    integer(ik), dimension(2) :: bounds
 
     call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
     associate(imin=>fv%grid%ilo_bc_cell, imax=>fv%grid%ihi_bc_cell, &
               jmin=>fv%grid%jlo_bc_cell, jmax=>fv%grid%jhi_bc_cell)
 
-      allocate(reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state in fluid_t%time_derivative()"
+      allocate(rho_recon_state(1:8, imin:imax, jmin:jmax))
+      allocate(u_recon_state(1:8, imin:imax, jmin:jmax))
+      allocate(v_recon_state(1:8, imin:imax, jmin:jmax))
+      allocate(p_recon_state(1:8, imin:imax, jmin:jmax))
     end associate
 
     associate(imin_node=>fv%grid%ilo_node, imax_node=>fv%grid%ihi_node, &
@@ -415,38 +423,43 @@ contains
     end if
 
     ! Now we can reconstruct the entire domain
-    bounds = lbound(primitive_vars)
-    call fv%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
-                                                               lbounds=bounds)
-    call fv%reconstruct(primitive_vars=primitive_vars, &
-                        cell_lbounds=bounds, &
-                        reconstructed_state=reconstructed_state)
+    bounds = lbound(local_d_dt%rho)
 
-    recon_bounds = lbound(reconstructed_state)
-    call fv%evolution_operator%set_reconstructed_state_pointer( &
-      reconstructed_state_target=reconstructed_state, &
-      lbounds=recon_bounds)
+    ! TODO: divide and conquer across threads
+    call fv%reconstruct(primitive_var=local_d_dt%rho, lbounds=bounds, reconstructed_var=rho_recon_state)
+    call fv%reconstruct(primitive_var=local_d_dt%u, lbounds=bounds, reconstructed_var=u_recon_state)
+    call fv%reconstruct(primitive_var=local_d_dt%v, lbounds=bounds, reconstructed_var=v_recon_state)
+    call fv%reconstruct(primitive_var=local_d_dt%p, lbounds=bounds, reconstructed_var=p_recon_state)
+
+    call fv%evolution_operator%set_reconstructed_state_pointers(rho=rho_recon_state, &
+                                                                u=u_recon_state, &
+                                                                v=v_recon_state, &
+                                                                p=p_recon_state, &
+                                                                lbounds=bounds)
 
     ! Apply the reconstructed state to the ghost layers
-    call fv%apply_reconstructed_state_bc(reconstructed_state, lbounds=recon_bounds)
-    ! call fv%apply_cell_gradient_bc()
+    call fv%apply_reconstructed_state_bc(recon_rho=rho_recon_state, &
+                                         recon_u=u_recon_state, &
+                                         recon_v=v_recon_state, &
+                                         recon_p=p_recon_state, lbounds=bounds)
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
-    bounds = lbound(evolved_downup_midpoints_state)
-    call fv%evolution_operator%evolve(evolved_state=evolved_downup_midpoints_state, &
+    bounds = lbound(evolved_du_mid_rho)
+    call fv%evolution_operator%evolve(evolved_rho=evolved_du_mid_rho, evolved_u=evolved_du_mid_u, &
+                                      evolved_v=evolved_du_mid_v, evolved_p=evolved_du_mid_p, &
                                       location='down/up midpoint', &
                                       lbounds=bounds, &
                                       error_code=error_code)
-
     if(error_code /= 0) then
       fv%error_code = error_code
     end if
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
-    bounds = lbound(evolved_leftright_midpoints_state)
-    call fv%evolution_operator%evolve(evolved_state=evolved_leftright_midpoints_state, &
+    bounds = lbound(evolved_lr_mid_rho)
+    call fv%evolution_operator%evolve(evolved_rho=evolved_lr_mid_rho, evolved_u=evolved_lr_mid_u, &
+                                      evolved_v=evolved_lr_mid_v, evolved_p=evolved_lr_mid_p, &
                                       location='left/right midpoint', &
                                       lbounds=bounds, &
                                       error_code=error_code)
@@ -457,8 +470,9 @@ contains
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
-    bounds = lbound(evolved_corner_state)
-    call fv%evolution_operator%evolve(evolved_state=evolved_corner_state, &
+    bounds = lbound(evolved_corner_rho)
+    call fv%evolution_operator%evolve(evolved_rho=evolved_corner_rho, evolved_u=evolved_corner_u, &
+                                      evolved_v=evolved_corner_v, evolved_p=evolved_corner_p, &
                                       location='corner', &
                                       lbounds=bounds, &
                                       error_code=error_code)
@@ -467,8 +481,12 @@ contains
       fv%error_code = error_code
     end if
 
-    nullify(fv%reconstruction_operator%primitive_vars)
-    nullify(fv%evolution_operator%reconstructed_state)
+    call fv%reconstruction_operator%nullify_pointer_members()
+
+    nullify(fv%evolution_operator%reconstructed_rho)
+    nullify(fv%evolution_operator%reconstructed_u)
+    nullify(fv%evolution_operator%reconstructed_v)
+    nullify(fv%evolution_operator%reconstructed_p)
 
     ! call self%flux_edges(grid=fv%grid, &
     !                      evolved_corner_state=evolved_corner_state, &

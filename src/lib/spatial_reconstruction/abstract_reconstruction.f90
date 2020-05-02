@@ -47,8 +47,8 @@ module mod_abstract_reconstruction
     procedure, public, non_overridable :: find_extrema
     procedure, public, non_overridable :: interpolate
     procedure(initialize), public, deferred :: initialize
-    procedure(reconstruct_point), public, deferred :: reconstruct_point
-    procedure(reconstruct_domain), public, deferred :: reconstruct_domain
+    ! procedure(reconstruct_point), public, deferred :: reconstruct_point
+    procedure(reconstruct), public, deferred :: reconstruct
     ! procedure(copy_recon), public, deferred :: copy
     ! generic :: assignment(=) => copy
   end type abstract_reconstruction_t
@@ -76,21 +76,16 @@ module mod_abstract_reconstruction
       real(rk), dimension(4) :: V_bar  !< V_bar = reconstructed primitive variables [rho, u, v, p]
     end function reconstruct_point
 
-    subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
-      !< Reconstruct each corner/midpoint. This converts the cell centered conserved
-      !< quantities [rho, rho u, rho v, e] to reconstructed primitive variables [rho, u, v, p]
-      !< based on the chosen reconstruction order, e.g. using a piecewise-linear function based on the
-      !< selected cell and it's neighbors.
+    subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds)
       import :: abstract_reconstruction_t
       import :: ik, rk
       class(abstract_reconstruction_t), intent(inout) :: self
-      integer(ik), dimension(5), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                          lbounds(4):, lbounds(5):), intent(out) :: reconstructed_domain
-      !< ((rho, u ,v, p), point, node/midpoint, i, j);
-      !< The node/midpoint dimension just selects which set of points,
-      !< e.g. 1 - all corners, 2 - all midpoints
-    end subroutine reconstruct_domain
+      integer(ik), dimension(2), intent(in) :: lbounds
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: primitive_var !< (i,j); cell primitive variable to reconstruct
+      real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out) :: reconstructed_var
+      !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+
+    end subroutine reconstruct
 
     subroutine copy_recon(out_recon, in_recon)
       import :: abstract_reconstruction_t

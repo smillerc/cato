@@ -135,7 +135,8 @@ module mod_mach_cone_collection
 
 contains
 
-  subroutine initialize(self, tau, edge_vectors, reconstructed_state, cell_indices, cone_location)
+  subroutine initialize(self, tau, edge_vectors, &
+                        reconstructed_rho, reconstructed_u, reconstructed_v, reconstructed_p, cell_indices, cone_location)
     !< Class constructor
 
     class(mach_cone_collection_t), intent(inout) :: self
@@ -150,14 +151,17 @@ contains
     integer(ik), dimension(:, :, :, :), intent(in) :: cell_indices
     !< ((i,j), (cell_1:N), i, j); set of indices for the neighboring cells -> needed to find P' i,j index
 
-    real(rk), dimension(:, :, :, :), intent(in) :: reconstructed_state
-    !< ((rho,u,v,p), (cell_1:N), i, j); reconstructed state for point P.
+    real(rk), dimension(:, :, :), intent(in) :: reconstructed_rho
+    real(rk), dimension(:, :, :), intent(in) :: reconstructed_u
+    real(rk), dimension(:, :, :), intent(in) :: reconstructed_v
+    real(rk), dimension(:, :, :), intent(in) :: reconstructed_p
+    !< ((cell_1:N), i, j); reconstructed state for point P.
 
     integer(ik) :: idx, arc, c, i, j, ni, nj
     real(rk) :: recon_u, recon_v, recon_p
 
-    self%ni = size(reconstructed_state, dim=3)
-    self%nj = size(reconstructed_state, dim=4)
+    self%ni = size(reconstructed_rho, dim=2)
+    self%nj = size(reconstructed_rho, dim=3)
     self%cone_location = trim(cone_location)
     self%tau = tau
 
@@ -170,25 +174,25 @@ contains
       error stop "Error in mach_cone_collection_t%initialize(), unsupported cone location"
     end select
 
-    do j = 1, self%nj
-      do i = 1, self%ni
-        do c = 1, self%n_neighbor_cells
-          if(reconstructed_state(1, c, i, j) < 0.0_rk) then
-            write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed density states [' // trim(self%cone_location) //'] (cell 1:N)', reconstructed_state(1, :, i, j)
-            write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: ', i, j
-            write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
-            error stop "Error in mach_cone_collection_t%initialize(), density in the reconstructed state is < 0"
-          end if
+    ! do j = 1, self%nj
+    !   do i = 1, self%ni
+    !     do c = 1, self%n_neighbor_cells
+    !       if(reconstructed_state(1, c, i, j) < 0.0_rk) then
+    !         write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed density states [' // trim(self%cone_location) //'] (cell 1:N)', reconstructed_state(1, :, i, j)
+    !         write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: ', i, j
+    !         write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
+    !         error stop "Error in mach_cone_collection_t%initialize(), density in the reconstructed state is < 0"
+    !       end if
 
-          if(reconstructed_state(4, c, i, j) < 0.0_rk) then
-            write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed pressure states [' // trim(self%cone_location) //'] (cell 1:N): ', reconstructed_state(4, :, i, j)
-            write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: [', i, j, ']'
-            write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
-            error stop "Error in mach_cone_collection_t%initialize(), pressure in the reconstructed state is < 0"
-          end if
-        end do
-      end do
-    end do
+    !       if(reconstructed_state(4, c, i, j) < 0.0_rk) then
+    !         write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed pressure states [' // trim(self%cone_location) //'] (cell 1:N): ', reconstructed_state(4, :, i, j)
+    !         write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: [', i, j, ']'
+    !         write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
+    !         error stop "Error in mach_cone_collection_t%initialize(), pressure in the reconstructed state is < 0"
+    !       end if
+    !     end do
+    !   end do
+    ! end do
 
     associate(nc=>self%n_neighbor_cells, ni=>self%ni, nj=>self%nj)
       ! allocate(self%cell_is_supersonic(ni, nj))
@@ -206,10 +210,10 @@ contains
       if(.not. allocated(self%recon_u)) allocate(self%recon_u(nc, ni, nj))
       if(.not. allocated(self%recon_v)) allocate(self%recon_v(nc, ni, nj))
       if(.not. allocated(self%recon_p)) allocate(self%recon_p(nc, ni, nj))
-      self%recon_rho = reconstructed_state(1, :, :, :)
-      self%recon_u = reconstructed_state(2, :, :, :)
-      self%recon_v = reconstructed_state(3, :, :, :)
-      self%recon_p = reconstructed_state(4, :, :, :)
+      self%recon_rho = reconstructed_rho(:, :, :)
+      self%recon_u = reconstructed_u(:, :, :)
+      self%recon_v = reconstructed_v(:, :, :)
+      self%recon_p = reconstructed_p(:, :, :)
 
       if(.not. allocated(self%dtheta)) allocate(self%dtheta(nc * 2, ni, nj))
       self%dtheta = 0.0_rk

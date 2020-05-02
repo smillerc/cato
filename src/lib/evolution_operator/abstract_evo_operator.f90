@@ -20,9 +20,14 @@ module mod_abstract_evo_operator
     class(grid_t), pointer :: grid => null()
     !< pointer to the grid object
 
-    real(rk), dimension(:, :, :, :, :), pointer :: reconstructed_state => null()
-    !< ((rho, u ,v, p), point, node/midpoint, i, j);
-    !< The reconstructed state of each point P with respect to its parent cell
+    real(rk), dimension(:, :, :), pointer :: reconstructed_rho => null()
+    !< (point 1:8, i, j); pointer to reconstructed density
+    real(rk), dimension(:, :, :), pointer :: reconstructed_u => null()
+    !< (point 1:8, i, j); pointer to reconstructed x-velocity
+    real(rk), dimension(:, :, :), pointer :: reconstructed_v => null()
+    !< (point 1:8, i, j); pointer to reconstructed y-velocity
+    real(rk), dimension(:, :, :), pointer :: reconstructed_p => null()
+    !< (point 1:8, i, j); pointer to reconstructed pressure
 
     class(abstract_reconstruction_t), pointer :: reconstruction_operator => null()
     !< pointer to the R_Omega operator used to provide values at the P' location
@@ -45,7 +50,7 @@ module mod_abstract_evo_operator
     procedure(initialize), public, deferred :: initialize
     procedure(evolve_location), public, deferred :: evolve
     procedure, public, non_overridable :: set_grid_pointer
-    procedure, public, non_overridable :: set_reconstructed_state_pointer
+    procedure, public, non_overridable :: set_reconstructed_state_pointers
     procedure, public, non_overridable :: set_reconstruction_operator_pointer
     procedure, public, non_overridable :: set_tau
     procedure, public, non_overridable :: nullify_pointer_members
@@ -72,18 +77,18 @@ module mod_abstract_evo_operator
       class(abstract_evo_operator_t), intent(inout) :: out_evo
     end subroutine
 
-    subroutine evolve_location(self, location, evolved_state, lbounds, error_code)
+    subroutine evolve_location(self, location, evolved_rho, evolved_u, evolved_v, evolved_p, lbounds, error_code)
       import :: abstract_evo_operator_t
       import :: rk, ik
       class(abstract_evo_operator_t), intent(inout) :: self
-      ! !< ((rho, u ,v, p), point, node/midpoint, i, j); The reconstructed state of each point P with respect to its parent cell
 
-      integer(ik), dimension(3), intent(in) :: lbounds
-      integer(ik), intent(out) :: error_code
+      integer(ik), dimension(2), intent(in) :: lbounds
       character(len=*), intent(in) :: location !< Mach cone location ['corner', 'left/right midpoint', or 'down/up midpoint']
-
-      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(out) :: evolved_state
-      !< ((rho,u,v,p), i, j); Reconstructed U at each location
+      integer(ik), intent(out) :: error_code
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_rho
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_u
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_v
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_p
     end subroutine
   end interface
 
@@ -101,12 +106,17 @@ contains
     self%grid => grid_target
   end subroutine
 
-  subroutine set_reconstructed_state_pointer(self, reconstructed_state_target, lbounds)
+  subroutine set_reconstructed_state_pointers(self, rho, u, v, p, lbounds)
     class(abstract_evo_operator_t), intent(inout) :: self
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):, lbounds(5):), intent(in), target :: reconstructed_state_target
-    self%reconstructed_state => reconstructed_state_target
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(in), target :: rho
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(in), target :: u
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(in), target :: v
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(in), target :: p
+    self%reconstructed_rho => rho
+    self%reconstructed_u => u
+    self%reconstructed_v => v
+    self%reconstructed_p => p
   end subroutine
 
   subroutine set_reconstruction_operator_pointer(self, operator_target)
@@ -117,9 +127,15 @@ contains
 
   subroutine nullify_pointer_members(self)
     class(abstract_evo_operator_t), intent(inout) :: self
+
     if(associated(self%grid)) nullify(self%grid)
-    if(associated(self%reconstructed_state)) nullify(self%reconstructed_state)
+
+    if(associated(self%reconstructed_rho)) nullify(self%reconstructed_rho)
+    if(associated(self%reconstructed_u)) nullify(self%reconstructed_u)
+    if(associated(self%reconstructed_v)) nullify(self%reconstructed_v)
+    if(associated(self%reconstructed_p)) nullify(self%reconstructed_p)
     if(associated(self%reconstruction_operator)) nullify(self%reconstruction_operator)
+
   end subroutine nullify_pointer_members
 
 end module mod_abstract_evo_operator

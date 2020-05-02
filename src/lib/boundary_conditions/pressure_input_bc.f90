@@ -23,16 +23,16 @@ module mod_pressure_input_bc
     type(linear_interp_1d) :: temporal_pressure_input
     character(len=100) :: input_filename
 
-    real(rk), dimension(:, :), allocatable :: edge_primitive_vars
-    !< ((rho, u ,v, p), i); Conserved variables for the ghost cells along the boundary. This is saved b/c
-    !< it is reapplied to the reconstructed bc state for the ghost cells (besides for the conserved var bc)
+    real(rk), dimension(:), allocatable :: edge_rho !< boundary (ghost/edge/etc) density
+    real(rk), dimension(:), allocatable :: edge_u   !< boundary (ghost/edge/etc) x-velocity
+    real(rk), dimension(:), allocatable :: edge_v   !< boundary (ghost/edge/etc) y-velocity
+    real(rk), dimension(:), allocatable :: edge_p   !< boundary (ghost/edge/etc) pressure
 
   contains
     procedure, private :: read_pressure_input
     procedure, private :: get_desired_pressure
     procedure, public :: apply_primitive_var_bc => apply_pressure_input_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_pressure_input_reconstructed_state_bc
-    procedure, public :: apply_cell_gradient_bc => apply_pressure_input_cell_gradient_bc
     procedure, public :: copy => copy_pressure_input_bc
   end type
 contains
@@ -162,12 +162,14 @@ contains
     desired_pressure = desired_pressure * self%scale_factor / p_0
   end function get_desired_pressure
 
-  subroutine apply_pressure_input_primitive_var_bc(self, primitive_vars, lbounds)
+  subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p, lbounds)
     !< Apply pressure_input boundary conditions to the conserved state vector field
     class(pressure_input_bc_t), intent(inout) :: self
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
-    !< ((rho, u ,v, p), i, j); Conserved variables for each cell
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
 
     integer(ik) :: left         !< Min i real cell index
     integer(ik) :: right        !< Max i real cell index
@@ -181,20 +183,23 @@ contains
     logical :: inflow
     logical :: outflow
 
-    real(rk) :: desired_boundary_pressure, boundary_density, gamma, ave_u, min_u, max_u, u, v, rho_new, ave_rho
+    real(rk) :: desired_boundary_pressure, boundary_density, gamma
     real(rk) :: mach_u, mach_v, mach, cs
     real(rk), dimension(:), allocatable :: edge_pressure
-    real(rk), dimension(:, :), allocatable :: domain_prim_vars
+    real(rk), dimension(:), allocatable :: domain_rho
+    real(rk), dimension(:), allocatable :: domain_u
+    real(rk), dimension(:), allocatable :: domain_v
+    real(rk), dimension(:), allocatable :: domain_p
     real(rk), dimension(4) :: boundary_prim_vars
 
     gamma = eos%get_gamma()
     inflow = .false.
     outflow = .false.
 
-    left_ghost = lbound(primitive_vars, dim=2)
-    right_ghost = ubound(primitive_vars, dim=2)
-    bottom_ghost = lbound(primitive_vars, dim=3)
-    top_ghost = ubound(primitive_vars, dim=3)
+    left_ghost = lbound(rho, dim=1)
+    right_ghost = ubound(rho, dim=1)
+    bottom_ghost = lbound(rho, dim=2)
+    top_ghost = ubound(rho, dim=2)
     left = left_ghost + 1
     right = right_ghost - 1
     bottom = bottom_ghost + 1
@@ -202,30 +207,54 @@ contains
 
     desired_boundary_pressure = self%get_desired_pressure()
 
-    if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
+    if(allocated(self%edge_rho)) deallocate(self%edge_rho)
+    if(allocated(self%edge_u)) deallocate(self%edge_u)
+    if(allocated(self%edge_v)) deallocate(self%edge_v)
+    if(allocated(self%edge_p)) deallocate(self%edge_p)
 
     select case(self%location)
     case('+x', '-x')
-      allocate(self%edge_primitive_vars(4, bottom_ghost:top_ghost))
-      allocate(domain_prim_vars(4, bottom_ghost:top_ghost))
+      allocate(self%edge_rho(bottom_ghost:top_ghost))
+      allocate(self%edge_u(bottom_ghost:top_ghost))
+      allocate(self%edge_v(bottom_ghost:top_ghost))
+      allocate(self%edge_p(bottom_ghost:top_ghost))
+      allocate(domain_rho(bottom_ghost:top_ghost))
+      allocate(domain_u(bottom_ghost:top_ghost))
+      allocate(domain_v(bottom_ghost:top_ghost))
+      allocate(domain_p(bottom_ghost:top_ghost))
     case('+y', '-y')
-      allocate(self%edge_primitive_vars(4, left_ghost:right_ghost))
-      allocate(domain_prim_vars(4, left_ghost:right_ghost))
+      allocate(self%edge_rho(left_ghost:right_ghost))
+      allocate(self%edge_u(left_ghost:right_ghost))
+      allocate(self%edge_v(left_ghost:right_ghost))
+      allocate(self%edge_p(left_ghost:right_ghost))
+      allocate(domain_rho(left_ghost:right_ghost))
+      allocate(domain_u(left_ghost:right_ghost))
+      allocate(domain_v(left_ghost:right_ghost))
+      allocate(domain_p(left_ghost:right_ghost))
     end select
 
-    self%edge_primitive_vars = 0.0_rk
-    domain_prim_vars = 0.0_rk
+    self%edge_rho = 0.0_rk
+    self%edge_u = 0.0_rk
+    self%edge_v = 0.0_rk
+    self%edge_p = 0.0_rk
+
+    domain_rho = 0.0_rk
+    domain_u = 0.0_rk
+    domain_v = 0.0_rk
+    domain_p = 0.0_rk
 
     select case(self%location)
     case('+x')
       call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
-      domain_prim_vars = primitive_vars(:, right, bottom_ghost:top_ghost)
-      domain_prim_vars(3, :) = 0.0_rk ! no y-velocity please
+      domain_rho = rho(right, bottom_ghost:top_ghost)
+      domain_u = u(right, bottom_ghost:top_ghost)
+      domain_v = 0.0_rk
+      domain_p = p(right, bottom_ghost:top_ghost)
 
       do j = bottom, top
-        associate(rho=>domain_prim_vars(1, j), u=>domain_prim_vars(2, j), &
-                  v=>domain_prim_vars(3, j), p=>domain_prim_vars(4, j))
+        associate(rho=>domain_rho(j), u=>domain_u(j), &
+                  v=>domain_v(j), p=>domain_p(j))
 
           call eos%sound_speed(p=p, rho=rho, cs=cs)
           mach_u = u / cs
@@ -233,23 +262,17 @@ contains
 
         if(mach_u > 0.0_rk) then ! outlet
           if(mach_u > 1.0_rk) then
-            boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars(:, j))
+            boundary_prim_vars = supersonic_outlet(domain_prim_vars=[rho, u, v, p])
           else
-            boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars(:, j), &
+            boundary_prim_vars = subsonic_outlet(domain_prim_vars=[rho, u, v, p], &
                                                  exit_pressure=desired_boundary_pressure, &
                                                  boundary_norm=[1.0_rk, 0.0_rk])
           end if
         else ! inlet
           if(abs(mach_u) > 1.0_rk) then
             error stop "Supersonic inlet not configured yet"
-            ! boundary_prim_vars = supersonic_inlet()
           else
-            ! boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars(:, j), &
-            !                                     boundary_norm=[1.0_rk, 0.0_rk], &
-            !                                     inlet_total_temp=self%temperature_input, &
-            !                                     inlet_total_press=desired_boundary_pressure, &
-            !                                     inlet_flow_angle=0.0_rk)
-            boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars(:, j), &
+            boundary_prim_vars = subsonic_inlet(domain_prim_vars=[rho, u, v, p], &
                                                 boundary_norm=[1.0_rk, 0.0_rk], &
                                                 inlet_density=self%density_input, &
                                                 inlet_total_press=desired_boundary_pressure, &
@@ -257,11 +280,16 @@ contains
           end if
         end if
 
-        self%edge_primitive_vars(:, j) = boundary_prim_vars
-
+        self%edge_rho(j) = boundary_prim_vars(1)
+        self%edge_u(j) = boundary_prim_vars(2)
+        self%edge_v(j) = boundary_prim_vars(3)
+        self%edge_p(j) = boundary_prim_vars(4)
       end do
 
-      primitive_vars(:, right_ghost, bottom:top) = self%edge_primitive_vars(:, bottom:top)
+      rho(right_ghost, bottom:top) = self%edge_rho(bottom:top)
+      u(right_ghost, bottom:top) = self%edge_u(bottom:top)
+      v(right_ghost, bottom:top) = self%edge_v(bottom:top)
+      p(right_ghost, bottom:top) = self%edge_p(bottom:top)
     case default
       error stop "Unsupported location to apply the bc at in "// &
         "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"
@@ -271,14 +299,16 @@ contains
 
   end subroutine apply_pressure_input_primitive_var_bc
 
-  subroutine apply_pressure_input_reconstructed_state_bc(self, reconstructed_state, lbounds)
-    !< Apply pressure_input boundary conditions to the reconstructed state vector field
+  subroutine apply_pressure_input_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
+    !< Apply pressure boundary conditions to the reconstructed state vector field
 
     class(pressure_input_bc_t), intent(inout) :: self
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
+
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
 
     integer(ik) :: left         !< Min i real cell index
     integer(ik) :: right        !< Max i real cell index
@@ -288,13 +318,12 @@ contains
     integer(ik) :: right_ghost  !< Max i ghost cell index
     integer(ik) :: bottom_ghost !< Min j ghost cell index
     integer(ik) :: top_ghost    !< Max j ghost cell index
-    integer(ik) :: n, p, n_points
+    integer(ik) :: n, p
 
-    n_points = ubound(reconstructed_state, dim=2)
-    left_ghost = lbound(reconstructed_state, dim=4)
-    right_ghost = ubound(reconstructed_state, dim=4)
-    bottom_ghost = lbound(reconstructed_state, dim=5)
-    top_ghost = ubound(reconstructed_state, dim=5)
+    left_ghost = lbound(recon_rho, dim=2)
+    right_ghost = ubound(recon_rho, dim=2)
+    bottom_ghost = lbound(recon_rho, dim=3)
+    top_ghost = ubound(recon_rho, dim=3)
     left = left_ghost + 1
     right = right_ghost - 1
     bottom = bottom_ghost + 1
@@ -303,10 +332,11 @@ contains
     select case(self%location)
     case('+x')
       call debug_print('Running pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc() +x', __FILE__, __LINE__)
-      do n = 1, 2
-        do p = 1, n_points
-          reconstructed_state(:, p, n, right_ghost, :) = self%edge_primitive_vars
-        end do
+      do p = 1, 8
+        recon_rho(p, right_ghost, :) = self%edge_rho
+        recon_u(p, right_ghost, :) = self%edge_u
+        recon_v(p, right_ghost, :) = self%edge_v
+        recon_p(p, right_ghost, :) = self%edge_p
       end do
 
       ! case('-x')
@@ -325,55 +355,10 @@ contains
       error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
     end select
 
-    if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
+    if(allocated(self%edge_rho)) deallocate(self%edge_rho)
+    if(allocated(self%edge_u)) deallocate(self%edge_u)
+    if(allocated(self%edge_v)) deallocate(self%edge_v)
+    if(allocated(self%edge_p)) deallocate(self%edge_p)
   end subroutine apply_pressure_input_reconstructed_state_bc
 
-  subroutine apply_pressure_input_cell_gradient_bc(self, cell_gradient, lbounds)
-    !< Apply pressure_input boundary conditions to the reconstructed state vector field
-
-    class(pressure_input_bc_t), intent(in) :: self
-    integer(ik), dimension(4), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):), intent(inout) :: cell_gradient
-    !< ((rho, u ,v, p), (d/dx, d/dy), i, j); Gradient of each cell's primitive variables
-
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
-
-    left_ghost = lbound(cell_gradient, dim=3)
-    right_ghost = ubound(cell_gradient, dim=3)
-    bottom_ghost = lbound(cell_gradient, dim=4)
-    top_ghost = ubound(cell_gradient, dim=4)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
-
-    select case(self%location)
-    case('+x')
-      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() +x', __FILE__, __LINE__)
-      cell_gradient(:, :, right_ghost, :) = 0.0_rk
-      ! cell_gradient(1, :, right_ghost, :) = -cell_gradient(1, :, right, :)
-      ! cell_gradient(2:3, :, right_ghost, :) = 0.0_rk !cell_gradient(2:3, :, right, :)
-      ! cell_gradient(4, :, right_ghost, :) = -cell_gradient(4, :, right, :)
-    case('-x')
-      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() -x', __FILE__, __LINE__)
-      cell_gradient(:, :, right_ghost, :) = 0.0_rk
-    case('+y')
-      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() +y', __FILE__, __LINE__)
-      cell_gradient(:, :, :, top_ghost) = 0.0_rk
-    case('-y')
-      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() -y', __FILE__, __LINE__)
-      cell_gradient(:, :, :, bottom_ghost) = 0.0_rk
-    case default
-      error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
-    end select
-
-  end subroutine apply_pressure_input_cell_gradient_bc
 end module mod_pressure_input_bc
