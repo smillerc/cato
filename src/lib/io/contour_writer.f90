@@ -344,10 +344,12 @@ contains
 
     open(newunit=xdmf_unit, file=self%results_folder//'/'//self%xdmf_filename, status='replace')
 
-    write(char_buff, '(2(i0,1x))') .reverse.shape(fluid%rho(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+    write(char_buff, '(2(i0,1x))') .reverse. &
+      shape(fluid%rho(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     cell_shape = trim(char_buff)
 
-    write(char_buff, '(2(i0,1x))') .reverse.shape(fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node))
+    write(char_buff, '(2(i0,1x))') .reverse. &
+      shape(fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node))
     node_shape = trim(char_buff)
 
     write(xdmf_unit, '(a)') '<?xml version="1.0" ?>'

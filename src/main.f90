@@ -28,10 +28,7 @@ program cato
   type(contour_writer_t) :: contour_writer
   type(timer_t) :: timer
   real(rk) :: time = 0.0_rk
-  integer(ik), dimension(3) :: bounds
   real(rk) :: delta_t = 0.0_rk
-  real(rk) :: max_cs = 0.0_rk
-  real(rk) :: min_dx = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
   logical :: file_exists = .false.
