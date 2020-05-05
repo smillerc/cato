@@ -94,11 +94,11 @@ contains
   impure subroutine total_energy_2d(self, rho, u, v, p, E)
     !< Calculate total energy
     class(eos_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(in) :: rho   !< density
-    real(rk), dimension(:, :), intent(in) :: u    !< x-velocity
-    real(rk), dimension(:, :), intent(in) :: v    !< y-velocity
-    real(rk), dimension(:, :), intent(in) :: p    !< pressure
-    real(rk), dimension(:, :), intent(inout) :: E    !< total energy
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho   !< density
+    real(rk), dimension(:, :), contiguous, intent(in) :: u    !< x-velocity
+    real(rk), dimension(:, :), contiguous, intent(in) :: v    !< y-velocity
+    real(rk), dimension(:, :), contiguous, intent(in) :: p    !< pressure
+    real(rk), dimension(:, :), contiguous, intent(inout) :: E    !< total energy
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -128,9 +128,9 @@ contains
     !< Calculate sound speed
 
     class(eos_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(in) :: p   !< pressure
-    real(rk), dimension(:, :), intent(in) :: rho !< density
-    real(rk), dimension(:, :), intent(inout) :: cs !< sound speed
+    real(rk), dimension(:, :), contiguous, intent(in) :: p   !< pressure
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho !< density
+    real(rk), dimension(:, :), contiguous, intent(inout) :: cs !< sound speed
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -149,7 +149,7 @@ contains
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
-        cs(i, j) = sqrt(gamma * p(i, j) / rho(i, j))
+        cs(i, j) = sqrt(gamma * abs(p(i, j) / rho(i, j)))
       end do
     end do
     !$omp end do simd
@@ -160,9 +160,9 @@ contains
     !< Calculate sound speed
 
     class(eos_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(in) :: p
-    real(rk), dimension(:, :), intent(in) :: rho
-    real(rk), dimension(:, :), intent(inout) :: t
+    real(rk), dimension(:, :), contiguous, intent(in) :: p
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho
+    real(rk), dimension(:, :), contiguous, intent(inout) :: t
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -193,13 +193,13 @@ contains
     !< is in the EOS class due to requirement of converting energy into pressure
 
     class(eos_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(in) :: rho   !< density
-    real(rk), dimension(:, :), intent(in) :: rho_u !< density * x-velocity
-    real(rk), dimension(:, :), intent(in) :: rho_v !< density * y-velocity
-    real(rk), dimension(:, :), intent(in) :: rho_E !< density * total energy
-    real(rk), dimension(:, :), intent(inout) :: u    !< x-velocity
-    real(rk), dimension(:, :), intent(inout) :: v    !< y-velocity
-    real(rk), dimension(:, :), intent(inout) :: p    !< pressure
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho   !< density
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho_u !< density * x-velocity
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho_v !< density * y-velocity
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho_E !< density * total energy
+    real(rk), dimension(:, :), contiguous, intent(inout) :: u    !< x-velocity
+    real(rk), dimension(:, :), contiguous, intent(inout) :: v    !< y-velocity
+    real(rk), dimension(:, :), contiguous, intent(inout) :: p    !< pressure
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -235,13 +235,13 @@ contains
     !< is in the EOS class due to requirement of converting energy into pressure
 
     class(eos_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(in) :: rho
-    real(rk), dimension(:, :), intent(in) :: u
-    real(rk), dimension(:, :), intent(in) :: v
-    real(rk), dimension(:, :), intent(in) :: p
-    real(rk), dimension(:, :), intent(inout) :: rho_u
-    real(rk), dimension(:, :), intent(inout) :: rho_v
-    real(rk), dimension(:, :), intent(inout) :: rho_E
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho
+    real(rk), dimension(:, :), contiguous, intent(in) :: u
+    real(rk), dimension(:, :), contiguous, intent(in) :: v
+    real(rk), dimension(:, :), contiguous, intent(in) :: p
+    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_u
+    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_v
+    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_E
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi

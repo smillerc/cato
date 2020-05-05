@@ -20,10 +20,10 @@ contains
   function get_fluxes(rho, u, v, p, lbounds) result(flux)
     !< Implementation of the flux tensor (H) construction. This requires the primitive variables
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: rho !< (i,j)
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: u   !< (i,j)
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: v   !< (i,j)
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: p   !< (i,j)
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j)
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u   !< (i,j)
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v   !< (i,j)
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p   !< (i,j)
 
     type(flux_array_t) :: flux
 
@@ -54,7 +54,7 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
     !$omp shared(flux, rho, u, v, p, E)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         flux%F(1, i, j) = rho(i, j) * u(i, j)
@@ -63,9 +63,9 @@ contains
         flux%F(4, i, j) = u(i, j) * (rho(i, j) * E(i, j) + p(i, j))
       end do
     end do
-    !$omp end do simd
+    !$omp end do
 
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         flux%G(1, i, j) = rho(i, j) * v(i, j)
@@ -74,7 +74,7 @@ contains
         flux%G(4, i, j) = v(i, j) * (rho(i, j) * E(i, j) + p(i, j))
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
 
   end function

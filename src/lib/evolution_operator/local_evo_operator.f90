@@ -96,10 +96,10 @@ contains
     integer(ik), dimension(2), intent(in) :: lbounds
     character(len=*), intent(in) :: location !< Mach cone location ['corner', 'left/right midpoint', or 'down/up midpoint']
     integer(ik), intent(out) :: error_code
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_p
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_u
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_v
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_p
 
     ! Locals
     integer(ik) :: i, j
@@ -355,16 +355,18 @@ contains
               v_i=>cones%v, &
               p_i=>cones%p)
 
-      !$omp parallel default(shared) private(i,j)
-      !$omp do
+      !!$omp parallel default(none) &
+      !!$omp shared(cones, p, rho, u, v, rho_a_tilde) &
+      !!$omp private(i,j)
+      !!$omp do
       do j = 1, cones%nj
         do i = 1, cones%ni
           rho_a_tilde(i, j) = cones%reference_density(i, j) * cones%reference_sound_speed(i, j)
         end do
       end do
-      !$omp end do
+      !!$omp end do
 
-      !$omp do
+      !!$omp do
       do j = 1, cones%nj
         do i = 1, cones%ni
           p(i, j) = sum(p_i(:, i, j) * dtheta(:, i, j) - &
@@ -372,17 +374,17 @@ contains
                         rho_a_tilde(i, j) * v_i(:, i, j) * cos_dtheta(:, i, j)) / (2.0_rk * pi)
         end do
       end do
-      !$omp end do
+      !!$omp end do
 
-      !$omp do
+      !!$omp do
       do j = 1, cones%nj
         do i = 1, cones%ni
           rho(i, j) = rho_p_prime(i, j) + (p(i, j) / a_tilde(i, j)**2) - (pressure_p_prime(i, j) / a_tilde(i, j)**2)
         end do
       end do
-      !$omp end do
+      !!$omp end do
 
-      !$omp do
+      !!$omp do
       do j = 1, cones%nj
         do i = 1, cones%ni
           u(i, j) = sum((-p_i(:, i, j) / rho_a_tilde(i, j)) * sin_dtheta(:, i, j) &
@@ -394,9 +396,9 @@ contains
                         + v_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk))) / pi
         end do
       end do
-      !$omp end do
+      !!$omp end do
 
-      !$omp end parallel
+      !!$omp end parallel
     end associate
 
     deallocate(rho_a_tilde)

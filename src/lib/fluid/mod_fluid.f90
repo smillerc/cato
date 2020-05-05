@@ -558,13 +558,13 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
     !$omp shared(self)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         self%mach(i, j) = sqrt(self%u(i, j)**2 + self%v(i, j)**2) / self%cs(i, j)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
 
     self%prim_vars_updated = .true.
@@ -579,25 +579,22 @@ contains
     !< Evaluate the fluxes along the edges. This is equation 13 in the paper
     class(grid_t), intent(in) :: grid
 
-    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
-    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
-    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
-    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
-
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
-
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
-
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(inout) :: d_rho_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(inout) :: d_rhou_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(inout) :: d_rhov_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(inout) :: d_rhoE_dt
+    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
+    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
+    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
+    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
+    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
+    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
+    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
+    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
+    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rho_dt
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhou_dt
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhov_dt
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhoE_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j, edge, xy
@@ -659,7 +656,7 @@ contains
     !$omp private(right_rho_flux, right_rhou_flux, right_rhov_flux, right_rhoE_flux) &
     !$omp private(left_rho_flux, left_rhou_flux, left_rhov_flux, left_rhoE_flux) &
     !$omp private(top_rho_flux, top_rhou_flux, top_rhov_flux, top_rhoE_flux) &
-    !$omp shared(corner_fluxes, leftright_mid_fluxes, downup_mid_fluxes)
+    !$omp shared(grid, corner_fluxes, leftright_mid_fluxes, downup_mid_fluxes) &
     !$omp shared(d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
     !$omp do
     do j = jlo, jhi
@@ -791,7 +788,7 @@ contains
     ! jlo = lbound(self%conserved_vars, dim=3)
     ! jhi = ubound(self%conserved_vars, dim=3)
 
-    ! !$omp parallel default(shared) private(i,j,u,v,ilo,ihi,jlo,jhi)
+    ! !$omp parallel default(none) private(i,j,u,v,ilo,ihi,jlo,jhi)
     ! !$omp do
     ! do j = jlo, jhi
     !   do i = ilo, ihi
@@ -874,9 +871,9 @@ contains
 
   subroutine add_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a + b
-    real(rk), dimension(:, :), intent(in) :: a
-    real(rk), dimension(:, :), intent(in) :: b
-    real(rk), dimension(:, :), intent(inout) :: c
+    real(rk), dimension(:, :), contiguous, intent(in) :: a
+    real(rk), dimension(:, :), contiguous, intent(in) :: b
+    real(rk), dimension(:, :), contiguous, intent(inout) :: c
     integer(ik) :: i, j, k
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
@@ -905,9 +902,9 @@ contains
 
   subroutine subtract_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a - b
-    real(rk), dimension(:, :), intent(in) :: a
-    real(rk), dimension(:, :), intent(in) :: b
-    real(rk), dimension(:, :), intent(inout) :: c
+    real(rk), dimension(:, :), contiguous, intent(in) :: a
+    real(rk), dimension(:, :), contiguous, intent(in) :: b
+    real(rk), dimension(:, :), contiguous, intent(inout) :: c
     integer(ik) :: i, j, k
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
@@ -936,9 +933,9 @@ contains
 
   subroutine mult_fields(a, b, c)
     !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :), intent(in) :: a
-    real(rk), dimension(:, :), intent(in) :: b
-    real(rk), dimension(:, :), intent(inout) :: c
+    real(rk), dimension(:, :), contiguous, intent(in) :: a
+    real(rk), dimension(:, :), contiguous, intent(in) :: b
+    real(rk), dimension(:, :), contiguous, intent(inout) :: c
     integer(ik) :: i, j, k
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
@@ -967,9 +964,9 @@ contains
 
   subroutine mult_field_by_real(a, b, c)
     !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :), intent(in) :: a
+    real(rk), dimension(:, :), contiguous, intent(in) :: a
     real(rk), intent(in) :: b
-    real(rk), dimension(:, :), intent(inout) :: c
+    real(rk), dimension(:, :), contiguous, intent(inout) :: c
     integer(ik) :: i, j, k
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
@@ -1094,7 +1091,7 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
     !$omp shared(self)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(self%rho(i, j) < 0.0_rk) then
@@ -1102,9 +1099,9 @@ contains
         end if
       end do
     end do
-    !$omp end do simd nowait
+    !$omp end do nowait
 
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(self%p(i, j) < 0.0_rk) then
@@ -1112,11 +1109,11 @@ contains
         end if
       end do
     end do
-    !$omp end do simd nowait
+    !$omp end do nowait
 
     ! NaN checks
 
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%rho(i, j))) then
@@ -1124,8 +1121,8 @@ contains
         end if
       end do
     end do
-    !$omp end do simd nowait
-    !$omp do simd
+    !$omp end do nowait
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%u(i, j))) then
@@ -1133,8 +1130,8 @@ contains
         end if
       end do
     end do
-    !$omp end do simd nowait
-    !$omp do simd
+    !$omp end do nowait
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%v(i, j))) then
@@ -1142,8 +1139,8 @@ contains
         end if
       end do
     end do
-    !$omp end do simd nowait
-    !$omp do simd
+    !$omp end do nowait
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%p(i, j))) then
@@ -1152,7 +1149,7 @@ contains
         end if
       end do
     end do
-    !$omp end do simd nowait
+    !$omp end do nowait
 
     !$omp end parallel
 
