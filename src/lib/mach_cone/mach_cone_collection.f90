@@ -145,16 +145,16 @@ contains
 
     real(rk), intent(in) :: tau
 
-    real(rk), dimension(:, 0:, :, :), intent(in) :: edge_vectors
+    real(rk), dimension(:, 0:, :, :), contiguous, intent(in) :: edge_vectors
     !< ((x,y), (origin, vector_1:N), i, j) ; set of vectors that define the corner
 
-    integer(ik), dimension(:, :, :, :), intent(in) :: cell_indices
+    integer(ik), dimension(:, :, :, :), contiguous, intent(in) :: cell_indices
     !< ((i,j), (cell_1:N), i, j); set of indices for the neighboring cells -> needed to find P' i,j index
 
-    real(rk), dimension(:, :, :), intent(in) :: reconstructed_rho
-    real(rk), dimension(:, :, :), intent(in) :: reconstructed_u
-    real(rk), dimension(:, :, :), intent(in) :: reconstructed_v
-    real(rk), dimension(:, :, :), intent(in) :: reconstructed_p
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: reconstructed_rho
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: reconstructed_u
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: reconstructed_v
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: reconstructed_p
     !< ((cell_1:N), i, j); reconstructed state for point P.
 
     integer(ik) :: idx, arc, c, i, j, ni, nj
@@ -292,7 +292,8 @@ contains
         self%p0_x(i, j) = self%edge_vectors(1, 0, i, j)
         self%p0_y(i, j) = self%edge_vectors(2, 0, i, j)
         associate(x=>self%p0_x(i, j), y=>self%p0_y(i, j), &
-                  u_tilde=>self%reference_u(i, j), v_tilde=>self%reference_v(i, j))
+                  u_tilde=>self%reference_u(i, j), &
+                  v_tilde=>self%reference_v(i, j))
           self%p_prime_x(i, j) = x - self%tau * u_tilde
           self%p_prime_y(i, j) = y - self%tau * v_tilde
         end associate
@@ -306,7 +307,9 @@ contains
     call self%compute_trig_angles()
 
     ! Assign the reconstructed quantities to the primitive var values for each arc of the mach cone
-    !$omp parallel default(shared) private(i,j,c, arc, idx,recon_u, recon_v, recon_p)
+    !$omp parallel default(none) &
+    !$omp shared(self) &
+    !$omp private(i,j,c, arc, idx,recon_u, recon_v, recon_p)
 
     !$omp do
     do j = 1, self%nj
@@ -356,19 +359,46 @@ contains
     gamma = eos%get_gamma()
 
     n_cells_real = real(self%n_neighbor_cells, rk)
-
-    !$omp parallel default(shared) private(i,j,c)
-    !$omp do
+    !$omp parallel default(none) &
+    !$omp shared(self) &
+    !$omp firstprivate(gamma, n_cells_real) &
+    !$omp private(i,j,c)
+    !$omp do simd
     do j = 1, self%nj
       do i = 1, self%ni
         self%reference_density(i, j) = sum(self%recon_rho(:, i, j)) / n_cells_real
-        self%reference_u(i, j) = sum(self%recon_u(:, i, j)) / n_cells_real
-        self%reference_v(i, j) = sum(self%recon_v(:, i, j)) / n_cells_real
-        self%reference_sound_speed(i, j) = sqrt(gamma * (sum(self%recon_p(:, i, j)) / n_cells_real) / self%reference_density(i, j))
       end do
     end do
-    !$omp end do
+    !$omp end do simd
+
+    !$omp do simd
+    do j = 1, self%nj
+      do i = 1, self%ni
+        self%reference_u(i, j) = sum(self%recon_u(:, i, j)) / n_cells_real
+      end do
+    end do
+    !$omp end do simd
+
+    !$omp do simd
+    do j = 1, self%nj
+      do i = 1, self%ni
+        self%reference_v(i, j) = sum(self%recon_v(:, i, j)) / n_cells_real
+      end do
+    end do
+    !$omp end do simd
+
+    !$omp do simd
+    do j = 1, self%nj
+      do i = 1, self%ni
+        self%reference_sound_speed(i, j) = sqrt(gamma * &
+                                                (sum(self%recon_p(:, i, j)) / n_cells_real) &
+                                                / self%reference_density(i, j))
+      end do
+    end do
+    !$omp end do simd
+
     !$omp end parallel
+
   end subroutine get_reference_state
 
   subroutine compute_trig_angles(self)
@@ -404,43 +434,55 @@ contains
 
     idx_max = 2 * self%n_neighbor_cells
     allocate(sin_theta_ib(idx_max, self%ni, self%nj))
-    sin_theta_ib = 0.0_rk
-
     allocate(cos_theta_ib(idx_max, self%ni, self%nj))
-    cos_theta_ib = 0.0_rk
-
     allocate(sin_theta_ie(idx_max, self%ni, self%nj))
-    sin_theta_ie = 0.0_rk
-
     allocate(cos_theta_ie(idx_max, self%ni, self%nj))
-    cos_theta_ie = 0.0_rk
-
     allocate(n_arcs_per_cell(self%n_neighbor_cells, self%ni, self%nj))
-    n_arcs_per_cell = 0
 
     call self%find_arc_angles(theta_ib, theta_ie, n_arcs_per_cell)
 
     self%n_arcs_per_cell = n_arcs_per_cell
 
-    !$omp parallel default(shared) private(i,j,c,arc,idx)
+    !$omp parallel default(none) &
+    !$omp shared(self, theta_ib, theta_ie) &
+    !$omp shared(sin_theta_ib, sin_theta_ie) &
+    !$omp shared(cos_theta_ib, cos_theta_ie) &
+    !$omp firstprivate(idx_max) &
+    !$omp private(i, j, idx)
+
     !$omp do
     do j = 1, self%nj
       do i = 1, self%ni
-        do c = 1, self%n_neighbor_cells
-          do arc = 1, 2
-            idx = arc + (c - 1) * 2
-            self%dtheta(idx, i, j) = abs(theta_ie(idx, i, j) - theta_ib(idx, i, j))
-            sin_theta_ib(idx, i, j) = sin(theta_ib(idx, i, j))
-            cos_theta_ib(idx, i, j) = cos(theta_ib(idx, i, j))
-            sin_theta_ie(idx, i, j) = sin(theta_ie(idx, i, j))
-            cos_theta_ie(idx, i, j) = cos(theta_ie(idx, i, j))
-          end do
+        do idx = 1, idx_max
+          sin_theta_ib(idx, i, j) = sin(theta_ib(idx, i, j))
+          cos_theta_ib(idx, i, j) = cos(theta_ib(idx, i, j))
         end do
       end do
     end do
     !$omp end do
 
     !$omp do
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do idx = 1, idx_max
+          sin_theta_ie(idx, i, j) = sin(theta_ie(idx, i, j))
+          cos_theta_ie(idx, i, j) = cos(theta_ie(idx, i, j))
+        end do
+      end do
+    end do
+    !$omp end do
+
+    !$omp do simd
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do idx = 1, idx_max
+          self%dtheta(idx, i, j) = abs(theta_ie(idx, i, j) - theta_ib(idx, i, j))
+        end do
+      end do
+    end do
+    !$omp end do simd
+
+    !$omp do simd
     do j = 1, self%nj
       do i = 1, self%ni
         do idx = 1, idx_max
@@ -451,14 +493,23 @@ contains
         end do
       end do
     end do
-    !$omp end do
+    !$omp end do simd
 
-    !$omp do
+    !$omp do simd
     do j = 1, self%nj
       do i = 1, self%ni
         do idx = 1, idx_max
           self%sin_dtheta(idx, i, j) = sin_theta_ie(idx, i, j) - sin_theta_ib(idx, i, j)
           self%cos_dtheta(idx, i, j) = cos_theta_ie(idx, i, j) - cos_theta_ib(idx, i, j)
+        end do
+      end do
+    end do
+    !$omp end do simd
+
+    !$omp do simd
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do idx = 1, idx_max
           self%sin_d2theta(idx, i, j) = 2.0_rk * sin_theta_ie(idx, i, j) * cos_theta_ie(idx, i, j) - &
                                         2.0_rk * sin_theta_ib(idx, i, j) * cos_theta_ib(idx, i, j)
           self%cos_d2theta(idx, i, j) = (2.0_rk * cos_theta_ie(idx, i, j)**2 - 1.0_rk) - &
@@ -466,7 +517,8 @@ contains
         end do
       end do
     end do
-    !$omp end do
+    !$omp end do simd
+
     !$omp end parallel
 
     deallocate(sin_theta_ib)
@@ -507,24 +559,9 @@ contains
     real(rk) :: vec_2_cross_p_prime
 
     allocate(theta_ib(2 * self%n_neighbor_cells, self%ni, self%nj))
-    theta_ib = 0.0_rk
     allocate(theta_ie(2 * self%n_neighbor_cells, self%ni, self%nj))
-    theta_ie = 0.0_rk
     allocate(n_arcs_per_cell(self%n_neighbor_cells, self%ni, self%nj))
-    n_arcs_per_cell = 0
 
-    p_prime_cross_vec_1 = 0.0_rk
-    vec_2_cross_p_prime = 0.0_rk
-
-    second_vector = 0.0_rk
-    first_vector = 0.0_rk
-    corner_vector_set = 0.0_rk
-    midpoint_vector_set = 0.0_rk
-
-    !$omp parallel default(shared) &
-    !$omp private(corner_vector_set, midpoint_vector_set, first_vector, second_vector) &
-    !$omp private(i, j, arc, c, idx) &
-    !$omp private(p_prime, p_0, p_prime_cross_vec_1, vec_2_cross_p_prime, n_arcs, theta_ib_ie)
     select case(trim(self%cone_location))
     case('corner')
       ! corner cone (for quadrilateral cells)
@@ -553,6 +590,11 @@ contains
       ! if P' is in the neighboring cell or not
       ! edge_vector_ordering = [4, 1],[1, 2],[2, 3],[3, 4]
 
+      !$omp parallel default(none) &
+      !$omp shared(self, n_arcs_per_cell, theta_ib, theta_ie) &
+      !$omp private(corner_vector_set, first_vector, second_vector) &
+      !$omp private(i, j, arc, c, idx) &
+      !$omp private(p_prime, p_0, p_prime_cross_vec_1, vec_2_cross_p_prime, n_arcs, theta_ib_ie)
       !$omp do
       do j = 1, self%nj
         do i = 1, self%ni
@@ -608,6 +650,7 @@ contains
         end do
       end do
       !$omp end do
+      !$omp end parallel
 
     case('down/up midpoint', 'left/right midpoint')
 
@@ -643,6 +686,11 @@ contains
       ! if P' is in the neighboring cell or not
       ! edge_vector_ordering = [2, 1] [1, 2]
 
+      !$omp parallel default(none) &
+      !$omp shared(self, n_arcs_per_cell, theta_ib, theta_ie) &
+      !$omp private(midpoint_vector_set, first_vector, second_vector) &
+      !$omp private(i, j, arc, c, idx) &
+      !$omp private(p_prime, p_0, p_prime_cross_vec_1, vec_2_cross_p_prime, n_arcs, theta_ib_ie)
       !$omp do
       do j = 1, self%nj
         do i = 1, self%ni
@@ -692,11 +740,11 @@ contains
         end do
       end do
       !$omp end do
+      !$omp end parallel
 
     case default
       error stop 'Error in mach_cone_collection_t%find_arc_angles(), invalid cone location'
     end select
-    !$omp end parallel
 
   end subroutine find_arc_angles
 
