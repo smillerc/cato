@@ -51,7 +51,8 @@ contains
     ! The flux tensor is H = Fi + Gj
 
     !$omp parallel default(none), &
-    !$omp private(i, j, ilo, ihi, jlo, jhi) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
     !$omp shared(flux, rho, u, v, p, E)
     !$omp do simd
     do j = jlo, jhi

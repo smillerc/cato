@@ -1,6 +1,6 @@
 module mod_regular_2d_grid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_grid, only: grid_t
+  use mod_grid, only: grid_t, C1, M1, C2, M2, C3, M3, C4, M4
   use mod_units
   use mod_quad_cell, only: quad_cell_t
   use mod_input, only: input_t
@@ -758,14 +758,7 @@ contains
     ! the entire set to the origin at (0,0).
 
     integer(ik) :: i, j, v
-    integer(ik), parameter :: C1 = 1 !< lower-left corner
-    integer(ik), parameter :: C2 = 3 !< lower-right corner
-    integer(ik), parameter :: C3 = 5 !< upper-right corner
-    integer(ik), parameter :: C4 = 6 !< upper-left corner
-    integer(ik), parameter :: M1 = 2 !< bottom midpoint
-    integer(ik), parameter :: M2 = 4 !< right midpoint
-    integer(ik), parameter :: M3 = 6 !< top midpoint
-    integer(ik), parameter :: M4 = 8 !< left midpoint
+
     real(rk), dimension(2) :: vector_length
     real(rk), dimension(2) :: origin
 
@@ -793,16 +786,16 @@ contains
     select case(trim(edge))
     case('left')
       ! Left edge of cell (i,j)
-      !  |         P2(C4)     |
+      !  |         C4         |
       !  |         |          |
       !  |         M4         |
       !  | (i-1,j) |  (i,j)   |
-      !  |         P1(C1)     |
+      !  |        C1          |
       do j = self%jlo_cell, self%jhi_cell
         do i = self%ilo_node, self%ihi_node
 
-          origin(1) = self%cell_node_x(M1, i, j)
-          origin(2) = self%cell_node_y(M1, i, j)
+          origin(1) = self%cell_node_x(M4, i, j)
+          origin(2) = self%cell_node_y(M4, i, j)
           self%downup_midpoint_edge_vectors(:, 0, i, j) = origin
 
           self%downup_midpoint_edge_vectors(1, 1, i, j) = self%cell_node_x(C1, i, j) ! vector 1 (C1)
@@ -811,25 +804,25 @@ contains
           self%downup_midpoint_edge_vectors(1, 2, i, j) = self%cell_node_x(C4, i, j) ! vector 2 (C4)
           self%downup_midpoint_edge_vectors(2, 2, i, j) = self%cell_node_y(C4, i, j) ! vector 2 (C4)
 
-          ! shift to origin
-          if(shift) then
-            do v = 1, 2
-              self%downup_midpoint_edge_vectors(:, v, i, j) = self%downup_midpoint_edge_vectors(:, v, i, j) - origin
-            end do
-          end if
+          ! ! shift to origin
+          ! if(shift) then
+          !   do v = 1, 2
+          !     self%downup_midpoint_edge_vectors(:, v, i, j) = self%downup_midpoint_edge_vectors(:, v, i, j) - origin
+          !   end do
+          ! end if
 
-          ! get the length of each vector
-          if(scale) then
-            do v = 1, 2
-              vector_length(v) = sqrt(self%downup_midpoint_edge_vectors(1, v, i, j)**2 + &
-                                      self%downup_midpoint_edge_vectors(2, v, i, j)**2)
-            end do
+          ! ! get the length of each vector
+          ! if(scale) then
+          !   do v = 1, 2
+          !     vector_length(v) = sqrt(self%downup_midpoint_edge_vectors(1, v, i, j)**2 + &
+          !                             self%downup_midpoint_edge_vectors(2, v, i, j)**2)
+          !   end do
 
-            ! scale by the smallest length
-            self%downup_midpoint_edge_vectors_scale(i, j) = minval(vector_length)
-            self%downup_midpoint_edge_vectors(:, :, i, j) = self%downup_midpoint_edge_vectors(:, :, i, j) &
-                                                            / minval(vector_length)
-          end if
+          !   ! scale by the smallest length
+          !   self%downup_midpoint_edge_vectors_scale(i, j) = minval(vector_length)
+          !   self%downup_midpoint_edge_vectors(:, :, i, j) = self%downup_midpoint_edge_vectors(:, :, i, j) &
+          !                                                   / minval(vector_length)
+          ! end if
 
         end do
       end do
@@ -842,14 +835,15 @@ contains
       ! Bottom edge of cell (i,j)
       !       |          |
       !       |  (i,j)   |
-      !  (C1) C1---M1---C2 (C2)
+      !       C1---M1---C2
       !       | (i,j-1)  |
       !       |          |
       do j = self%jlo_node, self%jhi_node
         do i = self%ilo_cell, self%ihi_cell
-          origin = self%cell_node_x(M1, i, j) ! origin (M1)
-          origin = self%cell_node_y(M1, i, j) ! origin (M1)
+          origin(1) = self%cell_node_x(M1, i, j) ! origin (M1)
+          origin(2) = self%cell_node_y(M1, i, j) ! origin (M1)
           self%leftright_midpoint_edge_vectors(:, 0, i, j) = origin
+
           self%leftright_midpoint_edge_vectors(1, 1, i, j) = self%cell_node_x(C1, i, j) ! vector 1 (C1)
           self%leftright_midpoint_edge_vectors(2, 1, i, j) = self%cell_node_y(C1, i, j) ! vector 1 (C1)
 
@@ -902,14 +896,6 @@ contains
     real(rk), dimension(4) :: vector_length
 
     integer(ik) :: i, j, v, N
-    integer(ik), parameter :: C1 = 1 !< lower-left corner
-    integer(ik), parameter :: C2 = 3 !< lower-right corner
-    integer(ik), parameter :: C3 = 5 !< upper-right corner
-    integer(ik), parameter :: C4 = 6 !< upper-left corner
-    integer(ik), parameter :: M1 = 2 !< bottom midpoint
-    integer(ik), parameter :: M2 = 4 !< right midpoint
-    integer(ik), parameter :: M3 = 6 !< top midpoint
-    integer(ik), parameter :: M4 = 8 !< left midpoint
 
     ! Corner/midpoint index convention         Cell Indexing convention
     ! --------------------------------         ------------------------
@@ -953,9 +939,8 @@ contains
     self%corner_edge_vectors = 0.0_rk
     do j = self%jlo_node, self%jhi_node
       do i = self%ilo_node, self%ihi_node
-        origin = self%cell_node_x(C1, i, j)
-        origin = self%cell_node_y(C1, i, j)
-
+        origin(1) = self%cell_node_x(C1, i, j)
+        origin(2) = self%cell_node_y(C1, i, j)
         self%corner_edge_vectors(:, 0, i, j) = origin
 
         self%corner_edge_vectors(1, 1, i, j) = self%cell_node_x(C2, i - 1, j - 1)  ! vector 1

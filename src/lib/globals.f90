@@ -13,6 +13,8 @@ module mod_globals
 
   logical :: globals_set = .false.
 
+  integer(ik), protected :: n_ghost_layers = 1
+
   character(len=5), protected :: global_dimensionality
   logical, protected :: is_1d = .false.
   logical, protected :: is_1d_in_x = .false.

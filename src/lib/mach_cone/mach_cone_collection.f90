@@ -174,22 +174,30 @@ contains
       error stop "Error in mach_cone_collection_t%initialize(), unsupported cone location"
     end select
 
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do c = 1, self%n_neighbor_cells
+          if(reconstructed_rho(c, i, j) < 0.0_rk) then
+            write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed density states [' // trim(self%cone_location) //'] (cell 1:N)', reconstructed_rho(:, i, j)
+            write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: ', i, j
+            write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
+            error stop "Error in mach_cone_collection_t%initialize(), density in the reconstructed state is < 0"
+          end if
+
+          if(reconstructed_p(c, i, j) < 0.0_rk) then
+            write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed pressure states [' // trim(self%cone_location) //'] (cell 1:N): ', reconstructed_p(:, i, j)
+            write(std_err, '(a, i0, ", ", i0, a)') 'Cone index [i, j]: [', i, j, ']'
+            write(std_err, '(a, 4("[",i0, ", ", i0, "] "))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
+            error stop "Error in mach_cone_collection_t%initialize(), pressure in the reconstructed state is < 0"
+          end if
+        end do
+      end do
+    end do
+
     ! do j = 1, self%nj
     !   do i = 1, self%ni
-    !     do c = 1, self%n_neighbor_cells
-    !       if(reconstructed_state(1, c, i, j) < 0.0_rk) then
-    !         write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed density states [' // trim(self%cone_location) //'] (cell 1:N)', reconstructed_state(1, :, i, j)
-    !         write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: ', i, j
-    !         write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
-    !         error stop "Error in mach_cone_collection_t%initialize(), density in the reconstructed state is < 0"
-    !       end if
-
-    !       if(reconstructed_state(4, c, i, j) < 0.0_rk) then
-    !         write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed pressure states [' // trim(self%cone_location) //'] (cell 1:N): ', reconstructed_state(4, :, i, j)
-    !         write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: [', i, j, ']'
-    !         write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
-    !         error stop "Error in mach_cone_collection_t%initialize(), pressure in the reconstructed state is < 0"
-    !       end if
+    !     do c = 0, self%n_neighbor_cells
+    !       write(*,'(a, 3(i0,1x), a, 2(es10.3,1x))') 'ijc: ', i, j, c, 'xy: ', edge_vectors(:,c,i,j)
     !     end do
     !   end do
     ! end do
@@ -700,14 +708,14 @@ contains
 
     arc_sum = sum(self%dtheta, dim=1)
 
-    do j = 1, self%nj
-      do i = 1, self%ni
-        if(count(self%n_arcs_per_cell(:, i, j) >= 2) > 1) then
-          call self%print(i, j)
-          error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
-        end if
-      end do
-    end do
+    ! do j = 1, self%nj
+    !   do i = 1, self%ni
+    !     if(count(self%n_arcs_per_cell(:, i, j) >= 2) > 1) then
+    !       call self%print(i, j)
+    !       error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
+    !     end if
+    !   end do
+    ! end do
 
     do j = 1, self%nj
       do i = 1, self%ni

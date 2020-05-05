@@ -103,6 +103,7 @@ contains
     jlo = fv%grid%jlo_cell
     jhi = fv%grid%jhi_cell
 
+    if(.not. fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
     associate(dx=>fv%grid%cell_dx, dy=>fv%grid%cell_dy)
 
       delta_t = minval(cfl / (((fluid%u(ilo:ihi, jlo:jhi) + fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &

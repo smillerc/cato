@@ -15,7 +15,7 @@ module mod_local_evo_operator
   use mod_input, only: input_t
   use mod_mach_cone_collection, only: mach_cone_collection_t
 
-  use mod_grid, only: grid_t
+  use mod_grid, only: grid_t, C1, M1, C2, M2, C3, M3, C4, M4
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
 
@@ -23,15 +23,6 @@ module mod_local_evo_operator
 
   private
   public :: local_evo_operator_t
-
-  integer(ik), parameter :: C1 = 1 !< lower-left corner
-  integer(ik), parameter :: C2 = 3 !< lower-right corner
-  integer(ik), parameter :: C3 = 5 !< upper-right corner
-  integer(ik), parameter :: C4 = 6 !< upper-left corner
-  integer(ik), parameter :: M1 = 2 !< bottom midpoint
-  integer(ik), parameter :: M2 = 4 !< right midpoint
-  integer(ik), parameter :: M3 = 6 !< top midpoint
-  integer(ik), parameter :: M4 = 8 !< left midpoint
 
   type, extends(abstract_evo_operator_t) :: local_evo_operator_t
     !< Local Evolution Operator (E0)
@@ -221,7 +212,7 @@ contains
       !      (i-1,j)
       !  C4----M3----C3
       !  |            |
-      !  M4    C1     M2
+      !  M4    X1     M2
       !  |            |
       !  C1----M1----C2
       !
@@ -229,7 +220,7 @@ contains
       !
       !  C4----M3----C3
       !  |           |
-      !  M4    C2    M2
+      !  M4    X2    M2
       !  |           |
       !  C1----M1----C2
       !       cell 2
@@ -254,15 +245,13 @@ contains
       allocate(reconstructed_p(2, ilo:ihi, jlo:jhi))
       do j = jlo, jhi
         do i = ilo, ihi
-          ! reconstructed_state indexing; ((rho, u ,v, p), point, node/midpoint, i, j)
-
-          ! Cell 1 -> use M1 from the cell above
-          reconstructed_u(1, i, j) = self%reconstructed_rho(M1, i, j)
-          reconstructed_v(1, i, j) = self%reconstructed_u(M1, i, j)
-          reconstructed_rho(1, i, j) = self%reconstructed_v(M1, i, j)
+          ! Cell X1 -> use M1 from the cell above
+          reconstructed_rho(1, i, j) = self%reconstructed_rho(M1, i, j)
+          reconstructed_u(1, i, j) = self%reconstructed_u(M1, i, j)
+          reconstructed_v(1, i, j) = self%reconstructed_v(M1, i, j)
           reconstructed_p(1, i, j) = self%reconstructed_p(M1, i, j)
 
-          ! Cell 2 -> use M3 from the cell below
+          ! Cell X2 -> use M3 from the cell below
           reconstructed_rho(2, i, j) = self%reconstructed_rho(M3, i, j - 1)
           reconstructed_u(2, i, j) = self%reconstructed_u(M3, i, j - 1)
           reconstructed_v(2, i, j) = self%reconstructed_v(M3, i, j - 1)
@@ -286,7 +275,7 @@ contains
       !      (i-1,j)         vector          (i,j)
       !  C4----M3----C3       P2       C4----M3----C3
       !  |           |        |       |            |
-      !  M4    C1    M2       O       M4    C2     M2
+      !  M4    X1    M2       O       M4    X2     M2
       !  |           |        |       |            |
       !  C1----M1----C2      P1       C1----M1----C2
       !
@@ -308,13 +297,13 @@ contains
       allocate(reconstructed_p(2, ilo:ihi, jlo:jhi))
       do j = jlo, jhi
         do i = ilo, ihi
-          ! Cell 1: use M2 from the left cell
-          reconstructed_u(1, i, j) = self%reconstructed_rho(M2, i - 1, j)
-          reconstructed_v(1, i, j) = self%reconstructed_u(M2, i - 1, j)
-          reconstructed_rho(1, i, j) = self%reconstructed_v(M2, i - 1, j)
+          ! Cell X1: cell to the left -> use M2
+          reconstructed_rho(1, i, j) = self%reconstructed_rho(M2, i - 1, j)
+          reconstructed_u(1, i, j) = self%reconstructed_u(M2, i - 1, j)
+          reconstructed_v(1, i, j) = self%reconstructed_v(M2, i - 1, j)
           reconstructed_p(1, i, j) = self%reconstructed_p(M2, i - 1, j)
 
-          ! Cell 2: cell to the right -> use M4 from the right cell
+          ! Cell X2: cell to the right -> use M4
           reconstructed_rho(2, i, j) = self%reconstructed_rho(M4, i, j)
           reconstructed_u(2, i, j) = self%reconstructed_u(M4, i, j)
           reconstructed_v(2, i, j) = self%reconstructed_v(M4, i, j)

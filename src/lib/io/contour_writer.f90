@@ -152,7 +152,6 @@ contains
 
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     real(rk) :: time_w_dims, delta_t_w_dims
-    real(rk), dimension(:, :, :), allocatable :: primitive_vars
     real(rk), dimension(:, :), allocatable :: io_data_buffer
     integer(ik), dimension(:, :), allocatable :: int_data_buffer
 
@@ -291,15 +290,15 @@ contains
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
-    dataset_name = '/total_energy'
-    associate(rhoE=>fluid%rho_E, &
-              rho=>fluid%rho)
-      io_data_buffer = (rhoE / rho) * e_0
-    end associate
-    io_data_buffer = io_data_buffer * io_pressure_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Total Energy')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_energy_label))
+    ! dataset_name = '/total_energy'
+    ! associate(rhoE=>fluid%rho_E, &
+    !           rho=>fluid%rho)
+    !   io_data_buffer = (rhoE / rho) * e_0
+    ! end associate
+    ! io_data_buffer = io_data_buffer * io_pressure_units
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Total Energy')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_energy_label))
 
     dataset_name = '/sound_speed'
     io_data_buffer = fluid%cs * v_0 * io_velocity_units
@@ -325,7 +324,6 @@ contains
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
-    if(allocated(primitive_vars)) deallocate(primitive_vars)
     if(allocated(int_data_buffer)) deallocate(int_data_buffer)
     if(allocated(io_data_buffer)) deallocate(io_data_buffer)
     call self%hdf5_file%finalize()
@@ -390,11 +388,11 @@ contains
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/pressure</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    unit_label = "["//trim(io_energy_label)//"]"
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Total Energy '//trim(unit_label)//'">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
+    ! unit_label = "["//trim(io_energy_label)//"]"
+    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Total Energy '//trim(unit_label)//'">'
+    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+    !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
+    ! write(xdmf_unit, '(a)') '      </Attribute>'
 
     ! Velocity
     unit_label = "["//trim(io_velocity_label)//"]"

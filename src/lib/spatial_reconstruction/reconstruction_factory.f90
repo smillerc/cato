@@ -4,7 +4,7 @@ module mod_reconstruction_factory
   use mod_globals, only: debug_print
   use mod_input, only: input_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
+  use mod_first_order_reconstruction, only: first_order_reconstruction_t
   ! use mod_second_order_mgg_reconstruction, only: second_order_mgg_reconstruction_t
   ! use mod_second_order_sgg_reconstruction, only: second_order_sgg_reconstruction_t
   ! use mod_second_order_dbl_reconstruction, only: second_order_dbl_reconstruction_t
@@ -41,9 +41,9 @@ contains
       ! case('piecewise_linear_mgg')
       !   allocate(second_order_mgg_reconstruction_t :: operator)
       !   call operator%initialize(input=input, grid_target=grid_target)
-      ! case('cell_average')
-      !   allocate(first_order_reconstruction_t :: operator)
-      !   call operator%initialize(input=input, grid_target=grid_target)
+    case('cell_average')
+      allocate(first_order_reconstruction_t :: operator)
+      call operator%initialize(input=input, grid_target=grid_target)
     case default
       error stop "Error in reconstruction_factory_t, unrecognizable reconstruction type"
     end select

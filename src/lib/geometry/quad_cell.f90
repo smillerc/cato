@@ -175,8 +175,8 @@ contains
 
   pure subroutine get_cell_point_coords(self, x, y)
     class(quad_cell_t), intent(in) :: self
-    real(rk), dimension(8), intent(out) :: x !< coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
-    real(rk), dimension(8), intent(out) :: y !< coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+    real(rk), dimension(8), intent(out) :: x !< x coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+    real(rk), dimension(8), intent(out) :: y !< y coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
 
     ! Corners
     x(1) = self%x(1); y(1) = self%y(1)

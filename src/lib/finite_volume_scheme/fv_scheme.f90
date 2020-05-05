@@ -285,7 +285,7 @@ contains
     !< This reconstructs the entire grid at all the nodes/midpoints
     class(finite_volume_scheme_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: primitive_var !< (i,j); cell primitive variable to reconstruct
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: primitive_var !< (i,j); cell primitive variable to reconstruct
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out) :: reconstructed_var
     !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 

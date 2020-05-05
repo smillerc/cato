@@ -18,7 +18,9 @@ module mod_integrand
     procedure, non_overridable :: get_time_integrator
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
     procedure(sanity_check), deferred :: sanity_check
-    procedure(residual_smoother), deferred :: residual_smoother
+    procedure(basic_fv), deferred :: apply_boundary_conditions
+    procedure(basic), deferred :: calculate_derived_quantities
+    procedure(basic), deferred :: residual_smoother
     procedure(symmetric_operator), deferred :: type_plus_type
     procedure(symmetric_operator), deferred :: type_minus_type
     procedure(asymmetric_operator_rhs), pass(rhs), deferred :: real_mul_type
@@ -42,10 +44,17 @@ module mod_integrand
       class(integrand_t), allocatable :: dState_dt
     end function time_derivative
 
-    subroutine residual_smoother(self)
+    subroutine basic(self)
       import :: integrand_t
       class(integrand_t), intent(inout) :: self
-    end subroutine residual_smoother
+    end subroutine basic
+
+    subroutine basic_fv(self, fv)
+      import :: integrand_t
+      import :: finite_volume_scheme_t
+      class(integrand_t), intent(inout) :: self
+      class(finite_volume_scheme_t), intent(inout) :: fv !< finite volume scheme
+    end subroutine basic_fv
 
     subroutine sanity_check(self, error_code)
       import :: ik, integrand_t
@@ -114,6 +123,8 @@ contains
     call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
+      call model%apply_boundary_conditions(finite_volume_scheme)
+      call model%calculate_derived_quantities()
       call model%residual_smoother()
       call model%sanity_check(error_code)
     else

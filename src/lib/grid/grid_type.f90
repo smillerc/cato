@@ -2,11 +2,21 @@ module mod_grid
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
+  use mod_globals, only: n_ghost_layers
 
   implicit none
 
   private
-  public :: grid_t
+  public :: grid_t, C1, M1, C2, M2, C3, M3, C4, M4
+
+  integer(ik), parameter :: C1 = 1 !< lower-left corner
+  integer(ik), parameter :: M1 = 2 !< bottom midpoint
+  integer(ik), parameter :: C2 = 3 !< lower-right corner
+  integer(ik), parameter :: M2 = 4 !< right midpoint
+  integer(ik), parameter :: C3 = 5 !< upper-right corner
+  integer(ik), parameter :: M3 = 6 !< top midpoint
+  integer(ik), parameter :: C4 = 7 !< upper-left corner
+  integer(ik), parameter :: M4 = 8 !< left midpoint
 
   type, abstract :: grid_t
 

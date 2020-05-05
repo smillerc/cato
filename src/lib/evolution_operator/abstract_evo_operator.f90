@@ -33,8 +33,13 @@ module mod_abstract_evo_operator
     !< pointer to the R_Omega operator used to provide values at the P' location
 
     integer(ik), dimension(:, :, :, :), allocatable :: leftright_midpoint_neighbors
+    !< ((i,j), (cell 1:2), i, j); (i,j) indices of the cells on either side of the left/right vector midpoint
+
     integer(ik), dimension(:, :, :, :), allocatable :: downup_midpoint_neighbors
+    !< ((i,j), (cell 1:2), i, j); (i,j) indices of the cells on either side of the down/up vector midpoint
+
     integer(ik), dimension(:, :, :, :), allocatable :: corner_neighbors
+    !< ((i,j), (cell 1:4), i, j); (i,j) indices of the cells surrounding the corner vector set
 
     type(mach_cone_collection_t) :: leftright_midpoint_mach_cones
     type(mach_cone_collection_t) :: downup_midpoint_mach_cones

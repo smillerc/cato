@@ -8,6 +8,7 @@ module mod_eos
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
+  use mod_globals, only: n_ghost_layers
 
 #ifdef USE_OPENMP
   use omp_lib
@@ -111,7 +112,8 @@ contains
 
     !$omp parallel default(none) &
     !$omp shared(rho, u, v, p, E) &
-    !$omp private(i, j, ilo, ihi, jlo, jhi, gamma_m_one)
+    !$omp firstprivate(ilo, ihi, jlo, jhi, gamma_m_one) &
+    !$omp private(i, j)
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
@@ -142,7 +144,8 @@ contains
 
     !$omp parallel default(none) &
     !$omp shared(rho, p, cs) &
-    !$omp private(i, j, ilo, ihi, jlo, jhi, gamma)
+    !$omp firstprivate(ilo, ihi, jlo, jhi, gamma) &
+    !$omp private(i, j)
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
@@ -173,7 +176,8 @@ contains
 
     !$omp parallel default(none) &
     !$omp shared(rho, p, t) &
-    !$omp private(i, j, ilo, ihi, jlo, jhi, R)
+    !$omp firstprivate(ilo, ihi, jlo, jhi, R) &
+    !$omp private(i, j)
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
@@ -202,6 +206,7 @@ contains
     real(rk) :: gamma_m_one
 
     gamma_m_one = self%gamma - 1.0_rk
+
     ilo = lbound(rho, dim=1)
     ihi = ubound(rho, dim=1)
     jlo = lbound(rho, dim=2)
@@ -209,13 +214,15 @@ contains
 
     !$omp parallel default(none) &
     !$omp shared(rho, u, v, p, rho_u, rho_v, rho_E) &
-    !$omp private(i, j, ilo, ihi, jlo, jhi, gamma_m_one)
+    !$omp firstprivate(ilo, ihi, jlo, jhi, gamma_m_one) &
+    !$omp private(i, j)
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
         u(i, j) = rho_u(i, j) / rho(i, j)
         v(i, j) = rho_v(i, j) / rho(i, j)
-        p(i, j) = rho(i, j) * gamma_m_one * ((rho_E(i, j) / rho(i, j)) - ((u(i, j)**2 + v(i, j)**2) / 2.0_rk))
+        p(i, j) = rho(i, j) * gamma_m_one * ((rho_E(i, j) / rho(i, j)) - &
+                                             ((u(i, j)**2 + v(i, j)**2) / 2.0_rk))
       end do
     end do
     !$omp end do simd
@@ -249,13 +256,15 @@ contains
 
     !$omp parallel default(none) &
     !$omp shared(rho, u, v, p, rho_u, rho_v, rho_E) &
-    !$omp private(i, j, ilo, ihi, jlo, jhi, gamma_m_one)
+    !$omp firstprivate(ilo, ihi, jlo, jhi, gamma_m_one) &
+    !$omp private(i, j)
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
         rho_u(i, j) = u(i, j) * rho(i, j)
         rho_v(i, j) = v(i, j) * rho(i, j)
-        rho_E(i, j) = (p(i, j) / gamma_m_one) + rho(i, j) * ((u(i, j)**2 + v(i, j)**2) / 2.0_rk)
+        rho_E(i, j) = (p(i, j) / gamma_m_one) + &
+                      rho(i, j) * ((u(i, j)**2 + v(i, j)**2) / 2.0_rk)
       end do
     end do
     !$omp end do simd

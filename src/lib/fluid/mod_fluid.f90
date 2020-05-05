@@ -49,7 +49,8 @@ module mod_fluid
     procedure, public :: t => time_derivative
     procedure, public :: residual_smoother
     procedure, public :: sanity_check
-    procedure, public :: get_primitive_vars
+    procedure, public :: calculate_derived_quantities
+    procedure, public :: apply_boundary_conditions
     procedure, nopass, private :: flux_edges
     procedure, pass(lhs), public :: type_plus_type => add_fluid
     procedure, pass(lhs), public :: type_minus_type => subtract_fluid
@@ -79,7 +80,7 @@ contains
     class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     class(strategy), pointer :: time_integrator => null()
 
-    integer(ik) :: alloc_status
+    integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi
 
     alloc_status = 0
     call debug_print('Initializing fluid_t', __FILE__, __LINE__)
@@ -89,41 +90,15 @@ contains
               jmin=>finite_volume_scheme%grid%jlo_bc_cell, &
               jmax=>finite_volume_scheme%grid%jhi_bc_cell)
 
-      allocate(self%rho(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%rho"
-      self%rho = 0.0_rk
-
-      allocate(self%u(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%u"
-      self%u = 0.0_rk
-
-      allocate(self%v(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%v"
-      self%v = 0.0_rk
-
-      allocate(self%p(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%p"
-      self%p = 0.0_rk
-
-      allocate(self%rho_u(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%rho_u"
-      self%rho_u = 0.0_rk
-
-      allocate(self%rho_v(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%rho_v"
-      self%rho_v = 0.0_rk
-
-      allocate(self%rho_E(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%rho_E"
-      self%rho_E = 0.0_rk
-
-      allocate(self%cs(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%cs"
-      self%cs = 0.0_rk
-
-      allocate(self%mach(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate fluid_t%mach"
-      self%mach = 0.0_rk
+      allocate(self%rho(imin:imax, jmin:jmax))
+      allocate(self%u(imin:imax, jmin:jmax))
+      allocate(self%v(imin:imax, jmin:jmax))
+      allocate(self%p(imin:imax, jmin:jmax))
+      allocate(self%rho_u(imin:imax, jmin:jmax))
+      allocate(self%rho_v(imin:imax, jmin:jmax))
+      allocate(self%rho_E(imin:imax, jmin:jmax))
+      allocate(self%cs(imin:imax, jmin:jmax))
+      allocate(self%mach(imin:imax, jmin:jmax))
     end associate
 
     time_integrator => time_integrator_factory(input)
@@ -136,6 +111,28 @@ contains
     else
       call self%initialize_from_ini(input)
     end if
+
+    call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
+
+    ilo = lbound(self%rho, dim=1)
+    ihi = ubound(self%rho, dim=1)
+    jlo = lbound(self%rho, dim=2)
+    jhi = ubound(self%rho, dim=2)
+
+    !$omp parallel default(none), &
+    !$omp private(i, j), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi), &
+    !$omp shared(self)
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        self%mach(i, j) = sqrt(self%u(i, j)**2 + self%v(i, j)**2) / self%cs(i, j)
+      end do
+    end do
+    !$omp end simd
+    !$omp end parallel
+
+    self%prim_vars_updated = .true.
 
   end subroutine initialize
 
@@ -417,31 +414,36 @@ contains
     end associate
 
     allocate(local_d_dt, source=self)
+
     if(.not. local_d_dt%prim_vars_updated) then
-      call local_d_dt%get_primitive_vars()
+      call local_d_dt%calculate_derived_quantities()
     end if
 
-    ! Now we can reconstruct the entire domain
     bounds = lbound(local_d_dt%rho)
 
-    ! TODO: divide and conquer across threads
-    call fv%reconstruct(primitive_var=local_d_dt%rho, lbounds=bounds, reconstructed_var=rho_recon_state)
-    call fv%reconstruct(primitive_var=local_d_dt%u, lbounds=bounds, reconstructed_var=u_recon_state)
-    call fv%reconstruct(primitive_var=local_d_dt%v, lbounds=bounds, reconstructed_var=v_recon_state)
-    call fv%reconstruct(primitive_var=local_d_dt%p, lbounds=bounds, reconstructed_var=p_recon_state)
+    call local_d_dt%apply_boundary_conditions(fv)
+
+    ! Now we can reconstruct the entire domain
+    call fv%reconstruct(primitive_var=local_d_dt%rho, lbounds=bounds, &
+                        reconstructed_var=rho_recon_state)
+
+    call fv%reconstruct(primitive_var=local_d_dt%u, lbounds=bounds, &
+                        reconstructed_var=u_recon_state)
+    call fv%reconstruct(primitive_var=local_d_dt%v, lbounds=bounds, &
+                        reconstructed_var=v_recon_state)
+    call fv%reconstruct(primitive_var=local_d_dt%p, lbounds=bounds, &
+                        reconstructed_var=p_recon_state)
+
+    ! Apply the reconstructed state to the ghost layers
+    call fv%apply_reconstructed_state_bc(recon_rho=rho_recon_state, recon_u=u_recon_state, &
+                                         recon_v=v_recon_state, recon_p=p_recon_state, lbounds=bounds)
 
     call fv%evolution_operator%set_reconstructed_state_pointers(rho=rho_recon_state, &
                                                                 u=u_recon_state, &
                                                                 v=v_recon_state, &
                                                                 p=p_recon_state, &
                                                                 lbounds=bounds)
-
-    ! Apply the reconstructed state to the ghost layers
-    call fv%apply_reconstructed_state_bc(recon_rho=rho_recon_state, &
-                                         recon_u=u_recon_state, &
-                                         recon_v=v_recon_state, &
-                                         recon_p=p_recon_state, lbounds=bounds)
-
+    ! error stop
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
     bounds = lbound(evolved_du_mid_rho)
@@ -450,9 +452,6 @@ contains
                                       location='down/up midpoint', &
                                       lbounds=bounds, &
                                       error_code=error_code)
-    if(error_code /= 0) then
-      fv%error_code = error_code
-    end if
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
@@ -462,10 +461,6 @@ contains
                                       location='left/right midpoint', &
                                       lbounds=bounds, &
                                       error_code=error_code)
-
-    if(error_code /= 0) then
-      fv%error_code = error_code
-    end if
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
@@ -480,18 +475,10 @@ contains
       fv%error_code = error_code
     end if
 
-    call fv%reconstruction_operator%nullify_pointer_members()
-
     nullify(fv%evolution_operator%reconstructed_rho)
     nullify(fv%evolution_operator%reconstructed_u)
     nullify(fv%evolution_operator%reconstructed_v)
     nullify(fv%evolution_operator%reconstructed_p)
-
-    ! call self%flux_edges(grid=fv%grid, &
-    !                      evolved_corner_state=evolved_corner_state, &
-    !                      evolved_leftright_midpoints_state=evolved_leftright_midpoints_state, &
-    !                      evolved_downup_midpoints_state=evolved_downup_midpoints_state, &
-    !                      dU_dt=local_d_dt%conserved_vars)
 
     call self%flux_edges(grid=fv%grid, &
                          evolved_corner_rho=evolved_corner_rho, &
@@ -512,6 +499,7 @@ contains
                          d_rhoE_dt=local_d_dt%rho_E)
 
     call move_alloc(local_d_dt, d_dt)
+
     call d_dt%set_temp(calling_function='fluid_t%time_derivative (d_dt)', line=__LINE__)
 
     ! Now deallocate everything
@@ -530,6 +518,59 @@ contains
 
   end function time_derivative
 
+  subroutine apply_boundary_conditions(self, fv)
+    !< Apply the primitive variable boundary conditions. This is separated out from the
+    !< time derivative procedure, b/c it is helpful to view the bc in the contour files.
+    !< This is also called by the integrand_t%integrate procedure after all of the
+    !< time integration.
+
+    class(fluid_t), intent(inout) :: self
+    class(finite_volume_scheme_t), intent(inout) :: fv
+    integer(ik), dimension(2) :: bounds
+
+    bounds = lbound(self%rho)
+    call fv%apply_primitive_vars_bc(rho=self%rho, &
+                                    u=self%u, &
+                                    v=self%v, &
+                                    p=self%p, lbounds=bounds)
+
+  end subroutine
+
+  subroutine calculate_derived_quantities(self)
+    !< Find derived quantities like sound speed, mach number, primitive variables
+
+    class(fluid_t), intent(inout) :: self
+    integer(ik) :: i, j
+    integer(ik) :: ilo, ihi, jlo, jhi
+
+    ilo = lbound(self%rho, dim=1)
+    ihi = ubound(self%rho, dim=1)
+    jlo = lbound(self%rho, dim=2)
+    jhi = ubound(self%rho, dim=2)
+
+    call eos%conserved_to_primitive(rho=self%rho, rho_u=self%rho_u, &
+                                    rho_v=self%rho_v, rho_E=self%rho_E, &
+                                    u=self%u, v=self%v, p=self%p)
+
+    call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
+
+    !$omp parallel default(none) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
+    !$omp shared(self)
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        self%mach(i, j) = sqrt(self%u(i, j)**2 + self%v(i, j)**2) / self%cs(i, j)
+      end do
+    end do
+    !$omp end do simd
+    !$omp end parallel
+
+    self%prim_vars_updated = .true.
+
+  end subroutine
+
   subroutine flux_edges(grid, &
                         evolved_corner_rho, evolved_corner_u, evolved_corner_v, evolved_corner_p, &
                         evolved_lr_mid_rho, evolved_lr_mid_u, evolved_lr_mid_v, evolved_lr_mid_p, &
@@ -542,24 +583,27 @@ contains
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), intent(in) :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
+
     real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
     real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
     real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
     real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), intent(in) :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
+
     real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
     real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
     real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
     real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
 
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: d_rho_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: d_rhou_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: d_rhov_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(out) :: d_rhoE_dt
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(inout) :: d_rho_dt
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(inout) :: d_rhou_dt
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(inout) :: d_rhov_dt
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), intent(inout) :: d_rhoE_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j, edge, xy
     real(rk), dimension(2, 4) :: n_hat
     real(rk), dimension(4) :: delta_l
+    integer(ik), dimension(2) :: bounds
 
     type(flux_array_t) :: corner_fluxes
     type(flux_array_t) :: downup_mid_fluxes
@@ -590,23 +634,38 @@ contains
     ! Get the flux arrays for each corner node or midpoint
     ilo = grid%ilo_node; ihi = grid%ihi_node
     jlo = grid%jlo_node; jhi = grid%jhi_node
+    bounds = [ilo, jlo]
     corner_fluxes = get_fluxes(rho=evolved_corner_rho, u=evolved_corner_u, v=evolved_corner_v, &
-                               p=evolved_corner_p, lbounds=[ilo, jlo])
+                               p=evolved_corner_p, lbounds=bounds)
 
     ilo = grid%ilo_cell; ihi = grid%ihi_cell
     jlo = grid%jlo_node; jhi = grid%jhi_node
+    bounds = [ilo, jlo]
     leftright_mid_fluxes = get_fluxes(rho=evolved_lr_mid_rho, u=evolved_lr_mid_u, v=evolved_lr_mid_v, &
-                                      p=evolved_lr_mid_p, lbounds=[ilo, jlo])
+                                      p=evolved_lr_mid_p, lbounds=bounds)
 
     ilo = grid%ilo_node; ihi = grid%ihi_node
     jlo = grid%jlo_cell; jhi = grid%jhi_cell
+    bounds = [ilo, jlo]
     downup_mid_fluxes = get_fluxes(rho=evolved_du_mid_rho, u=evolved_du_mid_u, v=evolved_du_mid_v, &
-                                   p=evolved_du_mid_p, lbounds=[ilo, jlo])
+                                   p=evolved_du_mid_p, lbounds=bounds)
 
     ilo = grid%ilo_cell; ihi = grid%ihi_cell
     jlo = grid%jlo_cell; jhi = grid%jhi_cell
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j, delta_l, n_hat) &
+    !$omp private(bottom_rho_flux, bottom_rhou_flux, bottom_rhov_flux, bottom_rhoE_flux) &
+    !$omp private(right_rho_flux, right_rhou_flux, right_rhov_flux, right_rhoE_flux) &
+    !$omp private(left_rho_flux, left_rhou_flux, left_rhov_flux, left_rhoE_flux) &
+    !$omp private(top_rho_flux, top_rhou_flux, top_rhov_flux, top_rhoE_flux) &
+    !$omp shared(corner_fluxes, leftright_mid_fluxes, downup_mid_fluxes)
+    !$omp shared(d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
+
+        delta_l = grid%cell_edge_lengths(:, i, j)
 
         do edge = 1, 4
           do xy = 1, 2
@@ -628,8 +687,8 @@ contains
                   G_m2=>downup_mid_fluxes%G(:, i + 1, j), &
                   F_m3=>leftright_mid_fluxes%F(:, i, j + 1), &
                   G_m3=>leftright_mid_fluxes%G(:, i, j + 1), &
-                  F_m4=>downup_mid_fluxes%F(:, i, j), &
                   G_m4=>downup_mid_fluxes%G(:, i, j), &
+                  F_m4=>downup_mid_fluxes%F(:, i, j), &
                   n_hat_1=>grid%cell_edge_norm_vectors(:, 1, i, j), &
                   n_hat_2=>grid%cell_edge_norm_vectors(:, 2, i, j), &
                   n_hat_3=>grid%cell_edge_norm_vectors(:, 3, i, j), &
@@ -686,6 +745,31 @@ contains
 
       end do ! i
     end do ! j
+    !$omp end do
+    !$omp end parallel
+
+    ilo = grid%ilo_bc_cell; ihi = grid%ihi_bc_cell
+    jlo = grid%jlo_bc_cell; jhi = grid%jhi_bc_cell
+    d_rho_dt(ilo, :) = 0.0_rk
+    d_rho_dt(ihi, :) = 0.0_rk
+    d_rho_dt(:, jlo) = 0.0_rk
+    d_rho_dt(:, jhi) = 0.0_rk
+
+    d_rhou_dt(ilo, :) = 0.0_rk
+    d_rhou_dt(ihi, :) = 0.0_rk
+    d_rhou_dt(:, jlo) = 0.0_rk
+    d_rhou_dt(:, jhi) = 0.0_rk
+
+    d_rhov_dt(ilo, :) = 0.0_rk
+    d_rhov_dt(ihi, :) = 0.0_rk
+    d_rhov_dt(:, jlo) = 0.0_rk
+    d_rhov_dt(:, jhi) = 0.0_rk
+
+    d_rhoE_dt(ilo, :) = 0.0_rk
+    d_rhoE_dt(ihi, :) = 0.0_rk
+    d_rhoE_dt(:, jlo) = 0.0_rk
+    d_rhoE_dt(:, jhi) = 0.0_rk
+
   end subroutine flux_edges
 
   subroutine residual_smoother(self)
@@ -733,7 +817,7 @@ contains
 
     ! deallocate(sound_speed)
 
-  end subroutine
+  end subroutine residual_smoother
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
@@ -804,7 +888,9 @@ contains
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
 
-    !$omp parallel default(none), private(i, j, ilo, ihi, jlo, jhi) &
+    !$omp parallel default(none) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
     !$omp shared(a,b,c)
     !$omp do simd
     do j = jlo, jhi
@@ -833,7 +919,9 @@ contains
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
 
-    !$omp parallel default(none), private(i, j, ilo, ihi, jlo, jhi) &
+    !$omp parallel default(none) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
     !$omp shared(a,b,c)
     !$omp do simd
     do j = jlo, jhi
@@ -862,7 +950,9 @@ contains
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
 
-    !$omp parallel default(none), private(i, j, ilo, ihi, jlo, jhi) &
+    !$omp parallel default(none) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
     !$omp shared(a,b,c)
     !$omp do simd
     do j = jlo, jhi
@@ -891,7 +981,9 @@ contains
     jlo = lbound(a, dim=2)
     jhi = ubound(a, dim=2)
 
-    !$omp parallel default(none), private(i, j, ilo, ihi, jlo, jhi) &
+    !$omp parallel default(none) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
     !$omp shared(a,b,c)
     !$omp do simd
     do j = jlo, jhi
@@ -974,27 +1066,6 @@ contains
       lhs%rho_u = rhs%rho_u
       lhs%rho_v = rhs%rho_v
       lhs%rho_E = rhs%rho_E
-      call eos%conserved_to_primitive(rho=lhs%rho, rho_u=lhs%rho_u, rho_v=lhs%rho_v, &
-                                      rho_E=lhs%rho_E, u=lhs%u, v=lhs%v, p=lhs%p)
-      call eos%sound_speed(p=lhs%p, rho=lhs%rho, cs=lhs%cs)
-
-      ilo = lbound(lhs%rho, dim=1)
-      ihi = ubound(lhs%rho, dim=1)
-      jlo = lbound(lhs%rho, dim=2)
-      jhi = ubound(lhs%rho, dim=2)
-
-      !$omp parallel default(shared) private(i, j, ilo, ihi, jlo, jhi)
-      !$omp simd
-      do j = jlo, jhi
-        do i = ilo, ihi
-          lhs%mach(i, j) = sqrt(lhs%u(i, j)**2 + lhs%v(i, j)**2) / lhs%cs(i, j)
-        end do
-      end do
-      !$omp end simd
-      !$omp end parallel
-
-      lhs%prim_vars_updated = .true.
-
     class default
       error stop 'Error in fluid_t%assign_fluid: unsupported class'
     end select
@@ -1019,8 +1090,9 @@ contains
     jlo = lbound(self%rho, dim=2)
     jhi = ubound(self%rho, dim=2)
 
-    !$omp parallel default(none), &
-    !$omp private(i, j, ilo, ihi, jlo, jhi) &
+    !$omp parallel default(none) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
     !$omp shared(self)
     !$omp do simd
     do j = jlo, jhi
@@ -1085,12 +1157,5 @@ contains
     !$omp end parallel
 
   end subroutine sanity_check
-
-  subroutine get_primitive_vars(self)
-    class(fluid_t), intent(inout) :: self
-    call eos%conserved_to_primitive(rho=self%rho, rho_u=self%rho_u, rho_v=self%rho_v, &
-                                    rho_E=self%rho_E, u=self%u, v=self%v, p=self%p)
-    self%prim_vars_updated = .true.
-  end subroutine
 
 end module mod_fluid
