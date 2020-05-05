@@ -46,12 +46,12 @@ contains
     grid => grid_factory(input)
 
     ! grid_corner_vectors = grid%get_corner_vectors(cell_ij=[1, 1], corner='lower-left')
-    grid_corner_vectors = grid%corner_edge_vectors(:,:,1,1)
-    actual_corner_vectors(:,0) = [-2.0_rk, -2.0_rk]
-    actual_corner_vectors(:,1) = [-2.0_rk, -4.0_rk]
-    actual_corner_vectors(:,2) = [-1.0_rk, -2.0_rk]
-    actual_corner_vectors(:,3) = [-2.0_rk, 0.0_rk ]
-    actual_corner_vectors(:,4) = [-3.0_rk, -2.0_rk]
+    grid_corner_vectors = grid%corner_edge_vectors(:, :, 1, 1)
+    actual_corner_vectors(:, 0) = [-2.0_rk, -2.0_rk]
+    actual_corner_vectors(:, 1) = [-2.0_rk, -4.0_rk]
+    actual_corner_vectors(:, 2) = [-1.0_rk, -2.0_rk]
+    actual_corner_vectors(:, 3) = [-2.0_rk, 0.0_rk]
+    actual_corner_vectors(:, 4) = [-3.0_rk, -2.0_rk]
 
     @assertEqual(actual_corner_vectors, grid_corner_vectors)
     deallocate(grid)
@@ -75,11 +75,11 @@ contains
     grid => grid_factory(input)
 
     ! grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='bottom')
-    grid_midpoint_vectors = grid%leftright_midpoint_edge_vectors(:,:,1,1)
+    grid_midpoint_vectors = grid%leftright_midpoint_edge_vectors(:, :, 1, 1)
 
-    actual_midpoint_vectors(:,0) = [-1.5_rk, -2.0_rk] ! common origin
-    actual_midpoint_vectors(:,1) = [-2.0_rk, -2.0_rk] ! vector 1
-    actual_midpoint_vectors(:,2) = [-1.0_rk, -2.0_rk]  ! vector 2
+    actual_midpoint_vectors(:, 0) = [-1.5_rk, -2.0_rk] ! common origin
+    actual_midpoint_vectors(:, 1) = [-2.0_rk, -2.0_rk] ! vector 1
+    actual_midpoint_vectors(:, 2) = [-1.0_rk, -2.0_rk]  ! vector 2
 
     @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
     deallocate(grid)
@@ -103,11 +103,11 @@ contains
     grid => grid_factory(input)
 
     ! grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='left')
-    grid_midpoint_vectors = grid%downup_midpoint_edge_vectors(:,:,1,1)
+    grid_midpoint_vectors = grid%downup_midpoint_edge_vectors(:, :, 1, 1)
 
-    actual_midpoint_vectors(:,0) = [-2.0_rk, -1.0_rk] ! common origin
-    actual_midpoint_vectors(:,1) = [-2.0_rk, -2.0_rk] ! vector 1
-    actual_midpoint_vectors(:,2) = [-2.0_rk, 0.0_rk]  ! vector 2
+    actual_midpoint_vectors(:, 0) = [-2.0_rk, -1.0_rk] ! common origin
+    actual_midpoint_vectors(:, 1) = [-2.0_rk, -2.0_rk] ! vector 1
+    actual_midpoint_vectors(:, 2) = [-2.0_rk, 0.0_rk]  ! vector 2
     @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
     deallocate(grid)
   end subroutine test_downup_midpoint_edge_vector_query
@@ -233,16 +233,16 @@ contains
 
     i = 1; j = 1
     ! Corners
-    @assertEqual([-2.0_rk, -2.0_rk], [grid%cell_node_x(C1, 1, 1), grid%cell_node_y(C1, 1, 1)])
-    @assertEqual([-1.0_rk, -2.0_rk], [grid%cell_node_x(C2, 1, 1), grid%cell_node_y(C2, 1, 1)])
-    @assertEqual([-1.0_rk, 0.0_rk], [grid%cell_node_x(C3, 1, 1), grid%cell_node_y(C3, 1, 1)])
-    @assertEqual([-2.0_rk, 0.0_rk], [grid%cell_node_x(C4, 1, 1), grid%cell_node_y(C4, 1, 1)])
+    @assertEqual([-2.0_rk, -2.0_rk],[grid%cell_node_x(C1, 1, 1), grid%cell_node_y(C1, 1, 1)])
+    @assertEqual([-1.0_rk, -2.0_rk],[grid%cell_node_x(C2, 1, 1), grid%cell_node_y(C2, 1, 1)])
+    @assertEqual([-1.0_rk, 0.0_rk],[grid%cell_node_x(C3, 1, 1), grid%cell_node_y(C3, 1, 1)])
+    @assertEqual([-2.0_rk, 0.0_rk],[grid%cell_node_x(C4, 1, 1), grid%cell_node_y(C4, 1, 1)])
 
     ! Midpoints
-    @assertEqual([-1.5_rk, -2.0_rk], [grid%cell_node_x(M1, 1, 1), grid%cell_node_y(M1, 1, 1)])
-    @assertEqual([-1.0_rk, -1.0_rk], [grid%cell_node_x(M2, 1, 1), grid%cell_node_y(M2, 1, 1)])
-    @assertEqual([-1.5_rk, 0.0_rk],  [grid%cell_node_x(M3, 1, 1), grid%cell_node_y(M3, 1, 1)])
-    @assertEqual([-2.0_rk, -1.0_rk], [grid%cell_node_x(M4, 1, 1), grid%cell_node_y(M4, 1, 1)])
+    @assertEqual([-1.5_rk, -2.0_rk],[grid%cell_node_x(M1, 1, 1), grid%cell_node_y(M1, 1, 1)])
+    @assertEqual([-1.0_rk, -1.0_rk],[grid%cell_node_x(M2, 1, 1), grid%cell_node_y(M2, 1, 1)])
+    @assertEqual([-1.5_rk, 0.0_rk],[grid%cell_node_x(M3, 1, 1), grid%cell_node_y(M3, 1, 1)])
+    @assertEqual([-2.0_rk, -1.0_rk],[grid%cell_node_x(M4, 1, 1), grid%cell_node_y(M4, 1, 1)])
 
     ! Check bounds and shape
     @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_volume))

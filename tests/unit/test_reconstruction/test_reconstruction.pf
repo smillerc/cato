@@ -3,8 +3,7 @@ module test_reconstruction
   use mod_input, only: input_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
-  use mod_second_order_sgg_reconstruction, only: second_order_sgg_reconstruction_t
-  use mod_second_order_dbl_reconstruction, only: second_order_dbl_reconstruction_t
+  use mod_second_order_sgg_structured_reconstruction, only: second_order_sgg_structured_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
@@ -18,6 +17,15 @@ module test_reconstruction
   integer(ik), parameter :: nj_cells = nj_nodes - 1
   integer(ik) :: alloc_status
 
+  integer(ik), parameter :: C1 = 1 !< lower-left corner
+  integer(ik), parameter :: M1 = 2 !< bottom midpoint
+  integer(ik), parameter :: C2 = 3 !< lower-right corner
+  integer(ik), parameter :: M2 = 4 !< right midpoint
+  integer(ik), parameter :: C3 = 5 !< upper-right corner
+  integer(ik), parameter :: M3 = 6 !< top midpoint
+  integer(ik), parameter :: C4 = 7 !< upper-left corner
+  integer(ik), parameter :: M4 = 8 !< left midpoint
+
 contains
   @test
   subroutine test_piecewise_linear_sgg()
@@ -27,8 +35,8 @@ contains
     type(input_t) :: input
     class(grid_t), pointer :: grid => null()
     real(rk) :: cell_average
-    real(rk), dimension(:, :, :), allocatable :: prim_vars
-    real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
+    real(rk), dimension(:, :), allocatable :: primitive_var
+    real(rk), dimension(:, :, :), allocatable :: reconstructed_var
     integer(ik) :: i, j
     real(rk), dimension(4) :: point_value
     integer(ik) :: m, c
@@ -38,11 +46,8 @@ contains
     c = 1 ! corner index
 
     write(*, *) 'Testing 2nd order reconstruction'
-    ! input = input_t(reconstruction_type='discontinuous_bilinear', &
-    !                 ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-    !                 read_init_cond_from_file=.false., &
-    !                 xmin=0.0_rk, xmax=6.0_rk, ymin=0.0_rk, ymax=6.0_rk)
-    input = input_t(reconstruction_type='piecewise_linear_sgg', &
+
+    input = input_t(reconstruction_type='piecewise_linear_sgg_structured', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=0.0_rk, xmax=3.0_rk, ymin=0.0_rk, ymax=3.0_rk)
@@ -53,15 +58,12 @@ contains
     associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
               jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
 
-      allocate(prim_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
-      prim_vars = 0.0_rk
-      ! ((rho,u,v,p),i,j) Conserved variables for each cell
-      if(alloc_status /= 0) error stop "Unable to allocate prim_vars"
+      allocate(primitive_var(imin:imax, jmin:jmax), stat=alloc_status)
+      primitive_var = 0.0_rk
 
-      allocate(reconstructed_domain(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
-      reconstructed_domain = 0.0_rk
-      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
-      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+      allocate(reconstructed_var(8, imin:imax, jmin:jmax), stat=alloc_status)
+      reconstructed_var = 0.0_rk
+
     end associate
 
     input%slope_limiter = 'minmod'
@@ -82,52 +84,52 @@ contains
     ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
     ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   1   |   1   |   1   |   1   |   1   |
     ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    prim_vars(1, :, :) = 1.0_rk
-    prim_vars(1, 2, 1) = 2.0_rk
-    prim_vars(1, 1, 2) = 2.0_rk
-    prim_vars(1, 2, 3) = 2.0_rk
-    prim_vars(1, 3, 2) = 2.0_rk
-    prim_vars(1, 2, 2) = 3.0_rk
+    primitive_var(:, :) = 1.0_rk
+    primitive_var(2, 1) = 2.0_rk
+    primitive_var(1, 2) = 2.0_rk
+    primitive_var(2, 3) = 2.0_rk
+    primitive_var(3, 2) = 2.0_rk
+    primitive_var(2, 2) = 3.0_rk
 
-    !           Domain (including ghost)           -->        Primitive Variable (x velocity)
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   0   |   0   |   0   |   0   |   0  |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   0   |  -1   |   0   |   1   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   0   |  -2   |   0   |   2   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   0   |  -1   |   0   |   1   |   0   |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   0   |   0   |   0   |   0   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    prim_vars(2, :, :) = 0.0_rk
-    prim_vars(2, 1, 1) = -1.0_rk
-    prim_vars(2, 1, 2) = -2.0_rk
-    prim_vars(2, 1, 3) = -1.0_rk
-    prim_vars(2, 3, 1) = 1.0_rk
-    prim_vars(2, 3, 2) = 2.0_rk
-    prim_vars(2, 3, 3) = 1.0_rk
+    ! !           Domain (including ghost)           -->        Primitive Variable (x velocity)
+    ! ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   0   |   0   |   0   |   0   |   0  |
+    ! ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   0   |  -1   |   0   |   1   |   0   |
+    ! ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   0   |  -2   |   0   |   2   |   0   |
+    ! ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   0   |  -1   |   0   |   1   |   0   |
+    ! ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   0   |   0   |   0   |   0   |   0   |
+    ! ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! primitive_var(:, :) = 0.0_rk
+    ! primitive_var(1, 1) = -1.0_rk
+    ! primitive_var(1, 2) = -2.0_rk
+    ! primitive_var(1, 3) = -1.0_rk
+    ! primitive_var(3, 1) = 1.0_rk
+    ! primitive_var(3, 2) = 2.0_rk
+    ! primitive_var(3, 3) = 1.0_rk
 
-    !           Domain (including ghost)           -->        Primitive Variable (y velocity)
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   0   |   0   |   0   |   0   |   0  |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   0   |   1   |   2   |   1   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   0   |   0   |   0   |   0   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   0   |  -1   |  -2   |  -1   |   0   |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   0   |   0   |   0   |   0   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    prim_vars(3, :, :) = 0.0_rk
-    prim_vars(3, 1, 3) = 1.0_rk
-    prim_vars(3, 2, 3) = 2.0_rk
-    prim_vars(3, 3, 3) = 1.0_rk
-    prim_vars(3, 1, 1) = -1.0_rk
-    prim_vars(3, 2, 1) = -2.0_rk
-    prim_vars(3, 3, 1) = -1.0_rk
+    ! !           Domain (including ghost)           -->        Primitive Variable (y velocity)
+    ! ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   0   |   0   |   0   |   0   |   0  |
+    ! ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   0   |   1   |   2   |   1   |   0   |
+    ! ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   0   |   0   |   0   |   0   |   0   |
+    ! ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   0   |  -1   |  -2   |  -1   |   0   |
+    ! ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
+    ! ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   0   |   0   |   0   |   0   |   0   |
+    ! ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
+    ! primitive_var(:, :) = 0.0_rk
+    ! primitive_var(1, 3) = 1.0_rk
+    ! primitive_var(2, 3) = 2.0_rk
+    ! primitive_var(3, 3) = 1.0_rk
+    ! primitive_var(1, 1) = -1.0_rk
+    ! primitive_var(2, 1) = -2.0_rk
+    ! primitive_var(3, 1) = -1.0_rk
 
     ! The real domain goes from i=1,3 and j=1,3, the ghost layers are i=0,4 and j=0,4
     !  Reconstruction points for each cell (corners and mid-points)
@@ -137,32 +139,27 @@ contains
     !  |         |
     !  C1---M1---C2
 
-    call reconstruction_operator%set_primitive_vars_pointer(primitive_vars=prim_vars, lbounds=lbound(prim_vars))
+    call reconstruction_operator%reconstruct(primitive_var=primitive_var, &
+                                             reconstructed_var=reconstructed_var, &
+                                             lbounds=lbound(primitive_var))
     write(*, '(a)') 'Calling reconstruction_operator%reconstruct_domain()'
-    call reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_domain, &
-                                                    lbounds=lbound(reconstructed_domain))
 
-    do v = 1, 3 ! loop through v = [rho, u, v]
-      do i = 1, 3
-        do j = 1, 3
-          ! The cell average should be recovered
-          cell_average = sum(reconstructed_domain(v, :, :, i, j)) / 8.0_rk
-          ! @assertEqual(cell_average, prim_vars(:, i, j))
-          print *, 'v,i,j', v, i, j
-          write(*, '(3(f6.2))') reconstructed_domain(v, 4, c, i, j), reconstructed_domain(v, 3, m, i, j), &
-            reconstructed_domain(v, 3, c, i, j)
-          write(*, '(3(f6.2))') reconstructed_domain(v, 4, m, i, j), prim_vars(v, i, j), &
-            reconstructed_domain(v, 2, m, i, j)
-          write(*, '(3(f6.2))') reconstructed_domain(v, 1, c, i, j), reconstructed_domain(v, 1, m, i, j), &
-            reconstructed_domain(v, 2, c, i, j)
-          print *, 'Cell average: ', cell_average
-          print *
-        end do
+    do i = 1, 3
+      do j = 1, 3
+        ! The cell average should be recovered
+        cell_average = sum(reconstructed_var(:, i, j)) / 8.0_rk
+        ! @assertEqual(cell_average, prim_vars(:, i, j))
+        write(*, '(2(a,i0))') 'i: ', i, ' j: ', j
+        write(*, '(3(f6.2))') reconstructed_var(C4, i, j), reconstructed_var(M3, i, j), reconstructed_var(C3, i, j)
+        write(*, '(3(f6.2))') reconstructed_var(M4, i, j), primitive_var(i, j), reconstructed_var(M2, i, j)
+        write(*, '(3(f6.2))') reconstructed_var(C1, i, j), reconstructed_var(M1, i, j), reconstructed_var(C2, i, j)
+        print *, 'Cell average: ', cell_average
+        print *
       end do
 
-      i = 2; j = 1
-      point_value = reconstruction_operator%reconstruct_point(xy=[1.5_rk, 0.0_rk], cell_ij=[i, j])
-      print *, 'xy=[1.5_rk, 0.0_rk], cell_ij=[2, 1] point_value(v): ', point_value(v)
+      ! i = 2; j = 1
+      ! point_value = reconstruction_operator%reconstruct_point(xy=[1.5_rk, 0.0_rk], cell_ij=[i, j])
+      ! print *, 'xy=[1.5_rk, 0.0_rk], cell_ij=[2, 1] point_value(v): ', point_value(v)
       ! @assertEqual(1.50_rk, point_value(1))
 
       ! point_value = reconstruction_operator%reconstruct_point(xy=[1.0_rk, 0.25_rk], cell_ij=[i, j])
@@ -186,38 +183,38 @@ contains
       ! print*, 'xy=[1.25_rk, 2.75_rk], cell_ij=[3, 2] point_value(1): ', point_value(1)
       ! @assertEqual(1.75_rk, point_value(1))
 
-      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 1, 1))
-      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 1, 3))
-      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 3, 3))
-      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 3, 1))
+      ! @assertEqual(1.0_rk, reconstructed_var(v, :, :, 1, 1))
+      ! @assertEqual(1.0_rk, reconstructed_var(v, :, :, 1, 3))
+      ! @assertEqual(1.0_rk, reconstructed_var(v, :, :, 3, 3))
+      ! @assertEqual(1.0_rk, reconstructed_var(v, :, :, 3, 1))
 
       ! i = 2; j = 1;
-      ! ! indexing for reconstructed_domain is ((rho, u ,v, p), point, corner/midpoint, i, j);
+      ! ! indexing for reconstructed_var is ((rho, u ,v, p), point, corner/midpoint, i, j);
       ! ! Corner C4
-      ! @assertEqual(2.5_rk, reconstructed_domain(v, 4, c, i, j))
+      ! @assertEqual(2.5_rk, reconstructed_var(v, 4, c, i, j))
       ! ! Midpoint M3
-      ! @assertEqual(2.5_rk, reconstructed_domain(v, 3, m, i, j))
+      ! @assertEqual(2.5_rk, reconstructed_var(v, 3, m, i, j))
       ! ! Corner C3
-      ! @assertEqual(2.5_rk, reconstructed_domain(v, 3, c, i, j))
+      ! @assertEqual(2.5_rk, reconstructed_var(v, 3, c, i, j))
 
       ! ! Midpoint M4
-      ! @assertEqual(2.0_rk, reconstructed_domain(v, 4, m, i, j))
+      ! @assertEqual(2.0_rk, reconstructed_var(v, 4, m, i, j))
       ! ! Midpoint M2
-      ! @assertEqual(2.0_rk, reconstructed_domain(v, 2, m, i, j))
+      ! @assertEqual(2.0_rk, reconstructed_var(v, 2, m, i, j))
 
       ! ! Corner C1
-      ! @assertEqual(1.5_rk, reconstructed_domain(v, 1, c, i, j))
+      ! @assertEqual(1.5_rk, reconstructed_var(v, 1, c, i, j))
       ! ! Midpoint M1
-      ! @assertEqual(1.5_rk, reconstructed_domain(v, 1, m, i, j))
+      ! @assertEqual(1.5_rk, reconstructed_var(v, 1, m, i, j))
       ! ! Corner C2
-      ! @assertEqual(1.5_rk, reconstructed_domain(v, 2, c, i, j))
+      ! @assertEqual(1.5_rk, reconstructed_var(v, 2, c, i, j))
 
     end do
 
     deallocate(reconstruction_operator)
     deallocate(grid)
-    deallocate(prim_vars)
-    deallocate(reconstructed_domain)
+    deallocate(primitive_var)
+    deallocate(reconstructed_var)
   end subroutine test_piecewise_linear_sgg
 
 end module test_reconstruction

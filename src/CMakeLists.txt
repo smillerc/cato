@@ -61,7 +61,7 @@ add_library(
   lib/spatial_reconstruction/gradients.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
   lib/spatial_reconstruction/first_order_reconstruction.f90
-  # lib/spatial_reconstruction/second_order_sgg_reconstruction.f90
+  lib/spatial_reconstruction/second_order_sgg_reconstruction.f90
   lib/spatial_reconstruction/second_order_sgg_structured_reconstruction.f90
   # lib/spatial_reconstruction/second_order_dbl_reconstruction.f90
   lib/spatial_reconstruction/reconstruction_factory.f90
