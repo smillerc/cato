@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath("../../.."))
 from scripts import make_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
-domain = make_uniform_grid(n_cells=(350, 350), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
+domain = make_uniform_grid(n_cells=(200, 200), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
 
 # Set the initial conditions
 domain["rho"] = domain["rho"] * 0.001
@@ -29,11 +29,11 @@ domain["p"] = p * ureg(str(domain["p"].units))
 domain["u"] = domain["u"] * 0.0
 domain["v"] = domain["v"] * 0.0
 
-write_initial_hdf5(filename="gaussian", initial_condition_dict=domain)
+write_initial_hdf5(filename="sedov", initial_condition_dict=domain)
 
 # Plot the results
 # fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
-#
+
 # vc = ax1.pcolormesh(
 #     domain["x"],
 #     domain["y"],

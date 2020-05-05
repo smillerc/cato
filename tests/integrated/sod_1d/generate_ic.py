@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath("../../.."))
 from scripts import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
-shock_tube = make_1d_in_x_uniform_grid(n_cells=1000, limits=(0, 1.0))
+shock_tube = make_1d_in_x_uniform_grid(n_cells=500, limits=(0, 1.0))
 
 # Set the initial conditions
 shock_tube["u"] = shock_tube["u"] * 0.0
@@ -36,11 +36,11 @@ shock_tube["rho"] = shock_tube["rho"] * ureg("g/cc")
 write_initial_hdf5(filename="shock_tube_1d", initial_condition_dict=shock_tube)
 
 # Plot the results
-fig, (ax1, ax2, ax3) = plt.subplots(figsize=(18, 8), nrows=3, ncols=1)
-fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
-for ax, v in zip([ax1, ax2], ["rho", "p"]):
-    vc = ax.plot(shock_tube["xc"][:, 1], shock_tube[v][:, 1], "-o")
-    ax.set_ylabel(v)
-    ax.set_xlabel("X")
+# fig, (ax1, ax2, ax3) = plt.subplots(figsize=(18, 8), nrows=3, ncols=1)
+# fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
+# for ax, v in zip([ax1, ax2], ["rho", "p"]):
+#     vc = ax.plot(shock_tube["xc"][:, 1], shock_tube[v][:, 1], "-o")
+#     ax.set_ylabel(v)
+#     ax.set_xlabel("X")
 
-plt.show()
+# plt.show()
