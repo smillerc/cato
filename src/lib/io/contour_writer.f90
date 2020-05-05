@@ -240,7 +240,7 @@ contains
     ! Indexing
     dataset_name = '/i'
     io_data_buffer = 0
-    do i = jlo, ihi
+    do i = ilo, ihi
       io_data_buffer(i, :) = i
     end do
 
