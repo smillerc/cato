@@ -6,7 +6,7 @@ module mod_reconstruction_factory
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_first_order_reconstruction, only: first_order_reconstruction_t
   ! use mod_second_order_mgg_reconstruction, only: second_order_mgg_reconstruction_t
-  ! use mod_second_order_sgg_reconstruction, only: second_order_sgg_reconstruction_t
+  use mod_second_order_sgg_reconstruction, only: second_order_sgg_reconstruction_t
   ! use mod_second_order_dbl_reconstruction, only: second_order_dbl_reconstruction_t
   use mod_second_order_sgg_structured_reconstruction, only: second_order_sgg_structured_reconstruction_t
   use mod_grid, only: grid_t
@@ -32,9 +32,9 @@ contains
       ! case('discontinuous_bilinear')
       !   allocate(second_order_dbl_reconstruction_t :: operator)
       !   call operator%initialize(input=input, grid_target=grid_target)
-      ! case('piecewise_linear_sgg')
-      !   allocate(second_order_sgg_reconstruction_t :: operator)
-      !   call operator%initialize(input=input, grid_target=grid_target)
+    case('piecewise_linear_sgg')
+      allocate(second_order_sgg_reconstruction_t :: operator)
+      call operator%initialize(input=input, grid_target=grid_target)
     case('piecewise_linear_sgg_structured')
       allocate(second_order_sgg_structured_reconstruction_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target)

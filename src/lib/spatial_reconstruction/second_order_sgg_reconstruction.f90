@@ -1,7 +1,7 @@
 module mod_second_order_sgg_reconstruction
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_globals, only: debug_print
+  use mod_globals, only: debug_print, n_ghost_layers
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_grid, only: grid_t
   use mod_slope_limiter, only: slope_limiter_t
@@ -20,9 +20,9 @@ module mod_second_order_sgg_reconstruction
     !< "sgg" just means that it uses the standard Green-Gauss gradient form.
   contains
     procedure, public :: initialize
-    procedure, public :: reconstruct_domain
-    procedure, public :: reconstruct_point
-    procedure, private :: estimate_gradients
+    procedure, public :: reconstruct
+    ! procedure, public :: reconstruct_point
+    procedure, private :: estimate_gradient
     procedure, public :: copy
     final :: finalize
   end type
@@ -47,16 +47,6 @@ contains
 
     call self%set_slope_limiter(name=input%slope_limiter)
 
-    associate(imin=>grid_target%ilo_bc_cell, imax=>grid_target%ihi_bc_cell, &
-              jmin=>grid_target%jlo_bc_cell, jmax=>grid_target%jhi_bc_cell)
-
-      allocate(self%cell_gradient(4, 2, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) then
-        error stop "Unable to allocate second_order_sgg_reconstruction_t%cell_gradient"
-      end if
-      self%cell_gradient = 0.0_rk
-    end associate
-
   end subroutine initialize
 
   subroutine finalize(self)
@@ -67,95 +57,84 @@ contains
     call debug_print('Running second_order_sgg_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
-    if(associated(self%primitive_vars)) nullify(self%primitive_vars)
-    if(allocated(self%cell_gradient)) then
-      deallocate(self%cell_gradient, stat=alloc_status)
-      if(alloc_status /= 0) then
-        error stop "Unable to deallocate second_order_sgg_reconstruction_t%cell_gradient"
-      end if
-    end if
+    ! if(associated(self%primitive_vars)) nullify(self%primitive_vars)
+    ! if(allocated(self%cell_gradient)) then
+    !   deallocate(self%cell_gradient, stat=alloc_status)
+    !   if(alloc_status /= 0) then
+    !     error stop "Unable to deallocate second_order_sgg_reconstruction_t%cell_gradient"
+    !   end if
+    ! end if
   end subroutine finalize
 
   subroutine copy(out_recon, in_recon)
     class(abstract_reconstruction_t), intent(in) :: in_recon
     class(second_order_sgg_reconstruction_t), intent(inout) :: out_recon
 
-    call debug_print('Running second_order_sgg_reconstruction_t%copy()', __FILE__, __LINE__)
+    ! call debug_print('Running second_order_sgg_reconstruction_t%copy()', __FILE__, __LINE__)
 
-    if(associated(out_recon%grid)) nullify(out_recon%grid)
-    out_recon%grid => in_recon%grid
+    ! if(associated(out_recon%grid)) nullify(out_recon%grid)
+    ! out_recon%grid => in_recon%grid
 
-    if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
-    out_recon%primitive_vars => in_recon%primitive_vars
+    ! if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
+    ! out_recon%primitive_vars => in_recon%primitive_vars
 
-    if(allocated(out_recon%name)) deallocate(out_recon%name)
-    allocate(out_recon%name, source=in_recon%name)
+    ! if(allocated(out_recon%name)) deallocate(out_recon%name)
+    ! allocate(out_recon%name, source=in_recon%name)
 
-    if(allocated(out_recon%cell_gradient)) deallocate(out_recon%cell_gradient)
-    allocate(out_recon%cell_gradient, source=in_recon%cell_gradient)
+    ! if(allocated(out_recon%cell_gradient)) deallocate(out_recon%cell_gradient)
+    ! allocate(out_recon%cell_gradient, source=in_recon%cell_gradient)
 
-    out_recon%limiter = in_recon%limiter
-    out_recon%domain_has_been_reconstructed = .false.
+    ! out_recon%limiter = in_recon%limiter
+    ! out_recon%domain_has_been_reconstructed = .false.
   end subroutine
 
-  function reconstruct_point(self, xy, cell_ij) result(V_bar)
-    !< Reconstruct the value of the primitive variables (U) at location (x,y)
-    !< withing a cell (i,j)
-
-    class(second_order_sgg_reconstruction_t), intent(in) :: self
-    real(rk), dimension(2), intent(in) :: xy !< where should V_bar be reconstructed at?
-    integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
-    real(rk), dimension(4) :: V_bar  !< V_bar = reconstructed [rho, u, v, p]
-    real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
-    integer(ik) :: i, j
-
-    i = cell_ij(1); j = cell_ij(2)
-    ! centroid_xy = self%grid%get_cell_centroid_xy(i, j)
-    V_bar = self%interpolate(i=i, j=j, x=xy(1), y=xy(2))
-  end function reconstruct_point
-
-  subroutine reconstruct_domain(self, reconstructed_domain, lbounds)
+  subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds)
     !< Reconstruct each corner/midpoint. This converts the cell centered conserved
     !< quantities [rho, rho u, rho v, e] to reconstructed primitive variables [rho, u, v, p]
     !< based on the chosen reconstruction order, e.g. using a piecewise-linear function based on the
     !< selected cell and it's neighbors. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
     class(second_order_sgg_reconstruction_t), intent(inout) :: self
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):, lbounds(5):), intent(out) :: reconstructed_domain
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: primitive_var !< (i,j); cell primitive variable to reconstruct
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), contiguous, intent(out) :: reconstructed_var
+    !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
-    !< ((rho, u ,v, p), point, node/midpoint, i, j);
-    !< The node/midpoint dimension just selects which set of points,
-    !< e.g. 1 - all corners, 2 - all midpoints
+    real(rk), dimension(:, :), allocatable :: grad_x
+    real(rk), dimension(:, :), allocatable :: grad_y
 
-    integer(ik) :: i, j, l  !< cell i,j index
-    integer(ik) :: m  !< midpoint index
-    integer(ik) :: c  !< corner index
-    integer(ik) :: n, p
-    integer(ik) :: phi, nhi, ilo, ihi, jlo, jhi
-    real(rk), dimension(4) :: U_cell_ave_max
-    real(rk), dimension(4) :: U_cell_ave_min
-    real(rk), dimension(4) :: U_recon_max
-    real(rk), dimension(4) :: U_recon_min
-    real(rk), dimension(4, 2) :: grad_u_limited
-    real(rk), dimension(4) :: beta_min
-    real(rk), dimension(4) :: beta_max
-    real(rk), dimension(4) :: phi_lim
+    integer(ik) :: i, j, p  !< cell i,j index
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
+    real(rk) :: U_cell_ave_max
+    real(rk) :: U_cell_ave_min
+    real(rk) :: U_recon_max
+    real(rk) :: U_recon_min
+    real(rk), dimension(2) :: grad_u_limited
+    real(rk) :: beta_min
+    real(rk) :: beta_max
+    real(rk) :: phi_lim
+    real(rk) :: x, y, x_ij, y_ij
 
-    real(rk), dimension(4, 4, 2) :: reconstructed_cell !< reconstructed corner/midpoints for the current cell
+    real(rk), dimension(8) :: reconstructed_cell !< reconstructed corner/midpoints for the current cell
 
+    if(.not. associated(self%grid)) error stop "Grid not associated"
     ! Bounds do not include ghost cells. Ghost cells get their
     ! reconstructed values and gradients from the boundary conditions
-    phi = ubound(reconstructed_domain, dim=2)
-    nhi = ubound(reconstructed_domain, dim=3)
-    ilo = lbound(reconstructed_domain, dim=4) + 1
-    ihi = ubound(reconstructed_domain, dim=4) - 1
-    jlo = lbound(reconstructed_domain, dim=5) + 1
-    jhi = ubound(reconstructed_domain, dim=5) - 1
+    ilo_bc = lbound(primitive_var, dim=1)
+    ihi_bc = ubound(primitive_var, dim=1)
+    jlo_bc = lbound(primitive_var, dim=2)
+    jhi_bc = ubound(primitive_var, dim=2)
 
-    ! Find the unlimited gradients sets the self%cell_gradients array
-    call self%estimate_gradients()
+    ilo = ilo_bc + n_ghost_layers
+    ihi = ihi_bc - n_ghost_layers
+    jlo = jlo_bc + n_ghost_layers
+    jhi = jhi_bc - n_ghost_layers
+
+    allocate(grad_x(ilo_bc:ihi_bc, jlo_bc:jhi_bc)) ! smaller than the primitive_var b/c of ghost regions
+    allocate(grad_y(ilo_bc:ihi_bc, jlo_bc:jhi_bc)) ! smaller than the primitive_var b/c of ghost regions
+
+    call self%estimate_gradient(primitive_var=primitive_var, grad_x=grad_x, grad_y=grad_y, lbounds=lbounds)
 
     !  Reconstruction points for each cell (corners and mid-points)
     !  C4---M3---C3
@@ -164,117 +143,143 @@ contains
     !  |         |
     !  C1---M1---C2
 
+    !!$omp parallel default(none), &
+    !!$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !!$omp private(i, j, x, y, x_ij, y_ij) &
+    !!$omp private(U_cell_ave_max, U_cell_ave_min, U_recon_max, U_recon_min) &
+    !!$omp private(beta_min, beta_max, phi_lim) &
+    !!$omp shared(reconstructed_cell, reconstructed_var, self, grad_x, grad_y, primitive_var)
+    !!$omp do
     do j = jlo, jhi
       do i = ilo, ihi
 
-        do concurrent(l=1:4)
-          U_cell_ave_max(l) = maxval(self%primitive_vars(l, i - 1:i + 1, j - 1:j + 1))
-          U_cell_ave_min(l) = minval(self%primitive_vars(l, i - 1:i + 1, j - 1:j + 1))
-        end do
+        x_ij = self%grid%cell_centroid_x(i, j)
+        y_ij = self%grid%cell_centroid_y(i, j)
+
+        U_cell_ave_max = maxval(primitive_var(i - 1:i + 1, j - 1:j + 1))
+        U_cell_ave_min = minval(primitive_var(i - 1:i + 1, j - 1:j + 1))
 
         ! First, find the unlimited interpolated values for each corner and midpoint
-        do n = 1, 2 ! First do corners, then to midpoints
-          do p = 1, 4 ! Loop through each point (N1-N4, and M1-M4)
-            associate(x=>self%grid%cell_node_xy(1, p, n, i, j), &
-                      y=>self%grid%cell_node_xy(2, p, n, i, j))
-              reconstructed_cell(:, p, n) = self%interpolate(i, j, x, y)
-            end associate
-          end do
+        do p = 1, 8
+          x = self%grid%cell_node_x(p, i, j)
+          y = self%grid%cell_node_y(p, i, j)
+          reconstructed_cell(p) = primitive_var(i, j) + grad_x(i, j) * (x - x_ij) + &
+                                  grad_y(i, j) * (y - y_ij)
         end do
 
-        do concurrent(l=1:4)
-          U_recon_max(l) = maxval(reconstructed_cell(l, :, :))
-          U_recon_min(l) = minval(reconstructed_cell(l, :, :))
-        end do
+        U_recon_max = maxval(reconstructed_cell)
+        U_recon_min = minval(reconstructed_cell)
 
-        associate(U_ave=>self%primitive_vars(:, i, j))
+        associate(U_ave=>primitive_var(i, j))
           beta_min = 0.0_rk
           beta_max = 0.0_rk
-          do concurrent(l=1:4)
-            if(abs(U_recon_min(l) - U_ave(l)) > 0.0_rk) then
-              beta_min(l) = max(0.0_rk,(U_cell_ave_min(l) - U_ave(l)) / (U_recon_min(l) - U_ave(l)))
-            end if
-            if(abs(U_recon_max(l) - U_ave(l)) > 0.0_rk) then
-              beta_max(l) = max(0.0_rk,(U_cell_ave_max(l) - U_ave(l)) / (U_recon_max(l) - U_ave(l)))
-            end if
-            phi_lim(l) = min(1.0_rk, beta_min(l), beta_max(l))
+          if(abs(U_recon_min - U_ave) > 0.0_rk) then
+            beta_min = max(0.0_rk,(U_cell_ave_min - U_ave) / (U_recon_min - U_ave))
+          end if
 
-          end do
+          if(abs(U_recon_max - U_ave) > 0.0_rk) then
+            beta_max = max(0.0_rk,(U_cell_ave_max - U_ave) / (U_recon_max - U_ave))
+          end if
+          phi_lim = min(1.0_rk, beta_min, beta_max)
         end associate
 
-        do concurrent(l=1:4)
-          self%cell_gradient(l, :, i, j) = phi_lim(l) * self%cell_gradient(l, :, i, j)
+        do p = 1, 8
+          x = self%grid%cell_node_x(p, i, j)
+          y = self%grid%cell_node_y(p, i, j)
+          reconstructed_cell(p) = primitive_var(i, j) + phi_lim * grad_x(i, j) * (x - x_ij) + &
+                                  phi_lim * grad_y(i, j) * (y - y_ij)
         end do
 
-        ! Now reinterpolate with the limited gradient
-        do n = 1, 2 ! First do corners, then to midpoints
-          do p = 1, 4 ! Loop through each point (N1-N4, and M1-M4)
-            associate(x=>self%grid%cell_node_xy(1, p, n, i, j), &
-                      y=>self%grid%cell_node_xy(2, p, n, i, j))
-              reconstructed_cell(:, p, n) = self%interpolate(i, j, x, y)
-            end associate
-          end do
-        end do
-        reconstructed_domain(:, :, :, i, j) = reconstructed_cell
+        reconstructed_var(:, i, j) = reconstructed_cell
       end do
     end do
+    !!$omp end do
+    !!$omp end parallel
 
     self%domain_has_been_reconstructed = .true.
-  end subroutine reconstruct_domain
+  end subroutine reconstruct
 
-  subroutine estimate_gradients(self)
+  subroutine estimate_gradient(self, primitive_var, grad_x, grad_y, lbounds)
     !< Estimate the slope-limited gradient of the primitive variables in the cell (i,j). This assumes
     !< a quadrilateral structured grid
-    class(second_order_sgg_reconstruction_t), intent(inout) :: self
-    integer(ik) :: i, j
+    class(second_order_sgg_reconstruction_t), intent(in) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: primitive_var !< (i,j); data to estimate the gradient of
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: grad_x !< (i,j); data to estimate the gradient of
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: grad_y !< (i,j); data to estimate the gradient of
+
+    integer(ik) :: i, j, k
     integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
 
-    real(rk), dimension(4, 5) :: prim_vars  !< primitive variables of current and neighbor cells
-    real(rk), dimension(5) :: volumes  !< volume of each cell
     real(rk), dimension(4) :: edge_lengths  !< length of each face
-    real(rk), dimension(2, 4) :: edge_normals  !< normal vectors of each face
+    real(rk), dimension(4) :: v_edge  !< length of each face
+    real(rk), dimension(4) :: n_x  !< normal vectors of each face
+    real(rk), dimension(4) :: n_y  !< normal vectors of each face
+    real(rk) :: d_dx, d_dy
 
-    real(rk), dimension(4, 2) :: phi_lim !< slope limiter
-    real(rk), dimension(4, 2) :: gradient
-    real(rk), dimension(4) :: smooth_updown !< slope limiter scalar function
-    real(rk), dimension(4) :: smooth_leftright !< slope limiter scalar function
+    ilo_bc = lbound(primitive_var, dim=1)
+    ihi_bc = ubound(primitive_var, dim=1)
+    jlo_bc = lbound(primitive_var, dim=2)
+    jhi_bc = ubound(primitive_var, dim=2)
 
-    phi_lim = 0.0_rk
+    ilo = ilo_bc + n_ghost_layers
+    ihi = ihi_bc - n_ghost_layers
+    jlo = jlo_bc + n_ghost_layers
+    jhi = jhi_bc - n_ghost_layers
 
-    ilo = lbound(self%primitive_vars, dim=2) + 1
-    ihi = ubound(self%primitive_vars, dim=2) - 1
-    jlo = lbound(self%primitive_vars, dim=3) + 1
-    jhi = ubound(self%primitive_vars, dim=3) - 1
-
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
+    !$omp private(n_x, n_y, v_edge, edge_lengths) &
+    !$omp shared(grad_x, grad_y, primitive_var, self) &
+    !$omp reduction(+:d_dx) &
+    !$omp reduction(+:d_dy)
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
-        ! current cell and neighbor cell [bottom, right, top, left] information for gradient estimation
-        prim_vars(:, 1) = self%primitive_vars(:, i, j)      ! current
-        prim_vars(:, 2) = self%primitive_vars(:, i, j - 1)  ! bottom
-        prim_vars(:, 3) = self%primitive_vars(:, i + 1, j)  ! right
-        prim_vars(:, 4) = self%primitive_vars(:, i, j + 1)  ! top
-        prim_vars(:, 5) = self%primitive_vars(:, i - 1, j)  ! left
 
-        volumes(1) = self%grid%cell_volume(i, j)      ! current
-        volumes(2) = self%grid%cell_volume(i, j - 1)  ! bottom
-        volumes(3) = self%grid%cell_volume(i + 1, j)  ! right
-        volumes(4) = self%grid%cell_volume(i, j + 1)  ! top
-        volumes(5) = self%grid%cell_volume(i - 1, j)  ! left
+        associate(center=>primitive_var(i, j), &      ! current cell
+                  bottom=>primitive_var(i, j - 1), &  ! bottom cell
+                  right=>primitive_var(i + 1, j), &   ! right cell
+                  top=>primitive_var(i, j + 1), &     ! top cell
+                  left=>primitive_var(i - 1, j), &      ! left cell
+                  vol_center=>self%grid%cell_volume(i, j), &      ! current cell
+                  vol_bottom=>self%grid%cell_volume(i, j - 1), &  ! bottom cell
+                  vol_right=>self%grid%cell_volume(i + 1, j), &   ! right cell
+                  vol_top=>self%grid%cell_volume(i, j + 1), &     ! top cell
+                  vol_left=>self%grid%cell_volume(i - 1, j))
 
-        ! Edge (face) interface data
-        edge_lengths(1) = self%grid%cell_edge_lengths(1, i, j - 1)  ! bottom
-        edge_lengths(2) = self%grid%cell_edge_lengths(2, i + 1, j)  ! right
-        edge_lengths(3) = self%grid%cell_edge_lengths(3, i, j + 1)  ! top
-        edge_lengths(4) = self%grid%cell_edge_lengths(4, i - 1, j)  ! left
+          ! Edge (face) interface data
+          edge_lengths(1) = self%grid%cell_edge_lengths(1, i, j - 1)  ! bottom
+          edge_lengths(2) = self%grid%cell_edge_lengths(2, i + 1, j)  ! right
+          edge_lengths(3) = self%grid%cell_edge_lengths(3, i, j + 1)  ! top
+          edge_lengths(4) = self%grid%cell_edge_lengths(4, i - 1, j)  ! left
 
-        edge_normals(:, 1) = self%grid%cell_edge_norm_vectors(:, 1, i, j - 1)  ! bottom
-        edge_normals(:, 2) = self%grid%cell_edge_norm_vectors(:, 2, i + 1, j)  ! right
-        edge_normals(:, 3) = self%grid%cell_edge_norm_vectors(:, 3, i, j + 1)  ! top
-        edge_normals(:, 4) = self%grid%cell_edge_norm_vectors(:, 4, i - 1, j)  ! left
+          n_x(1) = self%grid%cell_edge_norm_vectors(1, 1, i, j - 1)  ! bottom
+          n_x(2) = self%grid%cell_edge_norm_vectors(1, 2, i + 1, j)  ! right
+          n_x(3) = self%grid%cell_edge_norm_vectors(1, 3, i, j + 1)  ! top
+          n_x(4) = self%grid%cell_edge_norm_vectors(1, 4, i - 1, j)  ! left
+          n_y(1) = self%grid%cell_edge_norm_vectors(2, 1, i, j - 1)  ! bottom
+          n_y(2) = self%grid%cell_edge_norm_vectors(2, 2, i + 1, j)  ! right
+          n_y(3) = self%grid%cell_edge_norm_vectors(2, 3, i, j + 1)  ! top
+          n_y(4) = self%grid%cell_edge_norm_vectors(2, 4, i - 1, j)  ! left
 
-        self%cell_gradient(:, :, i, j) = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
+          v_edge(1) = (center * vol_center + bottom * vol_bottom) / (vol_center + vol_bottom)  ! bottom
+          v_edge(2) = (center * vol_center + right * vol_right) / (vol_center + vol_right)  ! right
+          v_edge(3) = (center * vol_center + top * vol_top) / (vol_center + vol_top)  ! top
+          v_edge(4) = (center * vol_center + left * vol_left) / (vol_center + vol_left)  ! left
+
+          d_dx = sum(v_edge * n_x * edge_lengths)
+          d_dy = sum(v_edge * n_y * edge_lengths)
+
+        end associate
+        grad_x(i, j) = d_dx / self%grid%cell_volume(i, j)
+        grad_y(i, j) = d_dy / self%grid%cell_volume(i, j)
       end do
     end do
-  end subroutine estimate_gradients
+    !$omp end do
+    !$omp end parallel
+  end subroutine estimate_gradient
 
 end module mod_second_order_sgg_reconstruction

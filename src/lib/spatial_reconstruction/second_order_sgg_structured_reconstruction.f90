@@ -141,8 +141,8 @@ contains
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, x_ij, y_ij) &
-    !$omp shared(reconstructed_var, self, gradient, primitive_var)
+    !$omp private(i, j, x, y, x_ij, y_ij) &
+    !$omp shared(reconstructed_var, self, grad_x, grad_y, primitive_var)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
@@ -198,7 +198,7 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j, phi_left_right, phi_up_down, d_dx, d_dy) &
     !$omp private(edge_normals, v_edge, edge_lengths) &
-    !$omp shared(gradient, primitive_var, self)
+    !$omp shared(grad_x, grad_y, primitive_var, self)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
