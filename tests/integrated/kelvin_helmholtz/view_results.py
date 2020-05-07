@@ -57,5 +57,6 @@ plt.title(
     f"Kelvin-Helmholtz Test @ {now} \nsimulation t={t:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
 )
 
+plt.axis("equal")
 plt.tight_layout()
 plt.savefig("kh_2d_results.png")
