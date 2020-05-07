@@ -16,7 +16,7 @@ debug:
     - pwd
     - mkdir -p build
     - cd build
-    - module load hdf5-1.10.6-gcc-9.3.1-hxe27fn
+    - spack load hdf5
     - cmake .. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=NO -DUSE_OPENMP=YES
     - make -j
 
