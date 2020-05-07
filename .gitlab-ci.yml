@@ -1,5 +1,8 @@
 image: smillerc/gfortran-dev
 
+before_script:
+  - /bin/bash
+
 stages:
   - build
   # - test
