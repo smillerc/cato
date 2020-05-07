@@ -1,0 +1,41 @@
+image: smillerc/gfortran-dev
+
+stages:
+  - build
+  # - test
+
+debug:
+  stage: build
+  script:
+    - mkdir -p build
+    - cd build
+    - CC=gcc FC=gfortran cmake .. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=YES -DUSE_OPENMP=YES
+    - make -j
+
+# Example artifacts
+#   stage: test
+#   script:
+#     - mkdir -p iceblock_release_intel_17U4
+#     - chown -R newuser iceblock_release_intel_17U4 # need a diff user to run mpirun
+#     - chmod -R u+rX iceblock_release_intel_17U4
+#     - cd iceblock_release_intel_17U4
+#     - source /opt/intel/17U4/bin/compilervars.sh intel64
+#     - cmake .. -DCMAKE_Fortran_COMPILER=mpiifort -DCMAKE_BUILD_TYPE=Debug -DCGNS_INCLUDE_DIR=/opt/cgns/include -DCGNS_LIBRARY=/opt/cgns/lib
+#     - make -j
+#     - cp ../tests/integrated_tests/uniform_iceblock_test/input.nml .
+#     - ./iris3d input.nml
+#     - cp ../tests/regression_tests/uniform_iceblock_test/report.ipynb iceblock_report.ipynb
+#     - ls
+#     - jupyter nbconvert --ExecutePreprocessor.timeout=600 --execute --allow-errors --to html iceblock_report.html iceblock_report.ipynb
+#     - ls
+#     - echo $CI_PROJECT_DIR
+#     - echo $PWD
+#   artifacts:
+#       paths:
+#       - iceblock_release_intel_17U4/dsum.csv
+#       - iceblock_release_intel_17U4/dnde_spectra.png
+#       - iceblock_release_intel_17U4/iceblock_report.ipynb
+#       - iceblock_release_intel_17U4/iceblock_report.html
+#       - iceblock_release_intel_17U4/dt_fit_sum.csv
+#       - iceblock_release_intel_17U4/dd_fit_sum.csv
+
