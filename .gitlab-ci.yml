@@ -10,6 +10,10 @@ stages:
 debug:
   stage: build
   script:
+    - echo $PATH
+    - echo $LD_LIBRARY_PATH
+    - whoami
+    - pwd
     - mkdir -p build
     - cd build
     - module load hdf5-1.10.6-gcc-9.3.1-hxe27fn
