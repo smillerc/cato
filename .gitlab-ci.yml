@@ -72,7 +72,7 @@ sedov_2d:
     - python3 view_results.py
   artifacts:
     paths:
-      - /builds/smil/cato/tests/integrated/sedov_2d/sedov_2d_results.png
+      - /builds/smil/cato/tests/integrated/sedov/sedov_2d_results.png
 
   #   - mv results/* .
   #   - python3 view_results.py
