@@ -46,6 +46,20 @@ sod_1d:
     paths:
       - /builds/smil/cato/tests/integrated/sod_1d/sod_1d_results.png
 
+kelvin_helmholtz_2d:
+  stage: test
+  script:
+    - cd tests/integrated/kelvin_helmholtz/
+    - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTING=YES -DUSE_OPENMP=YES
+    - make -j
+    - python3 generate_ic.py
+    - ./bin/cato.x input.ini
+    - mv results/* .
+    - python3 view_results.py
+  artifacts:
+    paths:
+      - /builds/smil/cato/tests/integrated/kelvin_helmholtz/kh_2d_results.png
+
 sedov_2d:
   stage: test
   script:
@@ -54,6 +68,11 @@ sedov_2d:
     - make -j
     - python3 generate_ic.py
     - ./bin/cato.x input.ini
+    - mv results/* .
+    - python3 view_results.py
+  artifacts:
+    paths:
+      - /builds/smil/cato/tests/integrated/sedov_2d/sedov_2d_results.png
 
   #   - mv results/* .
   #   - python3 view_results.py

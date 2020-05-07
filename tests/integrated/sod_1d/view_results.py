@@ -68,7 +68,7 @@ ds.density.sel(time=t, method="nearest").plot(label="CATO Density")
 plt.plot(values["x"], rho, label="Exact Density")
 
 ds.velocity.sel(time=t, method="nearest").plot(label="CATO Velocity")
-plt.plot(values["x"], u, label="Exact Veclocity")
+plt.plot(values["x"], u, label="Exact Velocity")
 
 ds.pressure.sel(time=t, method="nearest").plot(label="CATO Pressure")
 plt.plot(values["x"], p, label="Exact Pressure")
