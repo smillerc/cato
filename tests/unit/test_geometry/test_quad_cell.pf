@@ -39,7 +39,10 @@ contains
     @assertEqual(1., cell%volume)
 
     ! Edge lengths
-    call assert_that(cell%edge_lengths, every_item(is(equal_to(1.0_rk))))
+    @assertEqual(1.0_rk, cell%edge_lengths(1))
+    @assertEqual(1.0_rk, cell%edge_lengths(2))
+    @assertEqual(1.0_rk, cell%edge_lengths(3))
+    @assertEqual(1.0_rk, cell%edge_lengths(4))
 
     ! Mid-points
     @assertEqual([0.5_rk, 0.0_rk], cell%edge_midpoints(:, 1))
