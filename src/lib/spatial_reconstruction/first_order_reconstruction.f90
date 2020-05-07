@@ -15,7 +15,6 @@ module mod_first_order_reconstruction
   contains
     procedure, public :: initialize => init_first_order
     procedure, public :: reconstruct
-    ! procedure, public :: copy
     final :: finalize
   end type
 
@@ -56,55 +55,14 @@ contains
 
   end subroutine finalize
 
-  ! subroutine copy(out_recon, in_recon)
-  !   class(abstract_reconstruction_t), intent(in) :: in_recon
-  !   class(first_order_reconstruction_t), intent(inout) :: out_recon
-
-  !   call debug_print('Running first_order_reconstruction_t%copy()', __FILE__, __LINE__)
-
-  !   if(associated(out_recon%grid)) nullify(out_recon%grid)
-  !   out_recon%grid => in_recon%grid
-
-  !   if(associated(out_recon%rho)) nullify(out_recon%primitive_vars)
-  !   out_recon%primitive_vars => in_recon%primitive_vars
-
-  !   if(associated(out_recon%u)) nullify(out_recon%primitive_vars)
-  !   out_recon%primitive_vars => in_recon%primitive_vars
-
-  !   if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
-  !   out_recon%primitive_vars => in_recon%primitive_vars
-
-  !   if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
-  !   out_recon%primitive_vars => in_recon%primitive_vars
-
-  !   if(allocated(out_recon%name)) deallocate(out_recon%name)
-  !   allocate(out_recon%name, source=in_recon%name)
-
-  ! end subroutine
-
-  ! pure function reconstruct_point(self, xy, cell_ij) result(U_bar)
-  !   !< Reconstruct the value of the primitive variables (U) at location (x,y)
-  !   !< withing a cell (i,j)
-
-  !   class(first_order_reconstruction_t), intent(in) :: self
-  !   real(rk), dimension(2), intent(in) :: xy !< where should U_bar be reconstructed at?
-  !   real(rk), dimension(4) :: U_bar  !< U_bar = reconstructed [rho, u, v, p]
-  !   integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
-  !   integer(ik) :: i, j
-
-  !   ! i = cell_ij(1); j = cell_ij(2)
-  !   ! U_bar = self%primitive_vars(:, i, j)
-
-  ! end function reconstruct_point
-
   subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
 
     class(first_order_reconstruction_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: primitive_var !< (i,j); cell primitive variable to reconstruct
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out) :: reconstructed_var
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), contiguous :: primitive_var !< (i,j); cell primitive variable to reconstruct
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out), contiguous :: reconstructed_var
     !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
     integer(ik) :: i, j, p
@@ -140,7 +98,6 @@ contains
     !$omp end do simd
     !$omp end parallel
 
-    self%domain_has_been_reconstructed = .true.
   end subroutine reconstruct
 
 end module mod_first_order_reconstruction

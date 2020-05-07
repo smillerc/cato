@@ -21,9 +21,7 @@ module mod_second_order_sgg_structured_reconstruction
   contains
     procedure, public :: initialize
     procedure, public :: reconstruct
-    ! procedure, public :: reconstruct_point
     procedure, private :: estimate_gradient
-    ! procedure, public :: copy
     final :: finalize
   end type
 
@@ -64,44 +62,6 @@ contains
     ! if(allocated(self%cell_gradient)) deallocate(self%cell_gradient)
   end subroutine finalize
 
-  subroutine copy(out_recon, in_recon)
-    class(abstract_reconstruction_t), intent(in) :: in_recon
-    class(second_order_sgg_structured_reconstruction_t), intent(inout) :: out_recon
-
-    ! call debug_print('Running second_order_sgg_structured_reconstruction_t%copy()', __FILE__, __LINE__)
-
-    ! if(associated(out_recon%grid)) nullify(out_recon%grid)
-    ! out_recon%grid => in_recon%grid
-
-    ! if(associated(out_recon%primitive_vars)) nullify(out_recon%primitive_vars)
-    ! out_recon%primitive_vars => in_recon%primitive_vars
-
-    ! if(allocated(out_recon%name)) deallocate(out_recon%name)
-    ! allocate(out_recon%name, source=in_recon%name)
-
-    ! if(allocated(out_recon%cell_gradient)) deallocate(out_recon%cell_gradient)
-    ! allocate(out_recon%cell_gradient, source=in_recon%cell_gradient)
-
-    ! out_recon%limiter = in_recon%limiter
-    ! out_recon%domain_has_been_reconstructed = .false.
-  end subroutine
-
-  function reconstruct_point(self, xy, cell_ij) result(V_bar)
-    !< Reconstruct the value of the primitive variables (U) at location (x,y)
-    !< withing a cell (i,j)
-
-    class(second_order_sgg_structured_reconstruction_t), intent(in) :: self
-    real(rk), dimension(2), intent(in) :: xy !< where should V_bar be reconstructed at?
-    integer(ik), dimension(2), intent(in) :: cell_ij !< cell (i,j) indices to reconstruct within
-    real(rk), dimension(4) :: V_bar  !< V_bar = reconstructed [rho, u, v, p]
-    ! real(rk), dimension(2) :: centroid_xy !< (x,y) location of the cell centroid
-    integer(ik) :: i, j
-
-    i = cell_ij(1); j = cell_ij(2)
-    ! V_bar = self%interpolate(i=i, j=j, x=xy(1), y=xy(2))
-
-  end function reconstruct_point
-
   subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds)
     !< Reconstruct a primitive variable [rho, u, v, p]
     !< based on the chosen reconstruction order, e.g. using a piecewise-linear function based on the
@@ -109,8 +69,8 @@ contains
 
     class(second_order_sgg_structured_reconstruction_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: primitive_var !< (i,j); cell primitive variable to reconstruct
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out) :: reconstructed_var
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), contiguous :: primitive_var !< (i,j); cell primitive variable to reconstruct
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out), contiguous :: reconstructed_var
     !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
     real(rk), dimension(:, :), allocatable :: grad_x
@@ -160,7 +120,6 @@ contains
     !$omp end do
     !$omp end parallel
 
-    self%domain_has_been_reconstructed = .true.
     deallocate(grad_x)
     deallocate(grad_y)
   end subroutine reconstruct

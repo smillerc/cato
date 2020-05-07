@@ -143,13 +143,13 @@ contains
     !  |         |
     !  C1---M1---C2
 
-    !!$omp parallel default(none), &
-    !!$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !!$omp private(i, j, x, y, x_ij, y_ij) &
-    !!$omp private(U_cell_ave_max, U_cell_ave_min, U_recon_max, U_recon_min) &
-    !!$omp private(beta_min, beta_max, phi_lim) &
-    !!$omp shared(reconstructed_cell, reconstructed_var, self, grad_x, grad_y, primitive_var)
-    !!$omp do
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j, x, y, x_ij, y_ij) &
+    !$omp private(U_cell_ave_max, U_cell_ave_min, U_recon_max, U_recon_min) &
+    !$omp private(beta_min, beta_max, phi_lim) &
+    !$omp shared(reconstructed_cell, reconstructed_var, self, grad_x, grad_y, primitive_var)
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
 
@@ -186,17 +186,16 @@ contains
         do p = 1, 8
           x = self%grid%cell_node_x(p, i, j)
           y = self%grid%cell_node_y(p, i, j)
-          reconstructed_cell(p) = primitive_var(i, j) + phi_lim * grad_x(i, j) * (x - x_ij) + &
+          reconstructed_cell(p) = primitive_var(i, j) + &
+                                  phi_lim * grad_x(i, j) * (x - x_ij) + &
                                   phi_lim * grad_y(i, j) * (y - y_ij)
         end do
 
         reconstructed_var(:, i, j) = reconstructed_cell
       end do
     end do
-    !!$omp end do
-    !!$omp end parallel
-
-    self%domain_has_been_reconstructed = .true.
+    !$omp end do
+    !$omp end parallel
   end subroutine reconstruct
 
   subroutine estimate_gradient(self, primitive_var, grad_x, grad_y, lbounds)
@@ -213,10 +212,15 @@ contains
     integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
 
     real(rk), dimension(4) :: edge_lengths  !< length of each face
-    real(rk), dimension(4) :: v_edge  !< length of each face
+    real(rk), dimension(4) :: v_edge
+    real(rk), dimension(4) :: norm_v_edge
     real(rk), dimension(4) :: n_x  !< normal vectors of each face
     real(rk), dimension(4) :: n_y  !< normal vectors of each face
     real(rk) :: d_dx, d_dy
+    logical, dimension(2:4) :: all_equal
+    real(rk) :: max_v_edge
+
+    real(rk), parameter :: SMALL_GRAD = 1e-4_rk
 
     ilo_bc = lbound(primitive_var, dim=1)
     ihi_bc = ubound(primitive_var, dim=1)
@@ -274,8 +278,19 @@ contains
           d_dy = sum(v_edge * n_y * edge_lengths)
 
         end associate
-        grad_x(i, j) = d_dx / self%grid%cell_volume(i, j)
-        grad_y(i, j) = d_dy / self%grid%cell_volume(i, j)
+
+        if(abs(d_dx) < SMALL_GRAD) then
+          grad_x(i, j) = 0.0_rk
+        else
+          grad_x(i, j) = d_dx / self%grid%cell_volume(i, j)
+        end if
+
+        if(abs(d_dy) < SMALL_GRAD) then
+          grad_y(i, j) = 0.0_rk
+        else
+          grad_y(i, j) = d_dy / self%grid%cell_volume(i, j)
+        end if
+
       end do
     end do
     !$omp end do
