@@ -56,6 +56,6 @@ t = ds.time[-1].data
 plt.title(
     f"Sedov Test @ {now} \nsimulation t={t:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
 )
-
+plt.axis("equal")
 plt.tight_layout()
 plt.savefig("sedov_2d_results.png")
