@@ -9,7 +9,7 @@ debug:
   script:
     - mkdir -p build
     - cd build
-    - spack load hdf5
+    - module load hdf5-1.10.6-gcc-9.3.1-hxe27fn
     - cmake .. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=NO -DUSE_OPENMP=YES
     - make -j
 
