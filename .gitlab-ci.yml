@@ -40,6 +40,8 @@ sod_1d:
     - make -j
     - python3 generate_ic.py
     - ./bin/cato.x input.ini
+    - mv results/* .
+    - python3 view_results.py
   artifacts:
     paths:
       - sod_1d_results.png
