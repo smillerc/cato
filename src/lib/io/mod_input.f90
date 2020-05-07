@@ -159,7 +159,7 @@ contains
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
 
     ! Scheme
-    call cfg%get("scheme", "tau", self%tau)
+    ! call cfg%get("scheme", "tau", self%tau)
 
     call cfg%get("scheme", "reconstruction_type", char_buffer, 'piecewise_linear')
     self%reconstruction_type = trim(char_buffer)
