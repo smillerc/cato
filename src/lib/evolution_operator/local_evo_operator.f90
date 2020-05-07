@@ -45,7 +45,6 @@ contains
     class(abstract_reconstruction_t), intent(in), target :: recon_operator_target
 
     self%name = "FVLEG"
-    call self%set_tau(input%tau)
     self%grid => grid_target
     self%reconstruction_operator => recon_operator_target
 
@@ -165,6 +164,13 @@ contains
       allocate(reconstructed_u(4, ilo:ihi, jlo:jhi))
       allocate(reconstructed_v(4, ilo:ihi, jlo:jhi))
       allocate(reconstructed_p(4, ilo:ihi, jlo:jhi))
+
+      !$omp parallel default(none) &
+      !$omp shared(self) &
+      !$omp shared(reconstructed_rho, reconstructed_u, reconstructed_v, reconstructed_p) &
+      !$omp firstprivate(ilo,ihi,jlo,jhi) &
+      !$omp private(i,j)
+      !$omp do
       do j = jlo, jhi
         do i = ilo, ihi
           ! reconstructed_state indexing; ((rho, u ,v, p), point, node/midpoint, i, j)
@@ -195,6 +201,8 @@ contains
 
         end do
       end do
+      !$omp end do
+      !$omp end parallel
 
       call self%corner_mach_cones%initialize(tau=tau, edge_vectors=self%grid%corner_edge_vectors, &
                                              reconstructed_rho=reconstructed_rho, &
@@ -243,6 +251,13 @@ contains
       allocate(reconstructed_u(2, ilo:ihi, jlo:jhi))
       allocate(reconstructed_v(2, ilo:ihi, jlo:jhi))
       allocate(reconstructed_p(2, ilo:ihi, jlo:jhi))
+
+      !$omp parallel default(none) &
+      !$omp shared(self) &
+      !$omp shared(reconstructed_rho, reconstructed_u, reconstructed_v, reconstructed_p) &
+      !$omp firstprivate(ilo,ihi,jlo,jhi) &
+      !$omp private(i,j)
+      !$omp do
       do j = jlo, jhi
         do i = ilo, ihi
           ! Cell X1 -> use M1 from the cell above
@@ -258,6 +273,8 @@ contains
           reconstructed_p(2, i, j) = self%reconstructed_p(M3, i, j - 1)
         end do
       end do
+      !$omp end do
+      !$omp end parallel
 
       call self%leftright_midpoint_mach_cones%initialize(tau=tau, edge_vectors=self%grid%leftright_midpoint_edge_vectors, &
                                                          reconstructed_rho=reconstructed_rho, &
@@ -295,6 +312,13 @@ contains
       allocate(reconstructed_u(2, ilo:ihi, jlo:jhi))
       allocate(reconstructed_v(2, ilo:ihi, jlo:jhi))
       allocate(reconstructed_p(2, ilo:ihi, jlo:jhi))
+
+      !$omp parallel default(none) &
+      !$omp shared(self) &
+      !$omp shared(reconstructed_rho, reconstructed_u, reconstructed_v, reconstructed_p) &
+      !$omp firstprivate(ilo,ihi,jlo,jhi) &
+      !$omp private(i,j)
+      !$omp do
       do j = jlo, jhi
         do i = ilo, ihi
           ! Cell X1: cell to the left -> use M2
@@ -310,6 +334,8 @@ contains
           reconstructed_p(2, i, j) = self%reconstructed_p(M4, i, j)
         end do
       end do
+      !$omp end do
+      !$omp end parallel
 
       call self%downup_midpoint_mach_cones%initialize(tau=tau, edge_vectors=self%grid%downup_midpoint_edge_vectors, &
                                                       reconstructed_rho=reconstructed_rho, &
@@ -355,18 +381,18 @@ contains
               v_i=>cones%v, &
               p_i=>cones%p)
 
-      !!$omp parallel default(none) &
-      !!$omp shared(cones, p, rho, u, v, rho_a_tilde) &
-      !!$omp private(i,j)
-      !!$omp do
+      !$omp parallel default(none) &
+      !$omp shared(cones, p, rho, u, v, rho_a_tilde) &
+      !$omp private(i,j)
+      !$omp do simd
       do j = 1, cones%nj
         do i = 1, cones%ni
           rho_a_tilde(i, j) = cones%reference_density(i, j) * cones%reference_sound_speed(i, j)
         end do
       end do
-      !!$omp end do
+      !$omp end do simd
 
-      !!$omp do
+      !$omp do simd
       do j = 1, cones%nj
         do i = 1, cones%ni
           p(i, j) = sum(p_i(:, i, j) * dtheta(:, i, j) - &
@@ -374,17 +400,17 @@ contains
                         rho_a_tilde(i, j) * v_i(:, i, j) * cos_dtheta(:, i, j)) / (2.0_rk * pi)
         end do
       end do
-      !!$omp end do
+      !$omp end do simd
 
-      !!$omp do
+      !$omp do simd
       do j = 1, cones%nj
         do i = 1, cones%ni
           rho(i, j) = rho_p_prime(i, j) + (p(i, j) / a_tilde(i, j)**2) - (pressure_p_prime(i, j) / a_tilde(i, j)**2)
         end do
       end do
-      !!$omp end do
+      !$omp end do simd
 
-      !!$omp do
+      !$omp do simd
       do j = 1, cones%nj
         do i = 1, cones%ni
           u(i, j) = sum((-p_i(:, i, j) / rho_a_tilde(i, j)) * sin_dtheta(:, i, j) &
@@ -396,9 +422,9 @@ contains
                         + v_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk))) / pi
         end do
       end do
-      !!$omp end do
+      !$omp end do simd
 
-      !!$omp end parallel
+      !$omp end parallel
     end associate
 
     deallocate(rho_a_tilde)

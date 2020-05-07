@@ -57,7 +57,6 @@ module mod_abstract_evo_operator
     procedure, public, non_overridable :: set_grid_pointer
     procedure, public, non_overridable :: set_reconstructed_state_pointers
     procedure, public, non_overridable :: set_reconstruction_operator_pointer
-    procedure, public, non_overridable :: set_tau
     procedure, public, non_overridable :: nullify_pointer_members
     procedure(copy_evo), public, deferred :: copy
     generic :: assignment(=) => copy
@@ -90,20 +89,14 @@ module mod_abstract_evo_operator
       integer(ik), dimension(2), intent(in) :: lbounds
       character(len=*), intent(in) :: location !< Mach cone location ['corner', 'left/right midpoint', or 'down/up midpoint']
       integer(ik), intent(out) :: error_code
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_rho
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_u
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_v
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: evolved_p
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out), contiguous :: evolved_rho
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out), contiguous :: evolved_u
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out), contiguous :: evolved_v
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(out), contiguous :: evolved_p
     end subroutine
   end interface
 
 contains
-  subroutine set_tau(self, tau)
-    !< Public interface to set the time increment
-    class(abstract_evo_operator_t), intent(inout) :: self
-    real(rk), intent(in) :: tau
-    self%tau = abs(tau)
-  end subroutine
 
   subroutine set_grid_pointer(self, grid_target)
     class(abstract_evo_operator_t), intent(inout) :: self
