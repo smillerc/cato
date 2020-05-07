@@ -86,6 +86,7 @@ module mod_mach_cone_collection
     real(rk), dimension(:, :), allocatable :: p_prime_y  !< (i, j); y location of P'
     real(rk), dimension(:, :), allocatable :: p0_x       !< (i, j); x location of P0
     real(rk), dimension(:, :), allocatable :: p0_y       !< (i, j); y location of P0
+    logical :: is_initialized = .false.
 
     integer(ik), dimension(:, :, :), allocatable :: n_arcs_per_cell
     !< (cell 1:N); Number of arcs that each cell contributes (0, 1, or 2)
@@ -157,7 +158,7 @@ contains
     real(rk), dimension(:, :, :), contiguous, intent(in) :: reconstructed_p
     !< ((cell_1:N), i, j); reconstructed state for point P.
 
-    integer(ik) :: idx, arc, c, i, j, ni, nj
+    integer(ik) :: idx, arc, c, i, j, ni, nj, nc
     real(rk) :: recon_u, recon_v, recon_p
 
     self%ni = size(reconstructed_rho, dim=2)
@@ -165,6 +166,8 @@ contains
     self%cone_location = trim(cone_location)
     self%tau = tau
 
+    ni = self%ni
+    nj = self%nj
     select case(trim(cone_location))
     case('corner')
       self%n_neighbor_cells = 4
@@ -174,9 +177,16 @@ contains
       error stop "Error in mach_cone_collection_t%initialize(), unsupported cone location"
     end select
 
-    do j = 1, self%nj
-      do i = 1, self%ni
-        do c = 1, self%n_neighbor_cells
+    nc = self%n_neighbor_cells
+    !$omp parallel default(none) &
+    !$omp shared(self, reconstructed_rho, reconstructed_u, reconstructed_v, reconstructed_p) &
+    !$omp shared(cell_indices, edge_vectors) &
+    !$omp firstprivate(ni, nj, nc) &
+    !$omp private(i,j,c)
+    !$omp do
+    do j = 1, nj
+      do i = 1, ni
+        do c = 1, nc
           if(reconstructed_rho(c, i, j) < 0.0_rk) then
             write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed density states [' // trim(self%cone_location) //'] (cell 1:N)', reconstructed_rho(:, i, j)
             write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: ', i, j
@@ -193,128 +203,128 @@ contains
         end do
       end do
     end do
+    !$omp end do
 
-    ! do j = 1, self%nj
-    !   do i = 1, self%ni
-    !     do c = 0, self%n_neighbor_cells
-    !       write(*,'(a, 3(i0,1x), a, 2(es10.3,1x))') 'ijc: ', i, j, c, 'xy: ', edge_vectors(:,c,i,j)
-    !     end do
-    !   end do
-    ! end do
+    !$omp single
+    if(.not. self%is_initialized) then
+      associate(nc=>self%n_neighbor_cells, ni=>self%ni, nj=>self%nj)
+        if(.not. allocated(self%edge_vectors)) then
+          allocate(self%edge_vectors(2, 0:nc, ni, nj))
+          self%edge_vectors = edge_vectors
+        end if
 
-    associate(nc=>self%n_neighbor_cells, ni=>self%ni, nj=>self%nj)
-      ! allocate(self%cell_is_supersonic(ni, nj))
-      ! self%cell_is_supersonic = .false.
+        if(.not. allocated(self%p_prime_in_cell)) allocate(self%p_prime_in_cell(nc, ni, nj))
+        if(.not. allocated(self%recon_rho)) allocate(self%recon_rho(nc, ni, nj))
+        if(.not. allocated(self%recon_u)) allocate(self%recon_u(nc, ni, nj))
+        if(.not. allocated(self%recon_v)) allocate(self%recon_v(nc, ni, nj))
+        if(.not. allocated(self%recon_p)) allocate(self%recon_p(nc, ni, nj))
+        if(.not. allocated(self%dtheta)) allocate(self%dtheta(nc * 2, ni, nj))
+        if(.not. allocated(self%sin_dtheta)) allocate(self%sin_dtheta(nc * 2, ni, nj))
+        if(.not. allocated(self%cos_dtheta)) allocate(self%cos_dtheta(nc * 2, ni, nj))
+        if(.not. allocated(self%sin_d2theta)) allocate(self%sin_d2theta(nc * 2, ni, nj))
+        if(.not. allocated(self%cos_d2theta)) allocate(self%cos_d2theta(nc * 2, ni, nj))
+        if(.not. allocated(self%p_prime_x)) allocate(self%p_prime_x(ni, nj))
+        if(.not. allocated(self%p_prime_y)) allocate(self%p_prime_y(ni, nj))
+        if(.not. allocated(self%p0_x)) allocate(self%p0_x(ni, nj))
+        if(.not. allocated(self%p0_y)) allocate(self%p0_y(ni, nj))
+        if(.not. allocated(self%pressure_p_prime)) allocate(self%pressure_p_prime(ni, nj))
+        if(.not. allocated(self%density_p_prime)) allocate(self%density_p_prime(ni, nj))
+        if(.not. allocated(self%u)) allocate(self%u(nc * 2, ni, nj))
+        if(.not. allocated(self%v)) allocate(self%v(nc * 2, ni, nj))
+        if(.not. allocated(self%p)) allocate(self%p(nc * 2, ni, nj))
+        if(.not. allocated(self%p_prime_ij)) allocate(self%p_prime_ij(2, ni, nj))
+        if(.not. allocated(self%n_arcs_per_cell)) allocate(self%n_arcs_per_cell(nc, ni, nj))
+        if(.not. allocated(self%cell_indices)) allocate(self%cell_indices(2, nc, ni, nj))
+        if(.not. allocated(self%radius)) allocate(self%radius(ni, nj))
+        if(.not. allocated(self%reference_density)) allocate(self%reference_density(ni, nj))
+        if(.not. allocated(self%reference_u)) allocate(self%reference_u(ni, nj))
+        if(.not. allocated(self%reference_v)) allocate(self%reference_v(ni, nj))
+        if(.not. allocated(self%reference_sound_speed)) allocate(self%reference_sound_speed(ni, nj))
+      end associate
+      self%is_initialized = .true.
+    end if
+    !$omp end single
 
-      if(.not. allocated(self%edge_vectors)) then
-        allocate(self%edge_vectors(2, 0:nc, ni, nj))
-        self%edge_vectors = edge_vectors
-      end if
+    !$omp do simd
+    do j = 1, nj
+      do i = 1, ni
+        do c = 1, nc
+          self%cell_indices(:, c, i, j) = cell_indices(:, c, i, j)
+        end do
+      end do
+    end do
+    !$omp end do simd
 
-      if(.not. allocated(self%p_prime_in_cell)) allocate(self%p_prime_in_cell(nc, ni, nj))
-      self%p_prime_in_cell = .false.
-
-      if(.not. allocated(self%recon_rho)) allocate(self%recon_rho(nc, ni, nj))
-      if(.not. allocated(self%recon_u)) allocate(self%recon_u(nc, ni, nj))
-      if(.not. allocated(self%recon_v)) allocate(self%recon_v(nc, ni, nj))
-      if(.not. allocated(self%recon_p)) allocate(self%recon_p(nc, ni, nj))
-      self%recon_rho = reconstructed_rho(:, :, :)
-      self%recon_u = reconstructed_u(:, :, :)
-      self%recon_v = reconstructed_v(:, :, :)
-      self%recon_p = reconstructed_p(:, :, :)
-
-      if(.not. allocated(self%dtheta)) allocate(self%dtheta(nc * 2, ni, nj))
-      self%dtheta = 0.0_rk
-
-      if(.not. allocated(self%sin_dtheta)) allocate(self%sin_dtheta(nc * 2, ni, nj))
-      self%sin_dtheta = 0.0_rk
-
-      if(.not. allocated(self%cos_dtheta)) allocate(self%cos_dtheta(nc * 2, ni, nj))
-      self%cos_dtheta = 0.0_rk
-
-      if(.not. allocated(self%sin_d2theta)) allocate(self%sin_d2theta(nc * 2, ni, nj))
-      self%sin_d2theta = 0.0_rk
-
-      if(.not. allocated(self%cos_d2theta)) allocate(self%cos_d2theta(nc * 2, ni, nj))
-      self%cos_d2theta = 0.0_rk
-
-      if(.not. allocated(self%p_prime_x)) allocate(self%p_prime_x(ni, nj))
-      self%p_prime_x = 0.0_rk
-
-      if(.not. allocated(self%p_prime_y)) allocate(self%p_prime_y(ni, nj))
-      self%p_prime_y = 0.0_rk
-
-      if(.not. allocated(self%p0_x)) allocate(self%p0_x(ni, nj))
-      self%p0_x = 0.0_rk
-
-      if(.not. allocated(self%p0_y)) allocate(self%p0_y(ni, nj))
-      self%p0_y = 0.0_rk
-
-      if(.not. allocated(self%pressure_p_prime)) allocate(self%pressure_p_prime(ni, nj))
-      self%pressure_p_prime = 0.0_rk
-
-      if(.not. allocated(self%density_p_prime)) allocate(self%density_p_prime(ni, nj))
-      self%density_p_prime = 0.0_rk
-
-      if(.not. allocated(self%u)) allocate(self%u(nc * 2, ni, nj))
-      self%u = 0.0_rk
-      if(.not. allocated(self%v)) allocate(self%v(nc * 2, ni, nj))
-      self%v = 0.0_rk
-      if(.not. allocated(self%p)) allocate(self%p(nc * 2, ni, nj))
-      self%p = 0.0_rk
-
-      if(.not. allocated(self%p_prime_ij)) allocate(self%p_prime_ij(2, ni, nj))
-
-      if(.not. allocated(self%n_arcs_per_cell)) allocate(self%n_arcs_per_cell(nc, ni, nj))
-      self%n_arcs_per_cell = 0
-
-      if(.not. allocated(self%cell_indices)) allocate(self%cell_indices(2, nc, ni, nj))
-      self%cell_indices = cell_indices
-
-      if(.not. allocated(self%radius)) allocate(self%radius(ni, nj))
-      if(.not. allocated(self%reference_density)) allocate(self%reference_density(ni, nj))
-      if(.not. allocated(self%reference_u)) allocate(self%reference_u(ni, nj))
-      if(.not. allocated(self%reference_v)) allocate(self%reference_v(ni, nj))
-      if(.not. allocated(self%reference_sound_speed)) allocate(self%reference_sound_speed(ni, nj))
-
-      ! if(.not. allocated(self%cone_is_transonic)) allocate(self%cone_is_transonic(ni, nj))
-      ! self%cone_is_transonic = .false.
-
-      ! if(.not. allocated(self%cone_is_centered)) allocate(self%cone_is_centered(ni, nj))
-      ! self%cone_is_centered = .false.
-    end associate
+    !$omp do
+    do j = 1, nj
+      do i = 1, ni
+        do c = 1, nc
+          self%recon_rho(c, i, j) = reconstructed_rho(c, i, j)
+          self%recon_u(c, i, j) = reconstructed_u(c, i, j)
+          self%recon_v(c, i, j) = reconstructed_v(c, i, j)
+          self%recon_p(c, i, j) = reconstructed_p(c, i, j)
+        end do
+      end do
+    end do
+    !$omp end do
+    !$omp end parallel
 
     call self%get_reference_state()
 
-    ! Set the P' vector. Remember that all edge vector sets are moved to the origin, so P0 is at (0,0)
-    do j = 1, self%nj
-      do i = 1, self%ni
-        self%p0_x(i, j) = self%edge_vectors(1, 0, i, j)
-        self%p0_y(i, j) = self%edge_vectors(2, 0, i, j)
-        associate(x=>self%p0_x(i, j), y=>self%p0_y(i, j), &
-                  u_tilde=>self%reference_u(i, j), &
-                  v_tilde=>self%reference_v(i, j))
-          self%p_prime_x(i, j) = x - self%tau * u_tilde
-          self%p_prime_y(i, j) = y - self%tau * v_tilde
-        end associate
+    !$omp parallel default(none) &
+    !$omp shared(self) &
+    !$omp private(i,j) &
+    !$omp firstprivate(ni, nj)
+
+    !$omp do simd
+    do j = 1, nj
+      do i = 1, ni
+        self%radius(i, j) = self%tau * self%reference_sound_speed(i, j)
       end do
     end do
+    !$omp end do simd
 
-    self%radius = self%tau * self%reference_sound_speed
-    ! where(abs(self%p0_x - self%p_prime_x) / self%radius < TINY_DIST_RATIO) self%p_prime_x = self%p0_x
-    ! where(abs(self%p0_y - self%p_prime_y) / self%radius < TINY_DIST_RATIO) self%p_prime_y = self%p0_y
+    !$omp do simd
+    do j = 1, nj
+      do i = 1, ni
+        self%p0_x(i, j) = self%edge_vectors(1, 0, i, j)
+        self%p0_y(i, j) = self%edge_vectors(2, 0, i, j)
+      end do
+    end do
+    !$omp end do simd
+
+    !$omp do simd
+    do j = 1, nj
+      do i = 1, ni
+        self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
+        self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
+      end do
+    end do
+    !$omp end do simd
+
+    !$omp do simd
+    do j = 1, nj
+      do i = 1, ni
+        if(abs(self%p0_x(i, j) - self%p_prime_x(i, j)) / self%radius(i, j) < TINY_DIST_RATIO) self%p_prime_x(i, j) = self%p0_x(i, j)
+        if(abs(self%p0_y(i, j) - self%p_prime_y(i, j)) / self%radius(i, j) < TINY_DIST_RATIO) self%p_prime_y(i, j) = self%p0_y(i, j)
+      end do
+    end do
+    !$omp end do simd
+
+    !$omp end parallel
 
     call self%compute_trig_angles()
 
     ! Assign the reconstructed quantities to the primitive var values for each arc of the mach cone
     !$omp parallel default(none) &
     !$omp shared(self) &
+    !$omp firstprivate(ni, nj, nc) &
     !$omp private(i,j,c, arc, idx,recon_u, recon_v, recon_p)
 
     !$omp do
-    do j = 1, self%nj
-      do i = 1, self%ni
-        do c = 1, self%n_neighbor_cells
+    do j = 1, nj
+      do i = 1, ni
+        do c = 1, nc
           recon_u = self%recon_u(c, i, j)
           recon_v = self%recon_v(c, i, j)
           recon_p = self%recon_p(c, i, j)
@@ -327,12 +337,12 @@ contains
         end do
       end do
     end do
-    !$omp end do
+    !$omp end do nowait
 
     !$omp do
-    do j = 1, self%nj
-      do i = 1, self%ni
-        do c = 1, self%n_neighbor_cells
+    do j = 1, nj
+      do i = 1, ni
+        do c = 1, nc
           if(self%p_prime_in_cell(c, i, j)) then
             self%density_p_prime(i, j) = self%recon_rho(c, i, j)
             self%pressure_p_prime(i, j) = self%recon_p(c, i, j)
@@ -343,7 +353,6 @@ contains
     !$omp end do
     !$omp end parallel
 
-    ! call self%determine_p_prime_cell()
     call self%sanity_checks()
   end subroutine initialize
 
@@ -486,10 +495,10 @@ contains
     do j = 1, self%nj
       do i = 1, self%ni
         do idx = 1, idx_max
-          if(abs(sin_theta_ib(idx, i, j)) < 1e-15_rk) sin_theta_ib(idx, i, j) = 0.0_rk
-          if(abs(cos_theta_ib(idx, i, j)) < 1e-15_rk) cos_theta_ib(idx, i, j) = 0.0_rk
-          if(abs(sin_theta_ie(idx, i, j)) < 1e-15_rk) sin_theta_ie(idx, i, j) = 0.0_rk
-          if(abs(cos_theta_ie(idx, i, j)) < 1e-15_rk) cos_theta_ie(idx, i, j) = 0.0_rk
+          if(abs(sin_theta_ib(idx, i, j)) < 1e-14_rk) sin_theta_ib(idx, i, j) = 0.0_rk
+          if(abs(cos_theta_ib(idx, i, j)) < 1e-14_rk) cos_theta_ib(idx, i, j) = 0.0_rk
+          if(abs(sin_theta_ie(idx, i, j)) < 1e-14_rk) sin_theta_ie(idx, i, j) = 0.0_rk
+          if(abs(cos_theta_ie(idx, i, j)) < 1e-14_rk) cos_theta_ie(idx, i, j) = 0.0_rk
         end do
       end do
     end do
@@ -630,6 +639,8 @@ contains
             if(p_prime_cross_vec_1 <= 0.0_rk .and. vec_2_cross_p_prime <= 0.0_rk) then
               self%p_prime_in_cell(c, i, j) = .true.
               self%p_prime_ij(:, i, j) = [i, j]
+            else
+              self%p_prime_in_cell(c, i, j) = .false.
             end if
 
             call find_arc_segments(origin=p_0, vector_1=first_vector, vector_2=second_vector, &
@@ -720,6 +731,8 @@ contains
             if(p_prime_cross_vec_1 <= 0.0_rk .and. vec_2_cross_p_prime <= 0.0_rk) then
               self%p_prime_in_cell(c, i, j) = .true.
               self%p_prime_ij(:, i, j) = [i, j]
+            else
+              self%p_prime_in_cell(c, i, j) = .false.
             end if
 
             call find_arc_segments(origin=p_0, vector_1=first_vector, vector_2=second_vector, &
@@ -752,28 +765,29 @@ contains
     !< Do some sanity checks to make sure the mach cone is valid
     class(mach_cone_collection_t), intent(in) :: self
     real(rk), dimension(self%ni, self%nj) :: arc_sum
-    integer(ik) :: i, j
+    integer(ik) :: i, j, idx, idx_max
 
+    idx_max = 2 * self%n_neighbor_cells
+
+    !! $omp parallel workshare reduction(+:arc_sum)
     arc_sum = sum(self%dtheta, dim=1)
+    !! $omp end parallel workshare
 
-    ! do j = 1, self%nj
-    !   do i = 1, self%ni
-    !     if(count(self%n_arcs_per_cell(:, i, j) >= 2) > 1) then
-    !       call self%print(i, j)
-    !       error stop "Too many arcs in the mach cone (count(cone%n_arcs >= 2) > 1)"
-    !     end if
-    !   end do
-    ! end do
-
+    !! $omp parallel default(none) &
+    !! $omp shared(self, arc_sum) &
+    !! $omp private(i,j)
+    !! $omp do
     do j = 1, self%nj
       do i = 1, self%ni
         if(.not. equal(arc_sum(i, j), 2 * pi, 1e-6_rk)) then
-          print *, 'arc_sum(i, j)', arc_sum(i, j), 2 * pi
+          print *, "Cone arcs do not add up to 2pi:", arc_sum(i, j)
           call self%print(i, j)
           error stop "Cone arcs do not add up to 2pi"
         end if
       end do
     end do
+    !! $omp end do
+    !! $omp end parallel
 
   end subroutine sanity_checks
 
