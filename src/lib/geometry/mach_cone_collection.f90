@@ -295,7 +295,6 @@ contains
 
     ! Assign the reconstructed quantities to the primitive var values for each arc of the mach cone
     !$omp parallel default(shared) private(i,j,c, arc, idx,recon_u, recon_v, recon_p)
-
     !$omp do
     do j = 1, self%nj
       do i = 1, self%ni

@@ -343,6 +343,8 @@ contains
     call fv%apply_reconstructed_state_bc(reconstructed_state, lbounds=recon_bounds)
     ! call fv%apply_cell_gradient_bc()
 
+    !!$omp sections
+    !!$omp section
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
     bounds = lbound(evolved_downup_midpoints_state)
@@ -355,6 +357,8 @@ contains
       fv%error_code = error_code
     end if
 
+    !! $omp section
+    !!   $omp single
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
     bounds = lbound(evolved_leftright_midpoints_state)
@@ -366,7 +370,10 @@ contains
     if(error_code /= 0) then
       fv%error_code = error_code
     end if
+    ! !$omp end single
 
+    ! !$omp section
+    !  !$omp single
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
     bounds = lbound(evolved_corner_state)
@@ -378,6 +385,8 @@ contains
     if(error_code /= 0) then
       fv%error_code = error_code
     end if
+    !  !$omp end single
+    !!$omp end sections
 
     nullify(fv%reconstruction_operator%primitive_vars)
     nullify(fv%evolution_operator%reconstructed_state)
@@ -453,14 +462,16 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
 
-        top_left_corner = evolved_corner_state(:, i, j + 1)
         bottom_left_corner = evolved_corner_state(:, i, j)
+        bottom_midpoint = evolved_leftright_midpoints_state(:, i, j)
+        left_midpoint = evolved_downup_midpoints_state(:, i, j)
+
+        top_left_corner = evolved_corner_state(:, i, j + 1)
         top_right_corner = evolved_corner_state(:, i + 1, j + 1)
         bottom_right_corner = evolved_corner_state(:, i + 1, j)
-        bottom_midpoint = evolved_leftright_midpoints_state(:, i, j)
         top_midpoint = evolved_leftright_midpoints_state(:, i, j + 1)
         right_midpoint = evolved_downup_midpoints_state(:, i + 1, j)
-        left_midpoint = evolved_downup_midpoints_state(:, i, j)
+
         delta_l = grid%cell_edge_lengths(:, i, j)
 
         do edge = 1, 4

@@ -94,12 +94,14 @@ contains
     ! face_prim_vars indexing: 1 = bottom, 2 = right, 3 = top, 4 = left
     associate(V_edge=>face_prim_vars, &
               V_1=>prim_vars(:, 1), &
-              V_2=>prim_vars(:, 2), &
-              V_3=>prim_vars(:, 3), &
-              V_4=>prim_vars(:, 4), &
-              V_5=>prim_vars(:, 5))
+              V_2=>prim_vars(:, 2), & ! bot
+              V_3=>prim_vars(:, 3), & ! right
+              V_4=>prim_vars(:, 4), & ! top
+              V_5=>prim_vars(:, 5))   ! left
 
+      ! right - center, center - left
       phi_left_right = limit(V_3 - V_1, V_1 - V_5)
+      ! bot - center, center - top
       phi_up_down = limit(V_2 - V_1, V_1 - V_4)
 
       V_edge(:, 2) = V_1 + 0.5_rk * phi_left_right  ! right
