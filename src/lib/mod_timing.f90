@@ -98,23 +98,39 @@ contains
     real(rk), dimension(:, :), allocatable :: u, v
     real(rk), dimension(:, :), allocatable :: sound_speed
 
-    allocate(u(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo_d, ihi_d, jlo_d, jhi_d
+
+    ilo = fv%grid%ilo_bc_cell
+    ihi = fv%grid%ihi_bc_cell
+    jlo = fv%grid%jlo_bc_cell
+    jhi = fv%grid%jhi_bc_cell
+
+    ilo_d = fv%grid%ilo_cell
+    ihi_d = fv%grid%ihi_cell
+    jlo_d = fv%grid%jlo_cell
+    jhi_d = fv%grid%jhi_cell
+
+    allocate(u(ilo:ihi, jlo:jhi))
     u = 0.0_rk
-    allocate(v(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
+    allocate(v(ilo:ihi, jlo:jhi))
     v = 0.0_rk
-    allocate(sound_speed(fv%grid%ilo_bc_cell:fv%grid%ihi_bc_cell, fv%grid%jlo_bc_cell:fv%grid%jhi_bc_cell))
+    allocate(sound_speed(ilo:ihi, jlo:jhi))
     sound_speed = 0.0_rk
 
     call fluid%get_sound_speed(sound_speed)
     u = abs(fluid%conserved_vars(2, :, :)) / fluid%conserved_vars(1, :, :)
     v = abs(fluid%conserved_vars(3, :, :)) / fluid%conserved_vars(1, :, :)
 
+    ! !$omp workshare
     associate(dx=>fv%grid%cell_size(1, :, :), &
               dy=>fv%grid%cell_size(2, :, :), &
               cs=>sound_speed)
 
-      delta_t = minval(cfl / (((u + cs) / dx) + ((v + cs) / dy)))
+      delta_t = minval(cfl / (((u(ilo_d:ihi_d, jlo_d:jhi_d) + cs(ilo_d:ihi_d, jlo_d:jhi_d)) / dx(ilo_d:ihi_d, jlo_d:jhi_d)) + &
+                              ((v(ilo_d:ihi_d, jlo_d:jhi_d) + cs(ilo_d:ihi_d, jlo_d:jhi_d)) / dy(ilo_d:ihi_d, jlo_d:jhi_d))))
     end associate
+    ! !$omp end workshare
 
     deallocate(u)
     deallocate(v)
