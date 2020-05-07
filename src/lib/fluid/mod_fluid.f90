@@ -40,7 +40,8 @@ module mod_fluid
     real(rk), dimension(:, :), allocatable :: v      !< (i, j); Conserved quantities
     real(rk), dimension(:, :), allocatable :: p      !< (i, j); Conserved quantities
     real(rk), dimension(:, :), allocatable :: cs     !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: mach   !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: mach_u   !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable :: mach_v   !< (i, j); Conserved quantities
     logical :: prim_vars_updated = .false.
   contains
     procedure, public :: initialize
@@ -98,7 +99,8 @@ contains
       allocate(self%rho_v(imin:imax, jmin:jmax))
       allocate(self%rho_E(imin:imax, jmin:jmax))
       allocate(self%cs(imin:imax, jmin:jmax))
-      allocate(self%mach(imin:imax, jmin:jmax))
+      allocate(self%mach_u(imin:imax, jmin:jmax))
+      allocate(self%mach_v(imin:imax, jmin:jmax))
     end associate
 
     time_integrator => time_integrator_factory(input)
@@ -126,7 +128,8 @@ contains
     !$omp simd
     do j = jlo, jhi
       do i = ilo, ihi
-        self%mach(i, j) = sqrt(self%u(i, j)**2 + self%v(i, j)**2) / self%cs(i, j)
+        self%mach_u(i, j) = self%u(i, j) / self%cs(i, j)
+        self%mach_v(i, j) = self%v(i, j) / self%cs(i, j)
       end do
     end do
     !$omp end simd
@@ -295,7 +298,8 @@ contains
     if(allocated(self%rho_v)) deallocate(self%rho_v)
     if(allocated(self%rho_E)) deallocate(self%rho_E)
     if(allocated(self%cs)) deallocate(self%cs)
-    if(allocated(self%mach)) deallocate(self%mach)
+    if(allocated(self%mach_u)) deallocate(self%mach_u)
+    if(allocated(self%mach_v)) deallocate(self%mach_v)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine force_finalization
 
@@ -311,7 +315,8 @@ contains
     if(allocated(self%rho_v)) deallocate(self%rho_v)
     if(allocated(self%rho_E)) deallocate(self%rho_E)
     if(allocated(self%cs)) deallocate(self%cs)
-    if(allocated(self%mach)) deallocate(self%mach)
+    if(allocated(self%mach_u)) deallocate(self%mach_u)
+    if(allocated(self%mach_v)) deallocate(self%mach_v)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine finalize
 
@@ -426,7 +431,6 @@ contains
     ! Now we can reconstruct the entire domain
     call fv%reconstruct(primitive_var=local_d_dt%rho, lbounds=bounds, &
                         reconstructed_var=rho_recon_state)
-
     call fv%reconstruct(primitive_var=local_d_dt%u, lbounds=bounds, &
                         reconstructed_var=u_recon_state)
     call fv%reconstruct(primitive_var=local_d_dt%v, lbounds=bounds, &
@@ -561,7 +565,8 @@ contains
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
-        self%mach(i, j) = sqrt(self%u(i, j)**2 + self%v(i, j)**2) / self%cs(i, j)
+        self%mach_u(i, j) = self%u(i, j) / self%cs(i, j)
+        self%mach_v(i, j) = self%v(i, j) / self%cs(i, j)
       end do
     end do
     !$omp end do
@@ -569,7 +574,7 @@ contains
 
     self%prim_vars_updated = .true.
 
-  end subroutine
+  end subroutine calculate_derived_quantities
 
   subroutine flux_edges(grid, &
                         evolved_corner_rho, evolved_corner_u, evolved_corner_v, evolved_corner_p, &
@@ -658,7 +663,7 @@ contains
     !$omp private(top_rho_flux, top_rhou_flux, top_rhov_flux, top_rhoE_flux) &
     !$omp shared(grid, corner_fluxes, leftright_mid_fluxes, downup_mid_fluxes) &
     !$omp shared(d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
-    !$omp do
+    !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
 
@@ -742,7 +747,7 @@ contains
 
       end do ! i
     end do ! j
-    !$omp end do
+    !$omp end do simd
     !$omp end parallel
 
     ilo = grid%ilo_bc_cell; ihi = grid%ihi_bc_cell
@@ -772,47 +777,32 @@ contains
   subroutine residual_smoother(self)
     class(fluid_t), intent(inout) :: self
 
-    ! integer(ik) :: ilo = 0
-    integer(ik) :: ihi = 0
-    integer(ik) :: jlo = 0
-    integer(ik) :: jhi = 0
-    ! integer(ik) :: i, j
-    ! real(rk) :: eps
-    ! real(rk) :: u, v
-    ! real(rk), dimension(:, :), allocatable :: sound_speed
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j
 
-    ! call self%get_sound_speed(sound_speed)
+    ilo = lbound(self%rho, dim=1)
+    ihi = ubound(self%rho, dim=1)
+    jlo = lbound(self%rho, dim=2)
+    jhi = ubound(self%rho, dim=2)
 
-    ! ilo = lbound(self%conserved_vars, dim=2)
-    ! ihi = ubound(self%conserved_vars, dim=2)
-    ! jlo = lbound(self%conserved_vars, dim=3)
-    ! jhi = ubound(self%conserved_vars, dim=3)
+    !$omp parallel default(none) &
+    !$omp shared(self) &
+    !$omp firstprivate(ilo,ihi,jlo,jhi) &
+    !$omp private(i,j)
+    !$omp do
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(abs(self%mach_u(i, j)) < 1e-4_rk) then
+          self%u(i, j) = 0.0_rk
+        end if
 
-    ! !$omp parallel default(none) private(i,j,u,v,ilo,ihi,jlo,jhi)
-    ! !$omp do
-    ! do j = jlo, jhi
-    !   do i = ilo, ihi
-    !     u = self%conserved_vars(2, i, j) / self%conserved_vars(1, i, j)
-    !     v = self%conserved_vars(3, i, j) / self%conserved_vars(1, i, j)
-
-    !     if(abs(u / sound_speed(i, j)) < 1e-8_rk) then
-    !       self%conserved_vars(2, i, j) = 0.0_rk
-    !     end if
-
-    !     if(abs(v / sound_speed(i, j)) < 1e-8_rk) then
-    !       self%conserved_vars(3, i, j) = 0.0_rk
-    !     end if
-    !   end do
-    ! end do
-    ! !$omp end do
-    ! !$omp end parallel
-
-    ! ! print*, minval((self%conserved_vars(2, :,:) / self%conserved_vars(1, :,:))/sound_speed)
-    ! ! print*, maxval((self%conserved_vars(2, :,:) / self%conserved_vars(1, :,:))/sound_speed)
-    ! ! print*, minval((self%conserved_vars(3, :,:) / self%conserved_vars(1, :,:))/sound_speed)
-    ! ! print*, maxval((self%conserved_vars(3, :,:) / self%conserved_vars(1, :,:))/sound_speed)
-
-    ! deallocate(sound_speed)
+        if(abs(self%mach_v(i, j)) < 1e-4_rk) then
+          self%v(i, j) = 0.0_rk
+        end if
+      end do
+    end do
+    !$omp end do
+    !$omp end parallel
 
   end subroutine residual_smoother
 
