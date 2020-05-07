@@ -34,6 +34,12 @@ try:
         .decode("utf-8")
         .strip()
     )
+
+    if branch == "HEAD":
+        branch = os.getenv("CI_COMMIT_REF_NAME")
+    if branch is None:
+        branch = "N/A"
+
 except Exception:
     branch = "N/A"
 
