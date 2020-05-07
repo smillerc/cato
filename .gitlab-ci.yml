@@ -3,6 +3,7 @@ image: smillerc/gfortran-dev
 # Set the thread count for OpenMP runs
 variables:
   OMP_NUM_THREADS: 2
+  HDF5_DISABLE_VERSION_CHECK: 2
 
 before_script:
   - /bin/bash
@@ -39,6 +40,9 @@ sod_1d:
     - make -j
     - python3 generate_ic.py
     - ./bin/cato.x input.ini
+  artifacts:
+    paths:
+      - sod_1d_results.png
 
 # Example artifacts
 #   stage: test

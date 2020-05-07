@@ -2,56 +2,52 @@
 """
 A simple script to view the results from the simulation
 """
-import matplotlib.pyplot as plt
+
 import h5py
-import argparse
+import numpy as np
+import os
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os, sys
+import sod
 
-parser = argparse.ArgumentParser(description="View simulation results")
-parser.add_argument("filename", type=str, help="Filename of the .hdf5 file to open")
+sys.path.append("../../..")
+from pycato import load_1d_dataset
 
-args = parser.parse_args()
+t = 0.2
+gamma = 1.4
+npts = 500
 
-index_to_name = ["density", "u", "v", "pressure"]
-data = {}
+# exact results
+positions, regions, values = sod.solve(
+    left_state=(1, 1, 0),
+    right_state=(0.1, 0.125, 0.0),
+    geometry=(0.0, 1.0, 0.5),
+    t=t,
+    gamma=gamma,
+    npts=npts,
+)
+p = values["p"]
+rho = values["rho"]
+u = values["u"]
 
-var_list = ["density", "x_velocity", "y_velocity", "pressure"]
+# Load cato results
+ds = load_1d_dataset(".")
 
-state_list = [
-    "leftright_midpoints_reference_state",
-    "downup_midpoints_reference_state",
-    "corner_reference_state",
-    "evolved_leftright_midpoints_state",
-    "evolved_downup_midpoints_state",
-    "evolved_corner_state",
-]
-recon_state = ["reconstructed_state"]
+plt.figure(figsize=(12, 6))
 
-with h5py.File(args.filename, "r") as h5:
-    # Transpose to match the index convention within the code
-    for var in state_list + var_list + recon_state:
-        try:
-            data[var] = h5[f"/{var}"][()].T
-        except Exception:
-            pass
+ds.density.sel(time=t, method="nearest").plot(label="CATO Density")
+plt.plot(values["x"], rho, label="Exact Density")
 
-# Plot the primitive quantities
-fix, axes = plt.subplots(1, 4, figsize=(20, 8))
-for i, name in enumerate(var_list):
-    p = axes[i].imshow(data[name], origin="lower")
-    plt.colorbar(p, ax=axes[i], fraction=0.046, pad=0.04)
-    axes[i].set_title(name)
-plt.suptitle("Primitive Quantities")
-plt.tight_layout()
-plt.show()
+ds.velocity.sel(time=t, method="nearest").plot(label="CATO Velocity")
+plt.plot(values["x"], u, label="Exact Veclocity")
 
-# Plot the reference and evolved state
-for name in state_list:
-    values = data[name]
-    fix, axes = plt.subplots(1, 4, figsize=(20, 8))
-    for i in range(4):
-        p = axes[i].imshow(values[i, :, :], origin="lower")
-        plt.colorbar(p, ax=axes[i], fraction=0.046, pad=0.04)
-        axes[i].set_title(index_to_name[i])
-    plt.suptitle(name)
-    plt.tight_layout()
-    plt.show()
+ds.pressure.sel(time=t, method="nearest").plot(label="CATO Pressure")
+plt.plot(values["x"], p, label="Exact Pressure")
+
+plt.title(f"Time: {t:.2f}")
+plt.ylabel("")
+plt.xlabel("X")
+
+plt.legend()
+plt.savefig("sod_1d_results.png")

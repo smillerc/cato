@@ -10,7 +10,7 @@ import sys
 import os
 
 sys.path.append(os.path.abspath("../../.."))
-from scripts import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
+from pycato import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
 shock_tube = make_1d_in_x_uniform_grid(n_cells=500, limits=(0, 1.0))
