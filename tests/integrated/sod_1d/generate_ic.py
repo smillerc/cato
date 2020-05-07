@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """Make the double periodic shear test grid"""
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
+
 import numpy as np
 import sys
 import os
@@ -36,11 +40,12 @@ shock_tube["rho"] = shock_tube["rho"] * ureg("g/cc")
 write_initial_hdf5(filename="shock_tube_1d", initial_condition_dict=shock_tube)
 
 # Plot the results
-# fig, (ax1, ax2, ax3) = plt.subplots(figsize=(18, 8), nrows=3, ncols=1)
-# fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
-# for ax, v in zip([ax1, ax2], ["rho", "p"]):
-#     vc = ax.plot(shock_tube["xc"][:, 1], shock_tube[v][:, 1], "-o")
-#     ax.set_ylabel(v)
-#     ax.set_xlabel("X")
-
-# plt.show()
+try:
+    fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
+    for ax, v in zip([ax1, ax2], ["rho", "p"]):
+        vc = ax.plot(shock_tube["xc"][:, 1], shock_tube[v][:, 1], "-o")
+        ax.set_ylabel(v)
+        ax.set_xlabel("X")
+    plt.show()
+except Exception:
+    pass
