@@ -2,6 +2,7 @@ image: smillerc/gfortran-dev
 
 before_script:
   - /bin/bash
+  - eval `spack load --sh hdf5`
 
 stages:
   - build
@@ -10,14 +11,9 @@ stages:
 debug:
   stage: build
   script:
-    - echo $PATH
-    - echo $LD_LIBRARY_PATH
-    - whoami
-    - pwd
-    - mkdir -p build
-    - cd build
-    - eval `spack load --sh hdf5`
-    - cmake .. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=NO -DUSE_OPENMP=YES
+    - mkdir -p debug
+    - cd debug
+    - cmake .. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=YES -DUSE_OPENMP=YES
     - make -j
 
 # Example artifacts
@@ -46,4 +42,3 @@ debug:
 #       - iceblock_release_intel_17U4/iceblock_report.html
 #       - iceblock_release_intel_17U4/dt_fit_sum.csv
 #       - iceblock_release_intel_17U4/dd_fit_sum.csv
-
