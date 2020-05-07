@@ -4,9 +4,8 @@ in the .h5 format
 """
 import numpy as np
 import h5py
-import pint
 
-ureg = pint.UnitRegistry()
+from .unit_registry import ureg
 
 
 def make_uniform_grid(n_cells, xrange, yrange):

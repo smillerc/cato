@@ -9,7 +9,7 @@ import pint
 import xarray as xr
 
 
-ureg = pint.UnitRegistry()
+from .unit_registry import ureg
 
 
 def read_stepfile(file):

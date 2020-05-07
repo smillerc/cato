@@ -6,7 +6,7 @@ import sys
 import os
 
 sys.path.append(os.path.abspath("../../.."))
-from scripts import make_uniform_grid, write_initial_hdf5, ureg
+from pycato import make_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
 domain = make_uniform_grid(n_cells=(200, 200), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
