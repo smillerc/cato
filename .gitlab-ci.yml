@@ -16,7 +16,7 @@ debug:
     - pwd
     - mkdir -p build
     - cd build
-    - spack load hdf5
+    - eval `spack load --sh hdf5`
     - cmake .. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=NO -DUSE_OPENMP=YES
     - make -j
 
