@@ -5,19 +5,26 @@ Initial conditions taken from
 See https://arxiv.org/pdf/1111.1764.pdf or
 https://iopscience.iop.org/article/10.1088/0067-0049/201/2/18/meta"""
 
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
+
 import numpy as np
 import sys
 import os
 
-sys.path.append(os.path.abspath("../../../scripts"))
-from generate_initial_grids import make_uniform_grid, write_initial_hdf5
+sys.path.append(os.path.abspath("../../.."))
+from pycato import make_uniform_grid, write_initial_hdf5
 
 # Make the empty grid
 domain = make_uniform_grid(n_cells=(200, 200), xrange=(0.0, 1.0), yrange=(0.0, 1.0))
 
 # Set the initial conditions
 domain["p"] = domain["p"] * 2.5
+rho = domain["rho"].m
+u = domain["u"].m
+v = domain["v"].m
 rho_1 = 1.0
 rho_2 = 2.0
 L = 0.025
@@ -28,32 +35,27 @@ rho_m = (rho_1 - rho_2) / 2.0
 
 for i in range(domain["xc"].shape[0]):
     for j in range(domain["xc"].shape[1]):
-        x = domain["xc"][i, j]
-        y = domain["yc"][i, j]
+        x = domain["xc"][i, j].m
+        y = domain["yc"][i, j].m
 
         # Perturbed velocity
-        domain["v"][i, j] = 0.01 * np.sin(4.0 * np.pi * x)
+        v[i, j] = 0.01 * np.sin(4.0 * np.pi * x)
 
         if 0.25 > y >= 0.0:
-            domain["rho"][i, j] = rho_1 - rho_m * np.exp((y - 0.25) / L)
-            domain["u"][i, j] = U_1 - U_m * np.exp((y - 0.25) / L)
+            rho[i, j] = rho_1 - rho_m * np.exp((y - 0.25) / L)
+            u[i, j] = U_1 - U_m * np.exp((y - 0.25) / L)
         elif 0.5 > y >= 0.25:
-            domain["rho"][i, j] = rho_2 + rho_m * np.exp((-y + 0.25) / L)
-            domain["u"][i, j] = U_2 + U_m * np.exp((-y + 0.25) / L)
+            rho[i, j] = rho_2 + rho_m * np.exp((-y + 0.25) / L)
+            u[i, j] = U_2 + U_m * np.exp((-y + 0.25) / L)
         elif 0.75 > y >= 0.5:
-            domain["rho"][i, j] = rho_2 + rho_m * np.exp(-(0.75 - y) / L)
-            domain["u"][i, j] = U_2 + U_m * np.exp(-(0.75 - y) / L)
+            rho[i, j] = rho_2 + rho_m * np.exp(-(0.75 - y) / L)
+            u[i, j] = U_2 + U_m * np.exp(-(0.75 - y) / L)
         elif 1.0 > y >= 0.75:
-            domain["rho"][i, j] = rho_1 - rho_m * np.exp(-(y - 0.75) / L)
-            domain["u"][i, j] = U_1 - U_m * np.exp(-(y - 0.75) / L)
+            rho[i, j] = rho_1 - rho_m * np.exp(-(y - 0.75) / L)
+            u[i, j] = U_1 - U_m * np.exp(-(y - 0.75) / L)
 
-bc_dict = {"+x": "periodic", "+y": "periodic", "-x": "periodic", "-y": "periodic"}
 
-write_initial_hdf5(
-    filename="initial_conditions",
-    initial_condition_dict=domain,
-    boundary_conditions_dict=bc_dict,
-)
+write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
 # Plot the results
 fig, (ax1, ax2, ax3) = plt.subplots(figsize=(18, 8), nrows=1, ncols=3)
