@@ -190,7 +190,8 @@ contains
     real(rk), dimension(:), allocatable :: domain_u
     real(rk), dimension(:), allocatable :: domain_v
     real(rk), dimension(:), allocatable :: domain_p
-    real(rk), dimension(4) :: boundary_prim_vars
+    real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
+    real(rk), dimension(2) :: boundary_norm
 
     gamma = eos%get_gamma()
     inflow = .false.
@@ -247,39 +248,41 @@ contains
     case('+x')
       call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
-      domain_rho = rho(right, bottom_ghost:top_ghost)
-      domain_u = u(right, bottom_ghost:top_ghost)
+      domain_rho = sum(rho(right, bottom_ghost:top_ghost)) / size(rho(right, bottom_ghost:top_ghost))
+      domain_u = sum(u(right, bottom_ghost:top_ghost)) / size(u(right, bottom_ghost:top_ghost))
       domain_v = 0.0_rk
-      domain_p = p(right, bottom_ghost:top_ghost)
+      domain_p = sum(p(right, bottom_ghost:top_ghost)) / size(p(right, bottom_ghost:top_ghost))
+      boundary_norm = [1.0_rk, 0.0_rk]
 
       do j = bottom, top
-        associate(rho=>domain_rho(j), u=>domain_u(j), &
-                  v=>domain_v(j), p=>domain_p(j))
+        associate(rho_d=>domain_rho(j), u_d=>domain_u(j), &
+                  v_d=>domain_v(j), p_d=>domain_p(j))
+          domain_prim_vars = [rho_d, u_d, v_d, p_d]
 
-          call eos%sound_speed(p=p, rho=rho, cs=cs)
-          mach_u = u / cs
+          call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
+          mach_u = u_d / cs
+
+          if(mach_u > 0.0_rk) then ! outlet
+            if(mach_u > 1.0_rk) then
+
+              boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
+            else
+              boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
+                                                   exit_pressure=desired_boundary_pressure, &
+                                                   boundary_norm=boundary_norm)
+            end if
+          else ! inlet
+            if(abs(mach_u) > 1.0_rk) then
+              error stop 'supersonic inlet'
+            else
+              boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
+                                                  boundary_norm=boundary_norm, &
+                                                  inlet_density=self%density_input, &
+                                                  inlet_total_press=desired_boundary_pressure, &
+                                                  inlet_flow_angle=0.0_rk)
+            end if
+          end if
         end associate
-
-        if(mach_u > 0.0_rk) then ! outlet
-          if(mach_u > 1.0_rk) then
-            boundary_prim_vars = supersonic_outlet(domain_prim_vars=[rho, u, v, p])
-          else
-            boundary_prim_vars = subsonic_outlet(domain_prim_vars=[rho, u, v, p], &
-                                                 exit_pressure=desired_boundary_pressure, &
-                                                 boundary_norm=[1.0_rk, 0.0_rk])
-          end if
-        else ! inlet
-          if(abs(mach_u) > 1.0_rk) then
-            error stop "Supersonic inlet not configured yet"
-          else
-            boundary_prim_vars = subsonic_inlet(domain_prim_vars=[rho, u, v, p], &
-                                                boundary_norm=[1.0_rk, 0.0_rk], &
-                                                inlet_density=self%density_input, &
-                                                inlet_total_press=desired_boundary_pressure, &
-                                                inlet_flow_angle=0.0_rk)
-          end if
-        end if
-
         self%edge_rho(j) = boundary_prim_vars(1)
         self%edge_u(j) = boundary_prim_vars(2)
         self%edge_v(j) = boundary_prim_vars(3)
