@@ -42,6 +42,8 @@ sod_1d:
     - ./bin/cato.x input.ini
     - mv results/* .
     - python3 view_results.py
+    - pwd
+    - ls -ltrh
   artifacts:
     paths:
       - sod_1d_results.png
