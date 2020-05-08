@@ -1,221 +1,103 @@
 module mod_gradients
+  !> Summary: Provide procedures to calculate the gradient of a particular variable
+  !> Date: 05/08/2020
+  !> Author: Sam Miller
+  !> Notes:
+  !> References:
+  !      [1]
+
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
-  use mod_floating_point_utils, only: equal
+  use mod_grid, only: grid_t
+  use mod_globals, only: n_ghost_layers
 
   implicit none
+  logical, parameter :: filter_small_gradients = .true.
+  real(rk), parameter :: SMALL = 1e-16_rk
+  real(rk), parameter :: SMALL_GRAD = 1e-4_rk
 
   private
-  public :: get_smoothness, green_gauss_gradient, green_gauss_gradient_limited, modified_green_gauss_gradient
+  public :: green_gauss_gradient
+
 contains
 
-  elemental function get_smoothness(current, left, right) result(R)
-    !< Determine the smoothness of the current cell based on the neighbor cells.
-    !< for x it's left/right, for y it's top/bottom
+  subroutine green_gauss_gradient(edge_vars, lbounds, grid, grad_x, grad_y)
+    !< Estimate the slope-limited gradient of the primitive variables in the cell (i,j). This assumes
+    !< a quadrilateral structured grid
+    class(grid_t), intent(in) :: grid
+    integer(ik), dimension(3), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: edge_vars
+    !< ((edge 1:n), i, j); primitive variable interpolated on the cell interface/edge
 
-    real(rk) :: R  !< Smoothness -> R = (U_{i+1} - u_{i}) /( u_{i} - u_{i-1})
-    real(rk), intent(in) :: current
-    real(rk), intent(in) :: left
-    real(rk), intent(in) :: right
-    real(rk) :: denomenator, numerator
+    real(rk), dimension(:, :), allocatable, intent(out) :: grad_x !< (i, j); gradient in the x-direction
+    real(rk), dimension(:, :), allocatable, intent(out) :: grad_y !< (i, j); gradient in the y-direction
 
-    numerator = right - current
-    denomenator = current - left
+    integer(ik) :: i, j, k
+    integer(ik) :: ilo, ihi, jlo, jhi
 
-    if(equal(denomenator, 0.0_rk)) then
-      R = 0.0_rk
-    else
-      R = numerator / denomenator
-    end if
-  end function get_smoothness
+    real(rk), dimension(4) :: edge_lengths  !< length of each face
+    real(rk), dimension(4) :: n_x  !< normal vectors of each face
+    real(rk), dimension(4) :: n_y  !< normal vectors of each face
+    real(rk) :: d_dx, d_dy
 
-  function green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals) result(gradient)
-    !< Summary: Estimate the gradient of the cell using the standar Green-Gauss reconstruction. This only
-    !<          works well for orthogonal rectangular cells. Use the modified Green-Gauss for any other grids.
-    !< Note: In the inputs below, the current cell in question is always the first in line
+    ilo = lbound(edge_vars, dim=2)
+    ihi = ubound(edge_vars, dim=2)
+    jlo = lbound(edge_vars, dim=3)
+    jhi = ubound(edge_vars, dim=3)
 
-    real(rk), dimension(4, 5), intent(in) :: prim_vars
-    !< ((rho, u, v, p), (current cell, neighbor_cell (1-n))) primitive
-    real(rk), dimension(4), intent(in) :: edge_lengths  !< (n_edges)
-    real(rk), dimension(5), intent(in) :: volumes  !< (n_cells)
-    real(rk), dimension(2, 4), intent(in) :: edge_normals !< ((x,y), edge)
+    allocate(grad_x(ilo:ihi, jlo:jhi))
+    allocate(grad_y(ilo:ihi, jlo:jhi))
 
-    real(rk), dimension(4, 2) :: gradient ! ((rho, u, v, p), (grad x, grad y))
-    real(rk), dimension(4, 4) :: face_prim_vars !< value of the primitive variables at the edge
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
+    !$omp private(n_x, n_y, edge_lengths) &
+    !$omp shared(grad_x, grad_y, edge_vars, grid) &
+    !$omp reduction(+:d_dx) &
+    !$omp reduction(+:d_dy)
+    !$omp do
+    do j = jlo, jhi
+      do i = ilo, ihi
 
-    integer(ik), parameter :: n_faces = 4
-    integer(ik) :: i
+        ! Edge (face) interface data
+        edge_lengths(1) = grid%cell_edge_lengths(1, i, j - 1)  ! bottom
+        edge_lengths(2) = grid%cell_edge_lengths(2, i + 1, j)  ! right
+        edge_lengths(3) = grid%cell_edge_lengths(3, i, j + 1)  ! top
+        edge_lengths(4) = grid%cell_edge_lengths(4, i - 1, j)  ! left
 
-    gradient = 0.0_rk
+        n_x(1) = grid%cell_edge_norm_vectors(1, 1, i, j - 1)  ! bottom
+        n_x(2) = grid%cell_edge_norm_vectors(1, 2, i + 1, j)  ! right
+        n_x(3) = grid%cell_edge_norm_vectors(1, 3, i, j + 1)  ! top
+        n_x(4) = grid%cell_edge_norm_vectors(1, 4, i - 1, j)  ! left
+        n_y(1) = grid%cell_edge_norm_vectors(2, 1, i, j - 1)  ! bottom
+        n_y(2) = grid%cell_edge_norm_vectors(2, 2, i + 1, j)  ! right
+        n_y(3) = grid%cell_edge_norm_vectors(2, 3, i, j + 1)  ! top
+        n_y(4) = grid%cell_edge_norm_vectors(2, 4, i - 1, j)  ! left
 
-    associate(v=>volumes, U=>prim_vars, U_f=>face_prim_vars)
-      ! Volume weighted average on the face
-      U_f(:, 1) = (U(:, 1) * v(1) + U(:, 2) * v(2)) / (v(1) + v(2))  ! bottom
-      U_f(:, 2) = (U(:, 1) * v(1) + U(:, 3) * v(3)) / (v(1) + v(3))  ! right
-      U_f(:, 3) = (U(:, 1) * v(1) + U(:, 4) * v(4)) / (v(1) + v(4))  ! top
-      U_f(:, 4) = (U(:, 1) * v(1) + U(:, 5) * v(5)) / (v(1) + v(5))  ! left
-    end associate
+        d_dx = sum(edge_vars(:, i, j) * n_x * edge_lengths)
+        d_dy = sum(edge_vars(:, i, j) * n_y * edge_lengths)
 
-    do i = 1, n_faces
-      ! Volume weighted average on the face
-      ! x-component
-      gradient(:, 1) = gradient(:, 1) + (face_prim_vars(:, i) * edge_normals(1, i) * edge_lengths(i))
+        if(filter_small_gradients) then
+          if(abs(d_dx) < SMALL_GRAD) then
+            grad_x(i, j) = 0.0_rk
+          else
+            grad_x(i, j) = d_dx / grid%cell_volume(i, j)
+          end if
 
-      ! y-component
-      gradient(:, 2) = gradient(:, 2) + (face_prim_vars(:, i) * edge_normals(2, i) * edge_lengths(i))
+          if(abs(d_dy) < SMALL_GRAD) then
+            grad_y(i, j) = 0.0_rk
+          else
+            grad_y(i, j) = d_dy / grid%cell_volume(i, j)
+          end if
+        else
+          grad_x(i, j) = d_dx / grid%cell_volume(i, j)
+          grad_y(i, j) = d_dy / grid%cell_volume(i, j)
+        end if
+
+      end do
     end do
+    !$omp end do
+    !$omp end parallel
+  end subroutine green_gauss_gradient
 
-    gradient = gradient / volumes(1)
-  end function green_gauss_gradient
-
-  function green_gauss_gradient_limited(prim_vars, volume, edge_lengths, edge_normals) result(gradient)
-    !< Summary: Estimate the gradient of the cell using the standard Green-Gauss reconstruction. This only
-    !<          works well for orthogonal rectangular cells. Use the modified Green-Gauss for any other grids.
-    !< Note: In the inputs below, the current cell in question is always the first in line
-
-    real(rk), dimension(4, 5), intent(in) :: prim_vars !< ((rho, u, v, p), (center, bottom, right, top, left))
-    !< ((rho, u, v, p), (current cell, neighbor_cell (1-n))) primitive
-    real(rk), dimension(4), intent(in) :: edge_lengths  !< (n_edges)
-    real(rk), dimension(2, 4), intent(in) :: edge_normals !< ((x,y), edge)
-    real(rk), intent(in) :: volume
-
-    real(rk), dimension(4, 2) :: gradient ! ((rho, u, v, p), (grad x, grad y))
-    real(rk), dimension(4, 4) :: face_prim_vars !< value of the primitive variables at the edge
-
-    integer(ik), parameter :: n_faces = 4
-    integer(ik) :: i, l
-    real(rk) :: u_center, u_other
-    logical :: underflow_mode
-    real(rk), dimension(4) :: phi_left_right, phi_up_down
-    real(rk), parameter :: tiny_diff = 1e-10_rk
-
-    gradient = 0.0_rk
-
-    ! face_prim_vars indexing: 1 = bottom, 2 = right, 3 = top, 4 = left
-    associate(V_edge=>face_prim_vars, &
-              V_1=>prim_vars(:, 1), &
-              V_2=>prim_vars(:, 2), &
-              V_3=>prim_vars(:, 3), &
-              V_4=>prim_vars(:, 4), &
-              V_5=>prim_vars(:, 5))
-
-      phi_left_right = limit(V_3 - V_1, V_1 - V_5)
-      phi_up_down = limit(V_2 - V_1, V_1 - V_4)
-
-      V_edge(:, 2) = V_1 + 0.5_rk * phi_left_right  ! right
-      V_edge(:, 4) = V_1 - 0.5_rk * phi_left_right  ! left
-
-      V_edge(:, 1) = V_1 - 0.5_rk * phi_up_down  ! bottom
-      V_edge(:, 3) = V_1 + 0.5_rk * phi_up_down  ! top
-
-    end associate
-
-    do i = 1, n_faces
-      ! write(*,'(a, 4(es16.6, 2x))') 'U_f: ', face_prim_vars(:, i)
-      ! x-component
-      gradient(:, 1) = gradient(:, 1) + (face_prim_vars(:, i) * edge_normals(1, i) * edge_lengths(i))
-      ! write(*,'(a, 4(es16.6, 2x))') 'i, x: ', (face_prim_vars(:, i) * edge_normals(1, i) * edge_lengths(i))
-
-      ! y-component
-      gradient(:, 2) = gradient(:, 2) + (face_prim_vars(:, i) * edge_normals(2, i) * edge_lengths(i))
-    end do
-
-    gradient = gradient / volume
-    where(abs(gradient) < tiny_diff) gradient = 0.0_rk
-
-    ! if (any(abs(gradient) > 1e-4_rk)) then
-    !   print*, 'tiny_diff', tiny_diff
-    ! write(*,'(a, 4(es16.6))') 'd/dx: ', gradient(:,1)
-    ! write(*,'(a, 4(es16.6))') 'd/dy: ', gradient(:,2)
-    ! print*
-    ! end if
-
-  end function green_gauss_gradient_limited
-
-  impure elemental function limit(a_0, b_0) result(phi)
-    real(rk), intent(in) :: a_0, b_0
-    real(rk) :: a, b
-    real(rk) :: phi
-    real(rk) :: denom
-    real(rk), parameter :: tiny_diff = epsilon(1.0_rk) * 5.0_rk
-
-    a = a_0
-    b = b_0
-    if(abs(a_0) < tiny_diff) a = 0.0_rk
-    if(abs(b_0) < tiny_diff) b = 0.0_rk
-
-    if(abs(a - b) < tiny_diff) then
-      phi = 0.0_rk
-    else
-      denom = a**2 + b**2
-      if(denom > 0.0_rk) then
-        phi = max(a * b, 0.0_rk) * (a + b) / denom
-      else
-        phi = 0.0_rk
-      end if
-    end if
-
-    ! write(*,'(a, 6(es16.6))') 'limit: ', a, b, a**2 + b**2, abs(a-b), phi
-  end function
-
-  function modified_green_gauss_gradient(prim_vars, centroids, volumes, &
-                                         edge_lengths, edge_midpoints, edge_normals) result(gradient)
-
-    !< Estimate the gradient of the cell using the Green-Gauss reconstruction. This only
-    !< works well for orthogonal rectangular cells. Use the modified Green-Gauss for any other grids
-    !< Note in these arrays, the current cell in question is always the first in line
-
-    real(rk), dimension(:, :), intent(in) :: prim_vars
-    !< ((rho, u, v, p), (current cell, neighbor_cell (1-n))) primitive
-    real(rk), dimension(:, :), intent(in) :: centroids !< ((x,y), (current cell, neighbor_cell (1-n)))
-    real(rk), dimension(:), intent(in) :: edge_lengths  !< (n_edges)
-    real(rk), dimension(:), intent(in) :: volumes  !< (n_cells)
-    real(rk), dimension(:, :), intent(in) :: edge_midpoints !< ((x,y), edge)
-    real(rk), dimension(:, :), intent(in) :: edge_normals !< ((x,y), edge)
-    real(rk), dimension(4, 2) :: gradient
-
-    real(rk), dimension(2) :: r_f
-    integer(ik) :: n_faces, f
-
-    real(rk), parameter :: eps = 1.0e-8_rk ! convergence criteria
-
-    gradient = 0.0_rk
-    ! n_faces = size(prim_vars, dim=2) - 1
-    ! allocate(face_prim_vars(4, n_faces))
-
-    ! grad_c = 0.0_rk
-    ! grad_nb = 0.0_rk
-
-    ! k = 1
-
-    ! iter_loop: do  ! loop until converged
-    !   do f = 2, n_faces
-    !     associate(x_c=>centroids(1), x_nb=>centroids(f), &
-    !               x_f=>edge_midpoints(f), n_f=>edge_normals(f), &
-    !               phi_c=>prim_vars(:, 1), phi_nb=>prim_vars(:, f))
-
-    !       ! vector from edge midpoint to neighbor centroid
-    !       r_f = (x_nb - x_f) / norm2(x_nb - x_f)
-
-    !       ! orthogonality scaling factor
-    !       alpha = dot_product(n_f, r_f)
-
-    !       ! distance from the current centroid to neighbor centroid
-    !       delta_r = norm2(x_nb - x_c)
-
-    !       orth_contrib = alpha * (phi_nb - phi_c) / delta_r
-    !       non_orth_contrib = 0.5_rk * dot_product((grad_c + grad_nb),(n_f - alpha * r_f))
-    !       dphi_dn = orthogonal_contrib + non_orthogonal_contrib
-
-    !     end associate
-    !   end do
-
-    !   if(norm2() < eps) exit
-    !   k = k + 1
-    ! end do
-
-    ! gradient = grad_c
-    ! deallocate(face_prim_vars)
-
-  end function modified_green_gauss_gradient
 end module mod_gradients
