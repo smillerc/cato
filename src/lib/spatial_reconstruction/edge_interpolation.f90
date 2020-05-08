@@ -13,9 +13,13 @@ module mod_edge_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
   use mod_flux_limiter, only: flux_limiter_t
-  use mod_gradients
+  use mod_slope_limiter, only: slope_limiter_t
+  use mod_globals, only: MACHINE_EPS, n_ghost_layers
 
   implicit none
+
+  logical, parameter :: filter_small = .false.
+
   private
   public :: reconstruct_edge_values
 
@@ -33,9 +37,11 @@ contains
     !<((bottom, right, top, left), i, j); reconstructed edge values
 
     type(flux_limiter_t), intent(in) :: limiter !< flux limiter used to reconstruct the edge interface
+    ! type(slope_limiter_t), intent(in) :: limiter !< flux limiter used to reconstruct the edge interface
 
     integer(ik) :: i, j, k
     integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
     real(rk) :: R_i !< smoothness indicator
     real(rk) :: R_j !< smoothness indicator
     real(rk) :: delta_i_minus !< q_i - q_{i-1}
@@ -43,10 +49,15 @@ contains
     real(rk) :: delta_i_plus  !< q_{i+1} - q_i
     real(rk) :: delta_j_plus  !< q_{j+1} - q_j
 
-    ilo = lbound(q, dim=1)
-    ihi = ubound(q, dim=1)
-    jlo = lbound(q, dim=2)
-    jhi = ubound(q, dim=2)
+    ilo_bc = lbound(q, dim=1)
+    ihi_bc = ubound(q, dim=1)
+    jlo_bc = lbound(q, dim=2)
+    jhi_bc = ubound(q, dim=2)
+
+    ilo = ilo_bc + n_ghost_layers
+    ihi = ihi_bc - n_ghost_layers
+    jlo = jlo_bc + n_ghost_layers
+    jhi = jhi_bc - n_ghost_layers
 
     allocate(edge_values(4, ilo:ihi, jlo:jhi))
 
@@ -59,23 +70,23 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
 
-        delta_i_minus = q(i, i) - q(i - 1, j)
+        delta_i_minus = q(i, j) - q(i - 1, j)
         delta_j_minus = q(i, j) - q(i, j - 1)
         delta_i_plus = q(i + 1, j) - q(i, j)
         delta_j_plus = q(i, j + 1) - q(i, j)
 
-        ! (i-1/2, j), left
-        if(abs(delta_i_plus) > 0.0_rk) then
-          R_i = delta_i_minus / delta_i_plus ! this is 1/R of the normal definition
-          edge_values(4, i, j) = q(i, j) - limiter%limit(R_i) * delta_i_plus
-        else
-          edge_values(4, i, j) = q(i, j)
+        ! Filter out machine-level small numbers
+        if(filter_small) then
+          if(abs(delta_i_minus) < MACHINE_EPS) delta_i_minus = 0.0_rk
+          if(abs(delta_j_minus) < MACHINE_EPS) delta_j_minus = 0.0_rk
+          if(abs(delta_i_plus) < MACHINE_EPS) delta_i_plus = 0.0_rk
+          if(abs(delta_j_plus) < MACHINE_EPS) delta_j_plus = 0.0_rk
         end if
 
         ! (i, j-1/2), bottom
         if(abs(delta_j_plus) > 0.0_rk) then
           R_j = delta_j_minus / delta_j_plus ! this is 1/R of the normal definition
-          edge_values(1, i, j) = q(i, j) - limiter%limit(R_j) * delta_j_plus
+          edge_values(1, i, j) = q(i, j) - 0.5_rk * limiter%limit(R_j) * delta_j_plus
         else
           edge_values(1, i, j) = q(i, j)
         end if
@@ -83,7 +94,7 @@ contains
         ! (i+1/2, j), right
         if(abs(delta_i_minus) > 0.0_rk) then
           R_i = delta_i_plus / delta_i_minus
-          edge_values(2, i, j) = q(i, j) + limiter%limit(R_i) * delta_i_minus
+          edge_values(2, i, j) = q(i, j) + 0.5_rk * limiter%limit(R_i) * delta_i_minus
         else
           edge_values(2, i, j) = q(i, j)
         end if
@@ -91,10 +102,19 @@ contains
         ! (i, j+1/2), top
         if(abs(delta_j_minus) > 0.0_rk) then
           R_j = delta_j_plus / delta_j_minus
-          edge_values(3, i, j) = q(i, j) + limiter%limit(R_j) * delta_j_minus
+          edge_values(3, i, j) = q(i, j) + 0.5_rk * limiter%limit(R_j) * delta_j_minus
         else
           edge_values(3, i, j) = q(i, j)
         end if
+
+        ! (i-1/2, j), left
+        if(abs(delta_i_plus) > 0.0_rk) then
+          R_i = delta_i_minus / delta_i_plus ! this is 1/R of the normal definition
+          edge_values(4, i, j) = q(i, j) - 0.5_rk * limiter%limit(R_i) * delta_i_plus
+        else
+          edge_values(4, i, j) = q(i, j)
+        end if
+
       end do
     end do
     !$omp end do
@@ -139,7 +159,7 @@ contains
     ! do j = jlo, jhi
     !   do i = ilo, ihi
 
-    !     delta_i_minus = q(i, i) - q(i - 1, j)
+    !     delta_i_minus = q(i, j) - q(i - 1, j)
     !     delta_j_minus = q(i, j) - q(i, j - 1)
     !     delta_i_plus = q(i + 1, j) - q(i, j)
     !     delta_j_plus = q(i, j + 1) - q(i, j)
@@ -219,7 +239,7 @@ contains
     ! do j = jlo, jhi
     !   do i = ilo, ihi
 
-    !     delta_i_minus = q(i, i) - q(i - 1, j)
+    !     delta_i_minus = q(i, j) - q(i - 1, j)
     !     delta_j_minus = q(i, j) - q(i, j - 1)
     !     delta_i_plus = q(i + 1, j) - q(i, j)
     !     delta_j_plus = q(i, j + 1) - q(i, j)
@@ -299,7 +319,7 @@ contains
     ! do j = jlo, jhi
     !   do i = ilo, ihi
 
-    !     delta_i_minus = q(i, i) - q(i - 1, j)
+    !     delta_i_minus = q(i, j) - q(i - 1, j)
     !     delta_j_minus = q(i, j) - q(i, j - 1)
     !     delta_i_plus = q(i + 1, j) - q(i, j)
     !     delta_j_plus = q(i, j + 1) - q(i, j)

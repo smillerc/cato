@@ -3,6 +3,7 @@ module mod_abstract_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_regular_2d_grid, only: regular_2d_grid_t
   use mod_slope_limiter, only: slope_limiter_t
+  use mod_flux_limiter, only: flux_limiter_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
   use mod_globals, only: debug_print
@@ -20,7 +21,8 @@ module mod_abstract_reconstruction
 
     integer(ik), public :: order = 0  !< Reconstruction order
     character(:), allocatable, public :: name  !< Name of the reconstruction scheme
-    type(slope_limiter_t), public :: limiter  !< Slope limiter (if any)
+    ! type(slope_limiter_t), public :: limiter  !< Slope limiter (if any)
+    type(flux_limiter_t), public :: limiter  !< Flux limiter (if any)
     logical :: use_post_limiter = .false. !< Use the 'a posteriori' limiter (Kitamura et al.)
   contains
     procedure, public, non_overridable :: set_slope_limiter
@@ -63,7 +65,8 @@ contains
     !< Create the class's slope limiter
     class(abstract_reconstruction_t), intent(inout) :: self
     character(len=*) :: name
-    self%limiter = slope_limiter_t(name)
+    self%limiter = flux_limiter_t(name)
+    ! self%limiter = slope_limiter_t(name)
   end subroutine set_slope_limiter
 
   subroutine set_grid_pointer(self, grid)
