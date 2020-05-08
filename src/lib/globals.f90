@@ -8,6 +8,8 @@ module mod_globals
   logical, parameter :: enable_file_and_line_stats = .false.
 
   ! real(rk), parameter :: TINY_MACH = 1.0e-9_rk
+
+  real(rk), parameter :: MACHINE_EPS = 1.0e-16_rk
   real(rk), parameter :: PRESSURE_FLOOR = 1.0e4_rk
   real(rk), parameter :: DENSITY_FLOOR = 1.0e-6_rk
 

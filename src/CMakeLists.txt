@@ -63,7 +63,7 @@ add_library(
   lib/evolution_operator/evo_operator_factory.f90
   lib/spatial_reconstruction/gradients.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
-  lib/spatial_reconstruction/edge_reconstruction.f90
+  lib/spatial_reconstruction/edge_interpolation.f90
   lib/spatial_reconstruction/piecewise_constant.f90
   lib/spatial_reconstruction/piecewise_linear.f90
   lib/spatial_reconstruction/reconstruction_factory.f90

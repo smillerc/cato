@@ -83,7 +83,7 @@ module mod_input
 
     ! finite volume scheme specifics
     character(len=32) :: evolution_operator_type = 'fvleg'        !< How are the cells being reconstructed
-    character(len=32) :: reconstruction_type = 'piecewise_linear' !< How are the cells being reconstructed
+    character(len=32) :: cell_reconstruction = 'piecewise_linear' !< How are the cells being reconstructed
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: limiter
 
@@ -105,8 +105,8 @@ contains
     self%xmax = xmax
     self%ymin = ymin
     self%ymax = ymax
-    self%reconstruction_type = 'piecewise_linear'
-    self%limiter = 'upwind'
+    self%cell_reconstruction = 'piecewise_linear'
+    self%limiter = 'minmod'
 
     self%plus_x_bc = 'periodic'
     self%minus_x_bc = 'periodic'
@@ -161,10 +161,10 @@ contains
     ! Scheme
     ! call cfg%get("scheme", "tau", self%tau)
 
-    call cfg%get("scheme", "reconstruction_type", char_buffer, 'piecewise_linear')
-    self%reconstruction_type = trim(char_buffer)
+    call cfg%get("scheme", "cell_reconstruction", char_buffer, 'piecewise_linear')
+    self%cell_reconstruction = trim(char_buffer)
 
-    call cfg%get("scheme", "limiter", char_buffer, 'upwind')
+    call cfg%get("scheme", "limiter", char_buffer, 'minmod')
     self%limiter = trim(char_buffer)
 
     ! Restart files
