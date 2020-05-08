@@ -16,6 +16,7 @@ module mod_mach_cone_collection
   private
   public :: mach_cone_collection_t
 
+  logical, parameter :: filter_small_dist = .true.
   real(rk), parameter :: TINY_DIST_RATIO = 1.0e-8_rk
 
   type :: mach_cone_collection_t
@@ -302,14 +303,16 @@ contains
     end do
     !$omp end do simd
 
-    !$omp do simd
-    do j = 1, nj
-      do i = 1, ni
+    if(filter_small_dist) then
+      !$omp do simd
+      do j = 1, nj
+        do i = 1, ni
         if(abs(self%p0_x(i, j) - self%p_prime_x(i, j)) / self%radius(i, j) < TINY_DIST_RATIO) self%p_prime_x(i, j) = self%p0_x(i, j)
         if(abs(self%p0_y(i, j) - self%p_prime_y(i, j)) / self%radius(i, j) < TINY_DIST_RATIO) self%p_prime_y(i, j) = self%p0_y(i, j)
+        end do
       end do
-    end do
-    !$omp end do simd
+      !$omp end do simd
+    end if
 
     !$omp end parallel
 

@@ -31,6 +31,8 @@ module mod_fluid
   private
   public :: fluid_t, new_fluid
 
+  logical, parameter :: filter_small_mach = .true.
+
   type, extends(integrand_t) :: fluid_t
     real(rk), dimension(:, :), allocatable :: rho    !< (i, j); Conserved quantities
     real(rk), dimension(:, :), allocatable :: rho_u  !< (i, j); Conserved quantities
@@ -780,29 +782,31 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
 
-    ilo = lbound(self%rho, dim=1)
-    ihi = ubound(self%rho, dim=1)
-    jlo = lbound(self%rho, dim=2)
-    jhi = ubound(self%rho, dim=2)
+    if(filter_small_mach) then
+      ilo = lbound(self%rho, dim=1)
+      ihi = ubound(self%rho, dim=1)
+      jlo = lbound(self%rho, dim=2)
+      jhi = ubound(self%rho, dim=2)
 
-    !$omp parallel default(none) &
-    !$omp shared(self) &
-    !$omp firstprivate(ilo,ihi,jlo,jhi) &
-    !$omp private(i,j)
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(abs(self%mach_u(i, j)) < 1e-4_rk) then
-          self%u(i, j) = 0.0_rk
-        end if
+      !$omp parallel default(none) &
+      !$omp shared(self) &
+      !$omp firstprivate(ilo,ihi,jlo,jhi) &
+      !$omp private(i,j)
+      !$omp do
+      do j = jlo, jhi
+        do i = ilo, ihi
+          if(abs(self%mach_u(i, j)) < 1e-4_rk) then
+            self%u(i, j) = 0.0_rk
+          end if
 
-        if(abs(self%mach_v(i, j)) < 1e-4_rk) then
-          self%v(i, j) = 0.0_rk
-        end if
+          if(abs(self%mach_v(i, j)) < 1e-4_rk) then
+            self%v(i, j) = 0.0_rk
+          end if
+        end do
       end do
-    end do
-    !$omp end do
-    !$omp end parallel
+      !$omp end do
+      !$omp end parallel
+    end if
 
   end subroutine residual_smoother
 
