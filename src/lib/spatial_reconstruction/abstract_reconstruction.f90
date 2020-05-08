@@ -5,7 +5,7 @@ module mod_abstract_reconstruction
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
-  use mod_globals, only: debug_print, PRESSURE_FLOOR, DENSITY_FLOOR
+  use mod_globals, only: debug_print
 
   implicit none
 

@@ -1,4 +1,4 @@
-module mod_first_order_reconstruction
+module mod_piecewise_constant_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use mod_globals, only: debug_print, n_ghost_layers
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
@@ -9,9 +9,9 @@ module mod_first_order_reconstruction
   implicit none
 
   private
-  public :: first_order_reconstruction_t
+  public :: piecewise_constant_reconstruction_t
 
-  type, extends(abstract_reconstruction_t) :: first_order_reconstruction_t
+  type, extends(abstract_reconstruction_t) :: piecewise_constant_reconstruction_t
   contains
     procedure, public :: initialize => init_first_order
     procedure, public :: reconstruct
@@ -21,9 +21,9 @@ module mod_first_order_reconstruction
 contains
 
   subroutine init_first_order(self, input, grid_target)
-    !< Construct the first_order_reconstruction_t type
+    !< Construct the piecewise_constant_reconstruction_t type
 
-    class(first_order_reconstruction_t), intent(inout) :: self
+    class(piecewise_constant_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid_target
 
@@ -39,11 +39,11 @@ contains
   end subroutine init_first_order
 
   subroutine finalize(self)
-    !< Finalize the first_order_reconstruction_t type
-    type(first_order_reconstruction_t), intent(inout) :: self
+    !< Finalize the piecewise_constant_reconstruction_t type
+    type(piecewise_constant_reconstruction_t), intent(inout) :: self
     integer(ik) :: alloc_status
 
-    call debug_print('Running first_order_reconstruction_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running piecewise_constant_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
     ! if(associated(self%rho)) nullify(self%rho)
@@ -59,7 +59,7 @@ contains
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
 
-    class(first_order_reconstruction_t), intent(inout) :: self
+    class(piecewise_constant_reconstruction_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), contiguous :: primitive_var !< (i,j); cell primitive variable to reconstruct
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out), contiguous :: reconstructed_var
@@ -100,4 +100,4 @@ contains
 
   end subroutine reconstruct
 
-end module mod_first_order_reconstruction
+end module mod_piecewise_constant_reconstruction

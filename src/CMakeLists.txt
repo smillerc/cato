@@ -19,7 +19,10 @@ target_include_directories(io PUBLIC ${HDF5_INCLUDE_DIRS})
 target_link_libraries(io PUBLIC globals ini_parser ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 target_link_libraries(eos PUBLIC io)
 
-add_library(utilities lib/limiters/slope_limiter.f90)
+add_library(
+  utilities lib/limiters/slope_limiter.f90 lib/limiters/flux_limiter.f90
+  # lib/limiters/gnoffo_aux_limiter.f90 lib/limiters/post_limiter.f90
+)
 target_link_libraries(utilities PUBLIC globals)
 
 add_library(
@@ -60,10 +63,9 @@ add_library(
   lib/evolution_operator/evo_operator_factory.f90
   lib/spatial_reconstruction/gradients.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
-  lib/spatial_reconstruction/first_order_reconstruction.f90
-  lib/spatial_reconstruction/second_order_sgg_reconstruction.f90
-  lib/spatial_reconstruction/second_order_sgg_structured_reconstruction.f90
-  # lib/spatial_reconstruction/second_order_dbl_reconstruction.f90
+  lib/spatial_reconstruction/edge_reconstruction.f90
+  lib/spatial_reconstruction/piecewise_constant.f90
+  lib/spatial_reconstruction/piecewise_linear.f90
   lib/spatial_reconstruction/reconstruction_factory.f90
   lib/finite_volume_scheme/fv_scheme.f90
   lib/integrand.f90
