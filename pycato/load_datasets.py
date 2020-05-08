@@ -109,9 +109,6 @@ def generate_dataset(var_dict, unit_system="icf"):
     else:
         raise Exception("The dimensionality should be 1D or 2D...")
 
-    print("space_dims", space_dims)
-    print("x", x.shape)
-
     ds = xr.Dataset(
         data_vars={
             "density": xr.Variable(
@@ -231,22 +228,26 @@ def load_1d_dataset(folder, units="cgs"):
     config.read(os.path.join(folder, "input.ini"))
 
     pressure_pulse = False
-    if config["boundary_conditions"]["plus_x"].strip("'") == "pressure_input":
-        pressure_pulse = True
+    try:
+        if config["boundary_conditions"]["plus_x"].strip("'") == "pressure_input":
+            pressure_pulse = True
 
-        pulse_file = os.path.join(
-            folder, config["boundary_conditions"]["bc_pressure_input_file"].strip("'")
-        )
+            pulse_file = os.path.join(
+                folder,
+                config["boundary_conditions"]["bc_pressure_input_file"].strip("'"),
+            )
 
-        # Read the pulse input
-        pulse = np.loadtxt(pulse_file, skiprows=1)
-        pulse_t = pulse[ilo:ihi, j] * ureg("s")
-        pulse_p = pulse[:, 1] * ureg("barye")
+            # Read the pulse input
+            pulse = np.loadtxt(pulse_file, skiprows=1)
+            pulse_t = pulse[ilo:ihi, j] * ureg("s")
+            pulse_p = pulse[:, 1] * ureg("barye")
 
-        # Interpolate the pulse to the dataset time
-        data["pulse"] = np.interp(
-            data["time"].to("s").m, pulse_t.to("s").m, pulse_p.to("barye").m
-        ) * ureg("barye")
+            # Interpolate the pulse to the dataset time
+            data["pulse"] = np.interp(
+                data["time"].to("s").m, pulse_t.to("s").m, pulse_p.to("barye").m
+            ) * ureg("barye")
+    except Exception:
+        pass
 
     ds = generate_dataset(data, unit_system=units)
 
