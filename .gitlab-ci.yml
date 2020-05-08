@@ -40,7 +40,6 @@ sod_1d:
     - make -j
     - python3 generate_ic.py
     - ./bin/cato.x input.ini
-    - mv results/* .
     - python3 view_results.py
   artifacts:
     paths:
@@ -54,7 +53,6 @@ kelvin_helmholtz_2d:
     - make -j
     - python3 generate_ic.py
     - ./bin/cato.x input.ini
-    - mv results/* .
     - python3 view_results.py
   artifacts:
     paths:
@@ -68,7 +66,6 @@ sedov_2d:
     - make -j
     - python3 generate_ic.py
     - ./bin/cato.x input.ini
-    - mv results/* .
     - python3 view_results.py
   artifacts:
     paths:
