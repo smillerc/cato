@@ -133,6 +133,7 @@ module mod_mach_cone_collection
     procedure, private :: sanity_checks
     procedure, private :: find_arc_angles
     procedure, private :: compute_trig_angles
+    final :: finalize
   end type mach_cone_collection_t
 
 contains
@@ -358,6 +359,40 @@ contains
 
     call self%sanity_checks()
   end subroutine initialize
+
+  subroutine finalize(self)
+    ! Cleanup all the allocated arrays upon destruction of the mach_cone_collection_t object
+    type(mach_cone_collection_t), intent(inout) :: self
+
+    if(allocated(self%recon_rho)) deallocate(self%recon_rho)
+    if(allocated(self%recon_u)) deallocate(self%recon_u)
+    if(allocated(self%recon_v)) deallocate(self%recon_v)
+    if(allocated(self%recon_p)) deallocate(self%recon_p)
+    if(allocated(self%dtheta)) deallocate(self%dtheta)
+    if(allocated(self%sin_dtheta)) deallocate(self%sin_dtheta)
+    if(allocated(self%cos_dtheta)) deallocate(self%cos_dtheta)
+    if(allocated(self%sin_d2theta)) deallocate(self%sin_d2theta)
+    if(allocated(self%cos_d2theta)) deallocate(self%cos_d2theta)
+    if(allocated(self%p_prime_ij)) deallocate(self%p_prime_ij)
+    if(allocated(self%p_prime_x)) deallocate(self%p_prime_x)
+    if(allocated(self%p_prime_y)) deallocate(self%p_prime_y)
+    if(allocated(self%p0_x)) deallocate(self%p0_x)
+    if(allocated(self%p0_y)) deallocate(self%p0_y)
+    if(allocated(self%n_arcs_per_cell)) deallocate(self%n_arcs_per_cell)
+    if(allocated(self%p_prime_in_cell)) deallocate(self%p_prime_in_cell)
+    if(allocated(self%pressure_p_prime)) deallocate(self%pressure_p_prime)
+    if(allocated(self%density_p_prime)) deallocate(self%density_p_prime)
+    if(allocated(self%u)) deallocate(self%u)
+    if(allocated(self%v)) deallocate(self%v)
+    if(allocated(self%p)) deallocate(self%p)
+    if(allocated(self%edge_vectors)) deallocate(self%edge_vectors)
+    if(allocated(self%cell_indices)) deallocate(self%cell_indices)
+    if(allocated(self%radius)) deallocate(self%radius)
+    if(allocated(self%reference_density)) deallocate(self%reference_density)
+    if(allocated(self%reference_u)) deallocate(self%reference_u)
+    if(allocated(self%reference_v)) deallocate(self%reference_v)
+    if(allocated(self%reference_sound_speed)) deallocate(self%reference_sound_speed)
+  end subroutine finalize
 
   subroutine get_reference_state(self)
     !< Find the reference state of the cone only based on the cells that are touched by the cone
