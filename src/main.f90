@@ -86,7 +86,7 @@ program cato
     next_output_time = time + contour_interval_dt
     iteration = fv%iteration
   else
-
+    next_output_time = next_output_time + contour_interval_dt
     call contour_writer%write_contour(U, fv, time, iteration)
   end if
 
@@ -104,8 +104,6 @@ program cato
     write(std_out, '(a, es10.3)') "Starting time:", time
     write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
   end if
-
-  ! bounds = lbound(U%rho)
 
   do while(time < max_time .and. iteration < input%max_iterations)
 
