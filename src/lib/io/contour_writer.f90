@@ -109,7 +109,7 @@ contains
   subroutine write_contour(self, fluid, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
     class(fluid_t), intent(in) :: fluid
-    class(finite_volume_scheme_t), intent(inout) :: fv_scheme
+    class(finite_volume_scheme_t), intent(in) :: fv_scheme
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     character(50) :: char_buff
@@ -144,7 +144,7 @@ contains
 
   subroutine write_hdf5(self, fluid, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
-    class(finite_volume_scheme_t), intent(inout) :: fv_scheme
+    class(finite_volume_scheme_t), intent(in) :: fv_scheme
     class(fluid_t), intent(in) :: fluid
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
