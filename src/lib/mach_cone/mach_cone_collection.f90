@@ -6,7 +6,7 @@ module mod_mach_cone_collection
   use, intrinsic :: ieee_arithmetic
   use math_constants, only: pi, rad2deg
   use mod_globals, only: grid_is_orthogonal
-  use mod_floating_point_utils, only: near_zero, equal
+  use mod_floating_point_utils, only: near_zero, equal, neumaier_sum
   use mod_eos, only: eos
   use mod_vector, only: vector_t
   use mod_geometry, only: find_arc_segments
@@ -243,7 +243,7 @@ contains
         if(.not. allocated(self%reference_v)) allocate(self%reference_v(ni, nj))
         if(.not. allocated(self%reference_sound_speed)) allocate(self%reference_sound_speed(ni, nj))
       end associate
-      self%is_initialized = .true.
+
     end if
     !$omp end single
 
@@ -262,9 +262,72 @@ contains
       do i = 1, ni
         do c = 1, nc
           self%recon_rho(c, i, j) = reconstructed_rho(c, i, j)
+          ! self%recon_rho(1, i, j) = reconstructed_rho(1, i, j)
+          ! do c = 2, nc
+          !     associate(a=>reconstructed_rho(1, i, j), b=>reconstructed_rho(c, i, j))
+          !     if (abs(b - a) <= abs(a + b) * 5e-7_rk) then
+          !       self%recon_rho(c, i, j) = a
+          !     else
+          !       self%recon_rho(c, i, j) = b
+          !     end if
+          !     end associate
+        end do
+      end do
+    end do
+    !$omp end do
+
+    !$omp do
+    do j = 1, nj
+      do i = 1, ni
+        do c = 1, nc
           self%recon_u(c, i, j) = reconstructed_u(c, i, j)
+          ! self%recon_u(1, i, j) = reconstructed_u(1, i, j)
+          ! do c = 2, nc
+          !     associate(a=>reconstructed_u(1, i, j), b=>reconstructed_u(c, i, j))
+          !     if (abs(b - a) <= abs(a + b) * 5e-7_rk) then
+          !       self%recon_u(c, i, j) = a
+          !     else
+          !       self%recon_u(c, i, j) = b
+          !     end if
+          !     end associate
+        end do
+      end do
+    end do
+    !$omp end do
+
+    !$omp do
+    do j = 1, nj
+      do i = 1, ni
+        do c = 1, nc
           self%recon_v(c, i, j) = reconstructed_v(c, i, j)
+          ! self%recon_v(1, i, j) = reconstructed_v(1, i, j)
+          ! do c = 2, nc
+          !     associate(a=>reconstructed_v(1, i, j), b=>reconstructed_v(c, i, j))
+          !     if (abs(b - a) <= abs(a + b) * 5e-7_rk) then
+          !       self%recon_v(c, i, j) = a
+          !     else
+          !       self%recon_v(c, i, j) = b
+          !     end if
+          !     end associate
+        end do
+      end do
+    end do
+    !$omp end do
+
+    !$omp do
+    do j = 1, nj
+      do i = 1, ni
+        do c = 1, nc
           self%recon_p(c, i, j) = reconstructed_p(c, i, j)
+          ! self%recon_p(1, i, j) = reconstructed_p(1, i, j)
+          ! do c = 2, nc
+          !     associate(a=>reconstructed_p(1, i, j), b=>reconstructed_p(c, i, j))
+          !     if (abs(b - a) <= abs(a + b) * 5e-7_rk) then
+          !       self%recon_p(c, i, j) = a
+          !     else
+          !       self%recon_p(c, i, j) = b
+          !     end if
+          !     end associate
         end do
       end do
     end do
@@ -286,35 +349,35 @@ contains
     end do
     !$omp end do simd
 
-    !$omp do simd
-    do j = 1, nj
-      do i = 1, ni
-        self%p0_x(i, j) = self%edge_vectors(1, 0, i, j)
-        self%p0_y(i, j) = self%edge_vectors(2, 0, i, j)
-      end do
-    end do
-    !$omp end do simd
-
-    !$omp do simd
-    do j = 1, nj
-      do i = 1, ni
-        self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
-        self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
-      end do
-    end do
-    !$omp end do simd
-
-    if(filter_small_dist) then
+    if(.not. self%is_initialized) then
       !$omp do simd
       do j = 1, nj
         do i = 1, ni
-        if(abs(self%p0_x(i, j) - self%p_prime_x(i, j)) / self%radius(i, j) < TINY_DIST_RATIO) self%p_prime_x(i, j) = self%p0_x(i, j)
-        if(abs(self%p0_y(i, j) - self%p_prime_y(i, j)) / self%radius(i, j) < TINY_DIST_RATIO) self%p_prime_y(i, j) = self%p0_y(i, j)
+          self%p0_x(i, j) = self%edge_vectors(1, 0, i, j)
+          self%p0_y(i, j) = self%edge_vectors(2, 0, i, j)
         end do
       end do
       !$omp end do simd
     end if
 
+    !$omp do simd
+    do j = 1, nj
+      do i = 1, ni
+        if(abs(self%p0_x(i, j) - self%tau * self%reference_u(i, j)) < epsilon(1.0_rk)) then
+          self%p_prime_x(i, j) = self%p0_x(i, j)
+        else
+          self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
+        end if
+
+        if(abs(self%p0_y(i, j) - self%tau * self%reference_v(i, j)) < epsilon(1.0_rk)) then
+          self%p_prime_y(i, j) = self%p0_y(i, j)
+        else
+          self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
+        end if
+
+      end do
+    end do
+    !$omp end do simd
     !$omp end parallel
 
     call self%compute_trig_angles()
@@ -343,6 +406,12 @@ contains
     end do
     !$omp end do nowait
 
+    ! where(.not. self%dtheta > 0.0_rk)
+    !   self%u = 0.0_rk
+    !   self%v = 0.0_rk
+    !   self%p = 0.0_rk
+    ! end where
+
     !$omp do
     do j = 1, nj
       do i = 1, ni
@@ -358,6 +427,7 @@ contains
     !$omp end parallel
 
     call self%sanity_checks()
+    if(.not. self%is_initialized) self%is_initialized = .true.
   end subroutine initialize
 
   subroutine finalize(self)
@@ -402,6 +472,7 @@ contains
     integer(ik), dimension(:, :), allocatable :: n_supersonic_cells
     integer(ik) :: i, j, c
     real(rk) :: gamma, mach_u, mach_v, n_cells_real
+    real(rk) :: u, v, vel
 
     gamma = eos%get_gamma()
 
@@ -422,14 +493,39 @@ contains
     do j = 1, self%nj
       do i = 1, self%ni
         self%reference_u(i, j) = sum(self%recon_u(:, i, j)) / n_cells_real
-      end do
-    end do
-    !$omp end do simd
-
-    !$omp do simd
-    do j = 1, self%nj
-      do i = 1, self%ni
         self%reference_v(i, j) = sum(self%recon_v(:, i, j)) / n_cells_real
+        ! u = neumaier_sum(self%recon_u(:, i, j)) / n_cells_real
+        ! v = neumaier_sum(self%recon_v(:, i, j)) / n_cells_real
+
+        ! vel = sqrt(u**2 + v**2)
+        ! if(vel * 1e-5_rk < epsilon(1.0_rk)) then
+        !   self%reference_u(i, j) = 0.0_rk
+        !   self%reference_v(i, j) = 0.0_rk
+        !   vel = 0.0_rk
+        ! else if (vel > 0.0_rk) then
+        !   if (abs(u) < vel * 1e-5_rk) then
+        !     self%reference_u(i, j) = 0.0_rk
+        !   else
+        !     self%reference_u(i, j) = u
+        !   end if
+
+        !   if (abs(v) < vel * 1e-5_rk) then
+        !     self%reference_v(i, j) = 0.0_rk
+        !   else
+        !     self%reference_v(i, j) = v
+        !   end if
+        ! end if
+
+        ! if (abs(v) > 0.0_rk) then
+        !   write(*,'(a, 8(es16.6, 1x))') 'ref ', u, v, vel, vel*1e-5_rk, &
+        !         self%reference_u(i, j), self%reference_v(i, j)
+        ! end if
+
+        ! if (abs(self%reference_v(i,j)) > 0.0_rk) then
+        !   print*, 'unstable ', self%recon_v(:, i, j)
+        !   error stop 'Unstable!'
+        ! end if
+
       end do
     end do
     !$omp end do simd
@@ -437,6 +533,9 @@ contains
     !$omp do simd
     do j = 1, self%nj
       do i = 1, self%ni
+        ! self%reference_sound_speed(i, j) = sqrt(gamma * &
+        !                                         (neumaier_sum(self%recon_p(:, i, j)) / n_cells_real) &
+        !                                         / self%reference_density(i, j))
         self%reference_sound_speed(i, j) = sqrt(gamma * &
                                                 (sum(self%recon_p(:, i, j)) / n_cells_real) &
                                                 / self%reference_density(i, j))
@@ -524,6 +623,7 @@ contains
       do i = 1, self%ni
         do idx = 1, idx_max
           self%dtheta(idx, i, j) = abs(theta_ie(idx, i, j) - theta_ib(idx, i, j))
+          ! self%dtheta(idx, i, j) = abs(neumaier_sum([theta_ie(idx, i, j), -theta_ib(idx, i, j)]))
         end do
       end do
     end do
@@ -817,7 +917,8 @@ contains
     !! $omp do
     do j = 1, self%nj
       do i = 1, self%ni
-        if(.not. equal(arc_sum(i, j), 2 * pi, 1e-6_rk)) then
+        if(abs(arc_sum(i, j) - 2 * pi) > 1e-15_rk) then
+          print *, 'abs(arc_sum(i, j) - 2 * pi): ', abs(arc_sum(i, j) - 2 * pi)
           print *, "Cone arcs do not add up to 2pi:", arc_sum(i, j)
           call self%print(i, j)
           error stop "Cone arcs do not add up to 2pi"
