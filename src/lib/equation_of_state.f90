@@ -9,7 +9,6 @@ module mod_eos
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
   use mod_globals, only: n_ghost_layers
-
 #ifdef USE_OPENMP
   use omp_lib
 #endif /* USE_OPENMP */
