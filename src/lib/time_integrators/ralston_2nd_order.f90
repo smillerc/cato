@@ -42,9 +42,7 @@ contains
 
       ! Final stage
       call debug_print('Running ralston_2nd 2nd stage', __FILE__, __LINE__)
-      U = U &
-          + (dt / 4.0_rk) * dU_dt &
-          + (3.0_rk * dt / 4.0_rk) * U_1%t(finite_volume_scheme)
+      U = (U + (dt / 4.0_rk) * dU_dt) + (3.0_rk * dt / 4.0_rk) * U_1%t(finite_volume_scheme)
 
       deallocate(U_1)
       deallocate(dU_dt)
