@@ -18,12 +18,40 @@ module mod_edge_reconstruction
 
   implicit none
 
-  logical, parameter :: filter_small = .false.
+  logical, parameter :: filter_small = .true.
+  real(rk), parameter :: SMALL_DIFF = 1e-9_rk
 
   private
   public :: reconstruct_edge_values
 
 contains
+
+  real(rk) function get_delta(a, b) result(delta)
+    !< Find the delta in the solution, e.g. delta = a - b. This checks for numbers
+    !< near 0 and when a and b are very similar in magnitude. The aim is to avoid
+    !< catastrophic cancellation and very small numbers that are essentially 0 for this scenario
+
+    real(rk), intent(in) :: a, b
+    real(rk), parameter :: EPS = 1e-6_rk
+    real(rk), parameter :: ZERO = 1e-16_rk
+    real(rk) :: threshold
+    logical :: is_equal
+
+    is_equal = .false.
+
+    threshold = abs(a + b) * EPS
+
+    if(abs(a) < ZERO .and. abs(b) < ZERO) then
+      delta = 0.0_rk
+      ! write(*, '(5(es16.6, 1x), l2)') a, b
+    else if(abs(b - a) <= threshold .or. abs(b - a) < epsilon(a)) then
+      ! if (abs(b-a) > 0.0_rk) write(*, '(5(es16.6, 1x))') abs(b - a)
+      delta = 0.0_rk
+    else
+      delta = a - b
+    endif
+
+  end function
 
   subroutine reconstruct_edge_values(q, lbounds, limiter, edge_values)
     !< Reconstruct the cell interface values, e.g. q_i-1/2, q_i+1/2. This assumes a cartesian
@@ -70,18 +98,10 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
 
-        delta_i_minus = q(i, j) - q(i - 1, j)
-        delta_j_minus = q(i, j) - q(i, j - 1)
-        delta_i_plus = q(i + 1, j) - q(i, j)
-        delta_j_plus = q(i, j + 1) - q(i, j)
-
-        ! Filter out machine-level small numbers
-        if(filter_small) then
-          if(abs(delta_i_minus) < MACHINE_EPS) delta_i_minus = 0.0_rk
-          if(abs(delta_j_minus) < MACHINE_EPS) delta_j_minus = 0.0_rk
-          if(abs(delta_i_plus) < MACHINE_EPS) delta_i_plus = 0.0_rk
-          if(abs(delta_j_plus) < MACHINE_EPS) delta_j_plus = 0.0_rk
-        end if
+        delta_i_minus = get_delta(q(i, j), q(i - 1, j))
+        delta_j_minus = get_delta(q(i, j), q(i, j - 1))
+        delta_i_plus = get_delta(q(i + 1, j), q(i, j))
+        delta_j_plus = get_delta(q(i, j + 1), q(i, j))
 
         ! (i, j-1/2), bottom
         if(abs(delta_j_plus) > 0.0_rk) then

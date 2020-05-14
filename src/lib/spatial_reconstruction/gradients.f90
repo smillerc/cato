@@ -12,7 +12,7 @@ module mod_gradients
   use mod_globals, only: n_ghost_layers
 
   implicit none
-  logical, parameter :: filter_small_gradients = .true.
+  logical, parameter :: filter_small_gradients = .false.
   real(rk), parameter :: SMALL = 1e-16_rk
   real(rk), parameter :: SMALL_GRAD = 1e-4_rk
 
