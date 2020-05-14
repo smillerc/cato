@@ -56,7 +56,8 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -funroll-loops -finline-functions ${GNUNATIVE}")
 
   if(ENABLE_PROFILING)
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -pg -g")
+    # set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=thread")
   endif()
 
 endif()
@@ -68,11 +69,9 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   # "-coarray=shared") elseif(DISTRIBUTED_MEMORY) set(IFORT_COARRAY "-coarray=distributed") endif()
 
   set(IFORT_FLAGS
-      "-fpp -fp-model source -diag-disable 5268 -diag-disable 8770 ${Coarray_COMPILE_OPTIONS}"
-  )
-  # set(IFORT_FLAGS
-  #     "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770 ${Coarray_COMPILE_OPTIONS}"
-  # )
+      "-fpp -fp-model source -diag-disable 5268 -diag-disable 8770 ${Coarray_COMPILE_OPTIONS}")
+  # set(IFORT_FLAGS "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770
+  # ${Coarray_COMPILE_OPTIONS}" )
 
   if(USE_OPENMP)
     set(IFORT_FLAGS "${IFORT_FLAGS} ${OpenMP_Fortran_FLAGS}")
@@ -91,6 +90,6 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     )
   endif()
 
-  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check all")
+  set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds")
   set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -mtune=${TARGET_ARCHITECTURE}")
 endif()
