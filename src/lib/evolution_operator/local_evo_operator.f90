@@ -8,7 +8,7 @@ module mod_local_evo_operator
                          du_midpoint_unit, lr_midpoint_unit, corner_unit, single_cell_cone_unit
 
   use, intrinsic :: ieee_arithmetic
-  use mod_floating_point_utils, only: near_zero, equal
+  use mod_floating_point_utils, only: near_zero, equal, neumaier_sum
   ! use mod_globals, only: TINY_MACH
   use math_constants, only: pi, rad2deg
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
@@ -365,7 +365,9 @@ contains
     real(rk), dimension(:, :), intent(inout) :: p
 
     real(rk), allocatable, dimension(:, :) :: rho_a_tilde
-    integer(ik) :: i, j
+    integer(ik) :: i, j, c
+    real(rk) :: t1, t2, t3
+    real(rk), dimension(3) :: t_tot
 
     allocate(rho_a_tilde, mold=cones%reference_density)
 
@@ -383,52 +385,128 @@ contains
 
       !$omp parallel default(none) &
       !$omp shared(cones, p, rho, u, v, rho_a_tilde) &
-      !$omp private(i,j)
-      !$omp do simd
+      !$omp private(i,j) &
+      !$omp private(t1, t2, t3, t_tot)
+      !$omp do
       do j = 1, cones%nj
         do i = 1, cones%ni
           rho_a_tilde(i, j) = cones%reference_density(i, j) * cones%reference_sound_speed(i, j)
         end do
       end do
-      !$omp end do simd
+      !$omp end do
 
-      !$omp do simd
+      !$omp do
       do j = 1, cones%nj
         do i = 1, cones%ni
-          p(i, j) = sum(p_i(:, i, j) * dtheta(:, i, j) - &
-                        rho_a_tilde(i, j) * u_i(:, i, j) * sin_dtheta(:, i, j) + &
-                        rho_a_tilde(i, j) * v_i(:, i, j) * cos_dtheta(:, i, j)) / (2.0_rk * pi)
+          t1 = neumaier_sum(p_i(:, i, j) * dtheta(:, i, j))
+          t2 = neumaier_sum(-rho_a_tilde(i, j) * u_i(:, i, j) * sin_dtheta(:, i, j))
+          t3 = neumaier_sum(rho_a_tilde(i, j) * v_i(:, i, j) * cos_dtheta(:, i, j))
+          t_tot = [t1, t2, t3]
+          p(i, j) = neumaier_sum(t_tot) / (2.0_rk * pi)
+          ! p(i, j) = sum(p_i(:, i, j) * dtheta(:, i, j) - &
+          !               rho_a_tilde(i, j) * u_i(:, i, j) * sin_dtheta(:, i, j) + &
+          !               rho_a_tilde(i, j) * v_i(:, i, j) * cos_dtheta(:, i, j)) / (2.0_rk * pi)
         end do
       end do
-      !$omp end do simd
+      !$omp end do
 
-      !$omp do simd
+      !$omp do
       do j = 1, cones%nj
         do i = 1, cones%ni
-          rho(i, j) = rho_p_prime(i, j) + (p(i, j) / a_tilde(i, j)**2) - (pressure_p_prime(i, j) / a_tilde(i, j)**2)
+          t_tot = [rho_p_prime(i, j),(p(i, j) / a_tilde(i, j)**2), -pressure_p_prime(i, j) / a_tilde(i, j)**2]
+          rho(i, j) = neumaier_sum(t_tot)
+          ! rho(i, j) = rho_p_prime(i, j) + (p(i, j) / a_tilde(i, j)**2) - (pressure_p_prime(i, j) / a_tilde(i, j)**2)
+          ! print*, neumaier_sum(t_tot), rho(i,j), abs(neumaier_sum(t_tot) - rho(i,j))
+
         end do
       end do
-      !$omp end do simd
+      !$omp end do
 
-      !$omp do simd
+      !$omp do
       do j = 1, cones%nj
         do i = 1, cones%ni
-          u(i, j) = sum((-p_i(:, i, j) / rho_a_tilde(i, j)) * sin_dtheta(:, i, j) &
-                        + u_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) + (sin_d2theta(:, i, j) / 4.0_rk)) &
-                        - v_i(:, i, j) * (cos_d2theta(:, i, j) / 4.0_rk)) / pi
+          t1 = neumaier_sum(-p_i(:, i, j) * sin_dtheta(:, i, j)) / rho_a_tilde(i, j)
+          if(abs(t1) < 1e-5_rk * a_tilde(i, j)) t1 = 0.0_rk
 
-          v(i, j) = sum((p_i(:, i, j) / rho_a_tilde(i, j)) * cos_dtheta(:, i, j) &
-                        - u_i(:, i, j) * (cos_d2theta(:, i, j) / 4.0_rk) &
-                        + v_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk))) / pi
+          t2 = neumaier_sum(u_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) + (sin_d2theta(:, i, j) / 4.0_rk)))
+          if(abs(t2) < 1e-5_rk * a_tilde(i, j)) t2 = 0.0_rk
+
+          t3 = neumaier_sum(-v_i(:, i, j) * cos_d2theta(:, i, j)) / 4.0_rk
+          if(abs(t3) < 1e-5_rk * a_tilde(i, j)) t3 = 0.0_rk
+
+          t_tot = [t1, t2, t3]
+          u(i, j) = neumaier_sum(t_tot) / pi
+
+          ! u(i, j) = sum((-p_i(:, i, j) / rho_a_tilde(i, j)) * sin_dtheta(:, i, j) &
+          !               + u_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) + (sin_d2theta(:, i, j) / 4.0_rk)) &
+          !               - v_i(:, i, j) * (cos_d2theta(:, i, j) / 4.0_rk)) / pi
         end do
       end do
-      !$omp end do simd
+      !$omp end do
+
+      !$omp do
+      do j = 1, cones%nj
+        do i = 1, cones%ni
+          t1 = neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j)) / rho_a_tilde(i, j)
+          if(abs(t1) < 1e-5_rk * a_tilde(i, j)) t1 = 0.0_rk
+
+          t2 = neumaier_sum(-u_i(:, i, j) * cos_d2theta(:, i, j)) / 4.0_rk
+          if(abs(t2) < 1e-5_rk * a_tilde(i, j)) t2 = 0.0_rk
+
+          t3 = neumaier_sum(v_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk)))
+          if(abs(t3) < 1e-5_rk * a_tilde(i, j)) t3 = 0.0_rk
+
+          t_tot = [t1, t2, t3]
+          v(i, j) = neumaier_sum(t_tot) / pi
+
+          ! v(i, j) = sum((p_i(:, i, j) / rho_a_tilde(i, j)) * cos_dtheta(:, i, j) &
+          !               - u_i(:, i, j) * (cos_d2theta(:, i, j) / 4.0_rk) &
+          !               + v_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk))) / pi
+          ! if (abs(v(i, j)) > 0.0_rk) then
+          !   write(*,'(a, 8(es16.6, 1x))') "reference_u     ", cones%reference_u(i,j)
+          !   write(*,'(a, 8(es16.6, 1x))') "reference_v     ", cones%reference_v(i,j)
+          !   write(*,'(a, 8(es16.6, 1x))') "reference_v_tot ", sqrt(cones%reference_u(i,j)**2 + cones%reference_v(i,j)**2)
+          !   write(*,'(a, 8(es16.6, 1x))') 'p_i * cos_dtheta         ', p_i(:, i, j) * cos_dtheta(:, i, j)
+          !   write(*,'(a, 8(es16.6, 1x))') "dtheta                   ", dtheta(:, i, j)
+          !   write(*,'(a, 8(es16.6, 1x))') "-u_i * cos_d2theta       ", -u_i(:, i, j) * cos_d2theta(:, i, j)
+          !   write(*,'(a, 8(es16.6, 1x))') "u_i                      ", u_i(:, i, j)
+          !   write(*,'(a, 8(es16.6, 1x))') "v_i                      ", v_i(:, i, j)
+          !   write(*,'(a, 8(es16.6, 1x))') "dtheta/2 - sin_d2theta/4 ", (dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk)
+          !   write(*,'(a, 8(es16.6, 1x))') "sum(u_i)", neumaier_sum(u_i(:, i, j))
+          !   write(*,'(a, 8(es16.6, 1x))') "sum(v_i)", neumaier_sum(v_i(:, i, j))
+          !   print*, 'neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))', neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))
+          !   print*, '         sum(p_i(:, i, j) * cos_dtheta(:, i, j))', sum(p_i(:, i, j) * cos_dtheta(:, i, j))
+          !   print*, 'neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j)) / rho_a_tilde(i, j)', neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))/ rho_a_tilde(i, j)
+          !   print*, '         sum(p_i(:, i, j) * cos_dtheta(:, i, j)) / rho_a_tilde(i, j)', sum(p_i(:, i, j) * cos_dtheta(:, i, j))/ rho_a_tilde(i, j)
+          !   print*, 'rho a tilde: ', rho_a_tilde(i, j)
+          !   print*, 't1:          ' , t1
+          !   print*, 't2:          ' , t2
+          !   print*, 't3:          ' , t3
+          !   print*, 'v(i, j)', v(i, j)
+          !   print*
+          !   error stop
+          ! end if
+          ! if (abs(v(i,j)) > 0.0_rk) then
+          !   print*, 'v ', i, j, v(i,j)
+          !   print*, t1
+          !   print*, t2
+          !   print*, t3
+          !   print*, neumaier_sum(t_tot) / pi
+          !   print*
+          !   ! error stop "v > 0!"
+          ! end if
+        end do
+      end do
+      !$omp end do
 
       !$omp end parallel
+
     end associate
 
+    ! deallocate(t3)
+    ! deallocate(t2)
+    ! deallocate(t1)
     deallocate(rho_a_tilde)
-
   end subroutine
 
 end module mod_local_evo_operator
