@@ -9,7 +9,8 @@ module mod_fluid
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
   use mod_nondimensionalization, only: rho_0, v_0, p_0, e_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  use mod_floating_point_utils, only: near_zero
+  use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
+  use mod_functional, only: operator(.sort.)
   use mod_flux_array, only: get_fluxes, flux_array_t
   use mod_surrogate, only: surrogate
   use mod_units
@@ -31,7 +32,7 @@ module mod_fluid
   private
   public :: fluid_t, new_fluid
 
-  logical, parameter :: filter_small_mach = .true.
+  logical, parameter :: filter_small_mach = .false.
 
   type, extends(integrand_t) :: fluid_t
     real(rk), dimension(:, :), allocatable :: rho    !< (i, j); Conserved quantities
@@ -200,6 +201,7 @@ contains
     end if
 
     call h5%get('/pressure', pressure)
+
     if(input%restart_from_file) then
       call h5%readattr('/pressure', 'units', str_buff)
       select case(trim(str_buff))
@@ -234,6 +236,7 @@ contains
     self%u = x_velocity
     self%v = y_velocity
     self%p = pressure
+    ! error stop
     ! end associate
     call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
                                     rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
@@ -241,14 +244,14 @@ contains
     write(*, '(a)') 'Initial fluid stats'
     write(*, '(a)') '==================================================='
     write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max y-velocity [dim]:     ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
-    write(*, '(a, 2(es10.3, 1x))') 'Min/Max pressure   [dim]:     ', minval(pressure) * p_0, maxval(pressure) * p_0
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]:     ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]:     ', minval(pressure) * p_0, maxval(pressure) * p_0
     write(*, '(a)') '==================================================='
     write(*, *)
 
@@ -604,7 +607,7 @@ contains
     real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhoE_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: i, j, edge, xy
+    integer(ik) :: i, j, k, edge, xy
     real(rk), dimension(2, 4) :: n_hat
     real(rk), dimension(4) :: delta_l
     integer(ik), dimension(2) :: bounds
@@ -613,28 +616,23 @@ contains
     type(flux_array_t) :: downup_mid_fluxes
     type(flux_array_t) :: leftright_mid_fluxes
 
-    real(rk) :: bottom_rho_flux
-    real(rk) :: bottom_rhou_flux
-    real(rk) :: bottom_rhov_flux
-    real(rk) :: bottom_rhoE_flux
+    real(rk) :: f_sum, g_sum
+    real(rk) :: diff, rel_error
 
-    real(rk) :: right_rho_flux
-    real(rk) :: right_rhou_flux
-    real(rk) :: right_rhov_flux
-    real(rk) :: right_rhoE_flux
+    real(rk), dimension(4) :: bottom_flux
+    real(rk), dimension(4) :: right_flux
+    real(rk), dimension(4) :: top_flux
+    real(rk), dimension(4) :: left_flux
 
-    real(rk) :: top_rho_flux
-    real(rk) :: top_rhou_flux
-    real(rk) :: top_rhov_flux
-    real(rk) :: top_rhoE_flux
+    real(rk) :: rho_flux, max_rho_flux
+    real(rk) :: rhou_flux, max_rhou_flux
+    real(rk) :: rhov_flux, max_rhov_flux
+    real(rk) :: rhoE_flux, max_rhoE_flux
 
-    real(rk) :: left_rho_flux
-    real(rk) :: left_rhou_flux
-    real(rk) :: left_rhov_flux
-    real(rk) :: left_rhoE_flux
+    real(rk), parameter :: FLUX_EPS = epsilon(1.0_rk)
+    real(rk), parameter :: REL_THRESHOLD = 1e-8_rk
 
     call debug_print('Running fluid_t%flux_edges()', __FILE__, __LINE__)
-
     ! Get the flux arrays for each corner node or midpoint
     ilo = grid%ilo_node; ihi = grid%ihi_node
     jlo = grid%jlo_node; jhi = grid%jhi_node
@@ -658,11 +656,9 @@ contains
     jlo = grid%jlo_cell; jhi = grid%jhi_cell
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, delta_l, n_hat) &
-    !$omp private(bottom_rho_flux, bottom_rhou_flux, bottom_rhov_flux, bottom_rhoE_flux) &
-    !$omp private(right_rho_flux, right_rhou_flux, right_rhov_flux, right_rhoE_flux) &
-    !$omp private(left_rho_flux, left_rhou_flux, left_rhov_flux, left_rhoE_flux) &
-    !$omp private(top_rho_flux, top_rhou_flux, top_rhov_flux, top_rhoE_flux) &
+    !$omp private(i, j, k, delta_l, n_hat) &
+    !$omp private(bottom_flux, right_flux, left_flux, top_flux) &
+    !$omp private(f_sum, g_sum, diff) &
     !$omp shared(grid, corner_fluxes, leftright_mid_fluxes, downup_mid_fluxes) &
     !$omp shared(d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
     !$omp do simd
@@ -698,54 +694,103 @@ contains
                   n_hat_3=>grid%cell_edge_norm_vectors(:, 3, i, j), &
                   n_hat_4=>grid%cell_edge_norm_vectors(:, 4, i, j))
 
-          bottom_rho_flux = ((F_c1(1) + 4.0_rk * F_m1(1) + F_c2(1)) * n_hat_1(1) + &
-                             (G_c1(1) + 4.0_rk * G_m1(1) + G_c2(1)) * n_hat_1(2)) * (delta_l(1) / 6.0_rk)
-          bottom_rhou_flux = ((F_c1(2) + 4.0_rk * F_m1(2) + F_c2(2)) * n_hat_1(1) + &
-                              (G_c1(2) + 4.0_rk * G_m1(2) + G_c2(2)) * n_hat_1(2)) * (delta_l(1) / 6.0_rk)
-          bottom_rhov_flux = ((F_c1(3) + 4.0_rk * F_m1(3) + F_c2(3)) * n_hat_1(1) + &
-                              (G_c1(3) + 4.0_rk * G_m1(3) + G_c2(3)) * n_hat_1(2)) * (delta_l(1) / 6.0_rk)
-          bottom_rhoE_flux = ((F_c1(4) + 4.0_rk * F_m1(4) + F_c2(4)) * n_hat_1(1) + &
-                              (G_c1(4) + 4.0_rk * G_m1(4) + G_c2(4)) * n_hat_1(2)) * (delta_l(1) / 6.0_rk)
+          !  Bottom
+          ! bottom_flux (rho, rhou, rhov, rhoE)
+          do k = 1, 4
+            f_sum = sum([F_c1(k), 4.0_rk * F_m1(k), F_c2(k)]) * n_hat_1(1)
+            g_sum = sum([G_c1(k), 4.0_rk * G_m1(k), G_c2(k)]) * n_hat_1(2)
+            diff = abs(f_sum + g_sum)
+            if(diff < FLUX_EPS) then
+              bottom_flux(k) = 0.0_rk
+            else
+              bottom_flux(k) = (f_sum + g_sum) * (delta_l(1) / 6.0_rk)
+            end if
+          end do
 
-          right_rho_flux = ((F_c2(1) + 4.0_rk * F_m2(1) + F_c3(1)) * n_hat_2(1) + &
-                            (G_c2(1) + 4.0_rk * G_m2(1) + G_c3(1)) * n_hat_2(2)) * (delta_l(2) / 6.0_rk)
-          right_rhou_flux = ((F_c2(2) + 4.0_rk * F_m2(2) + F_c3(2)) * n_hat_2(1) + &
-                             (G_c2(2) + 4.0_rk * G_m2(2) + G_c3(2)) * n_hat_2(2)) * (delta_l(2) / 6.0_rk)
-          right_rhov_flux = ((F_c2(3) + 4.0_rk * F_m2(3) + F_c3(3)) * n_hat_2(1) + &
-                             (G_c2(3) + 4.0_rk * G_m2(3) + G_c3(3)) * n_hat_2(2)) * (delta_l(2) / 6.0_rk)
-          right_rhoE_flux = ((F_c2(4) + 4.0_rk * F_m2(4) + F_c3(4)) * n_hat_2(1) + &
-                             (G_c2(4) + 4.0_rk * G_m2(4) + G_c3(4)) * n_hat_2(2)) * (delta_l(2) / 6.0_rk)
+          !  Right
+          ! right_flux (rho, rhou, rhov, rhoE)
+          do k = 1, 4
+            f_sum = sum([F_c2(k), 4.0_rk * F_m2(k), F_c3(k)]) * n_hat_2(1)
+            g_sum = sum([G_c2(k), 4.0_rk * G_m2(k), G_c3(k)]) * n_hat_2(2)
+            diff = abs(f_sum + g_sum)
+            if(diff < FLUX_EPS) then
+              right_flux(k) = 0.0_rk
+            else
+              right_flux(k) = (f_sum + g_sum) * (delta_l(2) / 6.0_rk)
+            end if
+          end do
 
-          top_rho_flux = ((F_c3(1) + 4.0_rk * F_m3(1) + F_c4(1)) * n_hat_3(1) + &
-                          (G_c3(1) + 4.0_rk * G_m3(1) + G_c4(1)) * n_hat_3(2)) * (delta_l(3) / 6.0_rk)
-          top_rhou_flux = ((F_c3(2) + 4.0_rk * F_m3(2) + F_c4(2)) * n_hat_3(1) + &
-                           (G_c3(2) + 4.0_rk * G_m3(2) + G_c4(2)) * n_hat_3(2)) * (delta_l(3) / 6.0_rk)
-          top_rhov_flux = ((F_c3(3) + 4.0_rk * F_m3(3) + F_c4(3)) * n_hat_3(1) + &
-                           (G_c3(3) + 4.0_rk * G_m3(3) + G_c4(3)) * n_hat_3(2)) * (delta_l(3) / 6.0_rk)
-          top_rhoE_flux = ((F_c3(4) + 4.0_rk * F_m3(4) + F_c4(4)) * n_hat_3(1) + &
-                           (G_c3(4) + 4.0_rk * G_m3(4) + G_c4(4)) * n_hat_3(2)) * (delta_l(3) / 6.0_rk)
+          ! Top
+          ! top_flux (rho, rhou, rhov, rhoE)
+          do k = 1, 4
+            f_sum = sum([F_c3(k), 4.0_rk * F_m3(k), F_c4(k)]) * n_hat_3(1)
+            g_sum = sum([G_c3(k), 4.0_rk * G_m3(k), G_c4(k)]) * n_hat_3(2)
+            diff = abs(f_sum + g_sum)
+            if(diff < FLUX_EPS) then
+              top_flux(k) = 0.0_rk
+            else
+              top_flux(k) = (f_sum + g_sum) * (delta_l(3) / 6.0_rk)
+            end if
+          end do
 
-          left_rho_flux = ((F_c4(1) + 4.0_rk * F_m4(1) + F_c1(1)) * n_hat_4(1) + &
-                           (G_c4(1) + 4.0_rk * G_m4(1) + G_c1(1)) * n_hat_4(2)) * (delta_l(4) / 6.0_rk)
-          left_rhou_flux = ((F_c4(2) + 4.0_rk * F_m4(2) + F_c1(2)) * n_hat_4(1) + &
-                            (G_c4(2) + 4.0_rk * G_m4(2) + G_c1(2)) * n_hat_4(2)) * (delta_l(4) / 6.0_rk)
-          left_rhov_flux = ((F_c4(3) + 4.0_rk * F_m4(3) + F_c1(3)) * n_hat_4(1) + &
-                            (G_c4(3) + 4.0_rk * G_m4(3) + G_c1(3)) * n_hat_4(2)) * (delta_l(4) / 6.0_rk)
-          left_rhoE_flux = ((F_c4(4) + 4.0_rk * F_m4(4) + F_c1(4)) * n_hat_4(1) + &
-                            (G_c4(4) + 4.0_rk * G_m4(4) + G_c1(4)) * n_hat_4(2)) * (delta_l(4) / 6.0_rk)
+          ! Left
+          ! left_flux (rho, rhou, rhov, rhoE)
+          do k = 1, 4
+            f_sum = sum([F_c4(k), 4.0_rk * F_m4(k), F_c1(k)]) * n_hat_4(1)
+            g_sum = sum([G_c4(k), 4.0_rk * G_m4(k), G_c1(k)]) * n_hat_4(2)
+            diff = abs(f_sum + g_sum)
+            if(diff < FLUX_EPS) then
+              left_flux(k) = 0.0_rk
+            else
+              left_flux(k) = (f_sum + g_sum) * (delta_l(4) / 6.0_rk)
+            end if
+          end do
 
-          d_rho_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * &
-                           (bottom_rho_flux + right_rho_flux + top_rho_flux + left_rho_flux)
+          max_rho_flux = max(abs(left_flux(1)), abs(right_flux(1)), abs(top_flux(1)), abs(bottom_flux(1)))
+          max_rhou_flux = max(abs(left_flux(2)), abs(right_flux(2)), abs(top_flux(2)), abs(bottom_flux(2)))
+          max_rhov_flux = max(abs(left_flux(3)), abs(right_flux(3)), abs(top_flux(3)), abs(bottom_flux(3)))
+          max_rhoE_flux = max(abs(left_flux(4)), abs(right_flux(4)), abs(top_flux(4)), abs(bottom_flux(4)))
 
-          d_rhou_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * &
-                            (bottom_rhou_flux + right_rhou_flux + top_rhou_flux + left_rhou_flux)
+          ! Now sum them all up together
+          rho_flux = neumaier_sum_4([left_flux(1), right_flux(1), top_flux(1), bottom_flux(1)])
+          rhou_flux = neumaier_sum_4([left_flux(2), right_flux(2), top_flux(2), bottom_flux(2)])
+          rhov_flux = neumaier_sum_4([left_flux(3), right_flux(3), top_flux(3), bottom_flux(3)])
+          rhoE_flux = neumaier_sum_4([left_flux(4), right_flux(4), top_flux(4), bottom_flux(4)])
 
-          d_rhov_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * &
-                            (bottom_rhov_flux + right_rhov_flux + top_rhov_flux + left_rhov_flux)
+          if(abs(rho_flux) < max_rho_flux * REL_THRESHOLD .or. abs(rho_flux) < FLUX_EPS) then
+            rho_flux = 0.0_rk
+          end if
 
-          d_rhoE_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * &
-                            (bottom_rhoE_flux + right_rhoE_flux + top_rhoE_flux + left_rhoE_flux)
+          if(abs(rhou_flux) < max_rhou_flux * REL_THRESHOLD .or. abs(rhou_flux) < FLUX_EPS) then
+            rhou_flux = 0.0_rk
+          end if
+
+          if(abs(rhov_flux) < max_rhov_flux * REL_THRESHOLD .or. abs(rhov_flux) < FLUX_EPS) then
+            rhov_flux = 0.0_rk
+          end if
+
+          if(abs(rhoE_flux) < max_rhoE_flux * REL_THRESHOLD .or. abs(rhoE_flux) < FLUX_EPS) then
+            rhoE_flux = 0.0_rk
+          end if
+
+          d_rho_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rho_flux
+
+          d_rhou_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhou_flux
+
+          d_rhov_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhov_flux
+
+          d_rhoE_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhoE_flux
         end associate
+
+        ! if (abs(rhov_flux) > max_rhov_flux * REL_THRESHOLD .and. abs(rhov_flux) > 0.0_rk) then
+        !   print*, 'i,j', i, j
+        !   write(*, '(a, 4(es16.6, 1x))') 'rhov_flux:         ',  rhov_flux
+        !   write(*,'(a, es16.6)') 'abs(rhov_flux)               : ', abs(rhov_flux)
+        !   write(*,'(a, es16.6)') 'FLUX_EPS                     : ', FLUX_EPS
+        !   write(*,'(a, es16.6)') 'max_rhov_flux * REL_THRESHOLD: ', max_rhov_flux * REL_THRESHOLD
+        !   write(*, '(a, 4(es16.6, 1x))') ' -> ',  left_flux(3), right_flux(3), top_flux(3), bottom_flux(3)
+        !   error stop
+        ! end if
 
       end do ! i
     end do ! j
@@ -782,31 +827,31 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
 
-    if(filter_small_mach) then
-      ilo = lbound(self%rho, dim=1)
-      ihi = ubound(self%rho, dim=1)
-      jlo = lbound(self%rho, dim=2)
-      jhi = ubound(self%rho, dim=2)
+    ! if(filter_small_mach) then
+    !   ilo = lbound(self%rho, dim=1)
+    !   ihi = ubound(self%rho, dim=1)
+    !   jlo = lbound(self%rho, dim=2)
+    !   jhi = ubound(self%rho, dim=2)
 
-      !$omp parallel default(none) &
-      !$omp shared(self) &
-      !$omp firstprivate(ilo,ihi,jlo,jhi) &
-      !$omp private(i,j)
-      !$omp do
-      do j = jlo, jhi
-        do i = ilo, ihi
-          if(abs(self%mach_u(i, j)) < 1e-4_rk) then
-            self%u(i, j) = 0.0_rk
-          end if
+    !   !$omp parallel default(none) &
+    !   !$omp shared(self) &
+    !   !$omp firstprivate(ilo,ihi,jlo,jhi) &
+    !   !$omp private(i,j)
+    !   !$omp do
+    !   do j = jlo, jhi
+    !     do i = ilo, ihi
+    !       if(abs(self%mach_u(i, j)) < 1e-4_rk) then
+    !         self%u(i, j) = 0.0_rk
+    !       end if
 
-          if(abs(self%mach_v(i, j)) < 1e-4_rk) then
-            self%v(i, j) = 0.0_rk
-          end if
-        end do
-      end do
-      !$omp end do
-      !$omp end parallel
-    end if
+    !       if(abs(self%mach_v(i, j)) < 1e-4_rk) then
+    !         self%v(i, j) = 0.0_rk
+    !       end if
+    !     end do
+    !   end do
+    !   !$omp end do
+    !   !$omp end parallel
+    ! end if
 
   end subroutine residual_smoother
 
@@ -868,6 +913,7 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: a
     real(rk), dimension(:, :), contiguous, intent(in) :: b
     real(rk), dimension(:, :), contiguous, intent(inout) :: c
+    real(rk) :: diff
     integer(ik) :: i, j, k
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
@@ -887,6 +933,11 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         c(i, j) = a(i, j) + b(i, j)
+        diff = abs(a(i, j) - b(i, j))
+        if(diff < epsilon(1.0_rk)) then
+          c(i, j) = 0.0_rk
+        end if
+        ! c(i, j) = neumaier_sum([a(i, j), b(i, j)])
       end do
     end do
     !$omp end do simd
@@ -899,6 +950,7 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: a
     real(rk), dimension(:, :), contiguous, intent(in) :: b
     real(rk), dimension(:, :), contiguous, intent(inout) :: c
+    real(rk) :: diff
     integer(ik) :: i, j, k
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
@@ -918,6 +970,12 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         c(i, j) = a(i, j) - b(i, j)
+        diff = abs(a(i, j) - b(i, j))
+        if(diff < epsilon(1.0_rk)) then
+          c(i, j) = 0.0_rk
+        end if
+
+        ! c(i, j) = neumaier_sum([a(i, j), -b(i, j)])
       end do
     end do
     !$omp end do simd
