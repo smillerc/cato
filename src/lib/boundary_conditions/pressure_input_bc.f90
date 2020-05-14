@@ -248,10 +248,10 @@ contains
     case('+x')
       call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
-      domain_rho = sum(rho(right, bottom_ghost:top_ghost)) / size(rho(right, bottom_ghost:top_ghost))
-      domain_u = sum(u(right, bottom_ghost:top_ghost)) / size(u(right, bottom_ghost:top_ghost))
+      domain_rho = rho(right, bottom_ghost:top_ghost)
+      domain_u = u(right, bottom_ghost:top_ghost)
       domain_v = 0.0_rk
-      domain_p = sum(p(right, bottom_ghost:top_ghost)) / size(p(right, bottom_ghost:top_ghost))
+      domain_p = p(right, bottom_ghost:top_ghost)
       boundary_norm = [1.0_rk, 0.0_rk]
 
       do j = bottom, top
@@ -285,7 +285,7 @@ contains
         end associate
         self%edge_rho(j) = boundary_prim_vars(1)
         self%edge_u(j) = boundary_prim_vars(2)
-        self%edge_v(j) = boundary_prim_vars(3)
+        self%edge_v(j) = 0.0_rk
         self%edge_p(j) = boundary_prim_vars(4)
       end do
 
