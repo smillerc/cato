@@ -13,7 +13,6 @@ program cato
   use mod_finite_volume_schemes, only: finite_volume_scheme_t, make_fv_scheme
   use mod_fluid, only: fluid_t, new_fluid
   use mod_integrand, only: integrand_t
-  use mod_grid, only: grid_t
   use mod_eos, only: set_equation_of_state
 
   implicit none
@@ -107,8 +106,8 @@ program cato
 
   do while(time < max_time .and. iteration < input%max_iterations)
 
-    write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units * t_0, &
-      ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s'
+    write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
+      ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
 
     ! call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
     !                            lbounds=bounds)

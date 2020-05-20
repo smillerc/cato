@@ -94,20 +94,10 @@ contains
       R_plus = v_dot_n + (2.0_rk * cs_b / (gamma - 1.0_rk))
 
       ! boundary state
-      ! T_b = T_0 * (cs_b**2 / cs_0_sq)
-
-      ! p_b = p_0 * (T_b / T_0)**(gamma / (gamma - 1.0_rk))
       p_b = p_0 * (cs_b**2 / cs_0_sq)**(gamma / (gamma - 1.0_rk))
-
-      ! rho_b = p_b / (R * T_b)
       rho_b = rho_0 * (p_b / p_0)**(1.0_rk / gamma)
-
-      ! v_tot_b = sqrt(2.0_rk * cp * abs(T_0 - T_b))
       v_tot_b = (2.0_rk * cs_b / (gamma - 1.0_rk)) - R_plus
 
-      ! write(*, *) "v_tot_b = sqrt(2.0_rk * cp * abs(T_0 - T_b))         : ", sqrt(2.0_rk * cp * abs(T_0 - T_b))
-      ! write(*, *) "v_tot_b = (2.0_rk * cs_b / (gamma - 1.0_rk)) - R_plus: ", (2.0_rk * cs_b / (gamma - 1.0_rk)) - R_plus
-      ! error stop
       u_b = v_tot_b * cos(theta)
       v_b = v_tot_b * sin(theta)
     end associate

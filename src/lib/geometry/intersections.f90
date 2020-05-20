@@ -12,7 +12,7 @@ module mod_intersections
   implicit none
 
   private
-  public :: intersect
+  public :: intersect, is_on
 
   real(rk), parameter :: EPS = epsilon(1.0_rk)
 
