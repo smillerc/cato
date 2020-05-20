@@ -33,6 +33,7 @@ add_library(
   lib/mach_cone/mach_cone_utilities.f90
   lib/mach_cone/mach_cone_collection.f90
   lib/geometry/geometry.f90
+  lib/geometry/intersections.f90
   lib/geometry/vector_2d.f90
   lib/geometry/vector.f90
   lib/geometry/quad_cell.f90)

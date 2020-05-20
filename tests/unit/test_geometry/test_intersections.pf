@@ -1,0 +1,158 @@
+module test_intersections
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_intersections
+  use funit
+
+  implicit none
+
+  real(rk), parameter :: pi = 4.0_rk * atan(1.0_rk)
+
+contains
+
+  @test
+  subroutine test_ison()
+    real(rk), dimension(2) :: a, b, c
+    logical :: point_on_line
+
+    ! All colocated
+    a = [1.0_rk, 1.0_rk]
+    b = [1.0_rk, 1.0_rk]
+    c = [1.0_rk, 1.0_rk]
+    point_on_line = is_on(a, b, c)
+    @assertEqual(.true., point_on_line)
+
+    ! a,b colocated
+    a = [1.0_rk, 1.0_rk]
+    b = [1.0_rk, 1.0_rk]
+    c = [2.0_rk, 2.0_rk]
+    point_on_line = is_on(a, b, c)
+    @assertEqual(.false., point_on_line)
+
+    ! Vertical line
+    a = [0.0_rk, 1.0_rk]
+    b = [0.0_rk, 0.0_rk]
+    c = [0.0_rk, 0.1_rk]
+    point_on_line = is_on(a, b, c)
+    @assertEqual(.true., point_on_line)
+
+    a = [0.0_rk, 1.0_rk]
+    b = [0.0_rk, 0.0_rk]
+    c = [1.0_rk, 1.0_rk]
+    point_on_line = is_on(a, b, c)
+    @assertEqual(.false., point_on_line)
+
+    ! Horizontal line
+    a = [1.0_rk, 0.0_rk]
+    b = [0.0_rk, 0.0_rk]
+    c = [0.1_rk, 0.0_rk]
+    point_on_line = is_on(a, b, c)
+    @assertEqual(.true., point_on_line)
+
+    a = [1.0_rk, 0.0_rk]
+    b = [0.0_rk, 0.0_rk]
+    c = [-0.1_rk, 0.0_rk]
+    point_on_line = is_on(a, b, c)
+    @assertEqual(.false., point_on_line)
+
+    ! Neither horizontal nor vertical
+    a = [1.0_rk, 1.0_rk]
+    b = [0.0_rk, 0.0_rk]
+    c = [0.5_rk, 0.5_rk]
+    point_on_line = is_on(a, b, c)
+    @assertEqual(.true., point_on_line)
+
+  end subroutine
+
+  @test
+  subroutine test_intersection_points()
+
+    real(rk), dimension(2, 2) :: line_xy !< ((x,y), (point_1, point_2))
+    real(rk), dimension(2) :: circle_xy !< (x,y)
+    real(rk) :: circle_radius
+    real(rk), dimension(2, 2) :: intersection_xy !< ((x,y), (point_1, point_2))
+    logical, dimension(2) :: valid_intersection !< (point_1, point_2)
+    real(rk), dimension(2) :: angles
+
+    print *, "Running test_intersection_points()"
+
+    ! Exactly 2 intersections on a small circle at the origin
+    circle_xy = [0.0_rk, 0.0_rk]
+    circle_radius = 1e-15_rk
+    line_xy(:, 1) = [-1.0_rk, 0.0_rk]
+    line_xy(:, 2) = [1.0_rk, 0.0_rk]
+    call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
+    @assertEqual([-circle_radius, 0.0_rk], intersection_xy(:, 1))
+    @assertEqual([circle_radius, 0.0_rk], intersection_xy(:, 2))
+
+    @assertEqual([.true., .true.], valid_intersection)
+    @assertEqual([pi, 0.0_rk], angles)
+
+    ! No intersections
+    circle_xy = [1.0_rk, 1.0_rk]
+    circle_radius = 2.0_rk
+    line_xy(:, 1) = [1.0_rk, 0.0_rk]
+    line_xy(:, 2) = [1.0_rk, 2.0_rk]
+    call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
+    @assertEqual([1.0_rk, -1.0_rk], intersection_xy(:, 1))
+    @assertEqual([1.0_rk, 3.0_rk], intersection_xy(:, 2))
+    @assertEqual([.false., .false.], valid_intersection)
+    @assertEqual(0.0_rk, angles)
+
+    ! Exactly 2 intersections on the circle
+    circle_xy = [1.0_rk, 1.0_rk]
+    circle_radius = 2.0_rk
+    line_xy(:, 1) = [1.0_rk, -1.0_rk]
+    line_xy(:, 2) = [1.0_rk, 3.0_rk]
+    call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
+    @assertEqual([1.0_rk, -1.0_rk], intersection_xy(:, 1))
+    @assertEqual([1.0_rk, 3.0_rk], intersection_xy(:, 2))
+    @assertEqual([.true., .true.], valid_intersection)
+    @assertEqual([-0.5_rk * pi, 0.5_rk * pi], angles)
+
+    ! Exactly 1 intersections on the circle (vertical line)
+    circle_radius = 1e-16_rk
+    circle_xy = [0.0_rk, 0.0_rk]
+    line_xy(:, 1) = [circle_radius, -1.0_rk]
+    line_xy(:, 2) = [circle_radius, 1.0_rk]
+    call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
+    @assertEqual([circle_radius, 0.0_rk], intersection_xy(:, 1))
+    @assertEqual([0.0_rk, 0.0_rk], intersection_xy(:, 2))
+    @assertEqual([.true., .false.], valid_intersection)
+    @assertEqual(0.0_rk, angles)
+
+    ! Exactly 1 intersections on the circle (horizontal line)
+    circle_radius = 1e-16_rk
+    circle_xy = [0.0_rk, 0.0_rk]
+    line_xy(:, 1) = [-1.0_rk, circle_radius]
+    line_xy(:, 2) = [1.0_rk, circle_radius]
+    call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
+    @assertEqual([0.0_rk, circle_radius], intersection_xy(:, 1))
+    @assertEqual([0.0_rk, 0.0_rk], intersection_xy(:, 2))
+    @assertEqual([.true., .false.], valid_intersection)
+    @assertEqual([pi / 2.0_rk, 0.0_rk], angles)
+
+    ! Only 1 intersection
+    circle_xy = [1.0_rk, 1.0_rk]
+    circle_radius = 2.0_rk
+    line_xy(:, 1) = [0.0_rk, 1.0_rk]
+    line_xy(:, 2) = [4.0_rk, 1.0_rk]
+    call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
+    @assertEqual([-1.0_rk, 1.0_rk], intersection_xy(:, 1))
+    @assertEqual([3.0_rk, 1.0_rk], intersection_xy(:, 2))
+    @assertEqual([.false., .true.], valid_intersection)
+    @assertEqual(0.0_rk, angles)
+
+    ! 2 intersections
+    circle_xy = [1.0_rk, 1.0_rk]
+    circle_radius = 2.0_rk
+    line_xy(:, 1) = [-2.0_rk, 1.0_rk]
+    line_xy(:, 2) = [4.0_rk, 1.0_rk]
+    call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
+    @assertEqual([-1.0_rk, 1.0_rk], intersection_xy(:, 1))
+    @assertEqual([3.0_rk, 1.0_rk], intersection_xy(:, 2))
+    @assertEqual([.true., .true.], valid_intersection)
+    @assertEqual([pi, 0.0_rk], angles)
+
+  end subroutine
+
+end module test_intersections
