@@ -3,6 +3,7 @@ module mod_geometry
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use math_constants, only: pi, rad2deg
   use mod_floating_point_utils, only: near_zero, equal, EPS
+  use mod_intersections, only: intersect
 
   implicit none
 
@@ -12,15 +13,36 @@ module mod_geometry
 
 contains
 
-  pure subroutine find_arc_segments(origin, vector_1, vector_2, origin_in_cell, &
-                                    circle_xy, circle_radius, arc_segments, n_arcs)
+  subroutine find_midpoint_arc_segments(edge_vector, origin_in_cell, &
+                                        circle_xy, circle_radius, arc_segments, n_arcs_in_cell)
+    !< Since the midpoint mach cone is always on a single straight edge, we can avoid
+    !< some unnecessary duplicate work.
+
+    real(rk), dimension(2, 2), intent(in) :: edge_vector
+    !< ((x,y), (point 1, point 2)); position of the line points
+
+    logical, dimension(2), intent(in) :: origin_in_cell
+    !< (cell 1, cell 2); is the mach cone origin in this cell?
+
+    real(rk), dimension(2), intent(in) :: circle_xy
+    !< (x,y); position of the mach cone origin
+
+    real(rk), intent(in) :: circle_radius
+    !< radius of the mach cone
+
+    real(rk), dimension(2, 2), intent(in) :: arc_segments
+    !< ((theta begin, theta end), (cell 1, cell 2))
+
+    integer(ik), dimension(2), intent(out) :: n_arcs_in_cell
+    !< (cell 1, cell 2); number of arcs contained in each cell
+
+  end subroutine find_midpoint_arc_segments
+
+  subroutine find_arc_segments(origin, vector_1, vector_2, origin_in_cell, &
+                               circle_xy, circle_radius, arc_segments, n_arcs)
     !< Given 2 lines and a circle, find their intersections and starting/ending angles for each arc
 
-    ! Input
-    ! real(rk), dimension(2, 2, 2), intent(in) :: lines
-    !< ((x,y), (tail,head), (line_1:line_2)); set of vectors that define the lines to intersect with the circle
-
-    real(rk), dimension(2), intent(in) :: origin     !< (x,y) origin of both vectors
+    real(rk), dimension(2), intent(in) :: origin   !< (x,y) origin of both vectors
     real(rk), dimension(2), intent(in) :: vector_1 !< (x,y) head of the 1st vector
     real(rk), dimension(2), intent(in) :: vector_2 !< (x,y) head of the 2nd vector
 
@@ -34,7 +56,7 @@ contains
 
     ! Dummy
     integer(ik) :: n_intersections_per_line !< # intersections for a single line
-    integer(ik), dimension(2) :: n_intersections !< # intersections for all lines
+    integer(ik), dimension(2) :: n_intersections !< (vector 1, vector 2); # intersections for all lines
     real(rk), dimension(2, 2) :: line !< ((x,y), (tail,head)); Single line point locations
     real(rk), dimension(2) :: intersection_angles_per_line !< intersection angles
     real(rk), dimension(2, 2) :: intersection_angles !< intersection angles for all lines
@@ -157,7 +179,7 @@ contains
     end associate
   end subroutine get_theta_start_end
 
-  pure subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections, n_intersections)
+  subroutine get_intersection_angles(line_xy, circle_xy, circle_radius, arc_angles, valid_intersections, n_intersections)
     !< Given a arbitrary line from (x1,y1) to (x2,y2) and a circle at (x,y) with a given radius, find
     !< the angle that a the vector from the circle's center to the intersection point(s) has with respect
     !< to the x-axis
@@ -172,27 +194,73 @@ contains
     logical, dimension(2), intent(out) :: valid_intersections !< (point_1, point_2); .true. or .false.
     real(rk), dimension(2), intent(out):: arc_angles
 
-    ! Dummy
-    integer(ik) :: i
-    real(rk), dimension(2, 2) :: intersection_xy !< ((x,y), (point_1, point_2))
+    real(rk), dimension(2) :: arc_angles_new
+    logical, dimension(2) :: valid_intersections_new
 
-    n_intersections = 0
+    ! Dummy
+    integer(ik) :: i, j
+
+    real(rk), dimension(2, 2) :: intersection_xy !< ((x,y), (point_1, point_2))
+    real(rk), dimension(2, 2) :: intersection_xy_new !< ((x,y), (point_1, point_2))
+
     intersection_xy = 0.0_rk
     valid_intersections = .false.
 
-    ! Find the intersection (x,y) locations (if any)
-    call find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersections)
+    ! ! Find the intersection (x,y) locations (if any)
+    ! call intersect(line_xy, circle_xy, circle_radius, intersection_xy_new, valid_intersections_new, arc_angles_new)
+    call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersections, arc_angles)
+    ! call find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersections)
 
-    arc_angles = 0.0_rk
+    ! do i = 1, 2
+    !   do j = 1, 2
+    !     associate(new=>intersection_xy_new(i,j), old=>intersection_xy(i,j))
+    !       if (abs(new-old) > 2.0_rk * epsilon(1.0_rk)) then
+    !         print*, i, j, new, old, abs(new-old)
+    !         print*, "new /= old"
+    !       end if
+    !     end associate
+    !   end do
+    ! end do
+
+    ! arc_angles = 0.0_rk
+    n_intersections = 0
     do i = 1, 2
       if(valid_intersections(i)) then
-        arc_angles(i) = intersection_angle_from_x_axis(circle_xy, intersection_xy(:, i))
+        ! arc_angles(i) = intersection_angle_from_x_axis(circle_xy, intersection_xy(:, i))
         n_intersections = n_intersections + 1
       end if
     end do
+
+    ! do i = 1, 2
+    !   associate(new=>arc_angles_new(i), old=>arc_angles(i))
+    !     if (abs(new-old) > epsilon(1.0_rk)) then
+    !       print*, "new /= old"
+    !       print*, new, old, abs(new-old)
+    !       print*, rad2deg(new), rad2deg(old)
+    !       ! error stop
+    !     end if
+    !   end associate
+    ! end do
+
+    ! do i = 1, 2
+    !   associate(new=>valid_intersections_new(i), old=>valid_intersections(i))
+    !     if (new .neqv. old) then
+    !       print*, 'Checking valid_intersections'
+    !       print*, i, j
+    !       print*, 'Orig: ', valid_intersections
+    !       print*, 'New:  ', valid_intersections_new
+
+    !       write(*,'(a, 4(es16.6))') 'Orig (x,y): ', intersection_xy
+    !       write(*,'(a, 4(es16.6))') 'New  (x,y): ', intersection_xy_new
+    !       write(*,'(a, 4(es16.6))') 'Orig (rad): ', arc_angles
+    !       write(*,'(a, 4(es16.6))') 'New  (rad): ', arc_angles_new
+    !       error stop "new /= old"
+    !     end if
+    !   end associate
+    ! end do
   end subroutine get_intersection_angles
 
-  pure subroutine find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
+  subroutine find_line_circle_intersections(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection)
     !< Find the intersections between an arbitrary line and circle. There can be 0, 1, or 2 intersections.
 
     real(rk), dimension(2, 2), intent(in) :: line_xy !< ((x,y) (point_1, point_2)); Line location
@@ -224,18 +292,35 @@ contains
     y1 = line_xy(2, 2)
     dy = y1 - y0
 
+    ! print *, "line_xy(:,1) ", line_xy(:, 1)
+    ! print *, "line_xy(:,2) ", line_xy(:, 2)
+    ! print *, "circle_xy    ", circle_xy
+    ! print *, "circle_radius", circle_radius
+
     associate(r=>circle_radius, h=>circle_xy(1), k=>circle_xy(2))
       a = dx**2 + dy**2
       b = 2.0_rk * dx * (x0 - h) + 2.0_rk * dy * (y0 - k)
       c = (x0 - h)**2 + (y0 - k)**2 - r**2
+
+      ! print *, 'a', a
+      ! print *, 'b', b
+      ! print *, 'c', c
+      ! print *, 'r**2', r**2
+
+      ! print *, 'dx', dx, 'dy', dy
+      ! print *, "(x0 - h), (y0 - k) ",(x0 - h),(y0 - k)
     end associate
 
     discriminiant = b**2 - 4.0_rk * a * c
+    ! write(*, '(3(es16.6))') discriminiant, b**2, 4.0_rk * a * c
 
     if(discriminiant > 0.0_rk) then
       sqrt_discriminiant = sqrt(discriminiant)
       root_1 = -b + sqrt_discriminiant
       root_2 = -b - sqrt_discriminiant
+
+      ! print *, 'root_1', root_1
+      ! print *, 'root_2', root_2
       ! This used the alternative quadratic formula better suited for floating point operations
       if(abs(root_1) < EPS) then
         t(1) = 0.0_rk ! t_1 -> 0 when intersection is at the vector start point

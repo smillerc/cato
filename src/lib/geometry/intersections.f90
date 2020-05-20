@@ -15,6 +15,7 @@ module mod_intersections
   public :: intersect, is_on
 
   real(rk), parameter :: EPS = epsilon(1.0_rk)
+  real(rk), parameter :: EPS_2X = 2.0_rk * EPS
 
 contains
 
@@ -36,6 +37,7 @@ contains
     !< number of intersections (not all may be valid yet, since it assumes the line is infinite at first)
 
     real(rk), parameter :: r = 1.0_rk !< radius of the scaled circle
+    real(rk), parameter :: r_sq = 1.0_rk !< r**2. This makes the code easier to read
     real(rk) :: x1, y1, x2, y2
     real(rk) :: ax, ay !< 1st intersection point
     real(rk) :: bx, by !< 2nd intersection point
@@ -54,44 +56,54 @@ contains
     valid_intersections = .false.
 
     x1 = line_xy(1, 1) - circle_xy(1)
+    ! print*, 'x1 (before)', x1
     threshold = abs(line_xy(1, 1) + circle_xy(1)) * EPS
     if(abs(x1) < threshold) x1 = 0.0_rk
     x1 = x1 / circle_radius
-    ! print*, 'x1', x1
+    ! print*, 'x1 (after)', x1
 
     y1 = line_xy(2, 1) - circle_xy(2)
+    ! print*, 'y1 (before)', y1
     threshold = abs(line_xy(2, 1) + circle_xy(2)) * EPS
     if(abs(y1) < threshold) y1 = 0.0_rk
     y1 = y1 / circle_radius
-    ! print*, 'y1', y1
+    ! print*, 'y1 (after)', y1
 
     x2 = line_xy(1, 2) - circle_xy(1)
+    ! print*, 'x2 (before)', x2
     threshold = abs(line_xy(1, 2) + circle_xy(1)) * EPS
     if(abs(x2) < threshold) x2 = 0.0_rk
     x2 = x2 / circle_radius
-    ! print*, 'x2', x2
+    ! print*, 'x2 (after)', x2
 
     y2 = line_xy(2, 2) - circle_xy(2)
+    ! print*, 'y2 (before)', y2
     threshold = abs(line_xy(2, 2) + circle_xy(2)) * EPS
     if(abs(y2) < threshold) y2 = 0.0_rk
     y2 = y2 / circle_radius
-    ! print*, 'y2', y2
+    ! print*, 'y2 (after)', y2
 
-    A = y2 - y1 !; print*, 'A', A
+    A = y2 - y1
+    ! print*, 'A', A
     if(abs(A) < epsilon(1.0_rk)) A = 0.0_rk
 
-    B = x1 - x2 !; print*, 'B', B
+    B = x1 - x2
+    ! print*, 'B', B
     if(abs(B) < epsilon(1.0_rk)) B = 0.0_rk
 
-    C = x1 * y2 - x2 * y1 !; print*, 'C', C
+    C = x1 * y2 - x2 * y1
+    ! print*, 'C', C
     if(abs(C) < epsilon(1.0_rk)) C = 0.0_rk
 
-    ! write(*, '(4(es16.6))') A, B, C
-    ! print*, 'abs(C ** 2 - r ** 2 * (A ** 2 + B ** 2))', abs(C ** 2 - r ** 2 * (A ** 2 + B ** 2))
+    ! write(*, '(a, 4(es16.6))') 'A (after): ', A
+    ! write(*, '(a, 4(es16.6))') 'B (after): ', B
+    ! write(*, '(a, 4(es16.6))') 'C (after): ', C
+    ! print*, 'abs(C**2 - r**2 * (A**2 + B**2))', &
+    !           abs(C**2 - (A ** 2 + B**2))
 
-    if(C**2 > (r**2 * (A**2 + B**2))) then
+    if(C**2 > (A**2 + B**2)) then
       n_intersections = 0
-    else if(abs(C**2 - r**2 * (A**2 + B**2)) < epsilon(1.0_rk)) then
+    else if(abs(C**2 - (A**2 + B**2)) < epsilon(1.0_rk)) then
       n_intersections = 1
       x0 = (A * C) / (A**2 + B**2)
       y0 = (B * C) / (A**2 + B**2)
@@ -101,7 +113,7 @@ contains
       n_intersections = 2
       x0 = (A * C) / (A**2 + B**2)
       y0 = (B * C) / (A**2 + B**2)
-      d = sqrt(r**2 - ((C**2) / (A**2 + B**2)))
+      d = sqrt(r_sq - ((C**2) / (A**2 + B**2)))
       m = sqrt(d**2 / (A**2 + B**2))
       ax = x0 + B * m
       bx = x0 - B * m
@@ -109,6 +121,7 @@ contains
       by = y0 + A * m
     end if
 
+    ! print*, 'n_intersections: ', n_intersections
     ! Get rid of very small numbers and signed 0's, i.e. -0
     if(abs(ax) < tiny(1.0_rk)) ax = 0.0_rk
     if(abs(ay) < tiny(1.0_rk)) ay = 0.0_rk
@@ -165,15 +178,15 @@ contains
     cb_dy = c(2) - b(2)
     cb_dx = c(1) - b(1)
 
-    if(abs(ab_dy) < EPS) ab_dy = 0.0_rk
-    if(abs(cb_dx) < EPS) cb_dx = 0.0_rk
+    if(abs(ab_dy) < EPS_2X) ab_dy = 0.0_rk
+    if(abs(cb_dx) < EPS_2X) cb_dx = 0.0_rk
 
-    if(abs(ab_dy) < EPS) then
+    if(abs(ab_dy) < EPS_2X) then
       ab_is_horizontal = .true.
       ab_dy = 0.0_rk
     end if
 
-    if(abs(ab_dx) < EPS) then
+    if(abs(ab_dx) < EPS_2X) then
       ab_is_vertical = .true.
       ab_dx = 0.0_rk
     end if
