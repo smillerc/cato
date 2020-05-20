@@ -91,7 +91,7 @@ contains
     !< Min-mod flux limiter. See Eq. 8 in [2]
     real(rk), intent(in) :: R !< smoothness indicator
 
-    if(R < 0.0_rk) then
+    if(R < 0.0_rk .or. abs(R) < tiny(1.0_rk)) then
       psi_lim = 0.0_rk
     else if(R > 1.0_rk) then
       psi_lim = 1.0_rk
@@ -103,7 +103,8 @@ contains
   pure real(rk) function van_leer(R) result(psi_lim)
     !< van Leer flux limiter. See Eq. 9 in [2]
     real(rk), intent(in) :: R !< smoothness indicator
-    if(R < 0.0_rk) then
+
+    if(R < 0.0_rk .or. abs(R) < tiny(1.0_rk)) then
       psi_lim = 0.0_rk
     else
       psi_lim = (R + abs(R)) / (1.0_rk + abs(R))
@@ -114,7 +115,7 @@ contains
     !< Superbee flux limiter. See Eq. 3 in [1]
     real(rk), intent(in) :: R !< smoothness indicator
 
-    if(R < 0.0_rk) then
+    if(R < 0.0_rk .or. abs(R) < tiny(1.0_rk)) then
       psi_lim = 0.0_rk
     else if(R > 2.0_rk) then
       psi_lim = 2.0_rk

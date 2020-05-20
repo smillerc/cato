@@ -349,24 +349,6 @@ contains
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
 
-    real(rk), dimension(:, :, :), allocatable :: rho
-    real(rk), dimension(:, :, :), allocatable :: u
-    real(rk), dimension(:, :, :), allocatable :: v
-    real(rk), dimension(:, :, :), allocatable :: p
-    !< ((rho, u, v, p), i, j); Primitive variables at each cell center
-
-    real(rk), dimension(:, :, :), allocatable :: evolved_corner_state
-    !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each corner
-
-    ! Indexing the midpoints is a pain, so they're split by the up/down edges and left/right edges
-    real(rk), dimension(:, :, :), allocatable :: evolved_downup_midpoints_state
-    !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go up/down
-    !< (edges 2 (right edge) and 4 (left edge))
-
-    real(rk), dimension(:, :, :), allocatable :: evolved_leftright_midpoints_state
-    !< ((rho, u, v, p), i, j); Reconstructed primitive variables at each midpoint defined by vectors that go left/right
-    !< (edges 1 (bottom edge) and 3 (top edge))
-
     real(rk), dimension(:, :, :), allocatable, target :: rho_recon_state
     !< ((corner1:midpoint4), i, j); reconstructed density, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
     real(rk), dimension(:, :, :), allocatable, target :: u_recon_state
@@ -394,18 +376,6 @@ contains
               imin_cell=>fv%grid%ilo_cell, imax_cell=>fv%grid%ihi_cell, &
               jmin_cell=>fv%grid%jlo_cell, jmax_cell=>fv%grid%jhi_cell)
 
-      ! corners
-      allocate(evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate evolved_corner_state in fluid_t%time_derivative()"
-
-      ! left/right midpoints
-      allocate(evolved_leftright_midpoints_state(4, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate evolved_leftright_midpoints_state in fluid_t%time_derivative()"
-
-      ! down/up midpoints
-      allocate(evolved_downup_midpoints_state(4, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate evolved_downup_midpoints_state"
-
       allocate(evolved_corner_rho(imin_node:imax_node, jmin_node:jmax_node))
       allocate(evolved_corner_u(imin_node:imax_node, jmin_node:jmax_node))
       allocate(evolved_corner_v(imin_node:imax_node, jmin_node:jmax_node))
@@ -425,6 +395,17 @@ contains
 
     allocate(local_d_dt, source=self)
 
+    ! print *, 'conserved vars differences'
+    ! write(*, '(a, 6(es16.6))') "rho  : ", maxval(self%rho(204, fv%grid%jlo_cell:fv%grid%jhi_cell)) - &
+    !   minval(self%rho(204, fv%grid%jlo_cell:fv%grid%jhi_cell))
+    ! write(*, '(a, 6(es16.6))') "rho u: ", maxval(self%rho_u(204, fv%grid%jlo_cell:fv%grid%jhi_cell)) - &
+    !   minval(self%rho_u(204, fv%grid%jlo_cell:fv%grid%jhi_cell))
+    ! write(*, '(a, 6(es16.6))') "rho v: ", maxval(self%rho_v(204, fv%grid%jlo_cell:fv%grid%jhi_cell)) - &
+    !   minval(self%rho_v(204, fv%grid%jlo_cell:fv%grid%jhi_cell))
+    ! write(*, '(a, 6(es16.6))') "rho E: ", maxval(self%rho_E(204, fv%grid%jlo_cell:fv%grid%jhi_cell)) - &
+    !   minval(self%rho_E(204, fv%grid%jlo_cell:fv%grid%jhi_cell))
+    ! print *
+
     if(.not. local_d_dt%prim_vars_updated) then
       call local_d_dt%calculate_derived_quantities()
     end if
@@ -434,12 +415,19 @@ contains
     call local_d_dt%apply_boundary_conditions(fv)
 
     ! Now we can reconstruct the entire domain
+    call debug_print('Reconstructing density', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%rho, lbounds=bounds, &
                         reconstructed_var=rho_recon_state)
+
+    call debug_print('Reconstructing x-velocity', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%u, lbounds=bounds, &
                         reconstructed_var=u_recon_state)
+
+    call debug_print('Reconstructing y-velocity', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%v, lbounds=bounds, &
                         reconstructed_var=v_recon_state)
+
+    call debug_print('Reconstructing pressure', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%p, lbounds=bounds, &
                         reconstructed_var=p_recon_state)
 
@@ -452,6 +440,18 @@ contains
                                                                 v=v_recon_state, &
                                                                 p=p_recon_state, &
                                                                 lbounds=bounds)
+    ! print *, 'recon state differences'
+    ! write(*, '(a, 8(es16.6))') "rho  : ", rho_recon_state(:, 204, 3) - rho_recon_state(:, 204, 2)
+    ! write(*, '(a, 8(es16.6))') "u    : ", u_recon_state(:, 204, 3) - u_recon_state(:, 204, 2)
+    ! write(*, '(a, 8(es16.6))') "v    : ", v_recon_state(:, 204, 3) - v_recon_state(:, 204, 2)
+    ! write(*, '(a, 8(es16.6))') "p    : ", p_recon_state(:, 204, 3) - p_recon_state(:, 204, 2)
+    ! print *
+    ! print *, 'primitive vars differences'
+    ! write(*, '(a, 6(es16.6))') "rho  : ", maxval(local_d_dt%rho(204, :)) - minval(local_d_dt%rho(204, :))
+    ! write(*, '(a, 6(es16.6))') "u    : ", maxval(local_d_dt%u(204, :)) - minval(local_d_dt%u(204, :))
+    ! write(*, '(a, 6(es16.6))') "v    : ", maxval(local_d_dt%v(204, :)) - minval(local_d_dt%v(204, :))
+    ! write(*, '(a, 6(es16.6))') "p    : ", maxval(local_d_dt%p(204, :)) - minval(local_d_dt%p(204, :))
+    ! print *
     ! error stop
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
@@ -516,14 +516,21 @@ contains
     deallocate(evolved_corner_u)
     deallocate(evolved_corner_v)
     deallocate(evolved_corner_p)
+
     deallocate(evolved_lr_mid_rho)
     deallocate(evolved_lr_mid_u)
     deallocate(evolved_lr_mid_v)
     deallocate(evolved_lr_mid_p)
+
     deallocate(evolved_du_mid_rho)
     deallocate(evolved_du_mid_u)
     deallocate(evolved_du_mid_v)
     deallocate(evolved_du_mid_p)
+
+    deallocate(rho_recon_state)
+    deallocate(u_recon_state)
+    deallocate(v_recon_state)
+    deallocate(p_recon_state)
 
   end function time_derivative
 
@@ -624,13 +631,14 @@ contains
     real(rk), dimension(4) :: top_flux
     real(rk), dimension(4) :: left_flux
 
-    real(rk) :: rho_flux, max_rho_flux
-    real(rk) :: rhou_flux, max_rhou_flux
-    real(rk) :: rhov_flux, max_rhov_flux
-    real(rk) :: rhoE_flux, max_rhoE_flux
+    real(rk) :: rho_flux, ave_rho_flux
+    real(rk) :: rhou_flux, ave_rhou_flux
+    real(rk) :: rhov_flux, ave_rhov_flux
+    real(rk) :: rhoE_flux, ave_rhoE_flux
+    real(rk) :: threshold
 
-    real(rk), parameter :: FLUX_EPS = epsilon(1.0_rk)
-    real(rk), parameter :: REL_THRESHOLD = 1e-8_rk
+    real(rk), parameter :: FLUX_EPS = 1e-13_rk !epsilon(1.0_rk)
+    real(rk), parameter :: REL_THRESHOLD = 1e-5_rk
 
     call debug_print('Running fluid_t%flux_edges()', __FILE__, __LINE__)
     ! Get the flux arrays for each corner node or midpoint
@@ -660,7 +668,8 @@ contains
     !$omp private(bottom_flux, right_flux, left_flux, top_flux) &
     !$omp private(f_sum, g_sum, diff) &
     !$omp shared(grid, corner_fluxes, leftright_mid_fluxes, downup_mid_fluxes) &
-    !$omp shared(d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
+    !$omp shared(d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt) &
+    !$omp private(rho_flux, ave_rho_flux, rhou_flux, ave_rhou_flux, rhov_flux, ave_rhov_flux, rhoE_flux, ave_rhoE_flux, threshold)
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
@@ -699,8 +708,7 @@ contains
           do k = 1, 4
             f_sum = sum([F_c1(k), 4.0_rk * F_m1(k), F_c2(k)]) * n_hat_1(1)
             g_sum = sum([G_c1(k), 4.0_rk * G_m1(k), G_c2(k)]) * n_hat_1(2)
-            diff = abs(f_sum + g_sum)
-            if(diff < FLUX_EPS) then
+            if(abs(f_sum + g_sum) < epsilon(1.0_rk)) then
               bottom_flux(k) = 0.0_rk
             else
               bottom_flux(k) = (f_sum + g_sum) * (delta_l(1) / 6.0_rk)
@@ -712,8 +720,7 @@ contains
           do k = 1, 4
             f_sum = sum([F_c2(k), 4.0_rk * F_m2(k), F_c3(k)]) * n_hat_2(1)
             g_sum = sum([G_c2(k), 4.0_rk * G_m2(k), G_c3(k)]) * n_hat_2(2)
-            diff = abs(f_sum + g_sum)
-            if(diff < FLUX_EPS) then
+            if(abs(f_sum + g_sum) < epsilon(1.0_rk)) then
               right_flux(k) = 0.0_rk
             else
               right_flux(k) = (f_sum + g_sum) * (delta_l(2) / 6.0_rk)
@@ -725,8 +732,7 @@ contains
           do k = 1, 4
             f_sum = sum([F_c3(k), 4.0_rk * F_m3(k), F_c4(k)]) * n_hat_3(1)
             g_sum = sum([G_c3(k), 4.0_rk * G_m3(k), G_c4(k)]) * n_hat_3(2)
-            diff = abs(f_sum + g_sum)
-            if(diff < FLUX_EPS) then
+            if(abs(f_sum + g_sum) < epsilon(1.0_rk)) then
               top_flux(k) = 0.0_rk
             else
               top_flux(k) = (f_sum + g_sum) * (delta_l(3) / 6.0_rk)
@@ -738,18 +744,17 @@ contains
           do k = 1, 4
             f_sum = sum([F_c4(k), 4.0_rk * F_m4(k), F_c1(k)]) * n_hat_4(1)
             g_sum = sum([G_c4(k), 4.0_rk * G_m4(k), G_c1(k)]) * n_hat_4(2)
-            diff = abs(f_sum + g_sum)
-            if(diff < FLUX_EPS) then
+            if(abs(f_sum + g_sum) < epsilon(1.0_rk)) then
               left_flux(k) = 0.0_rk
             else
               left_flux(k) = (f_sum + g_sum) * (delta_l(4) / 6.0_rk)
             end if
           end do
 
-          max_rho_flux = max(abs(left_flux(1)), abs(right_flux(1)), abs(top_flux(1)), abs(bottom_flux(1)))
-          max_rhou_flux = max(abs(left_flux(2)), abs(right_flux(2)), abs(top_flux(2)), abs(bottom_flux(2)))
-          max_rhov_flux = max(abs(left_flux(3)), abs(right_flux(3)), abs(top_flux(3)), abs(bottom_flux(3)))
-          max_rhoE_flux = max(abs(left_flux(4)), abs(right_flux(4)), abs(top_flux(4)), abs(bottom_flux(4)))
+          ave_rho_flux = sum([abs(left_flux(1)), abs(right_flux(1)), abs(top_flux(1)), abs(bottom_flux(1))]) / 4.0_rk
+          ave_rhou_flux = sum([abs(left_flux(2)), abs(right_flux(2)), abs(top_flux(2)), abs(bottom_flux(2))]) / 4.0_rk
+          ave_rhov_flux = sum([abs(left_flux(3)), abs(right_flux(3)), abs(top_flux(3)), abs(bottom_flux(3))]) / 4.0_rk
+          ave_rhoE_flux = sum([abs(left_flux(4)), abs(right_flux(4)), abs(top_flux(4)), abs(bottom_flux(4))]) / 4.0_rk
 
           ! Now sum them all up together
           rho_flux = neumaier_sum_4([left_flux(1), right_flux(1), top_flux(1), bottom_flux(1)])
@@ -757,21 +762,34 @@ contains
           rhov_flux = neumaier_sum_4([left_flux(3), right_flux(3), top_flux(3), bottom_flux(3)])
           rhoE_flux = neumaier_sum_4([left_flux(4), right_flux(4), top_flux(4), bottom_flux(4)])
 
-          if(abs(rho_flux) < max_rho_flux * REL_THRESHOLD .or. abs(rho_flux) < FLUX_EPS) then
+          threshold = abs(ave_rho_flux) * REL_THRESHOLD
+          if(abs(rho_flux) < threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
             rho_flux = 0.0_rk
           end if
 
-          if(abs(rhou_flux) < max_rhou_flux * REL_THRESHOLD .or. abs(rhou_flux) < FLUX_EPS) then
+          threshold = abs(ave_rhou_flux) * REL_THRESHOLD
+          if(abs(rhou_flux) < threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
             rhou_flux = 0.0_rk
           end if
 
-          if(abs(rhov_flux) < max_rhov_flux * REL_THRESHOLD .or. abs(rhov_flux) < FLUX_EPS) then
+          threshold = abs(ave_rhov_flux) * REL_THRESHOLD
+          if(abs(rhov_flux) < threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
             rhov_flux = 0.0_rk
           end if
 
-          if(abs(rhoE_flux) < max_rhoE_flux * REL_THRESHOLD .or. abs(rhoE_flux) < FLUX_EPS) then
+          threshold = abs(ave_rhoE_flux) * REL_THRESHOLD
+          if(abs(rhoE_flux) < threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
             rhoE_flux = 0.0_rk
           end if
+
+          ! if (i == 204) then
+          !   print*, i, j
+          !   write(*,'(a, es16.6, a, 4(es16.6))') 'rho  ', rho_flux,  ' -> ', left_flux(1), right_flux(1), top_flux(1), bottom_flux(1)
+          !   write(*,'(a, es16.6, a, 4(es16.6))') 'rho u', rhou_flux, ' -> ', left_flux(2), right_flux(2), top_flux(2), bottom_flux(2)
+          !   write(*,'(a, es16.6, a, 4(es16.6))') 'rho v', rhov_flux, ' -> ', left_flux(3), right_flux(3), top_flux(3), bottom_flux(3)
+          !   write(*,'(a, es16.6, a, 4(es16.6))') 'rho E', rhoE_flux, ' -> ', left_flux(4), right_flux(4), top_flux(4), bottom_flux(4)
+          !   print*
+          ! end if
 
           d_rho_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rho_flux
 
@@ -782,13 +800,14 @@ contains
           d_rhoE_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhoE_flux
         end associate
 
-        ! if (abs(rhov_flux) > max_rhov_flux * REL_THRESHOLD .and. abs(rhov_flux) > 0.0_rk) then
-        !   print*, 'i,j', i, j
-        !   write(*, '(a, 4(es16.6, 1x))') 'rhov_flux:         ',  rhov_flux
-        !   write(*,'(a, es16.6)') 'abs(rhov_flux)               : ', abs(rhov_flux)
-        !   write(*,'(a, es16.6)') 'FLUX_EPS                     : ', FLUX_EPS
-        !   write(*,'(a, es16.6)') 'max_rhov_flux * REL_THRESHOLD: ', max_rhov_flux * REL_THRESHOLD
-        !   write(*, '(a, 4(es16.6, 1x))') ' -> ',  left_flux(3), right_flux(3), top_flux(3), bottom_flux(3)
+        ! if(abs(rhov_flux) > 0.0_rk) then
+        !   print *, 'i,j', i, j
+        !   write(*, '(a, es16.6)') 'rhov_flux:                        : ', rhov_flux
+        !   write(*, '(a, es16.6)') 'FLUX_EPS                          : ', FLUX_EPS
+        !   write(*, '(a, es16.6)') 'ave_rhov_flux                     : ', ave_rhov_flux
+        !   write(*, '(a, es16.6)') 'REL_THRESHOLD                     : ', REL_THRESHOLD
+        !   write(*, '(a, es16.6)') 'abs(ave_rhov_flux) * REL_THRESHOLD: ', abs(ave_rhov_flux) * REL_THRESHOLD
+        !   write(*, '(a, 4(es16.6, 1x))') ' -> ', left_flux(3), right_flux(3), top_flux(3), bottom_flux(3)
         !   error stop
         ! end if
 
@@ -818,6 +837,13 @@ contains
     d_rhoE_dt(ihi, :) = 0.0_rk
     d_rhoE_dt(:, jlo) = 0.0_rk
     d_rhoE_dt(:, jhi) = 0.0_rk
+
+    ! print *, 'fluxed vars differences'
+    ! write(*, '(a, 6(es16.6))') "d/dt rho   : ", maxval(d_rho_dt(204, jlo + 1:jhi - 1)) - minval(d_rho_dt(204, jlo + 1:jhi - 1))
+    ! write(*, '(a, 6(es16.6))') "d/dt rho u : ", maxval(d_rhou_dt(204, jlo + 1:jhi - 1)) - minval(d_rhou_dt(204, jlo + 1:jhi - 1))
+    ! write(*, '(a, 6(es16.6))') "d/dt rho v : ", maxval(d_rhov_dt(204, jlo + 1:jhi - 1)) - minval(d_rhov_dt(204, jlo + 1:jhi - 1))
+    ! write(*, '(a, 6(es16.6))') "d/dt rho E : ", maxval(d_rhoE_dt(204, jlo + 1:jhi - 1)) - minval(d_rhoE_dt(204, jlo + 1:jhi - 1))
+    ! print *
 
   end subroutine flux_edges
 
@@ -927,7 +953,7 @@ contains
 
     !$omp parallel default(none) &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j) &
+    !$omp private(i, j, diff) &
     !$omp shared(a,b,c)
     !$omp do simd
     do j = jlo, jhi
@@ -935,9 +961,8 @@ contains
         c(i, j) = a(i, j) + b(i, j)
         diff = abs(a(i, j) - b(i, j))
         if(diff < epsilon(1.0_rk)) then
-          c(i, j) = 0.0_rk
+          c(i, j) = a(i, j)
         end if
-        ! c(i, j) = neumaier_sum([a(i, j), b(i, j)])
       end do
     end do
     !$omp end do simd
@@ -964,7 +989,7 @@ contains
 
     !$omp parallel default(none) &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j) &
+    !$omp private(i, j, diff) &
     !$omp shared(a,b,c)
     !$omp do simd
     do j = jlo, jhi
@@ -974,8 +999,6 @@ contains
         if(diff < epsilon(1.0_rk)) then
           c(i, j) = 0.0_rk
         end if
-
-        ! c(i, j) = neumaier_sum([a(i, j), -b(i, j)])
       end do
     end do
     !$omp end do simd
@@ -1169,6 +1192,7 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%rho(i, j))) then
+          write(std_err, '(a, i0, ", ", i0, a)') "NaN density found at (", i, j, ")"
           error stop "Error: NaN density found in fluid_t%sanity_check()"
         end if
       end do
@@ -1178,6 +1202,7 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%u(i, j))) then
+          write(std_err, '(a, i0, ", ", i0, a)') "NaN x-velocity found at (", i, j, ")"
           error stop "Error: NaN x-velocity found in fluid_t%sanity_check()"
         end if
       end do
@@ -1187,6 +1212,7 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%v(i, j))) then
+          write(std_err, '(a, i0, ", ", i0, a)') "NaN y-velocity found at (", i, j, ")"
           error stop "Error: NaN y-velocity found in fluid_t%sanity_check()"
         end if
       end do

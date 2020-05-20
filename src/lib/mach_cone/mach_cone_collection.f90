@@ -120,6 +120,7 @@ module mod_mach_cone_collection
     real(rk), dimension(:, :), allocatable :: reference_density       !< Reference density (e.g. neighbor averaged)
     real(rk), dimension(:, :), allocatable :: reference_u             !< Reference x velocity (e.g. neighbor averaged)
     real(rk), dimension(:, :), allocatable :: reference_v             !< Reference y velocity (e.g. neighbor averaged)
+    real(rk), dimension(:, :), allocatable :: reference_pressure      !< Reference pressure (e.g. neighbor averaged)
     real(rk), dimension(:, :), allocatable :: reference_sound_speed   !< Reference sound speed (e.g. neighbor averaged)
     ! logical, dimension(:, :), allocatable:: cone_is_transonic        !< Flag to enable special treatment for transonic cones
     ! logical, dimension(:, :), allocatable:: cone_is_centered         !< is the cone located at P0?
@@ -160,8 +161,9 @@ contains
     real(rk), dimension(:, :, :), contiguous, intent(in) :: reconstructed_p
     !< ((cell_1:N), i, j); reconstructed state for point P.
 
-    integer(ik) :: idx, arc, c, i, j, ni, nj, nc
-    real(rk) :: recon_u, recon_v, recon_p
+    integer(ik) :: idx, arc, c, i, j, ni, nj, nc, n_p_prime_cells
+    real(rk) :: recon_u, recon_v, recon_p, p_diff, rho_diff
+    real(rk) :: pressure_p_prime, density_p_prime
 
     self%ni = size(reconstructed_rho, dim=2)
     self%nj = size(reconstructed_rho, dim=3)
@@ -242,6 +244,7 @@ contains
         if(.not. allocated(self%reference_u)) allocate(self%reference_u(ni, nj))
         if(.not. allocated(self%reference_v)) allocate(self%reference_v(ni, nj))
         if(.not. allocated(self%reference_sound_speed)) allocate(self%reference_sound_speed(ni, nj))
+        if(.not. allocated(self%reference_pressure)) allocate(self%reference_pressure(ni, nj))
       end associate
 
     end if
@@ -384,6 +387,7 @@ contains
 
     ! Assign the reconstructed quantities to the primitive var values for each arc of the mach cone
     !$omp parallel default(none) &
+    !$omp reduction(+:density_p_prime, pressure_p_prime) private(n_p_prime_cells) &
     !$omp shared(self) &
     !$omp firstprivate(ni, nj, nc) &
     !$omp private(i,j,c, arc, idx,recon_u, recon_v, recon_p)
@@ -415,12 +419,26 @@ contains
     !$omp do
     do j = 1, nj
       do i = 1, ni
-        do c = 1, nc
-          if(self%p_prime_in_cell(c, i, j)) then
-            self%density_p_prime(i, j) = self%recon_rho(c, i, j)
-            self%pressure_p_prime(i, j) = self%recon_p(c, i, j)
-          end if
-        end do
+        n_p_prime_cells = count(self%p_prime_in_cell(:, i, j))
+        if(n_p_prime_cells > 1) then
+          ! p_diff = abs(maxval(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) - &
+          !           minval(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)))
+          ! rho_diff = abs(maxval(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) - &
+          !           minval(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)))
+
+          pressure_p_prime = sum(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
+          density_p_prime = sum(self%recon_rho(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
+          self%pressure_p_prime(i, j) = pressure_p_prime
+          self%density_p_prime(i, j) = density_p_prime
+        else
+          do c = 1, nc
+            if(self%p_prime_in_cell(c, i, j)) then
+              self%density_p_prime(i, j) = self%recon_rho(c, i, j)
+              self%pressure_p_prime(i, j) = self%recon_p(c, i, j)
+            end if
+          end do
+        end if
+
       end do
     end do
     !$omp end do
@@ -462,6 +480,7 @@ contains
     if(allocated(self%reference_u)) deallocate(self%reference_u)
     if(allocated(self%reference_v)) deallocate(self%reference_v)
     if(allocated(self%reference_sound_speed)) deallocate(self%reference_sound_speed)
+    if(allocated(self%reference_pressure)) deallocate(self%reference_pressure)
   end subroutine finalize
 
   subroutine get_reference_state(self)
@@ -473,72 +492,53 @@ contains
     integer(ik) :: i, j, c
     real(rk) :: gamma, mach_u, mach_v, n_cells_real
     real(rk) :: u, v, vel
+    real(rk) :: ref_rho, ref_u, ref_v, ref_p
+    real(rk) :: max_u, min_u
+    real(rk) :: max_v, min_v
+    real(rk) :: max_p, min_p, p
+    real(rk) :: EPS = 1e-12_rk
 
     gamma = eos%get_gamma()
 
     n_cells_real = real(self%n_neighbor_cells, rk)
     !$omp parallel default(none) &
     !$omp shared(self) &
+    !$omp reduction(+:ref_rho, ref_u, ref_v, ref_p) &
     !$omp firstprivate(gamma, n_cells_real) &
     !$omp private(i,j,c)
-    !$omp do simd
+    !$omp do
     do j = 1, self%nj
       do i = 1, self%ni
-        self%reference_density(i, j) = sum(self%recon_rho(:, i, j)) / n_cells_real
+        ref_rho = sum(self%recon_rho(:, i, j)) / n_cells_real
+        self%reference_density(i, j) = ref_rho
       end do
     end do
-    !$omp end do simd
+    !$omp end do
 
-    !$omp do simd
+    !$omp do
     do j = 1, self%nj
       do i = 1, self%ni
-        self%reference_u(i, j) = sum(self%recon_u(:, i, j)) / n_cells_real
-        self%reference_v(i, j) = sum(self%recon_v(:, i, j)) / n_cells_real
-        ! u = neumaier_sum(self%recon_u(:, i, j)) / n_cells_real
-        ! v = neumaier_sum(self%recon_v(:, i, j)) / n_cells_real
-
-        ! vel = sqrt(u**2 + v**2)
-        ! if(vel * 1e-5_rk < epsilon(1.0_rk)) then
-        !   self%reference_u(i, j) = 0.0_rk
-        !   self%reference_v(i, j) = 0.0_rk
-        !   vel = 0.0_rk
-        ! else if (vel > 0.0_rk) then
-        !   if (abs(u) < vel * 1e-5_rk) then
-        !     self%reference_u(i, j) = 0.0_rk
-        !   else
-        !     self%reference_u(i, j) = u
-        !   end if
-
-        !   if (abs(v) < vel * 1e-5_rk) then
-        !     self%reference_v(i, j) = 0.0_rk
-        !   else
-        !     self%reference_v(i, j) = v
-        !   end if
-        ! end if
-
-        ! if (abs(v) > 0.0_rk) then
-        !   write(*,'(a, 8(es16.6, 1x))') 'ref ', u, v, vel, vel*1e-5_rk, &
-        !         self%reference_u(i, j), self%reference_v(i, j)
-        ! end if
-
-        ! if (abs(self%reference_v(i,j)) > 0.0_rk) then
-        !   print*, 'unstable ', self%recon_v(:, i, j)
-        !   error stop 'Unstable!'
-        ! end if
-
+        ref_u = sum(self%recon_u(:, i, j)) / n_cells_real
+        ref_v = sum(self%recon_v(:, i, j)) / n_cells_real
+        self%reference_u(i, j) = ref_u
+        self%reference_v(i, j) = ref_v
       end do
     end do
-    !$omp end do simd
+    !$omp end do
+
+    !$omp do
+    do j = 1, self%nj
+      do i = 1, self%ni
+        ref_p = (sum(self%recon_p(:, i, j)) / n_cells_real)
+        self%reference_pressure(i, j) = ref_p
+      end do
+    end do
+    !$omp end do
 
     !$omp do simd
     do j = 1, self%nj
       do i = 1, self%ni
-        ! self%reference_sound_speed(i, j) = sqrt(gamma * &
-        !                                         (neumaier_sum(self%recon_p(:, i, j)) / n_cells_real) &
-        !                                         / self%reference_density(i, j))
-        self%reference_sound_speed(i, j) = sqrt(gamma * &
-                                                (sum(self%recon_p(:, i, j)) / n_cells_real) &
-                                                / self%reference_density(i, j))
+        self%reference_sound_speed(i, j) = sqrt(gamma * self%reference_pressure(i, j) / self%reference_density(i, j))
       end do
     end do
     !$omp end do simd
@@ -652,6 +652,17 @@ contains
       end do
     end do
     !$omp end do simd
+
+    ! !$omp do
+    ! do j = 1, self%nj
+    !   do i = 1, self%ni
+    !     do idx = 1, idx_max
+    !       if (abs(self%sin_dtheta(idx, i, j)) < 1e-14_rk) self%sin_dtheta(idx, i, j) = 0.0_rk
+    !       if (abs(self%cos_dtheta(idx, i, j)) < 1e-14_rk) self%cos_dtheta(idx, i, j) = 0.0_rk
+    !     end do
+    !   end do
+    ! end do
+    ! !$omp end do
 
     !$omp do simd
     do j = 1, self%nj

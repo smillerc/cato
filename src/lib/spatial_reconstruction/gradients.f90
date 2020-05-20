@@ -8,12 +8,13 @@ module mod_gradients
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
+  use mod_floating_point_utils, only: neumaier_sum
   use mod_grid, only: grid_t
   use mod_globals, only: n_ghost_layers
 
   implicit none
-  logical, parameter :: filter_small_gradients = .false.
-  real(rk), parameter :: SMALL = 1e-16_rk
+  logical, parameter :: filter_small_gradients = .true.
+  real(rk), parameter :: SMALL = 1e-12_rk
   real(rk), parameter :: SMALL_GRAD = 1e-4_rk
 
   private
@@ -39,6 +40,11 @@ contains
     real(rk), dimension(4) :: n_x  !< normal vectors of each face
     real(rk), dimension(4) :: n_y  !< normal vectors of each face
     real(rk) :: d_dx, d_dy
+    real(rk), dimension(4) :: edge_val_x, edge_val_y
+    real(rk) :: esum_naive_x
+    real(rk) :: esum_naive_y
+    real(rk) :: esum_neumaier_x
+    real(rk) :: esum_neumaier_y
 
     ilo = lbound(edge_vars, dim=2)
     ihi = ubound(edge_vars, dim=2)
@@ -48,6 +54,7 @@ contains
     allocate(grad_x(ilo:ihi, jlo:jhi))
     allocate(grad_y(ilo:ihi, jlo:jhi))
 
+    ! print*, 'finding gradients'
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
@@ -74,17 +81,31 @@ contains
         n_y(3) = grid%cell_edge_norm_vectors(2, 3, i, j + 1)  ! top
         n_y(4) = grid%cell_edge_norm_vectors(2, 4, i - 1, j)  ! left
 
+        ! edge_val_x = edge_vars(:, i, j) * n_x * edge_lengths
+        ! edge_val_y = edge_vars(:, i, j) * n_y * edge_lengths
+
+        ! write(*,'(a, 4(es16.6))') 'edge_val_x: ', edge_val_x
+        ! write(*,'(a, 4(es16.6))') 'edge_val_y: ', edge_val_y
+        ! print*
+        ! esum_naive_x    = sum(edge_val_x)
+        ! esum_naive_y    = sum(edge_val_y)
+        ! esum_neumaier_x = neumaier_sum(edge_val_x)
+        ! esum_neumaier_y = neumaier_sum(edge_val_y)
+
+        ! if (abs(esum_naive_x - esum_neumaier_x) > 0.0_rk) write(*,'(a, es16.6)') 'abs(esum_naive_x - esum_neumaier_x)', abs(esum_naive_x - esum_neumaier_x)
+        ! if (abs(esum_naive_y - esum_neumaier_y) > 0.0_rk) write(*,'(a, es16.6)') 'abs(esum_naive_y - esum_neumaier_y)', abs(esum_naive_y - esum_neumaier_y)
+
         d_dx = sum(edge_vars(:, i, j) * n_x * edge_lengths)
         d_dy = sum(edge_vars(:, i, j) * n_y * edge_lengths)
 
         if(filter_small_gradients) then
-          if(abs(d_dx) < SMALL_GRAD) then
+          if(abs(d_dx) < epsilon(1.0_rk)) then
             grad_x(i, j) = 0.0_rk
           else
             grad_x(i, j) = d_dx / grid%cell_volume(i, j)
           end if
 
-          if(abs(d_dy) < SMALL_GRAD) then
+          if(abs(d_dy) < epsilon(1.0_rk)) then
             grad_y(i, j) = 0.0_rk
           else
             grad_y(i, j) = d_dy / grid%cell_volume(i, j)
@@ -94,8 +115,16 @@ contains
           grad_y(i, j) = d_dy / grid%cell_volume(i, j)
         end if
 
+        ! if(abs(grad_y(i, j)) > 0.0_rk) then
+        !   print *, 'grad y > 0 @', i, j
+        !   write(*, '(4(es16.6))') d_dx, grad_x(i, j), d_dy, grad_y(i, j)
+        !   ! error stop
+        ! end if
       end do
     end do
+
+    ! print*, 'grad_x(204,3) - grad_x(204,2)', grad_x(204,3) - grad_x(204,2)
+    ! print*, 'grad_y(204,3) - grad_y(204,2)', grad_y(204,3) - grad_y(204,2)
     !$omp end do
     !$omp end parallel
   end subroutine green_gauss_gradient

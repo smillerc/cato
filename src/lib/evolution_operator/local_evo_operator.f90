@@ -462,29 +462,30 @@ contains
           ! v(i, j) = sum((p_i(:, i, j) / rho_a_tilde(i, j)) * cos_dtheta(:, i, j) &
           !               - u_i(:, i, j) * (cos_d2theta(:, i, j) / 4.0_rk) &
           !               + v_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk))) / pi
-          ! if (abs(v(i, j)) > 0.0_rk) then
-          !   write(*,'(a, 8(es16.6, 1x))') "reference_u     ", cones%reference_u(i,j)
-          !   write(*,'(a, 8(es16.6, 1x))') "reference_v     ", cones%reference_v(i,j)
-          !   write(*,'(a, 8(es16.6, 1x))') "reference_v_tot ", sqrt(cones%reference_u(i,j)**2 + cones%reference_v(i,j)**2)
-          !   write(*,'(a, 8(es16.6, 1x))') 'p_i * cos_dtheta         ', p_i(:, i, j) * cos_dtheta(:, i, j)
-          !   write(*,'(a, 8(es16.6, 1x))') "dtheta                   ", dtheta(:, i, j)
-          !   write(*,'(a, 8(es16.6, 1x))') "-u_i * cos_d2theta       ", -u_i(:, i, j) * cos_d2theta(:, i, j)
-          !   write(*,'(a, 8(es16.6, 1x))') "u_i                      ", u_i(:, i, j)
-          !   write(*,'(a, 8(es16.6, 1x))') "v_i                      ", v_i(:, i, j)
-          !   write(*,'(a, 8(es16.6, 1x))') "dtheta/2 - sin_d2theta/4 ", (dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk)
-          !   write(*,'(a, 8(es16.6, 1x))') "sum(u_i)", neumaier_sum(u_i(:, i, j))
-          !   write(*,'(a, 8(es16.6, 1x))') "sum(v_i)", neumaier_sum(v_i(:, i, j))
-          !   print*, 'neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))', neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))
-          !   print*, '         sum(p_i(:, i, j) * cos_dtheta(:, i, j))', sum(p_i(:, i, j) * cos_dtheta(:, i, j))
+
+          ! if(abs(v(i, j)) > 0.0_rk) then
+          !   write(*, '(a, 8(es16.6, 1x))') "reference_u     ", cones%reference_u(i, j)
+          !   write(*, '(a, 8(es16.6, 1x))') "reference_v     ", cones%reference_v(i, j)
+          !   write(*, '(a, 8(es16.6, 1x))') "reference_v_tot ", sqrt(cones%reference_u(i, j)**2 + cones%reference_v(i, j)**2)
+          !   write(*, '(a, 8(es16.6, 1x))') 'p_i * cos_dtheta         ', p_i(:, i, j) * cos_dtheta(:, i, j)
+          !   write(*, '(a, 8(es16.6, 1x))') "dtheta                   ", dtheta(:, i, j)
+          !   write(*, '(a, 8(es16.6, 1x))') "-u_i * cos_d2theta       ", -u_i(:, i, j) * cos_d2theta(:, i, j)
+          !   write(*, '(a, 8(es16.6, 1x))') "u_i                      ", u_i(:, i, j)
+          !   write(*, '(a, 8(es16.6, 1x))') "v_i                      ", v_i(:, i, j)
+          !   write(*, '(a, 8(es16.6, 1x))') "dtheta/2 - sin_d2theta/4 ",(dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk)
+          !   write(*, '(a, 8(es16.6, 1x))') "sum(u_i)", neumaier_sum(u_i(:, i, j))
+          !   write(*, '(a, 8(es16.6, 1x))') "sum(v_i)", neumaier_sum(v_i(:, i, j))
+          !   print *, 'neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))', neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))
+          !   print *, '         sum(p_i(:, i, j) * cos_dtheta(:, i, j))', sum(p_i(:, i, j) * cos_dtheta(:, i, j))
           !   print*, 'neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j)) / rho_a_tilde(i, j)', neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))/ rho_a_tilde(i, j)
           !   print*, '         sum(p_i(:, i, j) * cos_dtheta(:, i, j)) / rho_a_tilde(i, j)', sum(p_i(:, i, j) * cos_dtheta(:, i, j))/ rho_a_tilde(i, j)
-          !   print*, 'rho a tilde: ', rho_a_tilde(i, j)
-          !   print*, 't1:          ' , t1
-          !   print*, 't2:          ' , t2
-          !   print*, 't3:          ' , t3
-          !   print*, 'v(i, j)', v(i, j)
-          !   print*
-          !   error stop
+          !   print *, 'rho a tilde: ', rho_a_tilde(i, j)
+          !   print *, 't1:          ', t1
+          !   print *, 't2:          ', t2
+          !   print *, 't3:          ', t3
+          !   print *, 'v(i, j)', v(i, j)
+          !   print *
+          !   error stop "abs(v(i, j)) > 0.0_rk"
           ! end if
           ! if (abs(v(i,j)) > 0.0_rk) then
           !   print*, 'v ', i, j, v(i,j)
@@ -500,6 +501,50 @@ contains
       !$omp end do
 
       !$omp end parallel
+
+      ! print *, 'E0: ', cones%cone_location
+      ! write(*, '(a, 6(es16.6))') 'rho_a_tilde ', maxval(rho_a_tilde(204, :)) - minval(rho_a_tilde(204, :))
+      ! write(*, '(a, 6(es16.6))') "rho(P')     ", maxval(cones%density_p_prime(204, :)) - minval(cones%density_p_prime(204, :))
+      ! write(*, '(a, 6(es16.6))') "p(P')       ", maxval(cones%pressure_p_prime(204, :)) - minval(cones%pressure_p_prime(204, :))
+      ! write(*, '(a, 6(es16.6))') "rho         ", maxval(rho(204, :)) - minval(rho(204, :))
+      ! write(*, '(a, 6(es16.6))') "u           ", maxval(u(204, :)) - minval(u(204, :))
+      ! write(*, '(a, 6(es16.6))') "v           ", maxval(v(204, :)) - minval(v(204, :))
+      ! write(*, '(a, 6(es16.6))') "p           ", maxval(p(204, :)) - minval(p(204, :))
+
+      ! write(*,'(a, 6(es16.6))') 'reference_sound_speed ', maxval(cones%reference_sound_speed(204,:)) - minval(cones%reference_sound_speed(204,:))
+      ! write(*,'(a, 6(es16.6))') 'reference_pressure ', maxval(cones%reference_pressure(204,:)) - minval(cones%reference_pressure(204,:))
+      ! write(*, '(a, 6(es16.6))') 'radius  ', &
+      !     maxval(cones%radius(204, :)) - minval(cones%radius(204, :))
+      ! write(*, '(a, 6(es16.6))') 'dtheta  ', &
+      !     maxval(sum(cones%dtheta(:, 204, :), dim=1)) - minval(sum(cones%dtheta(:, 204, :), dim=1))
+      ! write(*,'(a, 6(es16.6))') 'sin_dtheta  max-min ', maxval(sum(cones%sin_dtheta(:,204,:), dim=1)) - minval(sum(cones%sin_dtheta(:,204,:), dim=1))
+      ! write(*,'(a, 6(es16.6))') 'cos_dtheta  max-min ', maxval(sum(cones%cos_dtheta(:,204,:), dim=1)) - minval(sum(cones%cos_dtheta(:,204,:), dim=1))
+
+      ! ! write(*, '(a, 8(es16.6))') 'sin_dtheta (j=3)     ', rad2deg(cones%sin_dtheta(:, 204, 3))
+      ! ! write(*, '(a, 8(es16.6))') 'sin_dtheta (j=2)     ', rad2deg(cones%sin_dtheta(:, 204, 2))
+      ! write(*, '(a, 8(es16.6))') 'sin_dtheta (j=3-j=2) ', abs(cones%sin_dtheta(:, 204, 3) - cones%sin_dtheta(:, 204, 2))
+
+      ! ! write(*, '(a, 8(es16.6))') 'cos_dtheta (j=3)     ', rad2deg(cones%cos_dtheta(:, 204, 3))
+      ! ! write(*, '(a, 8(es16.6))') 'cos_dtheta (j=2)     ', rad2deg(cones%cos_dtheta(:, 204, 2))
+      ! write(*, '(a, 8(es16.6))') 'cos_dtheta (j=3-j=2) ', abs(cones%cos_dtheta(:, 204, 3) - cones%cos_dtheta(:, 204, 2))
+
+      ! ! write(*, '(a, 8(es16.6))') 'cos_d2theta (j=3)     ', rad2deg(cones%cos_d2theta(:, 204, 3))
+      ! ! write(*, '(a, 8(es16.6))') 'cos_d2theta (j=2)     ', rad2deg(cones%cos_d2theta(:, 204, 2))
+      ! write(*, '(a, 8(es16.6))') 'cos_d2theta (j=3-j=2) ', abs(cones%cos_d2theta(:, 204, 3) - cones%cos_d2theta(:, 204, 2))
+
+      ! ! write(*, '(a, 8(es16.6))') 'sin_d2theta (j=3)     ', rad2deg(cones%sin_d2theta(:, 204, 3))
+      ! ! write(*, '(a, 8(es16.6))') 'sin_d2theta (j=2)     ', rad2deg(cones%sin_d2theta(:, 204, 2))
+      ! write(*, '(a, 8(es16.6))') 'sin_d2theta (j=3-j=2) ', abs(cones%sin_d2theta(:, 204, 3) - cones%sin_d2theta(:, 204, 2))
+
+      ! write(*, '(a, 6(es16.6))') 'ref rho ', maxval(cones%reference_density(204, :)) - minval(cones%reference_density(204, :))
+      ! write(*, '(a, 6(es16.6))') 'ref u   ', maxval(cones%reference_u(204, :)) - minval(cones%reference_u(204, :))
+      ! write(*, '(a, 6(es16.6))') 'ref v   ', maxval(cones%reference_v(204, :)) - minval(cones%reference_v(204, :))
+
+      ! write(*, '(a, es16.6)') "P'(y) - P0(y) j=3 ", abs(cones%p_prime_y(204,3) - cones%p0_y(204,3))
+      ! write(*, '(a, es16.6)') "P'(y) - P0(y) j=2 ", abs(cones%p_prime_y(204,2) - cones%p0_y(204,2))
+      ! write(*, '(a, es16.6)') "P'(P) - ref P j=3 ", abs(cones%pressure_p_prime(204,3) - cones%reference_pressure(204,3))
+      ! write(*, '(a, es16.6)') "P'(P) - ref P j=2 ", abs(cones%pressure_p_prime(204,2) - cones%reference_pressure(204,2))
+      ! print *
 
     end associate
 

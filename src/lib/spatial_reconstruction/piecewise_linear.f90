@@ -76,6 +76,8 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi !< grid bounds w/o ghost layers
     integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc !< grid bounds w/ ghost layers
     real(rk) :: x, y  !< reconstruction location
+    real(rk) :: dx, dy
+    real(rk) :: recon_var
     real(rk) :: x_ij, y_ij !< cell centroin location
     integer(ik), dimension(3) :: edge_lbounds
 
@@ -102,7 +104,7 @@ contains
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, x, y, x_ij, y_ij) &
+    !$omp private(i, j, x, y, x_ij, y_ij, dx, dy, recon_var) &
     !$omp shared(reconstructed_var, self, grad_x, grad_y, primitive_var)
     !$omp do
     do j = jlo, jhi
@@ -114,12 +116,28 @@ contains
         do p = 1, 8
           x = self%grid%cell_node_x(p, i, j)
           y = self%grid%cell_node_y(p, i, j)
-          reconstructed_var(p, i, j) = primitive_var(i, j) + &
-                                       grad_x(i, j) * (x - x_ij) + &
-                                       grad_y(i, j) * (y - y_ij)
+          dx = grad_x(i, j) * (x - x_ij)
+          dy = grad_y(i, j) * (y - y_ij)
+          if(dx < 1e-12_rk) dx = 0.0_rk
+          if(dy < 1e-12_rk) dy = 0.0_rk
+
+          recon_var = primitive_var(i, j) + dx + dy
+
+          if(abs(recon_var - primitive_var(i, j)) < 1e-12_rk) then
+            reconstructed_var(p, i, j) = primitive_var(i, j)
+          else
+            reconstructed_var(p, i, j) = recon_var
+          end if
+
         end do
       end do
     end do
+
+    ! write(*, '(a, es16.6)') "reconstructed_var(1, 204, 3) - reconstructed_var(1, 204, 2) -> ", reconstructed_var(1, 204, 3) - reconstructed_var(1, 204, 2)
+    ! write(*, '(a, es16.6)') "grad_x(204, 3) - grad_x(204, 2) -> ", grad_x(204, 3) - grad_x(204, 2)
+    ! write(*, '(a, es16.6)') "grad_y(204, 3) - grad_y(204, 2) -> ", grad_y(204, 3) - grad_y(204, 2)
+    ! write(*, '(a, es16.6)') "cell_centroid_x(204, 3) - cell_centroid_x(204, 2) -> ", self%grid%cell_centroid_x(204, 3) - self%grid%cell_centroid_x(204, 2)
+    ! write(*, '(a, es16.6)') "cell_centroid_y(204, 3) - cell_centroid_y(204, 2) -> ", self%grid%cell_centroid_y(204, 3) - self%grid%cell_centroid_y(204, 2)
     !$omp end do
     !$omp end parallel
   end subroutine reconstruct
