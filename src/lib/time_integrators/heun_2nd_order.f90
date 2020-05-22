@@ -39,8 +39,7 @@ contains
 
       ! Final stage
       call debug_print('Running heun_2nd 2nd stage', __FILE__, __LINE__)
-      U = 0.5_rk * U + &
-          0.5_rk * U_1 + &
+      U = 0.5_rk * U + 0.5_rk * U_1 + &
           (0.5_rk * dt) * U_1%t(finite_volume_scheme)
       deallocate(U_1)
     class default
