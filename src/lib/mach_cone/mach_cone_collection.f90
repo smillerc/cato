@@ -588,18 +588,18 @@ contains
     end do
     !$omp end do
 
-    ! !$omp do
-    ! do j = 1, self%nj
-    !   do i = 1, self%ni
-    !     do idx = 1, idx_max
-    !       if(abs(sin_theta_ib(idx, i, j)) < 1e-14_rk) sin_theta_ib(idx, i, j) = 0.0_rk
-    !       if(abs(cos_theta_ib(idx, i, j)) < 1e-14_rk) cos_theta_ib(idx, i, j) = 0.0_rk
-    !       if(abs(sin_theta_ie(idx, i, j)) < 1e-14_rk) sin_theta_ie(idx, i, j) = 0.0_rk
-    !       if(abs(cos_theta_ie(idx, i, j)) < 1e-14_rk) cos_theta_ie(idx, i, j) = 0.0_rk
-    !     end do
-    !   end do
-    ! end do
-    ! !$omp end do
+    !$omp do
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do idx = 1, idx_max
+          if(abs(sin_theta_ib(idx, i, j)) < 1e-14_rk) sin_theta_ib(idx, i, j) = 0.0_rk
+          if(abs(cos_theta_ib(idx, i, j)) < 1e-14_rk) cos_theta_ib(idx, i, j) = 0.0_rk
+          if(abs(sin_theta_ie(idx, i, j)) < 1e-14_rk) sin_theta_ie(idx, i, j) = 0.0_rk
+          if(abs(cos_theta_ie(idx, i, j)) < 1e-14_rk) cos_theta_ie(idx, i, j) = 0.0_rk
+        end do
+      end do
+    end do
+    !$omp end do
 
     !$omp do
     do j = 1, self%nj
