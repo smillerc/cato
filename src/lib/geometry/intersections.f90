@@ -15,7 +15,7 @@ module mod_intersections
   public :: intersect, is_on
 
   real(rk), parameter :: EPS = epsilon(1.0_rk)
-  real(rk), parameter :: EPS_2X = 2.0_rk * EPS
+  real(rk), parameter :: EPS_2X = 1e-15_rk
 
 contains
 
@@ -56,50 +56,33 @@ contains
     valid_intersections = .false.
 
     x1 = line_xy(1, 1) - circle_xy(1)
-    ! print*, 'x1 (before)', x1
     threshold = abs(line_xy(1, 1) + circle_xy(1)) * EPS
     if(abs(x1) < threshold) x1 = 0.0_rk
     x1 = x1 / circle_radius
-    ! print*, 'x1 (after)', x1
 
     y1 = line_xy(2, 1) - circle_xy(2)
-    ! print*, 'y1 (before)', y1
     threshold = abs(line_xy(2, 1) + circle_xy(2)) * EPS
     if(abs(y1) < threshold) y1 = 0.0_rk
     y1 = y1 / circle_radius
-    ! print*, 'y1 (after)', y1
 
     x2 = line_xy(1, 2) - circle_xy(1)
-    ! print*, 'x2 (before)', x2
     threshold = abs(line_xy(1, 2) + circle_xy(1)) * EPS
     if(abs(x2) < threshold) x2 = 0.0_rk
     x2 = x2 / circle_radius
-    ! print*, 'x2 (after)', x2
 
     y2 = line_xy(2, 2) - circle_xy(2)
-    ! print*, 'y2 (before)', y2
     threshold = abs(line_xy(2, 2) + circle_xy(2)) * EPS
     if(abs(y2) < threshold) y2 = 0.0_rk
     y2 = y2 / circle_radius
-    ! print*, 'y2 (after)', y2
 
     A = y2 - y1
-    ! print*, 'A', A
     if(abs(A) < epsilon(1.0_rk)) A = 0.0_rk
 
     B = x1 - x2
-    ! print*, 'B', B
     if(abs(B) < epsilon(1.0_rk)) B = 0.0_rk
 
     C = x1 * y2 - x2 * y1
-    ! print*, 'C', C
     if(abs(C) < epsilon(1.0_rk)) C = 0.0_rk
-
-    ! write(*, '(a, 4(es16.6))') 'A (after): ', A
-    ! write(*, '(a, 4(es16.6))') 'B (after): ', B
-    ! write(*, '(a, 4(es16.6))') 'C (after): ', C
-    ! print*, 'abs(C**2 - r**2 * (A**2 + B**2))', &
-    !           abs(C**2 - (A ** 2 + B**2))
 
     if(C**2 > (A**2 + B**2)) then
       n_intersections = 0
@@ -121,7 +104,6 @@ contains
       by = y0 + A * m
     end if
 
-    ! print*, 'n_intersections: ', n_intersections
     ! Get rid of very small numbers and signed 0's, i.e. -0
     if(abs(ax) < tiny(1.0_rk)) ax = 0.0_rk
     if(abs(ay) < tiny(1.0_rk)) ay = 0.0_rk
@@ -191,24 +173,24 @@ contains
       ab_dx = 0.0_rk
     end if
 
-    if(abs(ab_dx) < EPS .and. abs(ab_dy) < EPS) then
+    if(abs(ab_dx) < EPS_2X .and. abs(ab_dy) < EPS_2X) then
       ! a and b are the same point,
       ! so check that c is the same as a and b
-      is_on = (abs(cb_dx) < EPS) .and. (abs(cb_dy) < EPS)
+      is_on = (abs(cb_dx) < EPS_2X) .and. (abs(cb_dy) < EPS_2X)
     else
       if(ab_is_vertical) then
         m2 = cb_dy / ab_dy
-        is_on = (abs(cb_dx) < EPS) .and. between_zero_and_one(m2)
+        is_on = (abs(cb_dx) < EPS_2X) .and. between_zero_and_one(m2)
       else if(ab_is_horizontal) then
         m1 = cb_dx / ab_dx
-        is_on = (abs(cb_dy) < EPS) .and. between_zero_and_one(m1)
+        is_on = (abs(cb_dy) < EPS_2X) .and. between_zero_and_one(m1)
       else
         m1 = cb_dx / ab_dx
         if(.not. between_zero_and_one(m1)) then
           is_on = .false.
         else
           m2 = cb_dy / ab_dy
-          is_on = abs(m2 - m1) < EPS
+          is_on = abs(m2 - m1) < EPS_2X
         end if
       end if
     end if
