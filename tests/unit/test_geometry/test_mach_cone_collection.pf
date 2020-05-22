@@ -25,7 +25,7 @@ contains
   ! The neighboring cells are above (i,j) and below (i,j-1)
   ! For quad cells, N - corner, M - midpoint, E - edge
 
-  !@test
+  ! @test
   subroutine test_midpoint_lr_p_prime_below_no_int()
     !< Test the Mach cone, where the apex is a midpoint and P' is below it
 
@@ -87,7 +87,7 @@ contains
 
   end subroutine test_midpoint_lr_p_prime_below_no_int
 
-  @test
+  ! @test
   subroutine test_midpoint_lr_p_prime_below_with_int()
     !< Test the Mach cone, where the apex is a midpoint and P' is below it
 
@@ -162,7 +162,7 @@ contains
 
   end subroutine test_midpoint_lr_p_prime_below_with_int
 
-  !@test
+  ! @test
   subroutine test_midpoint_lr_p_prime_above()
     !< Test the Mach cone, where the apex is a midpoint and P' is above it
 
@@ -239,7 +239,76 @@ contains
 
   end subroutine test_midpoint_lr_p_prime_above
 
-  !@test
+  @test
+  subroutine test_midpoint_lr_p_prime_below_2()
+    type(mach_cone_collection_t) :: mach_cone
+    real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
+    real(rk), dimension(1, 1) :: vector_scaling
+    integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
+    real(rk), dimension(4, 2, 1, 1) :: midpoint_state
+    integer(ik) :: i, j
+    real(rk), dimension(4) :: dtheta = 0.0_rk  !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+    real(rk), dimension(4) :: theta_ie = 0.0_rk
+    real(rk), dimension(4) :: theta_ib = 0.0_rk
+    real(rk), dimension(4) :: data_buffer = 0.0_rk
+
+    print *
+    print *, "Calling test_midpoint_lr_p_prime_below_2"
+    print *
+
+    i = 1
+    j = 1
+    ! <----M---->  (left and right vectors)
+    edge_vectors(:, 0, i, j) = [-2.52525253E-03_rk, 1.16161616E-01_rk] ! P0
+    edge_vectors(:, 1, i, j) = [-5.05050505E-03_rk, 1.16161616E-01_rk] ! left
+    edge_vectors(:, 2, i, j) = [ 0.00000000E+00_rk, 1.16161616E-01_rk] ! right
+    vector_scaling = 1.0_rk
+
+    ! cell ordering is 1) top, 2) bottom
+    neighbor_cell_indices(:, 1, 1, 1) = [i, j] ! top
+    neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! bottom
+
+    midpoint_state(:, 1, i, j) = [2.02700223E-03_rk, -1.54191331E-01_rk, 1.82307567E+01_rk, 4.16758119E-01_rk]
+    midpoint_state(:, 2, i, j) = [2.18991670E-03_rk, -2.42861973E-01_rk, 2.19765923E+01_rk, 6.09457846E-01_rk]
+
+    call mach_cone%initialize(tau=7.70927383E-06_rk, &
+                              edge_vectors=edge_vectors, &
+                              reconstructed_rho=midpoint_state(1, :, :, :), &
+                              reconstructed_u=midpoint_state(2, :, :, :), &
+                              reconstructed_v=midpoint_state(3, :, :, :), &
+                              reconstructed_p=midpoint_state(4, :, :, :), &
+                              cell_indices=neighbor_cell_indices, &
+                              cone_location='left/right midpoint')
+
+    call mach_cone%print(1,1)
+
+    ! P' should be in the cell above the midpoint
+    @assertEqual([0.0_rk, 0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([.true., .false.], mach_cone%p_prime_in_cell(:, i, j))
+
+    ! These values are known a priori (this is a test after all)
+    theta_ib = [-0.8860771238_rk, 0.0_rk, -2.2555155298_rk, 0.0_rk]
+    theta_ie = [-2.2555155298_rk + 2.0_rk * pi, 0.0_rk, -0.8860771238_rk, 0.0_rk]
+
+    dtheta = theta_ie - theta_ib
+    @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = sin(theta_ie) - sin(theta_ib)
+    @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = cos(theta_ie) - cos(theta_ib)
+    @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+    @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+    data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+    @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  end subroutine test_midpoint_lr_p_prime_below_2
+
+
+  ! @test
   subroutine test_midpoint_du_p_prime_right_no_int()
     !< Test the Mach cone, where the apex is a midpoint and P' is to the right of it
 
@@ -310,7 +379,7 @@ contains
 
   end subroutine test_midpoint_du_p_prime_right_no_int
 
-  !@test
+  ! @test
   subroutine test_midpoint_du_p_prime_left()
     !< Test the Mach cone, where the apex is a midpoint and P' is to the left
 
@@ -385,7 +454,7 @@ contains
 
   end subroutine test_midpoint_du_p_prime_left
 
-  !@test
+  ! @test
   subroutine test_midpoint_du_collocated()
     !< Test the Mach cone, where the apex is a midpoint and P' is above it
 
@@ -459,7 +528,7 @@ contains
     @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
   end subroutine test_midpoint_du_collocated
 
-  !@test
+  ! @test
   subroutine test_midpoint_lr_collocated()
     !< Test the left/right Mach cone, where P' is at P
 
@@ -533,7 +602,7 @@ contains
 
   end subroutine test_midpoint_lr_collocated
 
-  !@test
+  ! @test
   subroutine test_corner_p_prime_at_corner()
     !< Test at a corner node where P' is on the corner node itself
 
@@ -622,7 +691,7 @@ contains
 
   end subroutine test_corner_p_prime_at_corner
 
-  !@test
+  ! @test
   subroutine test_corner_p_prime_upper_right_2_arcs()
     !< Test at a corner node where P' is in the upper right. The corner is situated
     !< at the origin with each vector having a length of 1 in the cardinal directions.
@@ -725,7 +794,7 @@ contains
 
   end subroutine test_corner_p_prime_upper_right_2_arcs
 
-  !@test
+  ! @test
   subroutine test_corner_p_prime_lower_right_2_arcs()
     !< Test at a corner node where P' is in the upper right. The corner is situated
     !< at the origin with each vector having a length of 3 in the cardinal directions.
@@ -821,7 +890,7 @@ contains
 
   end subroutine test_corner_p_prime_lower_right_2_arcs
 
-  !@test
+  ! @test
   subroutine test_corner_p_prime_lower_right_1_arc_each()
     !< Test at a corner node where P' is in the upper right. The corner is situated
     !< at the origin with each vector having a length of 3 in the cardinal directions.
@@ -917,7 +986,7 @@ contains
 
   end subroutine test_corner_p_prime_lower_right_1_arc_each
 
-  !@test
+  ! @test
   subroutine test_corner_p_prime_lower_left_2_arcs()
     !< Test at a corner node where P' is in the upper right. The corner is situated
     !< at the origin with each vector having a length of 3 in the cardinal directions.
@@ -1013,7 +1082,7 @@ contains
 
   end subroutine test_corner_p_prime_lower_left_2_arcs
 
-  !@test
+  ! @test
   subroutine test_corner_p_prime_upper_left_2_arcs()
     !< Test at a corner node where P' is in the upper right. The corner is situated
     !< at the origin with each vector having a length of 3 in the cardinal directions.
