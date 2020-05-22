@@ -250,7 +250,7 @@ contains
     end if
     !$omp end single
 
-    !$omp do simd
+    !$omp do
     do j = 1, nj
       do i = 1, ni
         do c = 1, nc
@@ -258,22 +258,13 @@ contains
         end do
       end do
     end do
-    !$omp end do simd
+    !$omp end do
 
     !$omp do
     do j = 1, nj
       do i = 1, ni
         do c = 1, nc
           self%recon_rho(c, i, j) = reconstructed_rho(c, i, j)
-          ! self%recon_rho(1, i, j) = reconstructed_rho(1, i, j)
-          ! do c = 2, nc
-          !     associate(a=>reconstructed_rho(1, i, j), b=>reconstructed_rho(c, i, j))
-          !     if (abs(b - a) <= abs(a + b) * 5e-7_rk) then
-          !       self%recon_rho(c, i, j) = a
-          !     else
-          !       self%recon_rho(c, i, j) = b
-          !     end if
-          !     end associate
         end do
       end do
     end do
@@ -284,15 +275,6 @@ contains
       do i = 1, ni
         do c = 1, nc
           self%recon_u(c, i, j) = reconstructed_u(c, i, j)
-          ! self%recon_u(1, i, j) = reconstructed_u(1, i, j)
-          ! do c = 2, nc
-          !     associate(a=>reconstructed_u(1, i, j), b=>reconstructed_u(c, i, j))
-          !     if (abs(b - a) <= abs(a + b) * 5e-7_rk) then
-          !       self%recon_u(c, i, j) = a
-          !     else
-          !       self%recon_u(c, i, j) = b
-          !     end if
-          !     end associate
         end do
       end do
     end do
@@ -303,15 +285,6 @@ contains
       do i = 1, ni
         do c = 1, nc
           self%recon_v(c, i, j) = reconstructed_v(c, i, j)
-          ! self%recon_v(1, i, j) = reconstructed_v(1, i, j)
-          ! do c = 2, nc
-          !     associate(a=>reconstructed_v(1, i, j), b=>reconstructed_v(c, i, j))
-          !     if (abs(b - a) <= abs(a + b) * 5e-7_rk) then
-          !       self%recon_v(c, i, j) = a
-          !     else
-          !       self%recon_v(c, i, j) = b
-          !     end if
-          !     end associate
         end do
       end do
     end do
@@ -322,15 +295,6 @@ contains
       do i = 1, ni
         do c = 1, nc
           self%recon_p(c, i, j) = reconstructed_p(c, i, j)
-          ! self%recon_p(1, i, j) = reconstructed_p(1, i, j)
-          ! do c = 2, nc
-          !     associate(a=>reconstructed_p(1, i, j), b=>reconstructed_p(c, i, j))
-          !     if (abs(b - a) <= abs(a + b) * 5e-7_rk) then
-          !       self%recon_p(c, i, j) = a
-          !     else
-          !       self%recon_p(c, i, j) = b
-          !     end if
-          !     end associate
         end do
       end do
     end do
@@ -344,26 +308,26 @@ contains
     !$omp private(i,j) &
     !$omp firstprivate(ni, nj)
 
-    !$omp do simd
+    !$omp do
     do j = 1, nj
       do i = 1, ni
         self%radius(i, j) = self%tau * self%reference_sound_speed(i, j)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
 
     if(.not. self%is_initialized) then
-      !$omp do simd
+      !$omp do
       do j = 1, nj
         do i = 1, ni
           self%p0_x(i, j) = self%edge_vectors(1, 0, i, j)
           self%p0_y(i, j) = self%edge_vectors(2, 0, i, j)
         end do
       end do
-      !$omp end do simd
+      !$omp end do
     end if
 
-    !$omp do simd
+    !$omp do
     do j = 1, nj
       do i = 1, ni
         if(abs(self%p0_x(i, j) - self%tau * self%reference_u(i, j)) < epsilon(1.0_rk)) then
@@ -380,7 +344,7 @@ contains
 
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
 
     call self%compute_trig_angles()
@@ -410,22 +374,11 @@ contains
     end do
     !$omp end do nowait
 
-    ! where(.not. self%dtheta > 0.0_rk)
-    !   self%u = 0.0_rk
-    !   self%v = 0.0_rk
-    !   self%p = 0.0_rk
-    ! end where
-
     !$omp do
     do j = 1, nj
       do i = 1, ni
         n_p_prime_cells = count(self%p_prime_in_cell(:, i, j))
         if(n_p_prime_cells > 1) then
-          ! p_diff = abs(maxval(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) - &
-          !           minval(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)))
-          ! rho_diff = abs(maxval(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) - &
-          !           minval(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)))
-
           pressure_p_prime = sum(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
           density_p_prime = sum(self%recon_rho(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
           self%pressure_p_prime(i, j) = pressure_p_prime
@@ -535,13 +488,13 @@ contains
     end do
     !$omp end do
 
-    !$omp do simd
+    !$omp do
     do j = 1, self%nj
       do i = 1, self%ni
         self%reference_sound_speed(i, j) = sqrt(gamma * self%reference_pressure(i, j) / self%reference_density(i, j))
       end do
     end do
-    !$omp end do simd
+    !$omp end do
 
     !$omp end parallel
 
@@ -574,6 +527,7 @@ contains
 
     integer(ik) :: i, j, c, arc, max_n_arcs
     integer(ik) :: idx, idx_max
+    real(rk) :: diff
     !< index conversion to go from ((arc1, arc2), (cell 1:N_CELLS), i, j) to ((cell_1_arc_1, cell_N_arc_1:cell_1_arc_N, cell_N_arc_N), i, j)
 
     integer(ik), dimension(:, :, :), allocatable :: n_arcs_per_cell
@@ -594,7 +548,7 @@ contains
     !$omp shared(sin_theta_ib, sin_theta_ie) &
     !$omp shared(cos_theta_ib, cos_theta_ie) &
     !$omp firstprivate(idx_max) &
-    !$omp private(i, j, idx)
+    !$omp private(i, j, idx, diff)
 
     !$omp do
     do j = 1, self%nj
@@ -618,64 +572,102 @@ contains
     end do
     !$omp end do
 
-    !$omp do simd
+    !$omp do
     do j = 1, self%nj
       do i = 1, self%ni
         do idx = 1, idx_max
           self%dtheta(idx, i, j) = abs(theta_ie(idx, i, j) - theta_ib(idx, i, j))
-          ! self%dtheta(idx, i, j) = abs(neumaier_sum([theta_ie(idx, i, j), -theta_ib(idx, i, j)]))
+          ! diff = abs(theta_ie(idx, i, j) - theta_ib(idx, i, j))
+          ! if (abs(diff) < epsilon(1.0_rk)) then
+          !   self%dtheta(idx, i, j) = 0.0_rk
+          ! else
+          !   self%dtheta(idx, i, j) = diff
+          ! end if
         end do
       end do
     end do
-    !$omp end do simd
-
-    !$omp do simd
-    do j = 1, self%nj
-      do i = 1, self%ni
-        do idx = 1, idx_max
-          if(abs(sin_theta_ib(idx, i, j)) < 1e-14_rk) sin_theta_ib(idx, i, j) = 0.0_rk
-          if(abs(cos_theta_ib(idx, i, j)) < 1e-14_rk) cos_theta_ib(idx, i, j) = 0.0_rk
-          if(abs(sin_theta_ie(idx, i, j)) < 1e-14_rk) sin_theta_ie(idx, i, j) = 0.0_rk
-          if(abs(cos_theta_ie(idx, i, j)) < 1e-14_rk) cos_theta_ie(idx, i, j) = 0.0_rk
-        end do
-      end do
-    end do
-    !$omp end do simd
-
-    !$omp do simd
-    do j = 1, self%nj
-      do i = 1, self%ni
-        do idx = 1, idx_max
-          self%sin_dtheta(idx, i, j) = sin_theta_ie(idx, i, j) - sin_theta_ib(idx, i, j)
-          self%cos_dtheta(idx, i, j) = cos_theta_ie(idx, i, j) - cos_theta_ib(idx, i, j)
-        end do
-      end do
-    end do
-    !$omp end do simd
+    !$omp end do
 
     ! !$omp do
     ! do j = 1, self%nj
     !   do i = 1, self%ni
     !     do idx = 1, idx_max
-    !       if (abs(self%sin_dtheta(idx, i, j)) < 1e-14_rk) self%sin_dtheta(idx, i, j) = 0.0_rk
-    !       if (abs(self%cos_dtheta(idx, i, j)) < 1e-14_rk) self%cos_dtheta(idx, i, j) = 0.0_rk
+    !       if(abs(sin_theta_ib(idx, i, j)) < 1e-14_rk) sin_theta_ib(idx, i, j) = 0.0_rk
+    !       if(abs(cos_theta_ib(idx, i, j)) < 1e-14_rk) cos_theta_ib(idx, i, j) = 0.0_rk
+    !       if(abs(sin_theta_ie(idx, i, j)) < 1e-14_rk) sin_theta_ie(idx, i, j) = 0.0_rk
+    !       if(abs(cos_theta_ie(idx, i, j)) < 1e-14_rk) cos_theta_ie(idx, i, j) = 0.0_rk
     !     end do
     !   end do
     ! end do
     ! !$omp end do
 
-    !$omp do simd
+    !$omp do
     do j = 1, self%nj
       do i = 1, self%ni
         do idx = 1, idx_max
-          self%sin_d2theta(idx, i, j) = 2.0_rk * sin_theta_ie(idx, i, j) * cos_theta_ie(idx, i, j) - &
-                                        2.0_rk * sin_theta_ib(idx, i, j) * cos_theta_ib(idx, i, j)
-          self%cos_d2theta(idx, i, j) = (2.0_rk * cos_theta_ie(idx, i, j)**2 - 1.0_rk) - &
-                                        (2.0_rk * cos_theta_ib(idx, i, j)**2 - 1.0_rk)
+          self%sin_dtheta(idx, i, j) = sin_theta_ie(idx, i, j) - sin_theta_ib(idx, i, j)
+          ! diff = sin_theta_ie(idx, i, j) - sin_theta_ib(idx, i, j)
+          ! if (abs(diff) < epsilon(1.0_rk)) then
+          !   self%sin_dtheta(idx, i, j) = 0.0_rk
+          ! else
+          !   self%sin_dtheta(idx, i, j) = diff
+          ! end if
         end do
       end do
     end do
-    !$omp end do simd
+    !$omp end do
+
+    !$omp do
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do idx = 1, idx_max
+          self%cos_dtheta(idx, i, j) = cos_theta_ie(idx, i, j) - cos_theta_ib(idx, i, j)
+          ! diff = cos_theta_ie(idx, i, j) - cos_theta_ib(idx, i, j)
+          ! if (abs(diff) < epsilon(1.0_rk)) then
+          !   self%cos_dtheta(idx, i, j) = 0.0_rk
+          ! else
+          !   self%cos_dtheta(idx, i, j) = diff
+          ! end if
+        end do
+      end do
+    end do
+    !$omp end do
+
+    !$omp do
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do idx = 1, idx_max
+          self%sin_d2theta(idx, i, j) = (2.0_rk * sin_theta_ie(idx, i, j) * cos_theta_ie(idx, i, j)) - &
+                                        (2.0_rk * sin_theta_ib(idx, i, j) * cos_theta_ib(idx, i, j))
+          ! diff = (2.0_rk * sin_theta_ie(idx, i, j) * cos_theta_ie(idx, i, j)) - &
+          !        (2.0_rk * sin_theta_ib(idx, i, j) * cos_theta_ib(idx, i, j))
+          ! if (abs(diff) < epsilon(1.0_rk)) then
+          !   self%sin_d2theta(idx, i, j) = 0.0_rk
+          ! else
+          !   self%sin_d2theta(idx, i, j) = diff
+          ! end if
+        end do
+      end do
+    end do
+    !$omp end do
+
+    !$omp do
+    do j = 1, self%nj
+      do i = 1, self%ni
+        do idx = 1, idx_max
+          self%cos_d2theta(idx, i, j) = (2.0_rk * cos_theta_ie(idx, i, j)**2 - 1.0_rk) - &
+                                        (2.0_rk * cos_theta_ib(idx, i, j)**2 - 1.0_rk)
+          ! diff =  (2.0_rk * cos_theta_ie(idx, i, j)**2 - 1.0_rk) - &
+          !         (2.0_rk * cos_theta_ib(idx, i, j)**2 - 1.0_rk)
+          ! if (diff < epsilon(1.0_rk)) then
+          !   self%cos_d2theta(idx, i, j) = 0.0_rk
+          ! else
+          !   self%cos_d2theta(idx, i, j) = diff
+          ! end if
+        end do
+      end do
+    end do
+    !$omp end do
 
     !$omp end parallel
 
@@ -715,6 +707,7 @@ contains
 
     real(rk) :: p_prime_cross_vec_1
     real(rk) :: vec_2_cross_p_prime
+    logical :: print_me
 
     allocate(theta_ib(2 * self%n_neighbor_cells, self%ni, self%nj))
     allocate(theta_ie(2 * self%n_neighbor_cells, self%ni, self%nj))
@@ -913,13 +906,14 @@ contains
   subroutine sanity_checks(self)
     !< Do some sanity checks to make sure the mach cone is valid
     class(mach_cone_collection_t), intent(in) :: self
-    real(rk), dimension(self%ni, self%nj) :: arc_sum
+    ! real(rk), dimension(self%ni, self%nj) :: arc_sum
+    real(rk) :: arc_sum
     integer(ik) :: i, j, idx, idx_max
 
     idx_max = 2 * self%n_neighbor_cells
 
     !! $omp parallel workshare reduction(+:arc_sum)
-    arc_sum = sum(self%dtheta, dim=1)
+    ! arc_sum = sum(self%dtheta, dim=1)
     !! $omp end parallel workshare
 
     !! $omp parallel default(none) &
@@ -928,9 +922,10 @@ contains
     !! $omp do
     do j = 1, self%nj
       do i = 1, self%ni
-        if(abs(arc_sum(i, j) - 2 * pi) > 1e-15_rk) then
-          print *, 'abs(arc_sum(i, j) - 2 * pi): ', abs(arc_sum(i, j) - 2 * pi)
-          print *, "Cone arcs do not add up to 2pi:", arc_sum(i, j)
+        arc_sum = sum(self%dtheta(:, i, j))
+        if(abs(arc_sum - 2.0_rk * pi) > 1e-14_rk) then
+          print *, 'abs(arc_sum - 2 * pi): ', abs(arc_sum - 2 * pi)
+          print *, "Cone arcs do not add up to 2pi:", arc_sum
           call self%print(i, j)
           error stop "Cone arcs do not add up to 2pi"
         end if
@@ -952,21 +947,22 @@ contains
 
     write(*, '(a)') "location = '"//trim(self%cone_location)//"'"
     write(*, '(a, es16.8)') "tau = ", self%tau
+    write(*, '(a, i0, 1x, i0)') "i,j = ", i, j
     write(*, '(a, es16.8)') "radius = ", self%radius(i, j)
-    write(*, '(a, es16.8, ",", es16.8, a)') 'cone["P (x,y)"] = [', self%p0_x(i, j), self%p0_y(i, j), "]"
+    write(*, '(a, es16.8, ",", es16.8, a)') 'cone["P0(x,y)"] = [', self%p0_x(i, j), self%p0_y(i, j), "]"
     write(*, '(a, es16.8, ",", es16.8, a)') 'cone["P'//"'(x,y)"//'"] = [', self%p_prime_x(i, j), self%p_prime_y(i, j), "]"
     write(*, '(a, es16.8, ",", es16.8, a)') "dist =            [", self%p_prime_x(i,j) - self%p0_x(i,j), self%p_prime_y(i,j) - self%p0_y(i,j), "]"
 
     write(*, '(a, i7,",",i7, a)') 'cone["P'//"'(i,j)"//'"] = [', self%p_prime_ij(:, i, j), "]"
-
+    write(*, *) "P' in cell: ", self%p_prime_in_cell(:, i, j)
     print *
-    write(*, *) 'Neighbor cell indices'
+    write(*, *) '# Neighbor cell indices'
     do c = 1, self%n_neighbor_cells
-      write(*, '(a,i0,a, 2i5)') "cell_", c, ' = ', self%cell_indices(:, c, i, j)
+      write(*, '(a,i0,a, i0, ", ", i0, a)') "cell_", c, ' = [', self%cell_indices(:, c, i, j), "]"
     end do
 
     print *
-    write(*, '(a)') "# Edge Vectors: tail (x,y) -> head (x,y)"
+    write(*, '(a)') "# Edge Vectors: head (x,y). Note, the tail is at P0(x,y)"
     do c = 1, self%n_neighbor_cells
       write(*, '(a,i0,a, 2(es16.8, a))') "vector_", c, " = [", &
         self%edge_vectors(1, c, i, j), ",", self%edge_vectors(2, c, i, j), "]"
