@@ -939,7 +939,7 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: a
     real(rk), dimension(:, :), contiguous, intent(in) :: b
     real(rk), dimension(:, :), contiguous, intent(inout) :: c
-    real(rk) :: diff
+    real(rk) :: diff, threshold
     integer(ik) :: i, j, k
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
@@ -953,14 +953,16 @@ contains
 
     !$omp parallel default(none) &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, diff) &
+    !$omp private(i, j, diff, threshold) &
     !$omp shared(a,b,c)
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
         c(i, j) = a(i, j) + b(i, j)
-        diff = abs(a(i, j) - b(i, j))
-        if(diff < epsilon(1.0_rk)) then
+        diff = abs(c(i, j) - a(i, j))
+        threshold = abs(a(i, j) + b(i, j)) * 1e-9_rk
+        if(diff < threshold) then
+          ! if (diff > 0.0_rk) write(*,'(8(es16.6))') diff, threshold, c(i,j), a(i,j), b(i,j)
           c(i, j) = a(i, j)
         end if
       end do
@@ -975,7 +977,7 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: a
     real(rk), dimension(:, :), contiguous, intent(in) :: b
     real(rk), dimension(:, :), contiguous, intent(inout) :: c
-    real(rk) :: diff
+    real(rk) :: diff, threshold
     integer(ik) :: i, j, k
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
@@ -989,15 +991,16 @@ contains
 
     !$omp parallel default(none) &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, diff) &
+    !$omp private(i, j, diff, threshold) &
     !$omp shared(a,b,c)
     !$omp do simd
     do j = jlo, jhi
       do i = ilo, ihi
         c(i, j) = a(i, j) - b(i, j)
-        diff = abs(a(i, j) - b(i, j))
-        if(diff < epsilon(1.0_rk)) then
-          c(i, j) = 0.0_rk
+        diff = abs(c(i, j) - a(i, j))
+        threshold = abs(a(i, j) + b(i, j)) * 1e-9_rk
+        if(diff < threshold) then
+          c(i, j) = a(i, j)
         end if
       end do
     end do
