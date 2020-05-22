@@ -89,11 +89,8 @@ contains
     !$omp private(delta_i_minus, delta_j_minus, delta_i_plus, delta_j_plus) &
     !$omp shared(q, limiter, edge_values)
     !$omp do
-    ! print*, 'edge interp:'
     do j = jlo, jhi
       do i = ilo, ihi
-        ! print*, 'i,j', i, j
-        ! write(*,'(4(es16.6))')  delta_i_minus, delta_i_plus, delta_j_minus, delta_j_plus
         delta_i_minus = get_delta(q(i, j), q(i - 1, j))
         delta_j_minus = get_delta(q(i, j), q(i, j - 1))
         delta_i_plus = get_delta(q(i + 1, j), q(i, j))
@@ -131,23 +128,8 @@ contains
           edge_values(4, i, j) = q(i, j)
         end if
 
-        ! if(abs(delta_j_plus) > 0.0_rk .or. abs(delta_j_minus) > 0.0_rk) then
-        !   print *, 'deltas: @ ', i, j
-        !   print *, 'q(i, j)  : ', q(i, j)
-        !   print *, 'q(i, j-1): ', q(i, j - 1)
-        !   print *, 'q(i, j+1): ', q(i, j + 1)
-        !   write(*, '(a, 4(es16.6))') 'deltas: ', delta_i_minus, delta_i_plus, delta_j_minus, delta_j_plus
-        !   print*
-        !   ! write(*, '(a, 4(es16.6))') 'Ri   ', delta_i_plus / delta_i_minus, limiter%limit(delta_i_plus / delta_i_minus)
-        !   ! write(*, '(a, 4(es16.6))') '1/Ri ', delta_i_minus / delta_i_plus, limiter%limit(delta_i_minus / delta_i_plus)
-        !   ! write(*, '(a, 4(es16.6))') 'Rj   ', delta_j_plus / delta_j_minus, limiter%limit(delta_j_plus / delta_j_minus)
-        !   ! write(*, '(a, 4(es16.6))') '1/Rj ', delta_j_minus / delta_j_plus, limiter%limit(delta_j_minus / delta_j_plus)
-        !   error stop
-        ! end if
       end do
     end do
-    ! print*
-    ! write(*,'(a, 4(es16.6))') 'edge values j=3-j=2', edge_values(:,204,3) - edge_values(:,204,2)
     !$omp end do
     !$omp end parallel
   end subroutine reconstruct_edge_values

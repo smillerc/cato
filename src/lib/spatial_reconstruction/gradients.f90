@@ -73,27 +73,13 @@ contains
         edge_lengths(4) = grid%cell_edge_lengths(4, i - 1, j)  ! left
 
         n_x(1) = grid%cell_edge_norm_vectors(1, 1, i, j - 1)  ! bottom
-        n_x(2) = grid%cell_edge_norm_vectors(1, 2, i + 1, j)  ! right
-        n_x(3) = grid%cell_edge_norm_vectors(1, 3, i, j + 1)  ! top
-        n_x(4) = grid%cell_edge_norm_vectors(1, 4, i - 1, j)  ! left
         n_y(1) = grid%cell_edge_norm_vectors(2, 1, i, j - 1)  ! bottom
+        n_x(2) = grid%cell_edge_norm_vectors(1, 2, i + 1, j)  ! right
         n_y(2) = grid%cell_edge_norm_vectors(2, 2, i + 1, j)  ! right
+        n_x(3) = grid%cell_edge_norm_vectors(1, 3, i, j + 1)  ! top
         n_y(3) = grid%cell_edge_norm_vectors(2, 3, i, j + 1)  ! top
+        n_x(4) = grid%cell_edge_norm_vectors(1, 4, i - 1, j)  ! left
         n_y(4) = grid%cell_edge_norm_vectors(2, 4, i - 1, j)  ! left
-
-        ! edge_val_x = edge_vars(:, i, j) * n_x * edge_lengths
-        ! edge_val_y = edge_vars(:, i, j) * n_y * edge_lengths
-
-        ! write(*,'(a, 4(es16.6))') 'edge_val_x: ', edge_val_x
-        ! write(*,'(a, 4(es16.6))') 'edge_val_y: ', edge_val_y
-        ! print*
-        ! esum_naive_x    = sum(edge_val_x)
-        ! esum_naive_y    = sum(edge_val_y)
-        ! esum_neumaier_x = neumaier_sum(edge_val_x)
-        ! esum_neumaier_y = neumaier_sum(edge_val_y)
-
-        ! if (abs(esum_naive_x - esum_neumaier_x) > 0.0_rk) write(*,'(a, es16.6)') 'abs(esum_naive_x - esum_neumaier_x)', abs(esum_naive_x - esum_neumaier_x)
-        ! if (abs(esum_naive_y - esum_neumaier_y) > 0.0_rk) write(*,'(a, es16.6)') 'abs(esum_naive_y - esum_neumaier_y)', abs(esum_naive_y - esum_neumaier_y)
 
         d_dx = sum(edge_vars(:, i, j) * n_x * edge_lengths)
         d_dy = sum(edge_vars(:, i, j) * n_y * edge_lengths)
@@ -115,16 +101,8 @@ contains
           grad_y(i, j) = d_dy / grid%cell_volume(i, j)
         end if
 
-        ! if(abs(grad_y(i, j)) > 0.0_rk) then
-        !   print *, 'grad y > 0 @', i, j
-        !   write(*, '(4(es16.6))') d_dx, grad_x(i, j), d_dy, grad_y(i, j)
-        !   ! error stop
-        ! end if
       end do
     end do
-
-    ! print*, 'grad_x(204,3) - grad_x(204,2)', grad_x(204,3) - grad_x(204,2)
-    ! print*, 'grad_y(204,3) - grad_y(204,2)', grad_y(204,3) - grad_y(204,2)
     !$omp end do
     !$omp end parallel
   end subroutine green_gauss_gradient
