@@ -118,10 +118,10 @@ contains
           y = self%grid%cell_node_y(p, i, j)
           dx = grad_x(i, j) * (x - x_ij)
           dy = grad_y(i, j) * (y - y_ij)
-          if(dx < 1e-12_rk) dx = 0.0_rk
-          if(dy < 1e-12_rk) dy = 0.0_rk
+          if(abs(dx) < 1e-9_rk) dx = 0.0_rk
+          if(abs(dy) < 1e-9_rk) dy = 0.0_rk
 
-          recon_var = primitive_var(i, j) + dx + dy
+          recon_var = primitive_var(i, j) + (dx + dy)
 
           if(abs(recon_var - primitive_var(i, j)) < 1e-12_rk) then
             reconstructed_var(p, i, j) = primitive_var(i, j)
@@ -132,12 +132,6 @@ contains
         end do
       end do
     end do
-
-    ! write(*, '(a, es16.6)') "reconstructed_var(1, 204, 3) - reconstructed_var(1, 204, 2) -> ", reconstructed_var(1, 204, 3) - reconstructed_var(1, 204, 2)
-    ! write(*, '(a, es16.6)') "grad_x(204, 3) - grad_x(204, 2) -> ", grad_x(204, 3) - grad_x(204, 2)
-    ! write(*, '(a, es16.6)') "grad_y(204, 3) - grad_y(204, 2) -> ", grad_y(204, 3) - grad_y(204, 2)
-    ! write(*, '(a, es16.6)') "cell_centroid_x(204, 3) - cell_centroid_x(204, 2) -> ", self%grid%cell_centroid_x(204, 3) - self%grid%cell_centroid_x(204, 2)
-    ! write(*, '(a, es16.6)') "cell_centroid_y(204, 3) - cell_centroid_y(204, 2) -> ", self%grid%cell_centroid_y(204, 3) - self%grid%cell_centroid_y(204, 2)
     !$omp end do
     !$omp end parallel
   end subroutine reconstruct
