@@ -57,42 +57,20 @@ contains
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, rho_u, rho_u_sq_plus_p, rho_u_v, rho_E_plus_p, rho_u_sq, rho_v_sq, rho_v_sq_plus_p) &
+    !$omp private(i, j) &
     !$omp shared(flux, rho, u, v, p, E)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
-
-        rho_u = rho(i, j) * u(i, j)
-        rho_u_v = rho(i, j) * u(i, j) * v(i, j)
-        rho_E_plus_p = rho(i, j) * E(i, j) + p(i, j)
-
-        ! rho u^2 + p
-        rho_u_sq = rho(i, j) * u(i, j)**2
-        if(abs(rho_u_sq - p(i, j)) < epsilon(1.0_rk)) then
-          rho_u_sq_plus_p = 0.0_rk
-        else
-          rho_u_sq_plus_p = rho_u_sq + p(i, j)
-        end if
-
-        ! rho v^2 + p
-        rho_v_sq = rho(i, j) * v(i, j)**2
-        if(abs(rho_v_sq - p(i, j)) < epsilon(1.0_rk)) then
-          rho_v_sq_plus_p = 0.0_rk
-        else
-          rho_v_sq_plus_p = rho_v_sq + p(i, j)
-        end if
-
-        flux%F(1, i, j) = rho_u
-        flux%F(2, i, j) = rho_u_sq_plus_p
-        flux%F(3, i, j) = rho_u_v
-        flux%F(4, i, j) = u(i, j) * rho_E_plus_p
+        flux%F(1, i, j) = rho(i, j) * u(i, j)
+        flux%F(2, i, j) = rho(i, j) * u(i, j)**2 + p(i, j)
+        flux%F(3, i, j) = rho(i, j) * u(i, j) * v(i, j)
+        flux%F(4, i, j) = u(i, j) * (rho(i, j) * E(i, j) + p(i, j))
 
         flux%G(1, i, j) = rho(i, j) * v(i, j)
-        flux%G(2, i, j) = rho_u_v
-        flux%G(3, i, j) = rho_v_sq_plus_p
-        flux%G(4, i, j) = v(i, j) * rho_E_plus_p
-
+        flux%G(2, i, j) = rho(i, j) * u(i, j) * v(i, j)
+        flux%G(3, i, j) = rho(i, j) * v(i, j)**2 + p(i, j)
+        flux%G(4, i, j) = v(i, j) * (rho(i, j) * E(i, j) + p(i, j))
       end do
     end do
     !$omp end do

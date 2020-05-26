@@ -39,10 +39,11 @@ contains
 
     threshold = abs(a + b) * EPS
     delta = a - b
-    if(abs(delta) < SMALL .or. abs(delta) < threshold .or. threshold < epsilon(1.0_rk)) then
-      delta = 0.0_rk
-    end if
-
+    if(abs(delta) < SMALL) delta = 0.0_rk
+    ! if(abs(delta) < SMALL .or. abs(delta) < threshold .or. threshold < epsilon(1.0_rk)) then
+    !   delta = 0.0_rk
+    ! end if
+    ! write(*,'(a, 4(es16.6))') 'delta', a, b, delta
   end function
 
   subroutine reconstruct_edge_values(q, lbounds, limiter, edge_values)

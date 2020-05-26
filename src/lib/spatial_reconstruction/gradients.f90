@@ -45,6 +45,7 @@ contains
     real(rk) :: esum_naive_y
     real(rk) :: esum_neumaier_x
     real(rk) :: esum_neumaier_y
+    real(rk) :: max_edge_len, min_edge_len, diff
 
     ilo = lbound(edge_vars, dim=2)
     ihi = ubound(edge_vars, dim=2)
@@ -58,10 +59,10 @@ contains
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
-    !$omp private(n_x, n_y, edge_lengths) &
+    !$omp private(n_x, n_y, edge_lengths, diff) &
     !$omp shared(grad_x, grad_y, edge_vars, grid) &
-    !$omp reduction(+:d_dx) &
-    !$omp reduction(+:d_dy)
+    !$omp reduction(+:d_dx), reduction(+:d_dy) &
+    !$omp reduction(max:max_edge_len), reduction(min:min_edge_len)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
@@ -71,6 +72,13 @@ contains
         edge_lengths(2) = grid%cell_edge_lengths(2, i + 1, j)  ! right
         edge_lengths(3) = grid%cell_edge_lengths(3, i, j + 1)  ! top
         edge_lengths(4) = grid%cell_edge_lengths(4, i - 1, j)  ! left
+
+        max_edge_len = maxval(edge_lengths)
+        min_edge_len = minval(edge_lengths)
+        diff = max_edge_len - min_edge_len
+        if(diff < 2.0_rk * epsilon(1.0_rk)) then
+          edge_lengths = max_edge_len
+        end if
 
         n_x(1) = grid%cell_edge_norm_vectors(1, 1, i, j - 1)  ! bottom
         n_y(1) = grid%cell_edge_norm_vectors(2, 1, i, j - 1)  ! bottom
