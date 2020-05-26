@@ -494,6 +494,8 @@ contains
     real(rk), dimension(8) :: p_x !< x coords of the cell corners and midpoints (c1,m1,c2,m2,c3,m3,c4,m4)
     real(rk), dimension(8) :: p_y !< x coords of the cell corners and midpoints (c1,m1,c2,m2,c3,m3,c4,m4)
 
+    real(rk) :: diff, min_edge_length, max_edge_length
+    real(rk) :: min_vol, max_vol
     integer(ik) :: i, j
     x_coords = 0.0_rk
     y_coords = 0.0_rk
@@ -523,6 +525,20 @@ contains
 
       end do
     end do
+
+    min_edge_length = minval(self%cell_edge_lengths)
+    max_edge_length = maxval(self%cell_edge_lengths)
+    diff = max_edge_length - min_edge_length
+    if(diff < 2.0_rk * epsilon(1.0_rk)) then
+      self%cell_edge_lengths = max_edge_length
+    end if
+
+    min_vol = minval(self%cell_volume)
+    max_vol = maxval(self%cell_volume)
+    diff = max_vol - min_vol
+    if(diff < 2.0_rk * epsilon(1.0_rk)) then
+      self%cell_volume = max_vol
+    end if
 
   end subroutine populate_element_specifications
 

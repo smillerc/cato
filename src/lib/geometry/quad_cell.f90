@@ -54,7 +54,7 @@ contains
     self%x = x_coords
     self%y = y_coords
 
-    ! truncation/round-off checks
+    ! round-off checks
     associate(y=>self%y, x=>self%x)
 
       ! print*, 'dy ', abs(y(2) - y(1)), abs(y(4) - y(3))
