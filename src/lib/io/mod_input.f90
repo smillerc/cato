@@ -77,6 +77,7 @@ module mod_input
     real(rk) :: contour_interval_dt = 0.5_rk
     integer(ik) :: max_iterations = huge(1)
     character(:), allocatable :: time_integration_strategy !< How is time integration handled? e.g. 'rk2', 'rk4', etc.
+    logical :: smooth_residuals = .true.
 
     ! physics
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
@@ -149,9 +150,9 @@ contains
 
     ! Time
     call cfg%get("time", "max_time", self%max_time)
-    ! call cfg%get("time", "initial_delta_t", self%initial_delta_t)
     call cfg%get("time", "cfl", self%cfl, 0.1_rk)
     call cfg%get("time", "integration_strategy", char_buffer)
+    call cfg%get("time", "smooth_residuals", self%smooth_residuals, .true.)
     call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
     self%time_integration_strategy = trim(char_buffer)
 
@@ -159,8 +160,6 @@ contains
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
 
     ! Scheme
-    ! call cfg%get("scheme", "tau", self%tau)
-
     call cfg%get("scheme", "cell_reconstruction", char_buffer, 'piecewise_linear')
     self%cell_reconstruction = trim(char_buffer)
 

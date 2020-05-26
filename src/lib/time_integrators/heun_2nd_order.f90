@@ -36,11 +36,13 @@ contains
       ! 1st stage
       call debug_print('Running heun_2nd 1st stage', __FILE__, __LINE__)
       U_1 = U + U%t(finite_volume_scheme) * dt
+      call U_1%residual_smoother()
 
       ! Final stage
       call debug_print('Running heun_2nd 2nd stage', __FILE__, __LINE__)
       U = 0.5_rk * U + 0.5_rk * U_1 + &
           (0.5_rk * dt) * U_1%t(finite_volume_scheme)
+      call U%residual_smoother()
       deallocate(U_1)
     class default
       error stop 'Error in heun_2nd%integrate - unsupported class'

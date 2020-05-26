@@ -36,16 +36,19 @@ contains
 
       ! 1st stage
       U_1 = U + dt * U%t(finite_volume_scheme)
+      call U_1%residual_smoother()
 
       ! 2nd stage
       U_2 = (3.0_rk / 4.0_rk) * U &
             + (1.0_rk / 4.0_rk) * U_1 &
             + (1.0_rk / 4.0_rk) * dt * U_1%t(finite_volume_scheme)
+      call U_2%residual_smoother()
 
       ! Final stage
       U = (1.0_rk / 3.0_rk) * U &
           + (2.0_rk / 3.0_rk) * U_2 &
           + (2.0_rk / 3.0_rk) * dt * U_2%t(finite_volume_scheme)
+      call U%residual_smoother()
 
       deallocate(U_1)
       deallocate(U_2)

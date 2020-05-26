@@ -125,7 +125,6 @@ contains
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
       call model%apply_boundary_conditions(finite_volume_scheme)
       call model%calculate_derived_quantities()
-      call model%residual_smoother()
       call model%sanity_check(error_code)
     else
       error stop 'Error: No integration procedure available in integrand_t%integrate()'
