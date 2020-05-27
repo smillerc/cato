@@ -865,7 +865,7 @@ contains
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
-    real(rk), parameter :: EPS = 5e-15_rk
+    real(rk), parameter :: EPS = 5e-14_rk
 
     if(self%smooth_residuals) then
       ilo = lbound(self%rho, dim=1) + 1
@@ -880,7 +880,6 @@ contains
       !$omp do
       do j = jlo, jhi
         do i = ilo, ihi
-
           if(abs(self%rho(i, j) - self%rho(i - 1, j)) < EPS) self%rho(i, j) = self%rho(i - 1, j)
           if(abs(self%rho_u(i, j) - self%rho_u(i - 1, j)) < EPS) self%rho_u(i, j) = self%rho_u(i - 1, j)
           if(abs(self%rho_v(i, j) - self%rho_v(i - 1, j)) < EPS) self%rho_v(i, j) = self%rho_v(i - 1, j)

@@ -73,12 +73,13 @@ contains
         edge_lengths(3) = grid%cell_edge_lengths(3, i, j + 1)  ! top
         edge_lengths(4) = grid%cell_edge_lengths(4, i - 1, j)  ! left
 
+        if(abs(edge_lengths(3) - edge_lengths(1)) < 2.0_rk * epsilon(1.0_rk)) edge_lengths(3) = edge_lengths(1)
+        if(abs(edge_lengths(4) - edge_lengths(2)) < 2.0_rk * epsilon(1.0_rk)) edge_lengths(4) = edge_lengths(2)
+
         max_edge_len = maxval(edge_lengths)
         min_edge_len = minval(edge_lengths)
         diff = max_edge_len - min_edge_len
-        if(diff < 2.0_rk * epsilon(1.0_rk)) then
-          edge_lengths = max_edge_len
-        end if
+        if(diff < 2.0_rk * epsilon(1.0_rk)) edge_lengths = max_edge_len
 
         n_x(1) = grid%cell_edge_norm_vectors(1, 1, i, j - 1)  ! bottom
         n_y(1) = grid%cell_edge_norm_vectors(2, 1, i, j - 1)  ! bottom
