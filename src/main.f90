@@ -65,6 +65,7 @@ program cato
   end if
 
   call input%read_from_ini(input_filename)
+  call input%display_config()
   call set_scale_factors(time_scale=input%reference_time, &
                          length_scale=input%reference_length, &
                          density_scale=input%reference_density)

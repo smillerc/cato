@@ -91,6 +91,7 @@ module mod_input
   contains
     procedure, public :: initialize
     procedure, public :: read_from_ini
+    procedure, public :: display_config
   end type input_t
 
 contains
@@ -127,9 +128,9 @@ contains
 
     file_exists = .false.
 
-!    if(this_image() == 1) then
+    ! if(this_image() == 1) then
     write(output_unit, '(a)') 'Reading input file: '//trim(filename)
-!    end if
+    ! end if
 
     inquire(file=filename, exist=file_exists)
     if(.not. file_exists) error stop "Input .ini file not found"
@@ -177,9 +178,7 @@ contains
 
       inquire(file=self%restart_file, exist=file_exists)
       if(.not. file_exists) then
-!        if(this_image() == 1) then
         write(*, '(a)') 'Restart file not found: "'//trim(self%restart_file)//'"'
-!        end if
         error stop "Restart file not found"
       end if
     end if
@@ -194,9 +193,7 @@ contains
 
         inquire(file=self%initial_condition_file, exist=file_exists)
         if(.not. file_exists) then
-!          if(this_image() == 1) then
           write(*, '(a)') 'Initial conditions file not found: "'//trim(self%initial_condition_file)//'"'
-!          end if
           error stop "Initial conditions file not found"
         end if
 
@@ -298,4 +295,70 @@ contains
 
   end subroutine read_from_ini
 
+  subroutine display_config(self)
+    class(input_t), intent(in) :: self
+
+    write(*, '(a)') "Input settings:"
+    write(*, '(a)') "==============="
+    write(*, '(a, a)') "title: ", self%title
+    write(*, '(a, a)') "unit_system: ", self%unit_system
+    write(*, '(a, es16.3)') "reference_time: ", self%reference_time
+    write(*, '(a, es16.3)') "reference_length: ", self%reference_length
+    write(*, '(a, es16.3)') "reference_density: ", self%reference_density
+    write(*, '(a, a)') "grid_type: ", self%grid_type
+    write(*, '(a, es16.3)') "xmin: ", self%xmin
+    write(*, '(a, es16.3)') "xmax: ", self%xmax
+    write(*, '(a, es16.3)') "ymin: ", self%ymin
+    write(*, '(a, es16.3)') "ymax: ", self%ymax
+    write(*, '(a, i0)') "ni_nodes: ", self%ni_nodes
+    write(*, '(a, i0)') "nj_nodes: ", self%nj_nodes
+    write(*, '(a, a)') "initial_condition_file: ", self%initial_condition_file
+    write(*, '(a, l2)') "read_init_cond_from_file: ", self%read_init_cond_from_file
+    write(*, '(a, es16.6)') "init_x_velocity: ", self%init_x_velocity
+    write(*, '(a, es16.6)') "init_y_velocity: ", self%init_y_velocity
+    write(*, '(a, es16.6)') "init_density : ", self%init_density
+    write(*, '(a, es16.6)') "init_pressure: ", self%init_pressure
+    write(*, '(a, l2)') "restart_from_file: ", self%restart_from_file
+    write(*, '(a, a)') "restart_file: ", self%restart_file
+    write(*, '(a, a)') "bc_pressure_input_file: ", self%bc_pressure_input_file
+    write(*, '(a, l2)') "apply_constant_bc_pressure: ", self%apply_constant_bc_pressure
+    write(*, '(a, es16.6)') "constant_bc_pressure_value: ", self%constant_bc_pressure_value
+    write(*, '(a, es16.6)') "bc_pressure_scale_factor: ", self%bc_pressure_scale_factor
+    write(*, '(a, a)') "plus_x_bc: ", self%plus_x_bc
+    write(*, '(a, a)') "minus_x_bc: ", self%minus_x_bc
+    write(*, '(a, a)') "plus_y_bc : ", self%plus_y_bc
+    write(*, '(a, a)') "minus_y_bc: ", self%minus_y_bc
+    write(*, '(a, l2)') "enable_source_terms: ", self%enable_source_terms
+    write(*, '(a, a)') "source_term_type: ", self%source_term_type
+    write(*, '(a, l2)') "apply_constant_source: ", self%apply_constant_source
+    write(*, '(a, a)') "source_file: ", self%source_file
+    write(*, '(a, es16.6)') "constant_source_value: ", self%constant_source_value
+    write(*, '(a, es16.6)') "source_scale_factor  : ", self%source_scale_factor
+    write(*, '(a, i0)') "source_ilo: ", self%source_ilo
+    write(*, '(a, i0)') "source_ihi: ", self%source_ihi
+    write(*, '(a, i0)') "source_jlo: ", self%source_jlo
+    write(*, '(a, i0)') "source_jhi: ", self%source_jhi
+    write(*, '(a, a)') "contour_io_format: ", self%contour_io_format
+    write(*, '(a, l2)') "append_date_to_result_folder: ", self%append_date_to_result_folder
+    write(*, '(a, l2)') "plot_reconstruction_states: ", self%plot_reconstruction_states
+    write(*, '(a, l2)') "plot_reference_states: ", self%plot_reference_states
+    write(*, '(a, l2)') "plot_evolved_states: ", self%plot_evolved_states
+    write(*, '(a, l2)') "plot_64bit: ", self%plot_64bit
+    write(*, '(a, l2)') "plot_ghost_cells: ", self%plot_ghost_cells
+    write(*, '(a, es16.6)') "max_time: ", self%max_time
+    write(*, '(a, f0.3)') "cfl: ", self%cfl
+    write(*, '(a, es16.6)') "initial_delta_t: ", self%initial_delta_t
+    write(*, '(a, es16.6)') "contour_interval_dt: ", self%contour_interval_dt
+    write(*, '(a, i0)') "max_iterations: ", self%max_iterations
+    write(*, '(a, a)') "time_integration_strategy: ", self%time_integration_strategy
+    write(*, '(a, l2)') "smooth_residuals: ", self%smooth_residuals
+    write(*, '(a, es16.3)') "polytropic_index: ", self%polytropic_index
+    write(*, '(a, a)') "evolution_operator_type: ", self%evolution_operator_type
+    write(*, '(a, a)') "cell_reconstruction: ", self%cell_reconstruction
+    write(*, '(a, es16.6)') "tau: ", self%tau
+    write(*, '(a, a)') "limiter: ", self%limiter
+    write(*, '(a)') "==============="
+    print *
+
+  end subroutine display_config
 end module mod_input

@@ -1194,7 +1194,8 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(self%rho(i, j) < 0.0_rk) then
-          error stop "Error: Negative density found in fluid_t%sanity_check()"
+          write(std_err, '(a, i0, ", ", i0, a)') "Negative density found at (", i, j, ")"
+          error stop "Negative density!"
         end if
       end do
     end do
@@ -1204,7 +1205,8 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(self%p(i, j) < 0.0_rk) then
-          error stop "Error: Negative pressure found in fluid_t%sanity_check()"
+          write(std_err, '(a, i0, ", ", i0, a)') "Negative pressure found at (", i, j, ")"
+          error stop "Negative pressure!"
         end if
       end do
     end do
