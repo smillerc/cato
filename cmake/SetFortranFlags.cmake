@@ -57,7 +57,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
 
   if(ENABLE_PROFILING)
     # set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=thread")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fsanitize=thread")
   endif()
 
 endif()

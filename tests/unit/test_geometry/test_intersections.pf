@@ -153,53 +153,51 @@ contains
     ! @assertEqual([.true., .true.], valid_intersection)
     ! @assertEqual([pi, 0.0_rk], angles)
 
-
     ! Samples from cases that failed for some reason
-    circle_radius =   2.88874002E-04_rk
-    circle_xy = [ -1.00714228E-02_rk,  4.02567225E-02_rk] ! P'
+    circle_radius = 2.88874002E-04_rk
+    circle_xy = [-1.00714228E-02_rk, 4.02567225E-02_rk] ! P'
 
-    line_xy(:, 1) = [ -1.01010101E-02_rk,  4.04040404E-02_rk] ! P0
-    line_xy(:, 2) = [ -1.01010101E-02_rk,  3.53535354E-02_rk]
+    line_xy(:, 1) = [-1.01010101E-02_rk, 4.04040404E-02_rk] ! P0
+    line_xy(:, 2) = [-1.01010101E-02_rk, 3.53535354E-02_rk]
     call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
-    print*, 'valid_intersection', valid_intersection
-    print*, 'intersection_xy', intersection_xy
-    print*, 'angles', angles * 180.0_rk / pi
+    print *, 'valid_intersection', valid_intersection
+    print *, 'intersection_xy', intersection_xy
+    print *, 'angles', angles * 180.0_rk / pi
 
-    line_xy(:, 2) = [ -5.05050505E-03_rk,  4.04040404E-02_rk]
+    line_xy(:, 2) = [-5.05050505E-03_rk, 4.04040404E-02_rk]
     call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
-    print*, 'valid_intersection', valid_intersection
-    print*, 'intersection_xy', intersection_xy
-    print*, 'angles', angles * 180.0_rk / pi
+    print *, 'valid_intersection', valid_intersection
+    print *, 'intersection_xy', intersection_xy
+    print *, 'angles', angles * 180.0_rk / pi
 
-    line_xy(:, 2) = [ -1.01010101E-02_rk,  4.54545455E-02_rk]
+    line_xy(:, 2) = [-1.01010101E-02_rk, 4.54545455E-02_rk]
     call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
-    print*, 'valid_intersection', valid_intersection
-    print*, 'intersection_xy', intersection_xy
-    print*, 'angles', angles * 180.0_rk / pi
+    print *, 'valid_intersection', valid_intersection
+    print *, 'intersection_xy', intersection_xy
+    print *, 'angles', angles * 180.0_rk / pi
 
-    line_xy(:, 2) = [ -1.51515152E-02_rk,  4.04040404E-02_rk]
+    line_xy(:, 2) = [-1.51515152E-02_rk, 4.04040404E-02_rk]
     call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
-    print*, 'valid_intersection', valid_intersection
-    print*, 'intersection_xy', intersection_xy
-    print*, 'angles', angles * 180.0_rk / pi
-
+    print *, 'valid_intersection', valid_intersection
+    print *, 'intersection_xy', intersection_xy
+    print *, 'angles', angles * 180.0_rk / pi
 
     ! Samples from cases that failed for some reason
     circle_radius = 1.55260008E-04_rk
-    circle_xy = [  -2.52372203E-03_rk, 1.16006631E-01_rk] ! P'
+    circle_xy = [-2.52372203E-03_rk, 1.16006631E-01_rk] ! P'
 
     line_xy(:, 1) = [-2.52525253E-03_rk, 1.16161616E-01_rk] ! P0
     line_xy(:, 2) = [-5.05050505E-03_rk, 1.16161616E-01_rk]
     call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
-    print*, 'valid_intersection', valid_intersection
-    print*, 'intersection_xy', intersection_xy
-    print*, 'angles', angles * 180.0_rk / pi
+    print *, 'valid_intersection', valid_intersection
+    print *, 'intersection_xy', intersection_xy
+    print *, 'angles', angles * 180.0_rk / pi
 
     line_xy(:, 2) = [0.00000000E+00_rk, 1.16161616E-01_rk]
     call intersect(line_xy, circle_xy, circle_radius, intersection_xy, valid_intersection, angles)
-    print*, 'valid_intersection', valid_intersection
-    print*, 'intersection_xy', intersection_xy
-    print*, 'angles', angles * 180.0_rk / pi
+    print *, 'valid_intersection', valid_intersection
+    print *, 'intersection_xy', intersection_xy
+    print *, 'angles', angles * 180.0_rk / pi
 
   end subroutine
 
