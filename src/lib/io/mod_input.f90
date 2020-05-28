@@ -43,6 +43,7 @@ module mod_input
     character(:), allocatable :: bc_pressure_input_file
     logical :: apply_constant_bc_pressure = .false.
     real(rk) :: constant_bc_pressure_value = 0.0_rk
+    real(rk) :: bc_density = 5e-3_rk !< density input for a pressure boundary condition
     real(rk) :: bc_pressure_scale_factor = 1.0_rk
     character(len=32) ::  plus_x_bc = 'periodic' !< Boundary condition at +x
     character(len=32) :: minus_x_bc = 'periodic' !< Boundary condition at -x
@@ -238,6 +239,7 @@ contains
        self%minus_y_bc == 'pressure_input') then
 
       call cfg%get("boundary_conditions", "apply_constant_bc_pressure", self%apply_constant_bc_pressure, .false.)
+      call cfg%get("boundary_conditions", "bc_density", self%bc_density)
 
       if(self%apply_constant_bc_pressure) then
         call cfg%get("boundary_conditions", "constant_bc_pressure_value", self%constant_bc_pressure_value)

@@ -15,8 +15,8 @@ module mod_pressure_input_bc
   type, extends(boundary_condition_t) :: pressure_input_bc_t
     logical :: constant_pressure = .false.
     real(rk) :: pressure_input = 0.0_rk
-    real(rk) :: temperature_input = 273.0_rk !K
-    real(rk) :: density_input = 1e-3_rk !K
+    real(rk) :: temperature_input = 273.0_rk ! K
+    real(rk) :: density_input = 5e-3_rk !< Boundary density g/cc
     real(rk) :: scale_factor = 1.0_rk !< scaling factor (e.g. 1x, 2x) to scale the input up/down
 
     ! Temporal inputs
@@ -45,7 +45,7 @@ contains
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
-    bc%density_input = 1e-3_rk / rho_0
+    bc%density_input = input%bc_density / rho_0
     bc%constant_pressure = input%apply_constant_bc_pressure
     bc%scale_factor = input%bc_pressure_scale_factor
     if(.not. bc%constant_pressure) then
