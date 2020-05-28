@@ -55,7 +55,6 @@ contains
     allocate(grad_x(ilo:ihi, jlo:jhi))
     allocate(grad_y(ilo:ihi, jlo:jhi))
 
-    ! print*, 'finding gradients'
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
