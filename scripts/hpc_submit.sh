@@ -6,7 +6,9 @@ JOBDIR=`pwd`
 EXEC="/b1/smil/cato/build/bin/cato.x"
 QUEUE=s1
 NODES=1
-CPUS=12
+CPUS=1
+THREADS_PER_CORE=1
+THREADS=$[CPUS*THREADS_PER_CORE]
 NP=$(($NODES*$CPUS))
 
 # The lines below shouldn't need to be modified to often
@@ -14,7 +16,7 @@ NP=$(($NODES*$CPUS))
 ### Make the script
 cat > pbs_submit.sh << EOF
 #!/bin/bash
-#PBS -l select=${NODES}:ncpus=${CPUS}:mpiprocs=${CPUS}
+#PBS -l select=${NODES}:ncpus=${CPUS}:mpiprocs=${THREADS}
 #PBS -q ${QUEUE}
 #PBS -N ${JOBNAME:0:8}
 #PBS -j oe
@@ -24,14 +26,20 @@ cat > pbs_submit.sh << EOF
 cd ${JOBDIR}
 cp ${EXEC} .
 
+# Module settings
 module purge
 module load intel/2019.5
 module load hdf5/1.8.17/b2
 module rm intel/17U4 # part of the hdf5 mod
 module load gcc/9.1.0
 
-./cato.x input.ini
-exit
+# OpenMP Settings
+export OMP_DISPLAY_ENV=TRUE
+export OMP_NUM_THREADS=${THREADS}
+export KMP_AFFINITY=verbose,granularity=fine,compact,0,0
+
+./cato.x input.ini > std.out
+exit 0
 EOF
 
 ### Submit the job
