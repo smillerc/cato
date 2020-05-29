@@ -13,9 +13,7 @@ module mod_gradients
   use mod_globals, only: n_ghost_layers
 
   implicit none
-  logical, parameter :: filter_small_gradients = .true.
-  real(rk), parameter :: SMALL = 1e-12_rk
-  real(rk), parameter :: SMALL_GRAD = 1e-4_rk
+  real(rk), parameter :: EPS = 2.0_rk * epsilon(1.0_rk)
 
   private
   public :: green_gauss_gradient
@@ -58,10 +56,8 @@ contains
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
-    !$omp private(n_x, n_y, edge_lengths, diff) &
-    !$omp shared(grad_x, grad_y, edge_vars, grid) &
-    !$omp reduction(+:d_dx), reduction(+:d_dy) &
-    !$omp reduction(max:max_edge_len), reduction(min:min_edge_len)
+    !$omp private(n_x, n_y, edge_lengths, d_dx, d_dy, diff) &
+    !$omp shared(grad_x, grad_y, edge_vars, grid)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
@@ -72,13 +68,11 @@ contains
         edge_lengths(3) = grid%cell_edge_lengths(3, i, j + 1)  ! top
         edge_lengths(4) = grid%cell_edge_lengths(4, i - 1, j)  ! left
 
-        if(abs(edge_lengths(3) - edge_lengths(1)) < 2.0_rk * epsilon(1.0_rk)) edge_lengths(3) = edge_lengths(1)
-        if(abs(edge_lengths(4) - edge_lengths(2)) < 2.0_rk * epsilon(1.0_rk)) edge_lengths(4) = edge_lengths(2)
+        if(abs(edge_lengths(3) - edge_lengths(1)) < EPS) edge_lengths(3) = edge_lengths(1)
+        if(abs(edge_lengths(4) - edge_lengths(2)) < EPS) edge_lengths(4) = edge_lengths(2)
 
-        max_edge_len = maxval(edge_lengths)
-        min_edge_len = minval(edge_lengths)
-        diff = max_edge_len - min_edge_len
-        if(diff < 2.0_rk * epsilon(1.0_rk)) edge_lengths = max_edge_len
+        diff = maxval(edge_lengths) - minval(edge_lengths)
+        if(diff < EPS) edge_lengths = maxval(edge_lengths)
 
         n_x(1) = grid%cell_edge_norm_vectors(1, 1, i, j - 1)  ! bottom
         n_y(1) = grid%cell_edge_norm_vectors(2, 1, i, j - 1)  ! bottom
@@ -92,20 +86,15 @@ contains
         d_dx = sum(edge_vars(:, i, j) * n_x * edge_lengths)
         d_dy = sum(edge_vars(:, i, j) * n_y * edge_lengths)
 
-        if(filter_small_gradients) then
-          if(abs(d_dx) < epsilon(1.0_rk)) then
-            grad_x(i, j) = 0.0_rk
-          else
-            grad_x(i, j) = d_dx / grid%cell_volume(i, j)
-          end if
-
-          if(abs(d_dy) < epsilon(1.0_rk)) then
-            grad_y(i, j) = 0.0_rk
-          else
-            grad_y(i, j) = d_dy / grid%cell_volume(i, j)
-          end if
+        if(abs(d_dx) < EPS) then
+          grad_x(i, j) = 0.0_rk
         else
           grad_x(i, j) = d_dx / grid%cell_volume(i, j)
+        end if
+
+        if(abs(d_dy) < EPS) then
+          grad_y(i, j) = 0.0_rk
+        else
           grad_y(i, j) = d_dy / grid%cell_volume(i, j)
         end if
 
