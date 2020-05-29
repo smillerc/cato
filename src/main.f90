@@ -30,6 +30,7 @@ program cato
   real(rk) :: delta_t = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
+  integer(ik) :: last_io_iteration = 0
   logical :: file_exists = .false.
   real(rk) :: contour_interval_dt, max_time
   ! real(rk), dimension(:,:), allocatable :: sound_speed
@@ -133,12 +134,17 @@ program cato
       write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
         next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
       call contour_writer%write_contour(U, fv, time, iteration)
+      last_io_iteration = iteration
     end if
 
     delta_t = get_timestep(cfl=input%cfl, fv=fv, fluid=U)
   end do
 
   call timer%stop()
+
+  ! One final contour output (if necessary)
+  if (iteration > last_io_iteration) call contour_writer%write_contour(U, fv, time, iteration)
+
   deallocate(fv)
   deallocate(U)
 
