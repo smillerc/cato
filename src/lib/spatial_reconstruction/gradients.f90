@@ -10,17 +10,18 @@ module mod_gradients
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: neumaier_sum
   use mod_grid, only: grid_t
-  use mod_globals, only: n_ghost_layers
+  use mod_globals, only: n_ghost_layers, plot_gradients
+  use hdf5_interface, only: hdf5_file
 
   implicit none
   real(rk), parameter :: EPS = 2.0_rk * epsilon(1.0_rk)
-
+  logical, parameter :: filter_small_values = .true.
   private
   public :: green_gauss_gradient
 
 contains
 
-  subroutine green_gauss_gradient(edge_vars, lbounds, grid, grad_x, grad_y)
+  subroutine green_gauss_gradient(edge_vars, lbounds, grid, grad_x, grad_y, name, stage_name)
     !< Estimate the slope-limited gradient of the primitive variables in the cell (i,j). This assumes
     !< a quadrilateral structured grid
     class(grid_t), intent(in) :: grid
@@ -31,19 +32,20 @@ contains
     real(rk), dimension(:, :), allocatable, intent(out) :: grad_x !< (i, j); gradient in the x-direction
     real(rk), dimension(:, :), allocatable, intent(out) :: grad_y !< (i, j); gradient in the y-direction
 
-    integer(ik) :: i, j, k
+    character(len=*), intent(in) :: name !< what variable are we finding the gradient of?
+    character(len=*), intent(in) :: stage_name !< what stage in the time integration are we
+    logical :: plot !< plot to file?
+
+    integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
+
+    character(len=50) :: filename = ''
 
     real(rk), dimension(4) :: edge_lengths  !< length of each face
     real(rk), dimension(4) :: n_x  !< normal vectors of each face
     real(rk), dimension(4) :: n_y  !< normal vectors of each face
     real(rk) :: d_dx, d_dy
-    real(rk), dimension(4) :: edge_val_x, edge_val_y
-    real(rk) :: esum_naive_x
-    real(rk) :: esum_naive_y
-    real(rk) :: esum_neumaier_x
-    real(rk) :: esum_neumaier_y
-    real(rk) :: max_edge_len, min_edge_len, diff
+    real(rk) :: diff
 
     ilo = lbound(edge_vars, dim=2)
     ihi = ubound(edge_vars, dim=2)
@@ -86,15 +88,20 @@ contains
         d_dx = sum(edge_vars(:, i, j) * n_x * edge_lengths)
         d_dy = sum(edge_vars(:, i, j) * n_y * edge_lengths)
 
-        if(abs(d_dx) < EPS) then
-          grad_x(i, j) = 0.0_rk
+        if(filter_small_values) then
+          if(abs(d_dx) < EPS) then
+            grad_x(i, j) = 0.0_rk
+          else
+            grad_x(i, j) = d_dx / grid%cell_volume(i, j)
+          end if
+
+          if(abs(d_dy) < EPS) then
+            grad_y(i, j) = 0.0_rk
+          else
+            grad_y(i, j) = d_dy / grid%cell_volume(i, j)
+          end if
         else
           grad_x(i, j) = d_dx / grid%cell_volume(i, j)
-        end if
-
-        if(abs(d_dy) < EPS) then
-          grad_y(i, j) = 0.0_rk
-        else
           grad_y(i, j) = d_dy / grid%cell_volume(i, j)
         end if
 
@@ -102,6 +109,27 @@ contains
     end do
     !$omp end do
     !$omp end parallel
+
+    if(plot_gradients) then
+      io: block
+        type(hdf5_file) :: h5
+        logical :: file_exists
+
+        filename = 'gradients_'//trim(stage_name)//'.h5'
+
+        inquire(file=filename, exist=file_exists)
+
+        if(file_exists) then
+          call h5%initialize(filename=filename, status='old', action='rw', comp_lvl=6)
+        else
+          call h5%initialize(filename=filename, status='new', action='rw', comp_lvl=6)
+        end if
+
+        call h5%add("d_dx_"//name, grad_x)
+        call h5%add("d_dy_"//name, grad_y)
+        call h5%finalize()
+      end block io
+    end if
   end subroutine green_gauss_gradient
 
 end module mod_gradients

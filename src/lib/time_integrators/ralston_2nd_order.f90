@@ -36,13 +36,13 @@ contains
 
       ! 1st stage
       call debug_print('Running ralston_2nd 1st stage', __FILE__, __LINE__)
-      dU_dt = U%t(finite_volume_scheme)
+      dU_dt = U%t(finite_volume_scheme, stage=1)
       U_1 = U + (2.0_rk * dt / 3.0_rk) * dU_dt
       call U_1%residual_smoother()
 
       ! Final stage
       call debug_print('Running ralston_2nd 2nd stage', __FILE__, __LINE__)
-      U = (U + (dt / 4.0_rk) * dU_dt) + (3.0_rk * dt / 4.0_rk) * U_1%t(finite_volume_scheme)
+      U = (U + (dt / 4.0_rk) * dU_dt) + (3.0_rk * dt / 4.0_rk) * U_1%t(finite_volume_scheme, stage=2)
       call U%residual_smoother()
       deallocate(U_1)
       deallocate(dU_dt)

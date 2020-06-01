@@ -7,7 +7,7 @@ module mod_regular_2d_grid
   use hdf5_interface, only: hdf5_file
   use mod_globals, only: debug_print
   use mod_floating_point_utils, only: equal
-  use mod_nondimensionalization, only: l_0
+  use mod_nondimensionalization, only: set_length_scale, l_0
 
   implicit none
 
@@ -46,14 +46,12 @@ module mod_regular_2d_grid
     procedure, private :: initialize_from_hdf5
     procedure, private :: initialize_from_ini
     procedure, private :: populate_element_specifications
+    procedure, private :: scale_and_nondimensionalize
     procedure, public :: get_x
     procedure, public :: get_y
     procedure, public :: get_cell_volumes
-    ! procedure, public :: get_cell_centroid_xy
     procedure, public :: get_cell_edge_lengths
     procedure, public :: get_cell_edge_norm_vectors
-    ! procedure, public :: get_midpoint_vectors
-    ! procedure, public :: get_corner_vectors
     procedure, public :: get_midpoint_persistent_vectors
     procedure, public :: get_corner_persistent_vectors
     procedure, public :: finalize
@@ -73,7 +71,7 @@ contains
     class(input_t), intent(in) :: input
     allocate(grid)
     call grid%initialize(input)
-  end function
+  end function constructor
 
   subroutine initialize(self, input)
     !< Implementation of the grid initialization process for a regular 2d grid
@@ -170,13 +168,14 @@ contains
     end associate
 
     call self%populate_element_specifications()
+    call self%scale_and_nondimensionalize()
 
     call self%get_corner_persistent_vectors(scale=.false., shift=.false.)
     call self%get_midpoint_persistent_vectors(edge='left', scale=.false., shift=.false.)
     call self%get_midpoint_persistent_vectors(edge='bottom', scale=.false., shift=.false.)
 
     call self%print_grid_stats()
-  end subroutine
+  end subroutine initialize
 
   subroutine copy(out_grid, in_grid)
     class(grid_t), intent(in) :: in_grid
@@ -243,7 +242,7 @@ contains
     ! if(allocated(out_grid%cell_edge_norm_vectors)) deallocate(out_grid%cell_edge_norm_vectors)
     ! allocate(out_grid%cell_edge_norm_vectors, source=in_grid%cell_edge_norm_vectors)
     out_grid%cell_edge_norm_vectors = in_grid%cell_edge_norm_vectors
-  end subroutine
+  end subroutine copy
 
   subroutine print_grid_stats(self)
     class(regular_2d_grid_t), intent(inout) :: self
@@ -279,7 +278,7 @@ contains
     write(*, '(a)') "========================="
     write(*, *)
 
-  end subroutine
+  end subroutine print_grid_stats
 
   subroutine initialize_from_hdf5(self, input)
     !< Initialize the grid from an .hdf5 file. This allows flexibility on the shape
@@ -361,31 +360,6 @@ contains
       self%node_y(imin:imax, jmin:jmax) = y!(1:imax,1:jmax)
     end associate
 
-    ! Non-dimensionalize
-    self%node_x = self%node_x / l_0
-    self%node_y = self%node_y / l_0
-
-    self%xmin = minval(self%node_x)
-    self%xmax = maxval(self%node_x)
-    self%ymin = minval(self%node_y)
-    self%ymax = maxval(self%node_y)
-
-    self%x_length = abs(self%xmax - self%xmin)
-    if(self%x_length <= 0) error stop "grid%x_length <= 0"
-
-    self%y_length = abs(self%ymax - self%ymin)
-    if(self%y_length <= 0) error stop "grid%x_length <= 0"
-
-    self%min_dx = minval(self%node_x(lbound(self%node_x, 1) + 1:ubound(self%node_x, 1), :) - &
-                         self%node_x(lbound(self%node_x, 1):ubound(self%node_x, 1) - 1, :))
-    self%max_dx = maxval(self%node_x(lbound(self%node_x, 1) + 1:ubound(self%node_x, 1), :) - &
-                         self%node_x(lbound(self%node_x, 1):ubound(self%node_x, 1) - 1, :))
-
-    self%min_dy = minval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
-                         self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
-    self%max_dy = maxval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
-                         self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
-
     deallocate(x)
     deallocate(y)
   end subroutine initialize_from_hdf5
@@ -397,6 +371,7 @@ contains
 
     integer(ik) :: alloc_status
     integer(ik) :: i, j
+
     ! High node/cell indices
     self%ihi_node = input%ni_nodes
     self%jhi_node = input%nj_nodes
@@ -413,26 +388,6 @@ contains
     self%nj_node = input%nj_nodes
     self%ni_cell = self%ni_node - 1
     self%nj_cell = self%nj_node - 1
-
-    ! Load and non-dimensionalize
-    self%xmin = input%xmin / l_0
-    self%xmax = input%xmax / l_0
-    self%ymin = input%ymin / l_0
-    self%ymax = input%ymax / l_0
-
-    self%x_length = abs(self%xmax - self%xmin)
-    if(self%x_length <= 0) error stop "grid%x_length <= 0"
-
-    self%y_length = abs(self%ymax - self%ymin)
-    if(self%y_length <= 0) error stop "grid%x_length <= 0"
-
-    self%min_dx = self%x_length / real(self%ni_cell, rk)
-    self%max_dx = self%min_dx ! placeholder for now
-    if(self%min_dx <= 0) error stop "grid%dx <= 0"
-
-    self%min_dy = self%y_length / real(self%nj_cell, rk)
-    self%max_dy = self%min_dy ! placeholder for now
-    if(self%min_dy <= 0) error stop "grid%dy <= 0"
 
     ! Allocate node based arrays
     associate(imin=>self%ilo_bc_node, imax=>self%ihi_bc_node, &
@@ -494,9 +449,9 @@ contains
     real(rk), dimension(8) :: p_x !< x coords of the cell corners and midpoints (c1,m1,c2,m2,c3,m3,c4,m4)
     real(rk), dimension(8) :: p_y !< x coords of the cell corners and midpoints (c1,m1,c2,m2,c3,m3,c4,m4)
 
-    real(rk) :: diff, min_edge_length, max_edge_length
     real(rk) :: min_vol, max_vol
     integer(ik) :: i, j
+
     x_coords = 0.0_rk
     y_coords = 0.0_rk
 
@@ -522,25 +477,79 @@ contains
         self%cell_edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
         self%cell_dx(i, j) = quad%min_dx
         self%cell_dy(i, j) = quad%min_dy
-
       end do
     end do
 
+  end subroutine populate_element_specifications
+
+  subroutine scale_and_nondimensionalize(self)
+    !< Scale the grid so that the cells are of size close to 1. If the grid is uniform,
+    !< then everything (edge length and volume) are all 1. If not uniform, then the smallest
+    !< edge legnth is 1. The scaling is done via the smallest edge length. This also sets
+    !< the length scale for the non-dimensionalization module
+
+    class(regular_2d_grid_t), intent(inout) :: self
+
+    real(rk) :: diff, min_edge_length, max_edge_length
+
     min_edge_length = minval(self%cell_edge_lengths)
     max_edge_length = maxval(self%cell_edge_lengths)
+
+    if(min_edge_length < tiny(1.0_rk)) error stop "Error in grid initialization, the cell min_edge_length = 0"
+
     diff = max_edge_length - min_edge_length
     if(diff < 2.0_rk * epsilon(1.0_rk)) then
-      self%cell_edge_lengths = max_edge_length
+      self%grid_is_uniform = .true.
     end if
 
-    min_vol = minval(self%cell_volume)
-    max_vol = maxval(self%cell_volume)
-    diff = max_vol - min_vol
-    if(diff < 2.0_rk * epsilon(1.0_rk)) then
-      self%cell_volume = max_vol
+    ! Set l_0 for the entire code
+    call set_length_scale(length_scale=min_edge_length)
+
+    ! Scale so that the minimum edge length is 1
+    self%node_x = self%node_x / min_edge_length
+    self%node_y = self%node_y / min_edge_length
+    self%cell_edge_lengths = self%cell_edge_lengths / min_edge_length
+    self%cell_centroid_x = self%cell_centroid_x / min_edge_length
+    self%cell_centroid_y = self%cell_centroid_y / min_edge_length
+    self%cell_node_x = self%cell_node_x / min_edge_length
+    self%cell_node_y = self%cell_node_y / min_edge_length
+    self%cell_dx = self%cell_dx / min_edge_length
+    self%cell_dy = self%cell_dy / min_edge_length
+
+    ! If the grid is uniform, then we can make it all difinitively 1
+    if(self%grid_is_uniform) then
+      write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
+      self%cell_volume = 1.0_rk
+      self%cell_edge_lengths = 1.0_rk
+      self%cell_dx = 1.0_rk
+      self%cell_dy = 1.0_rk
+      self%min_dx = 1.0_rk
+      self%max_dx = 1.0_rk
+    else
+      self%cell_volume = self%cell_volume / min_edge_length**2
+      self%min_dx = minval(self%node_x(lbound(self%node_x, 1) + 1:ubound(self%node_x, 1), :) - &
+                           self%node_x(lbound(self%node_x, 1):ubound(self%node_x, 1) - 1, :))
+      self%max_dx = maxval(self%node_x(lbound(self%node_x, 1) + 1:ubound(self%node_x, 1), :) - &
+                           self%node_x(lbound(self%node_x, 1):ubound(self%node_x, 1) - 1, :))
+
+      self%min_dy = minval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
+                           self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
+      self%max_dy = maxval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
+                           self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
     end if
 
-  end subroutine populate_element_specifications
+    self%xmin = minval(self%node_x)
+    self%xmax = maxval(self%node_x)
+    self%ymin = minval(self%node_y)
+    self%ymax = maxval(self%node_y)
+
+    self%x_length = abs(self%xmax - self%xmin)
+    if(self%x_length <= 0) error stop "grid%x_length <= 0"
+
+    self%y_length = abs(self%ymax - self%ymin)
+    if(self%y_length <= 0) error stop "grid%x_length <= 0"
+
+  end subroutine scale_and_nondimensionalize
 
   subroutine force_finalization(self)
     type(regular_2d_grid_t), intent(inout) :: self
@@ -576,7 +585,7 @@ contains
     integer(ik), intent(in) :: i, j
     real(rk) :: x
     x = self%node_x(i, j)
-  end function
+  end function get_x
 
   pure function get_y(self, i, j) result(y)
     !< Public interface to get y
@@ -584,7 +593,7 @@ contains
     integer(ik), intent(in) :: i, j
     real(rk) :: y
     y = self%node_y(i, j)
-  end function
+  end function get_y
 
   pure function get_cell_volumes(self, i, j) result(cell_volume)
     !< Public interface to get cell_volume
@@ -592,15 +601,7 @@ contains
     integer(ik), intent(in) :: i, j
     real(rk) :: cell_volume
     cell_volume = self%cell_volume(i, j)
-  end function
-
-  ! pure function get_cell_centroid_xy(self, i, j) result(cell_centroid_xy)
-  !   !< Public interface to get get_cell_centroid_xy
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik), intent(in) :: i, j
-  !   real(rk), dimension(2) :: cell_centroid_xy
-  !   cell_centroid_xy = self%cell_centroid_xy(:, i, j)
-  ! end function
+  end function get_cell_volumes
 
   pure function get_cell_edge_lengths(self, i, j, f) result(cell_edge_lengths)
     !< Public interface to get cell_edge_lengths
@@ -608,7 +609,7 @@ contains
     integer(ik), intent(in) :: i, j, f
     real(rk) :: cell_edge_lengths
     cell_edge_lengths = self%cell_edge_lengths(f, i, j)
-  end function
+  end function get_cell_edge_lengths
 
   pure function get_cell_edge_norm_vectors(self, i, j, f, xy) result(cell_edge_norm_vectors)
     !< Public interface to get cell_edge_norm_vectors
@@ -616,152 +617,7 @@ contains
     integer(ik), intent(in) :: i, j, f, xy
     real(rk) :: cell_edge_norm_vectors
     cell_edge_norm_vectors = self%cell_edge_norm_vectors(xy, f, i, j)
-  end function
-
-  ! pure function get_midpoint_vectors(self, cell_ij, edge) result(vectors)
-  !   !< Public interface to get_midpoint_vectors
-  !   class(regular_2d_grid_t), intent(in) :: self
-  !   integer(ik), dimension(2), intent(in) :: cell_ij
-  !   character(len=*), intent(in) :: edge ! 'bottom', 'top', 'left', 'right'
-  !   real(rk), dimension(2, 2, 2) :: vectors !< ((x,y), (tail,head), (vector_1:vector_2))
-
-  !   integer(ik) :: i, j
-  !   real(rk), dimension(2) :: tail
-
-  !   i = cell_ij(1)
-  !   j = cell_ij(2)
-  !   ! Corner/midpoint index convention         Cell Indexing convention
-  !   ! --------------------------------         ------------------------
-  !   !
-  !   !   C----M----C----M----C
-  !   !   |         |         |                             E3
-  !   !   O    x    O    x    O                      N4-----M3----N3
-  !   !   |         |         |                      |            |
-  !   !   C----M----C----M----C                  E4  M4     C     M2  E2
-  !   !   |         |         |                      |            |
-  !   !   O    x    O    x    O                      N1----M1----N2
-  !   !   |         |         |                            E1
-  !   !   C----M----C----M----C
-  !   !
-  !   ! For left/right midpoints, the edge vectors go left then right.
-  !   ! The neighboring cells are above (i,j) and below (i,j-1)
-  !   ! For quad cells, N - corner, M - midpoint, E - edge
-
-  !   ! self%cell_node_xy indexing convention
-  !   !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
-  !   !< e.g. 1 - all corners, 2 - all midpoints
-
-  !   vectors = 0.0_rk
-
-  !   select case(trim(edge))
-  !   case('left')
-  !     ! Left edge of cell (i,j)
-  !     !  |         C2(N4)     |
-  !     !  |         |          |
-  !     !  |         M4         |
-  !     !  | (i-1,j) |  (i,j)   |
-  !     !  |         C1(N1)     |
-  !     tail = self%cell_node_xy(:, 4, 2, i, j)
-  !     vectors = reshape([tail, &                             ! (x,y) tail, vector 1 (M4)
-  !                        self%cell_node_xy(:, 1, 1, i, j), & ! (x,y) head, vector 1 (N1)
-  !                        tail, &                             ! (x,y) tail, vector 2 (M4)
-  !                        self%cell_node_xy(:, 4, 1, i, j) &  ! (x,y) head, vector 2 (N4)
-  !                        ], shape=[2, 2, 2])
-  !   case('bottom')
-  !     ! Bottom edge of cell (i,j)
-  !     !       |          |
-  !     !       |  (i,j)   |
-  !     !  (N1) C1---M1---C2 (N2)
-  !     !       | (i,j-1)  |
-  !     !       |          |
-  !     tail = self%cell_node_xy(:, 1, 2, i, j)
-  !     vectors = reshape([tail, &                            ! (x,y) tail, vector 1 (M1)
-  !                        self%cell_node_xy(:, 1, 1, i, j), &    ! (x,y) head, vector 1 (N1)
-  !                        tail, &                            ! (x,y) tail, vector 2 (M1)
-  !                        self%cell_node_xy(:, 2, 1, i, j) &     ! (x,y) head, vector 2 (N2)
-  !                        ], shape=[2, 2, 2])
-  !   case default
-  !     error stop "Invalid location for midpoint edge vector request"
-  !   end select
-
-  ! end function get_midpoint_vectors
-
-  ! pure function get_corner_vectors(self, cell_ij, corner) result(vectors)
-  !   !< Public interface to get_corner_vectors
-  !   class(regular_2d_grid_t), intent(in) :: self
-
-  !   integer(ik), dimension(2), intent(in) :: cell_ij
-  !   character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
-  !   real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (tail,head), (vector1:vector4))
-
-  !   integer(ik) :: i, j, N
-  !   real(rk), dimension(2) :: tail
-
-  !   i = cell_ij(1)
-  !   j = cell_ij(2)
-  !   vectors = 0.0_rk
-  !   tail = 0.0_rk
-
-  !   ! Corner/midpoint index convention         Cell Indexing convention
-  !   ! --------------------------------         ------------------------
-  !   !
-  !   !   C----M----C----M----C
-  !   !   |         |         |                             E3
-  !   !   O    x    O    x    O                      N4-----M3----N3
-  !   !   |         |         |                      |            |
-  !   !   C----M----C----M----C                  E4  M4     C     M2  E2
-  !   !   |         |         |                      |            |
-  !   !   O    x    O    x    O                      N1----M1----N2
-  !   !   |         |         |                            E1
-  !   !   C----M----C----M----C
-  !   !
-  !   ! For left/right midpoints, the edge vectors go left then right.
-  !   ! The neighboring cells are above (i,j) and below (i,j-1)
-  !   ! For quad cells, N - corner, M - midpoint, E - edge
-
-  !   ! Corner vector set
-  !   !       cell 4                   cell 3
-  !   !      (i-1,j)                   (i,j)
-  !   !  N4----M3----N3    P3   N4----M3----N3
-  !   !  |            |    |    |            |
-  !   !  M4    C4    M2    |    M4    C3    M2
-  !   !  |            |    |    |            |
-  !   !  N1----M1----N2    |    N1----M1----N2
-  !   !                    |
-  !   !  P4----------------O-----------------P2
-  !   !                    |
-  !   !  N4----M3----N3    |    N4----M3----N3
-  !   !  |            |    |    |            |
-  !   !  M4    C1    M2    |    M4    C2    M2
-  !   !  |            |    |    |            |
-  !   !  N1----M1----N2    P1   N1----M1----N2
-  !   !      cell 1                  cell 2
-  !   !     (i-1,j-1)               (i,j-1)
-
-  !   ! self%cell_node_xy indexing convention
-  !   !< ((x,y), (point_1:point_n), (node=1,midpoint=2), i, j); The node/midpoint dimension just selects which set of points,
-  !   !< e.g. 1 - all corners, 2 - all midpoints
-
-  !   tail = self%cell_node_xy(:, 1, 1, i, j)
-  !   select case(trim(corner))
-  !   case('lower-left')
-  !     N = 1
-  !     vectors(:, 1, 1) = tail
-  !     vectors(:, 1, 2) = tail
-  !     vectors(:, 1, 3) = tail
-  !     vectors(:, 1, 4) = tail
-
-  !     vectors(:, 2, 1) = self%cell_node_xy(:, 2, N, i - 1, j - 1)  ! vector 1
-  !     vectors(:, 2, 4) = self%cell_node_xy(:, 4, N, i - 1, j - 1)  ! vector 4
-
-  !     vectors(:, 2, 2) = self%cell_node_xy(:, 2, N, i, j)      ! vector 2
-  !     vectors(:, 2, 3) = self%cell_node_xy(:, 4, N, i, j)      ! vector 3
-
-  !   case default
-  !     error stop "Invalid location for midpoint edge vector request"
-  !   end select
-
-  ! end function get_corner_vectors
+  end function get_cell_edge_norm_vectors
 
   subroutine get_midpoint_persistent_vectors(self, edge, scale, shift)
     !< Public interface to get_midpoint_vectors

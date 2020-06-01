@@ -55,12 +55,14 @@ contains
 
   end subroutine finalize
 
-  subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds)
+  subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
     !< of the data necessary, like the cell average and gradient
 
     class(piecewise_constant_reconstruction_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
+    character(len=*), intent(in) :: stage_name
+    character(len=*), intent(in) :: name
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), contiguous :: primitive_var !< (i,j); cell primitive variable to reconstruct
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out), contiguous :: reconstructed_var
     !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint

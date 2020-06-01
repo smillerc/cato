@@ -67,20 +67,17 @@ program cato
 
   call input%read_from_ini(input_filename)
   call input%display_config()
-  call set_scale_factors(time_scale=input%reference_time, &
-                         length_scale=input%reference_length, &
-                         density_scale=input%reference_density)
-
-  ! Non-dimensionalize
-  contour_interval_dt = input%contour_interval_dt / t_0
-  max_time = input%max_time / t_0
 
   call set_equation_of_state(input)
   call set_output_unit_system(input%unit_system)
 
   fv => make_fv_scheme(input)
   U => new_fluid(input, fv)
-  contour_writer = contour_writer_t(input=input)
+  contour_writer = contour_writer_t(input)
+
+  ! Non-dimensionalize
+  contour_interval_dt = input%contour_interval_dt / t_0
+  max_time = input%max_time / t_0
 
   if(input%restart_from_file) then
     time = fv%time / t_0
@@ -143,7 +140,7 @@ program cato
   call timer%stop()
 
   ! One final contour output (if necessary)
-  if (iteration > last_io_iteration) call contour_writer%write_contour(U, fv, time, iteration)
+  if(iteration > last_io_iteration) call contour_writer%write_contour(U, fv, time, iteration)
 
   deallocate(fv)
   deallocate(U)

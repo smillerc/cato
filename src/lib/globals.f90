@@ -6,6 +6,8 @@ module mod_globals
 
   logical, parameter :: enable_debug_print = .false.
   logical, parameter :: enable_file_and_line_stats = .false.
+  logical, parameter :: plot_gradients = .false.
+  logical, parameter :: plot_limiters = .false.
 
   ! real(rk), parameter :: TINY_MACH = 1.0e-9_rk
 
@@ -105,7 +107,7 @@ contains
     integer, intent(in), optional :: line_number
 
     if(enable_debug_print) then
-!      if(this_image() == 1) then
+      !       if(this_image() == 1) then
 
       if(enable_file_and_line_stats) then
         if(present(file) .and. present(line_number)) then
@@ -117,7 +119,7 @@ contains
         write(std_out, '(a)') str
       end if
 
-!      end if
+      !      end if
     end if
   end subroutine
 

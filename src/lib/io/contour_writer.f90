@@ -318,7 +318,7 @@ contains
 
     ! Volume
     dataset_name = '/volume'
-    io_data_buffer = fv_scheme%grid%cell_volume(:, :) * l_0**3
+    io_data_buffer = fv_scheme%grid%cell_volume(:, :) * l_0**2
     io_data_buffer = io_data_buffer * io_volume_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')

@@ -20,6 +20,8 @@ module mod_grid
 
   type, abstract :: grid_t
 
+    logical :: grid_is_uniform = .false. !< are all the cells the same size?
+
     ! Node indicies
     integer(ik) :: ilo_bc_node = 0 !< low i boundary condition node index
     integer(ik) :: jlo_bc_node = 0 !< low j boundary condition node index

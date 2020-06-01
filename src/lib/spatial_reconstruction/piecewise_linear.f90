@@ -32,16 +32,11 @@ contains
     class(piecewise_linear_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid_target
-
-    integer(ik) :: alloc_status
-
     call debug_print('Initializing piecewise_linear_reconstruction_t', __FILE__, __LINE__)
 
     self%order = 2
     self%name = 'piecewise_linear'
-
     self%grid => grid_target
-
     call self%set_slope_limiter(name=input%limiter)
 
   end subroutine initialize
@@ -49,14 +44,11 @@ contains
   subroutine finalize(self)
     !< Finalize the piecewise_linear_reconstruction_t type
     type(piecewise_linear_reconstruction_t), intent(inout) :: self
-    integer(ik) :: alloc_status
-
     call debug_print('Running piecewise_linear_reconstruction_t%finalize()', __FILE__, __LINE__)
-
     if(associated(self%grid)) nullify(self%grid)
   end subroutine finalize
 
-  subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds)
+  subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
     !< Reconstruct each corner/midpoint. This converts the cell centered conserved
     !< quantities [rho, rho u, rho v, e] to reconstructed primitive variables [rho, u, v, p]
     !< based on the chosen reconstruction order, e.g. using a piecewise-linear function based on the
@@ -64,6 +56,8 @@ contains
     !< of the data necessary, like the cell average and gradient
     class(piecewise_linear_reconstruction_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
+    character(len=*), intent(in) :: stage_name
+    character(len=*), intent(in) :: name
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: primitive_var !< (i,j); cell primitive variable to reconstruct
     real(rk), dimension(:, lbounds(1):, lbounds(2):), contiguous, intent(out) :: reconstructed_var
     !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
@@ -100,7 +94,7 @@ contains
     ! Now find the cell gradient
     edge_lbounds = lbound(edge_values)
     call green_gauss_gradient(edge_vars=edge_values, lbounds=edge_lbounds, grid=self%grid, &
-                              grad_x=grad_x, grad_y=grad_y)
+                              grad_x=grad_x, grad_y=grad_y, name=name, stage_name=stage_name)
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -118,6 +112,8 @@ contains
           y = self%grid%cell_node_y(p, i, j)
           dx = grad_x(i, j) * (x - x_ij)
           dy = grad_y(i, j) * (y - y_ij)
+
+          ! write(*, '(4(es16.6))') dx, dy, grad_x(i, j), grad_y(i, j)
           if(abs(dx) < 1e-9_rk) dx = 0.0_rk
           if(abs(dy) < 1e-9_rk) dy = 0.0_rk
 

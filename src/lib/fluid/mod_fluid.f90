@@ -7,7 +7,7 @@ module mod_fluid
 #endif /* USE_OPENMP */
 
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
-  use mod_nondimensionalization, only: rho_0, v_0, p_0, e_0
+  use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
@@ -89,6 +89,11 @@ contains
 
     alloc_status = 0
     call debug_print('Initializing fluid_t', __FILE__, __LINE__)
+
+    if(.not. scale_factors_set) then
+      error stop "Error in fluid_t%initialize(), global non-dimensional "// &
+        "scale factors haven't been set yet. These need to be set before fluid initialization"
+    end if
 
     associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, &
               imax=>finite_volume_scheme%grid%ihi_bc_cell, &
@@ -328,11 +333,12 @@ contains
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine finalize
 
-  function time_derivative(self, fv) result(d_dt)
+  function time_derivative(self, fv, stage) result(d_dt)
     !< Implementation of dU/dt
 
     class(fluid_t), intent(in) :: self
     class(finite_volume_scheme_t), intent(inout) :: fv
+    integer(ik), intent(in) :: stage !< which stage in the time integration scheme are we in, e.g. RK2 stage 1
 
     ! Locals
     class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
@@ -428,19 +434,19 @@ contains
     ! Now we can reconstruct the entire domain
     call debug_print('Reconstructing density', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%rho, lbounds=bounds, &
-                        reconstructed_var=rho_recon_state)
+                        reconstructed_var=rho_recon_state, name='rho', stage=stage)
 
     call debug_print('Reconstructing x-velocity', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%u, lbounds=bounds, &
-                        reconstructed_var=u_recon_state)
+                        reconstructed_var=u_recon_state, name='u', stage=stage)
 
     call debug_print('Reconstructing y-velocity', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%v, lbounds=bounds, &
-                        reconstructed_var=v_recon_state)
+                        reconstructed_var=v_recon_state, name='v', stage=stage)
 
     call debug_print('Reconstructing pressure', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%p, lbounds=bounds, &
-                        reconstructed_var=p_recon_state)
+                        reconstructed_var=p_recon_state, name='p', stage=stage)
 
     ! Apply the reconstructed state to the ghost layers
     call fv%apply_reconstructed_state_bc(recon_rho=rho_recon_state, recon_u=u_recon_state, &

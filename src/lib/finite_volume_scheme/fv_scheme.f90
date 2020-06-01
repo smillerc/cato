@@ -19,6 +19,7 @@ module mod_finite_volume_schemes
   use mod_grid, only: grid_t
   use hdf5_interface, only: hdf5_file
   use mod_boundary_conditions, only: boundary_condition_t
+  use mod_nondimensionalization, only: set_scale_factors
 
   implicit none
   private
@@ -95,7 +96,7 @@ contains
     allocate(fv)
     call fv%initialize(input)
 
-  end function
+  end function constructor
 
   subroutine initialize(self, input)
     !< Construct the finite volume local evolution Galerkin (fvleg) scheme
@@ -137,6 +138,12 @@ contains
     allocate(self%grid, source=grid, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%grid"
     deallocate(grid)
+
+    ! Now that the grid is set, we can finish setting up the scale factors
+    ! for non-dimensionalization. The grid sets the length scale automatically
+    ! so that the smallest cell edge length is 1.
+    call set_scale_factors(pressure_scale=input%reference_pressure, &
+                           density_scale=input%reference_density)
 
     ! Set boundary conditions
     bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input)
@@ -280,18 +287,27 @@ contains
 
   end subroutine apply_source_terms
 
-  subroutine reconstruct(self, primitive_var, lbounds, reconstructed_var)
+  subroutine reconstruct(self, primitive_var, lbounds, reconstructed_var, stage, name)
     !< Implementation of the FVLEG reconstruction.
     !< This reconstructs the entire grid at all the nodes/midpoints
     class(finite_volume_scheme_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
+    integer(ik), intent(in) :: stage !< stage in the time integration scheme, e.g. stage 2 in RK2
+    character(len=*), intent(in) :: name !< what variable will be reconstructed
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: primitive_var !< (i,j); cell primitive variable to reconstruct
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out) :: reconstructed_var
     !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
-    call debug_print('Running finite_volume_scheme_t%reconstruct()', __FILE__, __LINE__)
-    call self%reconstruction_operator%reconstruct(primitive_var, reconstructed_var, lbounds)
+    character(len=50) :: stage_name = ''
 
+    write(stage_name, '(2(a, i0))') 'iter_', self%iteration, 'stage_', stage
+
+    call debug_print('Running finite_volume_scheme_t%reconstruct()', __FILE__, __LINE__)
+    call self%reconstruction_operator%reconstruct(primitive_var=primitive_var, &
+                                                  reconstructed_var=reconstructed_var, &
+                                                  lbounds=lbounds, &
+                                                  name=name, &
+                                                  stage_name=stage_name)
   end subroutine reconstruct
 
   subroutine set_time(self, time, delta_t, iteration)

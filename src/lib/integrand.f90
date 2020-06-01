@@ -35,13 +35,14 @@ module mod_integrand
   end type
 
   abstract interface
-    function time_derivative(self, fv) result(dState_dt)
+    function time_derivative(self, fv, stage) result(dState_dt)
       import :: integrand_t
       import :: finite_volume_scheme_t
-      import :: rk
+      import :: ik, rk
       class(integrand_t), intent(in) :: self
       class(finite_volume_scheme_t), intent(inout) :: fv !< finite volume scheme
       class(integrand_t), allocatable :: dState_dt
+      integer(ik), intent(in) :: stage
     end function time_derivative
 
     subroutine basic(self)

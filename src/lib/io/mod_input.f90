@@ -14,8 +14,7 @@ module mod_input
     character(:), allocatable :: unit_system !< Type of units to output (CGS, ICF, MKS, etc...)
 
     ! reference state
-    real(rk) :: reference_time = 1.0_rk
-    real(rk) :: reference_length = 1.0_rk
+    real(rk) :: reference_pressure = 1.0_rk
     real(rk) :: reference_density = 1.0_rk
 
     ! grid
@@ -89,6 +88,10 @@ module mod_input
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: limiter
 
+    ! debug
+    logical :: plot_limiters = .false.
+    logical :: plot_gradients = .false.
+
   contains
     procedure, public :: initialize
     procedure, public :: read_from_ini
@@ -146,15 +149,13 @@ contains
     self%unit_system = trim(char_buffer)
 
     ! Reference state
-    call cfg%get("reference_state", "reference_time", self%reference_time)
-    call cfg%get("reference_state", "reference_length", self%reference_length)
+    call cfg%get("reference_state", "reference_pressure", self%reference_pressure)
     call cfg%get("reference_state", "reference_density", self%reference_density)
 
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "cfl", self%cfl, 0.1_rk)
     call cfg%get("time", "integration_strategy", char_buffer)
-    call cfg%get("time", "smooth_residuals", self%smooth_residuals, .true.)
     call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
     self%time_integration_strategy = trim(char_buffer)
 
@@ -162,6 +163,7 @@ contains
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
 
     ! Scheme
+    call cfg%get("scheme", "smooth_residuals", self%smooth_residuals, .true.)
     call cfg%get("scheme", "cell_reconstruction", char_buffer, 'piecewise_linear')
     self%cell_reconstruction = trim(char_buffer)
 
@@ -304,8 +306,7 @@ contains
     write(*, '(a)') "==============="
     write(*, '(a, a)') "title: ", self%title
     write(*, '(a, a)') "unit_system: ", self%unit_system
-    write(*, '(a, es16.3)') "reference_time: ", self%reference_time
-    write(*, '(a, es16.3)') "reference_length: ", self%reference_length
+    write(*, '(a, es16.3)') "reference_pressure: ", self%reference_pressure
     write(*, '(a, es16.3)') "reference_density: ", self%reference_density
     write(*, '(a, a)') "grid_type: ", self%grid_type
     write(*, '(a, es16.3)') "xmin: ", self%xmin
