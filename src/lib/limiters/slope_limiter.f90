@@ -76,26 +76,34 @@ contains
     if(use_sym_form) then
       select case(trim(name))
       case('none')
+        write(*, '(a)') "Selecting 'none' as the slope limiter"
         limiter%limit => none
       case('barth_jesperson')
-        limiter%limit => barth_jespersen
+        write(*, '(a)') "Selecting 'barth_jesperson_sym_form' as the slope limiter"
+        limiter%limit => barth_jespersen_sym_form
       case('minmod')
-        limiter%limit => minmod
+        write(*, '(a)') "Selecting 'minmod_sym_form' as the slope limiter"
+        limiter%limit => minmod_sym_form
       case('van_leer')
-        limiter%limit => van_leer
+        write(*, '(a)') "Selecting 'van_leer_sym_form' as the slope limiter"
+        limiter%limit => van_leer_sym_form
       case default
         error stop "Error in slope_limiter_t%constructor(): Unknown slope limiter name"
       end select
     else
       select case(trim(name))
       case('none')
+        write(*, '(a)') "Selecting 'none' as the slope limiter"
         limiter%limit => none
       case('barth_jesperson')
-        limiter%limit => barth_jespersen_sym_form
+        write(*, '(a)') "Selecting 'barth_jespersen' as the slope limiter"
+        limiter%limit => barth_jespersen
       case('minmod')
-        limiter%limit => minmod_sym_form
+        write(*, '(a)') "Selecting 'minmod' as the slope limiter"
+        limiter%limit => minmod
       case('van_leer')
-        limiter%limit => van_leer_sym_form
+        write(*, '(a)') "Selecting 'van_leer' as the slope limiter"
+        limiter%limit => van_leer
       case default
         error stop "Error in slope_limiter_t%constructor(): Unknown symmetric slope limiter name"
       end select
