@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import sys
 
@@ -27,14 +28,13 @@ vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm
 
 # Mesh
 vacuum_feathering = 1.1
-y_thickness = .2 * ureg("um")
-# dy = 0.1 * ureg("um")
+y_thickness = 0.2 * ureg("um")
 dy = None  # will use smallest dx if None
 
 interface_loc = 2.0
 layer_thicknesses = [interface_loc, 10, 3] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [2, 20, 20] * ureg("1/um")
+layer_resolution = [40, 40, 40] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
@@ -57,16 +57,6 @@ domain = make_2d_layered_grid(
     layer_spacing=layer_spacing,
     spacing_scale_factor=vacuum_feathering,
 )
-
-x = domain["xc"].to("cm").m
-y = domain["yc"].to("cm").m
-
-# Perturbation
-x0 = (interface_loc * ureg("um")).to("cm").m
-y0 = (y_thickness / 2.0).to("cm").m
-fwhm = (0.5 * ureg("um")).to("cm").m
-gaussian_order = 1
-perturbation_frac = -0.01
 
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
