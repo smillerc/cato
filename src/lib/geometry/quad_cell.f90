@@ -56,10 +56,6 @@ contains
 
     ! round-off checks
     associate(y=>self%y, x=>self%x)
-
-      ! print*, 'dy ', abs(y(2) - y(1)), abs(y(4) - y(3))
-      ! print*, 'dx ', abs(x(3) - x(2)), abs(x(4) - x(1))
-
       if(abs(y(2) - y(1)) < epsilon(1.0_rk)) then
         y(2) = y(1)
       end if
@@ -91,30 +87,14 @@ contains
       self%edge_lengths(3) = sqrt((x(4) - x(3))**2 + (y(4) - y(3))**2)
       self%edge_lengths(4) = sqrt((x(1) - x(4))**2 + (y(1) - y(4))**2)
 
-      ! write(*, '(a, 2(es16.6))') "edge(1) :", abs(x(2) - x(1)), abs(y(2) - y(1))
-      ! write(*, '(a, 2(es16.6))') "edge(2) :", abs(x(3) - x(2)), abs(y(3) - y(2))
-      ! write(*, '(a, 2(es16.6))') "edge(3) :", abs(x(4) - x(3)), abs(y(4) - y(3))
-      ! write(*, '(a, 2(es16.6))') "edge(4) :", abs(x(1) - x(4)), abs(y(1) - y(4))
-      ! write(*, '(a, 4(es16.6))') "edge lengths :", self%edge_lengths
-      ! write(*, '(a, 4(es16.6))') 'max - min lengths (before): ', maxval(self%edge_lengths) - minval(self%edge_lengths)
-
       if(maxval(self%edge_lengths) - minval(self%edge_lengths) < 2.0_rk * epsilon(1.0_rk)) then
         self%edge_lengths = maxval(self%edge_lengths)
       end if
-
-      ! write(*, '(a, 4(es16.6))') 'max - min lengths (after) : ', maxval(self%edge_lengths) - minval(self%edge_lengths)
-      ! print*
 
       self%edge_midpoints(:, 1) = [(x(2) + x(1)) / 2.0_rk,(y(2) + y(1)) / 2.0_rk]
       self%edge_midpoints(:, 2) = [(x(3) + x(2)) / 2.0_rk,(y(3) + y(2)) / 2.0_rk]
       self%edge_midpoints(:, 3) = [(x(4) + x(3)) / 2.0_rk,(y(4) + y(3)) / 2.0_rk]
       self%edge_midpoints(:, 4) = [(x(1) + x(4)) / 2.0_rk,(y(1) + y(4)) / 2.0_rk]
-
-      ! associate(x=>self%edge_midpoints(1, :), y=>self%edge_midpoints(2, :))
-      !   print*, 'midpoints'
-      !   print*, 'dy ', abs(y(4) - y(2))
-      !   print*, 'dx ', abs(x(3) - x(1))
-      ! end associate
 
       self%min_dx = min(abs(x(2) - x(1)), &
                         abs(x(3) - x(4)))
@@ -132,7 +112,7 @@ contains
     class(quad_cell_t), intent(inout) :: self
 
     real(rk), dimension(5) :: x, y
-    integer(ik) :: i
+    ! integer(ik) :: i
 
     ! Make the x and y arrays wrap around so that the points are
     ! [1, 2, 3, 4, 1] so as to make the math easy

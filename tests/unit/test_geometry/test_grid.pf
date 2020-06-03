@@ -140,8 +140,7 @@ contains
     write(ini, *) "ymin=", ymin
     write(ini, *) "ymax=", ymax
     write(ini, *) "[reference_state]"
-    write(ini, *) "reference_time=1.0"
-    write(ini, *) "reference_length=1.0"
+    write(ini, *) "reference_pressure=1.0"
     write(ini, *) "reference_density=1.0"
     write(ini, *) "[physics]"
     write(ini, *) "polytropic_index=1.6"

@@ -98,9 +98,6 @@ contains
       call self%initialize_from_ini(input)
     end if
 
-    ! Now that the dimensions are set (from .ini or grid file), we can finish
-    ! the initialization process
-
     ! Allocate cell based arrays
     associate(imin=>self%ilo_bc_cell, imax=>self%ihi_bc_cell, &
               jmin=>self%jlo_bc_cell, jmax=>self%jhi_bc_cell)
@@ -399,6 +396,25 @@ contains
       allocate(self%node_y(imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_y from .ini input file"
     end associate
+
+    self%xmin = input%xmin / l_0
+    self%xmax = input%xmax / l_0
+    self%ymin = input%ymin / l_0
+    self%ymax = input%ymax / l_0
+
+    self%x_length = abs(self%xmax - self%xmin)
+    if(self%x_length <= 0) error stop "grid%x_length <= 0"
+
+    self%y_length = abs(self%ymax - self%ymin)
+    if(self%y_length <= 0) error stop "grid%x_length <= 0"
+
+    self%min_dx = self%x_length / real(self%ni_cell, rk)
+    self%max_dx = self%min_dx ! placeholder for now
+    if(self%min_dx <= 0) error stop "grid%dx <= 0"
+
+    self%min_dy = self%y_length / real(self%nj_cell, rk)
+    self%max_dy = self%min_dy ! placeholder for now
+    if(self%min_dy <= 0) error stop "grid%dy <= 0"
 
     ! Set the x spacing
     do i = self%ilo_node, self%ihi_node
