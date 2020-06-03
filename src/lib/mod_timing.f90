@@ -106,8 +106,8 @@ contains
     if(.not. fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
     associate(dx=>fv%grid%cell_dx, dy=>fv%grid%cell_dy)
 
-      delta_t = minval(cfl / (((fluid%u(ilo:ihi, jlo:jhi) + fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
-                              ((fluid%v(ilo:ihi, jlo:jhi) + fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
+      delta_t = minval(cfl / (((abs(fluid%u(ilo:ihi, jlo:jhi)) + fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
+                              ((abs(fluid%v(ilo:ihi, jlo:jhi)) + fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
     end associate
 
   end function
