@@ -25,14 +25,18 @@ contains
     class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
     real(rk), intent(inout) :: dt
     class(integrand_t), allocatable :: U_1
-    class(integrand_t), allocatable :: dU_dt
+    class(integrand_t), allocatable :: R   ! Used for residual history
+    class(integrand_t), allocatable :: dU_dt   !< 1st stage deriv
+    class(integrand_t), allocatable :: dU_1_dt !< 2nd stage deriv
 
     call debug_print('Running ralston_2nd%integrate()', __FILE__, __LINE__)
 
     select type(U)
     class is(integrand_t)
       allocate(U_1, source=U)
+      allocate(R, source=U)
       allocate(dU_dt, source=U)
+      allocate(dU_1_dt, source=U)
 
       ! 1st stage
       call debug_print('Running ralston_2nd 1st stage', __FILE__, __LINE__)
@@ -44,8 +48,15 @@ contains
       call debug_print('Running ralston_2nd 2nd stage', __FILE__, __LINE__)
       U = (U + (dt / 4.0_rk) * dU_dt) + (3.0_rk * dt / 4.0_rk) * U_1%t(finite_volume_scheme, stage=2)
       call U%residual_smoother()
-      deallocate(U_1)
+
+      ! Convergence history
+      R = U - U_1
+      call R%write_residual_history(finite_volume_scheme)
+
+      deallocate(R)
+      deallocate(dU_1_dt)
       deallocate(dU_dt)
+      deallocate(U_1)
     class default
       error stop 'Error in ralston_2nd%integrate - unsupported class'
     end select

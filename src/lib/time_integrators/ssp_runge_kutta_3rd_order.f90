@@ -26,6 +26,7 @@ contains
     real(rk), intent(inout) :: dt
     class(integrand_t), allocatable :: U_1 !< first stage
     class(integrand_t), allocatable :: U_2 !< second stage
+    class(integrand_t), allocatable :: R !< hist
 
     call debug_print('Running ssp_runge_kutta_3rd%integrate()', __FILE__, __LINE__)
 
@@ -33,6 +34,7 @@ contains
     class is(integrand_t)
       allocate(U_1, source=U)
       allocate(U_2, source=U)
+      allocate(R, source=U)
 
       ! 1st stage
       U_1 = U + dt * U%t(finite_volume_scheme, stage=1)
@@ -50,6 +52,11 @@ contains
           + (2.0_rk / 3.0_rk) * dt * U_2%t(finite_volume_scheme, stage=3)
       call U%residual_smoother()
 
+      ! Convergence history
+      R = U - U_1
+      call R%write_residual_history(finite_volume_scheme)
+
+      deallocate(R)
       deallocate(U_1)
       deallocate(U_2)
     class default

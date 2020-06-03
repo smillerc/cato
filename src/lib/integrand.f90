@@ -18,9 +18,10 @@ module mod_integrand
     procedure, non_overridable :: get_time_integrator
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
     procedure(sanity_check), deferred :: sanity_check
-    procedure(basic_fv), deferred :: apply_boundary_conditions
+    procedure(basic_fv_inout), deferred :: apply_boundary_conditions
     procedure(basic), deferred :: calculate_derived_quantities
     procedure(basic), deferred :: residual_smoother
+    procedure(basic_fv_in), deferred :: write_residual_history
     procedure(symmetric_operator), deferred :: type_plus_type
     procedure(symmetric_operator), deferred :: type_minus_type
     procedure(asymmetric_operator_rhs), pass(rhs), deferred :: real_mul_type
@@ -50,12 +51,19 @@ module mod_integrand
       class(integrand_t), intent(inout) :: self
     end subroutine basic
 
-    subroutine basic_fv(self, fv)
+    subroutine basic_fv_inout(self, fv)
       import :: integrand_t
       import :: finite_volume_scheme_t
       class(integrand_t), intent(inout) :: self
       class(finite_volume_scheme_t), intent(inout) :: fv !< finite volume scheme
-    end subroutine basic_fv
+    end subroutine basic_fv_inout
+
+    subroutine basic_fv_in(self, fv)
+      import :: integrand_t
+      import :: finite_volume_scheme_t
+      class(integrand_t), intent(inout) :: self
+      class(finite_volume_scheme_t), intent(in) :: fv !< finite volume scheme
+    end subroutine basic_fv_in
 
     subroutine sanity_check(self, error_code)
       import :: ik, integrand_t

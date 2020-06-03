@@ -7,7 +7,7 @@ module mod_fluid
 #endif /* USE_OPENMP */
 
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
-  use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0
+  use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
@@ -47,12 +47,15 @@ module mod_fluid
     real(rk), dimension(:, :), allocatable :: mach_v   !< (i, j); Conserved quantities
     logical :: prim_vars_updated = .false.
     logical :: smooth_residuals = .true.
+    character(len=32) :: residual_hist_file = 'residual_hist.csv'
+    logical :: residual_hist_header_written = .false.
   contains
     procedure, public :: initialize
     procedure, private :: initialize_from_ini
     procedure, private :: initialize_from_hdf5
     procedure, public :: t => time_derivative
     procedure, public :: residual_smoother
+    procedure, public :: write_residual_history
     procedure, public :: sanity_check
     procedure, public :: calculate_derived_quantities
     procedure, public :: apply_boundary_conditions
@@ -85,7 +88,7 @@ contains
     class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     class(strategy), pointer :: time_integrator => null()
 
-    integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi
+    integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi, io
 
     alloc_status = 0
     call debug_print('Initializing fluid_t', __FILE__, __LINE__)
@@ -118,6 +121,10 @@ contains
     allocate(self%time_integrator, source=time_integrator, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%time_integrator"
     deallocate(time_integrator)
+
+    open(newunit=io, file=trim(self%residual_hist_file), status='replace')
+    write(io, '(a)') 'iteration, time, rho, rho_u, rho_v, rho_E'
+    close(io)
 
     if(input%read_init_cond_from_file .or. input%restart_from_file) then
       call self%initialize_from_hdf5(input, finite_volume_scheme)
@@ -332,6 +339,37 @@ contains
     if(allocated(self%mach_v)) deallocate(self%mach_v)
     if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine finalize
+
+  subroutine write_residual_history(self, fv)
+    !< This writes out the change in residual to a file for convergence history monitoring. This
+    !< should not be called on a single instance of fluid_t. It should be called something like the following:
+    !<
+    !< dU_dt = U%t(fv, stage=1)          ! 1st stage
+    !< dU1_dt = U_1%t(fv, stage=2)       ! 2nd stage
+    !< R = dU1_dt - dU_dt                ! Difference in the stages, eg residuals
+    !< call R%write_residual_history(fv) ! Now write out the difference
+    !<
+
+    class(fluid_t), intent(inout) :: self
+    class(finite_volume_scheme_t), intent(in) :: fv
+
+    real(rk) :: rho_diff   !< difference in the rho residual
+    real(rk) :: rho_u_diff !< difference in the rhou residual
+    real(rk) :: rho_v_diff !< difference in the rhov residual
+    real(rk) :: rho_E_diff !< difference in the rhoE residual
+    integer(ik) :: io
+    logical :: file_exists
+
+    rho_diff = maxval(abs(self%rho))
+    rho_u_diff = maxval(abs(self%rho_u))
+    rho_v_diff = maxval(abs(self%rho_v))
+    rho_E_diff = maxval(abs(self%rho_E))
+
+    open(newunit=io, file=trim(self%residual_hist_file), status='old', position="append")
+    write(io, '(i0, ",", 5(es16.6, ","))') fv%iteration, fv%time * t_0, rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
+    close(io)
+
+  end subroutine
 
   function time_derivative(self, fv, stage) result(d_dt)
     !< Implementation of dU/dt
@@ -562,7 +600,7 @@ contains
                                     v=self%v, &
                                     p=self%p, lbounds=bounds)
 
-  end subroutine
+  end subroutine apply_boundary_conditions
 
   subroutine calculate_derived_quantities(self)
     !< Find derived quantities like sound speed, mach number, primitive variables
@@ -1164,6 +1202,7 @@ contains
     select type(rhs)
     class is(fluid_t)
       lhs%time_integrator = rhs%time_integrator
+      lhs%residual_hist_header_written = rhs%residual_hist_header_written
       lhs%rho = rhs%rho
       lhs%rho_u = rhs%rho_u
       lhs%rho_v = rhs%rho_v

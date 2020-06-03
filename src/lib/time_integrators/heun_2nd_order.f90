@@ -25,6 +25,7 @@ contains
     class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
     real(rk), intent(inout) :: dt
     class(integrand_t), allocatable :: U_1
+    class(integrand_t), allocatable :: R
 
     real(rk) :: min_dt = 1.0e-30_rk
     call debug_print('Running heun_2nd%integrate()', __FILE__, __LINE__)
@@ -32,6 +33,7 @@ contains
     select type(U)
     class is(integrand_t)
       allocate(U_1, source=U)
+      allocate(R, source=U)
 
       ! 1st stage
       call debug_print('Running heun_2nd 1st stage', __FILE__, __LINE__)
@@ -43,6 +45,12 @@ contains
       U = 0.5_rk * U + 0.5_rk * U_1 + &
           (0.5_rk * dt) * U_1%t(finite_volume_scheme, stage=2)
       call U%residual_smoother()
+
+      ! Convergence history
+      R = U - U_1
+      call R%write_residual_history(finite_volume_scheme)
+
+      deallocate(R)
       deallocate(U_1)
     class default
       error stop 'Error in heun_2nd%integrate - unsupported class'
