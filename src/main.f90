@@ -62,7 +62,7 @@ program cato
   inquire(file=trim(input_filename), exist=file_exists)
 
   if(.not. file_exists) then
-    error stop 'Error in main(), CATO input (std_out.ini) file not found, exiting...'
+    error stop 'Error in main(), CATO input (input.ini) file not found, exiting...'
   end if
 
   call input%read_from_ini(input_filename)
