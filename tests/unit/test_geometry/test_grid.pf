@@ -17,6 +17,14 @@ module test_grid
   real(rk), parameter :: ymin = -2.0_rk
   real(rk), parameter :: ymax = 2.0_rk
   integer(ik) :: alloc_stat
+  integer(ik), parameter :: C1 = 1
+  integer(ik), parameter :: M1 = 2
+  integer(ik), parameter :: C2 = 3
+  integer(ik), parameter :: M2 = 4
+  integer(ik), parameter :: C3 = 5
+  integer(ik), parameter :: M3 = 6
+  integer(ik), parameter :: C4 = 7
+  integer(ik), parameter :: M4 = 8
 
 contains
 
@@ -26,26 +34,24 @@ contains
     class(grid_t), pointer :: grid
     type(input_t) :: input
 
-    real(rk), dimension(2, 2, 4) :: actual_corner_vectors, grid_corner_vectors
+    real(rk), dimension(2, 0:4) :: actual_corner_vectors
+    real(rk), dimension(2, 0:4) :: grid_corner_vectors
 
     print *, 'Testing test_corner_edge_vector_query()'
-    input = input_t(reconstruction_type='piecewise_linear', &
+    input = input_t(cell_reconstruction='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
     grid => grid_factory(input)
 
-    grid_corner_vectors = grid%get_corner_vectors(cell_ij=[1, 1], corner='lower-left')
-    actual_corner_vectors = reshape([[-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 1
-                                     [-2.0_rk, -4.0_rk], & ! (x,y) head, vector 1
-                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 2
-                                     [-1.0_rk, -2.0_rk], &  ! (x,y) head, vector 2
-                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 3
-                                     [-2.0_rk, 0.0_rk], &  ! (x,y) head, vector 3
-                                     [-2.0_rk, -2.0_rk], &  ! (x,y) tail, vector 4
-                                     [-3.0_rk, -2.0_rk] &  ! (x,y) head, vector 4
-                                     ], shape=[2, 2, 4])
+    ! grid_corner_vectors = grid%get_corner_vectors(cell_ij=[1, 1], corner='lower-left')
+    grid_corner_vectors = grid%corner_edge_vectors(:, :, 1, 1)
+    actual_corner_vectors(:, 0) = [-2.0_rk, -2.0_rk]
+    actual_corner_vectors(:, 1) = [-2.0_rk, -4.0_rk]
+    actual_corner_vectors(:, 2) = [-1.0_rk, -2.0_rk]
+    actual_corner_vectors(:, 3) = [-2.0_rk, 0.0_rk]
+    actual_corner_vectors(:, 4) = [-3.0_rk, -2.0_rk]
 
     @assertEqual(actual_corner_vectors, grid_corner_vectors)
     deallocate(grid)
@@ -57,23 +63,23 @@ contains
     class(grid_t), pointer :: grid
     type(input_t) :: input
 
-    real(rk), dimension(2, 2, 2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
-    real(rk), dimension(2, 2, 2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 0:2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 0:2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
 
     print *, 'Testing test_leftright_midpoint_edge_vector_query()'
-    input = input_t(reconstruction_type='piecewise_linear', &
+    input = input_t(cell_reconstruction='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
     grid => grid_factory(input)
 
-    grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='bottom')
-    actual_midpoint_vectors = reshape([[-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 1
-                                       [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
-                                       [-1.5_rk, -2.0_rk], &  ! (x,y) tail, vector 2
-                                       [-1.0_rk, -2.0_rk] &  ! (x,y) head, vector 2
-                                       ], shape=[2, 2, 2])
+    ! grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='bottom')
+    grid_midpoint_vectors = grid%leftright_midpoint_edge_vectors(:, :, 1, 1)
+
+    actual_midpoint_vectors(:, 0) = [-1.5_rk, -2.0_rk] ! common origin
+    actual_midpoint_vectors(:, 1) = [-2.0_rk, -2.0_rk] ! vector 1
+    actual_midpoint_vectors(:, 2) = [-1.0_rk, -2.0_rk]  ! vector 2
 
     @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
     deallocate(grid)
@@ -85,24 +91,23 @@ contains
     class(grid_t), pointer :: grid
     type(input_t) :: input
 
-    real(rk), dimension(2, 2, 2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
-    real(rk), dimension(2, 2, 2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 0:2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
+    real(rk), dimension(2, 0:2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
 
     print *, 'Testing test_downup_midpoint_edge_vector_query()'
-    input = input_t(reconstruction_type='piecewise_linear', &
+    input = input_t(cell_reconstruction='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
     grid => grid_factory(input)
 
-    grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='left')
-    actual_midpoint_vectors = reshape([[-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 1
-                                       [-2.0_rk, -2.0_rk], &  ! (x,y) head, vector 1
-                                       [-2.0_rk, -1.0_rk], &  ! (x,y) tail, vector 2
-                                       [-2.0_rk, 0.0_rk] &  ! (x,y) head, vector 2
-                                       ], shape=[2, 2, 2])
+    ! grid_midpoint_vectors = grid%get_midpoint_vectors(cell_ij=[1, 1], edge='left')
+    grid_midpoint_vectors = grid%downup_midpoint_edge_vectors(:, :, 1, 1)
 
+    actual_midpoint_vectors(:, 0) = [-2.0_rk, -1.0_rk] ! common origin
+    actual_midpoint_vectors(:, 1) = [-2.0_rk, -2.0_rk] ! vector 1
+    actual_midpoint_vectors(:, 2) = [-2.0_rk, 0.0_rk]  ! vector 2
     @assertEqual(actual_midpoint_vectors, grid_midpoint_vectors)
     deallocate(grid)
   end subroutine test_downup_midpoint_edge_vector_query
@@ -135,8 +140,7 @@ contains
     write(ini, *) "ymin=", ymin
     write(ini, *) "ymax=", ymax
     write(ini, *) "[reference_state]"
-    write(ini, *) "reference_time=1.0"
-    write(ini, *) "reference_length=1.0"
+    write(ini, *) "reference_pressure=1.0"
     write(ini, *) "reference_density=1.0"
     write(ini, *) "[physics]"
     write(ini, *) "polytropic_index=1.6"
@@ -148,7 +152,7 @@ contains
     write(ini, *) "minus_y = 'periodic'"
     write(ini, *) "[scheme]"
     write(ini, *) "tau = '1e-2'"
-    write(ini, *) "reconstruction_type = 'piecewise_linear'"
+    write(ini, *) "cell_reconstruction = 'piecewise_linear'"
     write(ini, *) "slope_limiter = 'upwind'"
     write(ini, *) "[io]"
     write(ini, *) "contour_format = 'xdmf'"
@@ -166,7 +170,7 @@ contains
     class(grid_t), pointer :: grid
     type(input_t) :: input
 
-    input = input_t(reconstruction_type='piecewise_linear', &
+    input = input_t(cell_reconstruction='piecewise_linear', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.true., &
                     initial_condition_file='simple.h5', &
@@ -180,6 +184,7 @@ contains
   subroutine test_grid_bounds(grid)
 
     class(grid_t), intent(in) :: grid
+    integer(ik) :: i, j
     ! type(input_t) :: input
 
     @assertEqual(5, grid%ni_node)
@@ -217,8 +222,6 @@ contains
     @assertEqual([-4.0_rk, 4.0_rk],[grid%get_y(0, 0), grid%get_y(0, 4)])
 
     ! Check spacing in x (real domain)
-    ! @assertEqual([-2.0_rk, -1.0_rk, 0.0_rk, 1.0_rk, 2.0_rk],
-    ! [grid%get_x(1,1), grid%get_x(2,1), grid%get_x(3,1), grid%get_x(4,1), grid%get_x(5,1)])
     @assertEqual([-2.0_rk, -1.0_rk, 0.0_rk, 1.0_rk, 2.0_rk], grid%node_x(1:5, 1))
     ! Check spacing in y (ghost/boundary domain)
     @assertEqual([-3.0_rk, 3.0_rk],[grid%get_x(0, 0), grid%get_x(6, 0)])
@@ -227,25 +230,31 @@ contains
     @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ilo_bc_cell, grid%jlo_bc_cell))
     @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ihi_bc_cell, grid%jhi_bc_cell))
 
-    ! ((x,y), (point_1: point_4), (corner, midpoint), i, j)
-    @assertEqual([-2.0_rk, -2.0_rk], grid%cell_node_xy(:, 1, 1, 1, 1))
-    @assertEqual([-1.0_rk, -2.0_rk], grid%cell_node_xy(:, 2, 1, 1, 1))
-    @assertEqual([-1.0_rk, 0.0_rk], grid%cell_node_xy(:, 3, 1, 1, 1))
-    @assertEqual([-2.0_rk, 0.0_rk], grid%cell_node_xy(:, 4, 1, 1, 1))
+    i = 1; j = 1
+    ! Corners
+    @assertEqual([-2.0_rk, -2.0_rk],[grid%cell_node_x(C1, 1, 1), grid%cell_node_y(C1, 1, 1)])
+    @assertEqual([-1.0_rk, -2.0_rk],[grid%cell_node_x(C2, 1, 1), grid%cell_node_y(C2, 1, 1)])
+    @assertEqual([-1.0_rk, 0.0_rk],[grid%cell_node_x(C3, 1, 1), grid%cell_node_y(C3, 1, 1)])
+    @assertEqual([-2.0_rk, 0.0_rk],[grid%cell_node_x(C4, 1, 1), grid%cell_node_y(C4, 1, 1)])
 
-    @assertEqual([-1.5_rk, -2.0_rk], grid%cell_node_xy(:, 1, 2, 1, 1))
-    @assertEqual([-1.0_rk, -1.0_rk], grid%cell_node_xy(:, 2, 2, 1, 1))
-    @assertEqual([-1.5_rk, 0.0_rk], grid%cell_node_xy(:, 3, 2, 1, 1))
-    @assertEqual([-2.0_rk, -1.0_rk], grid%cell_node_xy(:, 4, 2, 1, 1))
+    ! Midpoints
+    @assertEqual([-1.5_rk, -2.0_rk],[grid%cell_node_x(M1, 1, 1), grid%cell_node_y(M1, 1, 1)])
+    @assertEqual([-1.0_rk, -1.0_rk],[grid%cell_node_x(M2, 1, 1), grid%cell_node_y(M2, 1, 1)])
+    @assertEqual([-1.5_rk, 0.0_rk],[grid%cell_node_x(M3, 1, 1), grid%cell_node_y(M3, 1, 1)])
+    @assertEqual([-2.0_rk, -1.0_rk],[grid%cell_node_x(M4, 1, 1), grid%cell_node_y(M4, 1, 1)])
 
     ! Check bounds and shape
     @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_volume))
     @assertEqual([0, 0], lbound(grid%cell_volume))
     @assertEqual([ni_cells + 1, nj_cells + 1], ubound(grid%cell_volume))
 
-    @assertEqual([2, ni_cells + 2, nj_cells + 2], shape(grid%cell_centroid_xy))
-    @assertEqual([1, 0, 0], lbound(grid%cell_centroid_xy))
-    @assertEqual([2, ni_cells + 1, nj_cells + 1], ubound(grid%cell_centroid_xy))
+    @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_centroid_x))
+    @assertEqual([0, 0], lbound(grid%cell_centroid_x))
+    @assertEqual([ni_cells + 1, nj_cells + 1], ubound(grid%cell_centroid_x))
+
+    @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_centroid_y))
+    @assertEqual([0, 0], lbound(grid%cell_centroid_y))
+    @assertEqual([ni_cells + 1, nj_cells + 1], ubound(grid%cell_centroid_y))
 
     @assertEqual([4, ni_cells + 2, nj_cells + 2], shape(grid%cell_edge_lengths))
     @assertEqual([1, 0, 0], lbound(grid%cell_edge_lengths))
@@ -255,9 +264,9 @@ contains
     @assertEqual([1, 1, 0, 0], lbound(grid%cell_edge_norm_vectors))
     @assertEqual([2, 4, ni_cells + 1, nj_cells + 1], ubound(grid%cell_edge_norm_vectors))
 
-    @assertEqual([2, 4, 2, ni_cells + 2, nj_cells + 2], shape(grid%cell_node_xy))
-    @assertEqual([1, 1, 1, 0, 0], lbound(grid%cell_node_xy))
-    @assertEqual([2, 4, 2, ni_cells + 1, nj_cells + 1], ubound(grid%cell_node_xy))
+    @assertEqual([8, ni_cells + 2, nj_cells + 2], shape(grid%cell_node_x))
+    @assertEqual([1, 0, 0], lbound(grid%cell_node_x))
+    @assertEqual([8, ni_cells + 1, nj_cells + 1], ubound(grid%cell_node_x))
 
   end subroutine test_grid_bounds
 end module test_grid

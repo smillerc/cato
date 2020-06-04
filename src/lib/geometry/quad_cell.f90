@@ -37,7 +37,7 @@ module mod_quad_cell
 
   contains
     procedure, public :: initialize
-    procedure, public :: get_cell_node_xy_set
+    procedure, public :: get_cell_point_coords
     procedure, private :: calculate_volume
     procedure, private :: calculate_centroid
     procedure, private :: calculate_edge_stats
@@ -53,6 +53,22 @@ contains
 
     self%x = x_coords
     self%y = y_coords
+
+    ! round-off checks
+    associate(y=>self%y, x=>self%x)
+      if(abs(y(2) - y(1)) < epsilon(1.0_rk)) then
+        y(2) = y(1)
+      end if
+      if(abs(y(4) - y(3)) < epsilon(1.0_rk)) then
+        y(4) = y(3)
+      end if
+      if(abs(x(3) - x(2)) < epsilon(1.0_rk)) then
+        x(3) = x(2)
+      end if
+      if(abs(x(4) - x(1)) < epsilon(1.0_rk)) then
+        x(4) = x(1)
+      end if
+    end associate
 
     call self%calculate_volume()
     call self%calculate_centroid()
@@ -71,10 +87,14 @@ contains
       self%edge_lengths(3) = sqrt((x(4) - x(3))**2 + (y(4) - y(3))**2)
       self%edge_lengths(4) = sqrt((x(1) - x(4))**2 + (y(1) - y(4))**2)
 
-      self%edge_midpoints(:, 1) = [0.5 * (x(2) + x(1)), 0.5 * (y(2) + y(1))]
-      self%edge_midpoints(:, 2) = [0.5 * (x(3) + x(2)), 0.5 * (y(3) + y(2))]
-      self%edge_midpoints(:, 3) = [0.5 * (x(4) + x(3)), 0.5 * (y(4) + y(3))]
-      self%edge_midpoints(:, 4) = [0.5 * (x(1) + x(4)), 0.5 * (y(1) + y(4))]
+      if(maxval(self%edge_lengths) - minval(self%edge_lengths) < 2.0_rk * epsilon(1.0_rk)) then
+        self%edge_lengths = maxval(self%edge_lengths)
+      end if
+
+      self%edge_midpoints(:, 1) = [(x(2) + x(1)) / 2.0_rk,(y(2) + y(1)) / 2.0_rk]
+      self%edge_midpoints(:, 2) = [(x(3) + x(2)) / 2.0_rk,(y(3) + y(2)) / 2.0_rk]
+      self%edge_midpoints(:, 3) = [(x(4) + x(3)) / 2.0_rk,(y(4) + y(3)) / 2.0_rk]
+      self%edge_midpoints(:, 4) = [(x(1) + x(4)) / 2.0_rk,(y(1) + y(4)) / 2.0_rk]
 
       self%min_dx = min(abs(x(2) - x(1)), &
                         abs(x(3) - x(4)))
@@ -92,30 +112,45 @@ contains
     class(quad_cell_t), intent(inout) :: self
 
     real(rk), dimension(5) :: x, y
-    integer(ik) :: i
+    ! integer(ik) :: i
 
     ! Make the x and y arrays wrap around so that the points are
     ! [1, 2, 3, 4, 1] so as to make the math easy
     x(1:4) = self%x; x(5) = self%x(1)
     y(1:4) = self%y; y(5) = self%y(1)
 
-    self%centroid = 0.0_rk
+    ! self%centroid = 0.0_rk
 
-    associate(v=>self%volume, cx=>self%centroid(1), cy=>self%centroid(2))
-      do i = 1, 4
-        cx = cx + (x(i) + x(i + 1)) * (x(i) * y(i + 1) - x(i + 1) * y(i))
-        cy = cy + (y(i) + y(i + 1)) * (x(i) * y(i + 1) - x(i + 1) * y(i))
-      end do
-      cx = (1.0_rk / (6.0_rk * v)) * cx
-      cy = (1.0_rk / (6.0_rk * v)) * cy
+    associate(x=>self%x, y=>self%y)
+      self%centroid = [(x(2) + x(1)) / 2.0_rk,(y(3) + y(2)) / 2.0_rk]
     end associate
+
+    ! associate(v=>self%volume, cx=>self%centroid(1), cy=>self%centroid(2))
+    !   do i = 1, 4
+    !     !FIXME: truncation/roundoff here!
+    !     cx = cx + (x(i) + x(i + 1)) * (x(i) * y(i + 1) - x(i + 1) * y(i))
+    !     cy = cy + (y(i) + y(i + 1)) * (x(i) * y(i + 1) - x(i + 1) * y(i))
+    !   end do
+    !   cx = (1.0_rk / (6.0_rk * v)) * cx
+    !   cy = (1.0_rk / (6.0_rk * v)) * cy
+    ! end associate
 
   end subroutine
 
   subroutine calculate_volume(self)
     class(quad_cell_t), intent(inout) :: self
+    real(rk) :: dx1, dy1, dx2, dy2
 
     associate(v=>self%volume, x=>self%x, y=>self%y)
+      dx1 = x(2) - x(1)
+      dy1 = y(4) - y(1)
+      dx2 = x(4) - x(1)
+      dy2 = y(2) - y(1)
+      if(abs(dx1) < epsilon(1.0_rk)) dx1 = 0.0_rk
+      if(abs(dy1) < epsilon(1.0_rk)) dy1 = 0.0_rk
+      if(abs(dx2) < epsilon(1.0_rk)) dx2 = 0.0_rk
+      if(abs(dy2) < epsilon(1.0_rk)) dy2 = 0.0_rk
+
       v = (x(2) - x(1)) * (y(4) - y(1)) - (x(4) - x(1)) * (y(2) - y(1))
     end associate
 
@@ -173,12 +208,23 @@ contains
 
   end subroutine
 
-  pure function get_cell_node_xy_set(self) result(set)
+  pure subroutine get_cell_point_coords(self, x, y)
     class(quad_cell_t), intent(in) :: self
-    real(rk), dimension(2, 4, 2) :: set  !< ((x,y), (point_1:point_4), (corner=1, midpoint=2))
-    set(1, :, 1) = self%x
-    set(2, :, 1) = self%y
-    set(:, :, 2) = self%edge_midpoints
-  end function
+    real(rk), dimension(8), intent(out) :: x !< x coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+    real(rk), dimension(8), intent(out) :: y !< y coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+
+    ! Corners
+    x(1) = self%x(1); y(1) = self%y(1)
+    x(3) = self%x(2); y(3) = self%y(2)
+    x(5) = self%x(3); y(5) = self%y(3)
+    x(7) = self%x(4); y(7) = self%y(4)
+
+    ! Midpoints
+    x(2) = self%edge_midpoints(1, 1); y(2) = self%edge_midpoints(2, 1)
+    x(4) = self%edge_midpoints(1, 2); y(4) = self%edge_midpoints(2, 2)
+    x(6) = self%edge_midpoints(1, 3); y(6) = self%edge_midpoints(2, 3)
+    x(8) = self%edge_midpoints(1, 4); y(8) = self%edge_midpoints(2, 4)
+
+  end subroutine
 
 end module mod_quad_cell

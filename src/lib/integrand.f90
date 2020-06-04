@@ -18,7 +18,10 @@ module mod_integrand
     procedure, non_overridable :: get_time_integrator
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
     procedure(sanity_check), deferred :: sanity_check
-    procedure(residual_smoother), deferred :: residual_smoother
+    procedure(basic_fv_inout), deferred :: apply_boundary_conditions
+    procedure(basic), deferred :: calculate_derived_quantities
+    procedure(basic), deferred :: residual_smoother
+    procedure(basic_fv_in), deferred :: write_residual_history
     procedure(symmetric_operator), deferred :: type_plus_type
     procedure(symmetric_operator), deferred :: type_minus_type
     procedure(asymmetric_operator_rhs), pass(rhs), deferred :: real_mul_type
@@ -33,19 +36,34 @@ module mod_integrand
   end type
 
   abstract interface
-    function time_derivative(self, fv) result(dState_dt)
+    function time_derivative(self, fv, stage) result(dState_dt)
       import :: integrand_t
       import :: finite_volume_scheme_t
-      import :: rk
+      import :: ik, rk
       class(integrand_t), intent(in) :: self
       class(finite_volume_scheme_t), intent(inout) :: fv !< finite volume scheme
       class(integrand_t), allocatable :: dState_dt
+      integer(ik), intent(in) :: stage
     end function time_derivative
 
-    subroutine residual_smoother(self)
+    subroutine basic(self)
       import :: integrand_t
       class(integrand_t), intent(inout) :: self
-    end subroutine residual_smoother
+    end subroutine basic
+
+    subroutine basic_fv_inout(self, fv)
+      import :: integrand_t
+      import :: finite_volume_scheme_t
+      class(integrand_t), intent(inout) :: self
+      class(finite_volume_scheme_t), intent(inout) :: fv !< finite volume scheme
+    end subroutine basic_fv_inout
+
+    subroutine basic_fv_in(self, fv)
+      import :: integrand_t
+      import :: finite_volume_scheme_t
+      class(integrand_t), intent(inout) :: self
+      class(finite_volume_scheme_t), intent(in) :: fv !< finite volume scheme
+    end subroutine basic_fv_in
 
     subroutine sanity_check(self, error_code)
       import :: ik, integrand_t
@@ -114,7 +132,8 @@ contains
     call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
-      call model%residual_smoother()
+      call model%apply_boundary_conditions(finite_volume_scheme)
+      call model%calculate_derived_quantities()
       call model%sanity_check(error_code)
     else
       error stop 'Error: No integration procedure available in integrand_t%integrate()'

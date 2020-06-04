@@ -15,7 +15,7 @@ from pycato import load_1d_dataset
 t = 0.17
 
 # Load cato results
-ds = load_1d_dataset(".")
+ds = load_1d_dataset("results")
 
 plt.figure(figsize=(12, 6))
 
@@ -24,3 +24,8 @@ plt.title(f"Time: {t:.2f}")
 plt.ylabel("Density")
 plt.xlabel("X")
 plt.savefig("shu_osher_1d_results.png")
+
+try:
+    plt.show()
+except Exception:
+    pass

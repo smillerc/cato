@@ -10,6 +10,6 @@ which ifort
 which mpiifort
 rm -rf CMake* CTest* Testing bin include lib src tests cmake* Make*
 find ../src  -name "*.mod" -delete
-CC=gcc FC=mpiifort cmake .. -DCMAKE_BUILD_TYPE="Release"
+CC=gcc FC=mpiifort cmake .. -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTING=NO -DENABLE_PROFILING=NO -DUSE_OPENMP=YES
 
 make -j

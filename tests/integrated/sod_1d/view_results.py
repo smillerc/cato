@@ -66,7 +66,7 @@ rho = values["rho"]
 u = values["u"]
 
 # Load cato results
-ds = load_1d_dataset(".")
+ds = load_1d_dataset("results")
 
 plt.figure(figsize=(12, 6))
 
@@ -88,3 +88,8 @@ plt.xlabel("X")
 plt.legend()
 plt.tight_layout()
 plt.savefig("sod_1d_results.png")
+
+try:
+    plt.show()
+except Exception:
+    pass

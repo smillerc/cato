@@ -48,7 +48,7 @@ except Exception:
     walltime_sec = "N/A"
 
 # # Load cato results
-ds = load_2d_dataset(".")
+ds = load_2d_dataset("results")
 
 plt.figure(figsize=(12, 12))
 ds.density[-1].plot(x="x", y="y")
@@ -60,3 +60,8 @@ plt.title(
 plt.axis("equal")
 plt.tight_layout()
 plt.savefig("kh_2d_results.png")
+
+try:
+    plt.show()
+except Exception:
+    pass

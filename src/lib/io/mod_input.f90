@@ -14,8 +14,7 @@ module mod_input
     character(:), allocatable :: unit_system !< Type of units to output (CGS, ICF, MKS, etc...)
 
     ! reference state
-    real(rk) :: reference_time = 1.0_rk
-    real(rk) :: reference_length = 1.0_rk
+    real(rk) :: reference_pressure = 1.0_rk
     real(rk) :: reference_density = 1.0_rk
 
     ! grid
@@ -43,6 +42,7 @@ module mod_input
     character(:), allocatable :: bc_pressure_input_file
     logical :: apply_constant_bc_pressure = .false.
     real(rk) :: constant_bc_pressure_value = 0.0_rk
+    real(rk) :: bc_density = 5e-3_rk !< density input for a pressure boundary condition
     real(rk) :: bc_pressure_scale_factor = 1.0_rk
     character(len=32) ::  plus_x_bc = 'periodic' !< Boundary condition at +x
     character(len=32) :: minus_x_bc = 'periodic' !< Boundary condition at -x
@@ -77,19 +77,25 @@ module mod_input
     real(rk) :: contour_interval_dt = 0.5_rk
     integer(ik) :: max_iterations = huge(1)
     character(:), allocatable :: time_integration_strategy !< How is time integration handled? e.g. 'rk2', 'rk4', etc.
+    logical :: smooth_residuals = .true.
 
     ! physics
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
     ! finite volume scheme specifics
     character(len=32) :: evolution_operator_type = 'fvleg'        !< How are the cells being reconstructed
-    character(len=32) :: reconstruction_type = 'piecewise_linear' !< How are the cells being reconstructed
+    character(len=32) :: cell_reconstruction = 'piecewise_linear' !< How are the cells being reconstructed
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
-    character(:), allocatable :: slope_limiter
+    character(:), allocatable :: limiter
+
+    ! debug
+    logical :: plot_limiters = .false.
+    logical :: plot_gradients = .false.
 
   contains
     procedure, public :: initialize
     procedure, public :: read_from_ini
+    procedure, public :: display_config
   end type input_t
 
 contains
@@ -105,8 +111,8 @@ contains
     self%xmax = xmax
     self%ymin = ymin
     self%ymax = ymax
-    self%reconstruction_type = 'piecewise_linear'
-    self%slope_limiter = 'upwind'
+    self%cell_reconstruction = 'piecewise_linear'
+    self%limiter = 'minmod'
 
     self%plus_x_bc = 'periodic'
     self%minus_x_bc = 'periodic'
@@ -126,9 +132,9 @@ contains
 
     file_exists = .false.
 
-!    if(this_image() == 1) then
+    ! if(this_image() == 1) then
     write(output_unit, '(a)') 'Reading input file: '//trim(filename)
-!    end if
+    ! end if
 
     inquire(file=filename, exist=file_exists)
     if(.not. file_exists) error stop "Input .ini file not found"
@@ -143,13 +149,11 @@ contains
     self%unit_system = trim(char_buffer)
 
     ! Reference state
-    call cfg%get("reference_state", "reference_time", self%reference_time)
-    call cfg%get("reference_state", "reference_length", self%reference_length)
+    call cfg%get("reference_state", "reference_pressure", self%reference_pressure)
     call cfg%get("reference_state", "reference_density", self%reference_density)
 
     ! Time
     call cfg%get("time", "max_time", self%max_time)
-    ! call cfg%get("time", "initial_delta_t", self%initial_delta_t)
     call cfg%get("time", "cfl", self%cfl, 0.1_rk)
     call cfg%get("time", "integration_strategy", char_buffer)
     call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
@@ -159,13 +163,12 @@ contains
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
 
     ! Scheme
-    ! call cfg%get("scheme", "tau", self%tau)
+    call cfg%get("scheme", "smooth_residuals", self%smooth_residuals, .true.)
+    call cfg%get("scheme", "cell_reconstruction", char_buffer, 'piecewise_linear')
+    self%cell_reconstruction = trim(char_buffer)
 
-    call cfg%get("scheme", "reconstruction_type", char_buffer, 'piecewise_linear')
-    self%reconstruction_type = trim(char_buffer)
-
-    call cfg%get("scheme", "slope_limiter", char_buffer, 'upwind')
-    self%slope_limiter = trim(char_buffer)
+    call cfg%get("scheme", "limiter", char_buffer, 'minmod')
+    self%limiter = trim(char_buffer)
 
     ! Restart files
     call cfg%get("restart", "restart_from_file", self%restart_from_file, .false.)
@@ -178,9 +181,7 @@ contains
 
       inquire(file=self%restart_file, exist=file_exists)
       if(.not. file_exists) then
-!        if(this_image() == 1) then
         write(*, '(a)') 'Restart file not found: "'//trim(self%restart_file)//'"'
-!        end if
         error stop "Restart file not found"
       end if
     end if
@@ -195,9 +196,7 @@ contains
 
         inquire(file=self%initial_condition_file, exist=file_exists)
         if(.not. file_exists) then
-!          if(this_image() == 1) then
           write(*, '(a)') 'Initial conditions file not found: "'//trim(self%initial_condition_file)//'"'
-!          end if
           error stop "Initial conditions file not found"
         end if
 
@@ -242,6 +241,7 @@ contains
        self%minus_y_bc == 'pressure_input') then
 
       call cfg%get("boundary_conditions", "apply_constant_bc_pressure", self%apply_constant_bc_pressure, .false.)
+      call cfg%get("boundary_conditions", "bc_density", self%bc_density)
 
       if(self%apply_constant_bc_pressure) then
         call cfg%get("boundary_conditions", "constant_bc_pressure_value", self%constant_bc_pressure_value)
@@ -299,4 +299,69 @@ contains
 
   end subroutine read_from_ini
 
+  subroutine display_config(self)
+    class(input_t), intent(in) :: self
+
+    write(*, '(a)') "Input settings:"
+    write(*, '(a)') "==============="
+    write(*, '(a, a)') "title: ", self%title
+    write(*, '(a, a)') "unit_system: ", self%unit_system
+    write(*, '(a, es16.3)') "reference_pressure: ", self%reference_pressure
+    write(*, '(a, es16.3)') "reference_density: ", self%reference_density
+    write(*, '(a, a)') "grid_type: ", self%grid_type
+    write(*, '(a, es16.3)') "xmin: ", self%xmin
+    write(*, '(a, es16.3)') "xmax: ", self%xmax
+    write(*, '(a, es16.3)') "ymin: ", self%ymin
+    write(*, '(a, es16.3)') "ymax: ", self%ymax
+    write(*, '(a, i0)') "ni_nodes: ", self%ni_nodes
+    write(*, '(a, i0)') "nj_nodes: ", self%nj_nodes
+    write(*, '(a, a)') "initial_condition_file: ", self%initial_condition_file
+    write(*, '(a, l2)') "read_init_cond_from_file: ", self%read_init_cond_from_file
+    write(*, '(a, es16.6)') "init_x_velocity: ", self%init_x_velocity
+    write(*, '(a, es16.6)') "init_y_velocity: ", self%init_y_velocity
+    write(*, '(a, es16.6)') "init_density : ", self%init_density
+    write(*, '(a, es16.6)') "init_pressure: ", self%init_pressure
+    write(*, '(a, l2)') "restart_from_file: ", self%restart_from_file
+    write(*, '(a, a)') "restart_file: ", self%restart_file
+    write(*, '(a, a)') "bc_pressure_input_file: ", self%bc_pressure_input_file
+    write(*, '(a, l2)') "apply_constant_bc_pressure: ", self%apply_constant_bc_pressure
+    write(*, '(a, es16.6)') "constant_bc_pressure_value: ", self%constant_bc_pressure_value
+    write(*, '(a, es16.6)') "bc_pressure_scale_factor: ", self%bc_pressure_scale_factor
+    write(*, '(a, a)') "plus_x_bc: ", self%plus_x_bc
+    write(*, '(a, a)') "minus_x_bc: ", self%minus_x_bc
+    write(*, '(a, a)') "plus_y_bc : ", self%plus_y_bc
+    write(*, '(a, a)') "minus_y_bc: ", self%minus_y_bc
+    write(*, '(a, l2)') "enable_source_terms: ", self%enable_source_terms
+    write(*, '(a, a)') "source_term_type: ", self%source_term_type
+    write(*, '(a, l2)') "apply_constant_source: ", self%apply_constant_source
+    write(*, '(a, a)') "source_file: ", self%source_file
+    write(*, '(a, es16.6)') "constant_source_value: ", self%constant_source_value
+    write(*, '(a, es16.6)') "source_scale_factor  : ", self%source_scale_factor
+    write(*, '(a, i0)') "source_ilo: ", self%source_ilo
+    write(*, '(a, i0)') "source_ihi: ", self%source_ihi
+    write(*, '(a, i0)') "source_jlo: ", self%source_jlo
+    write(*, '(a, i0)') "source_jhi: ", self%source_jhi
+    write(*, '(a, a)') "contour_io_format: ", self%contour_io_format
+    write(*, '(a, l2)') "append_date_to_result_folder: ", self%append_date_to_result_folder
+    write(*, '(a, l2)') "plot_reconstruction_states: ", self%plot_reconstruction_states
+    write(*, '(a, l2)') "plot_reference_states: ", self%plot_reference_states
+    write(*, '(a, l2)') "plot_evolved_states: ", self%plot_evolved_states
+    write(*, '(a, l2)') "plot_64bit: ", self%plot_64bit
+    write(*, '(a, l2)') "plot_ghost_cells: ", self%plot_ghost_cells
+    write(*, '(a, es16.6)') "max_time: ", self%max_time
+    write(*, '(a, f0.3)') "cfl: ", self%cfl
+    write(*, '(a, es16.6)') "initial_delta_t: ", self%initial_delta_t
+    write(*, '(a, es16.6)') "contour_interval_dt: ", self%contour_interval_dt
+    write(*, '(a, i0)') "max_iterations: ", self%max_iterations
+    write(*, '(a, a)') "time_integration_strategy: ", self%time_integration_strategy
+    write(*, '(a, l2)') "smooth_residuals: ", self%smooth_residuals
+    write(*, '(a, es16.3)') "polytropic_index: ", self%polytropic_index
+    write(*, '(a, a)') "evolution_operator_type: ", self%evolution_operator_type
+    write(*, '(a, a)') "cell_reconstruction: ", self%cell_reconstruction
+    write(*, '(a, es16.6)') "tau: ", self%tau
+    write(*, '(a, a)') "limiter: ", self%limiter
+    write(*, '(a)') "==============="
+    print *
+
+  end subroutine display_config
 end module mod_input

@@ -13,7 +13,6 @@ program cato
   use mod_finite_volume_schemes, only: finite_volume_scheme_t, make_fv_scheme
   use mod_fluid, only: fluid_t, new_fluid
   use mod_integrand, only: integrand_t
-  use mod_grid, only: grid_t
   use mod_eos, only: set_equation_of_state
 
   implicit none
@@ -28,12 +27,10 @@ program cato
   type(contour_writer_t) :: contour_writer
   type(timer_t) :: timer
   real(rk) :: time = 0.0_rk
-  integer(ik), dimension(3) :: bounds
   real(rk) :: delta_t = 0.0_rk
-  real(rk) :: max_cs = 0.0_rk
-  real(rk) :: min_dx = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
+  integer(ik) :: last_io_iteration = 0
   logical :: file_exists = .false.
   real(rk) :: contour_interval_dt, max_time
   ! real(rk), dimension(:,:), allocatable :: sound_speed
@@ -69,27 +66,25 @@ program cato
   end if
 
   call input%read_from_ini(input_filename)
-  call set_scale_factors(time_scale=input%reference_time, &
-                         length_scale=input%reference_length, &
-                         density_scale=input%reference_density)
-
-  ! Non-dimensionalize
-  contour_interval_dt = input%contour_interval_dt / t_0
-  max_time = input%max_time / t_0
+  call input%display_config()
 
   call set_equation_of_state(input)
   call set_output_unit_system(input%unit_system)
 
   fv => make_fv_scheme(input)
   U => new_fluid(input, fv)
-  contour_writer = contour_writer_t(input=input)
+  contour_writer = contour_writer_t(input)
+
+  ! Non-dimensionalize
+  contour_interval_dt = input%contour_interval_dt / t_0
+  max_time = input%max_time / t_0
 
   if(input%restart_from_file) then
     time = fv%time / t_0
     next_output_time = time + contour_interval_dt
     iteration = fv%iteration
   else
-
+    next_output_time = next_output_time + contour_interval_dt
     call contour_writer%write_contour(U, fv, time, iteration)
   end if
 
@@ -108,14 +103,13 @@ program cato
     write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
   end if
 
-  bounds = lbound(U%conserved_vars)
-
   do while(time < max_time .and. iteration < input%max_iterations)
 
-    write(std_out, '(2(a, es10.3), a)') 'Time =', time * io_time_units * t_0, ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s'
+    write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
+      ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
 
-    call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
-                               lbounds=bounds)
+    ! call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
+    !                            lbounds=bounds)
     ! Integrate in time
     call U%integrate(fv, delta_t, error_code)
 
@@ -137,12 +131,17 @@ program cato
       write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
         next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
       call contour_writer%write_contour(U, fv, time, iteration)
+      last_io_iteration = iteration
     end if
 
     delta_t = get_timestep(cfl=input%cfl, fv=fv, fluid=U)
   end do
 
   call timer%stop()
+
+  ! One final contour output (if necessary)
+  if(iteration > last_io_iteration) call contour_writer%write_contour(U, fv, time, iteration)
+
   deallocate(fv)
   deallocate(U)
 

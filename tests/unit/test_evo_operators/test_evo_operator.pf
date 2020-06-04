@@ -72,7 +72,7 @@ contains
       do i = 0, ni_cells + 1
         do c = 1, 2
           do p = 1, 4
-            reconstructed_state(:,p, c, i, j) = primitive_vars(:, i, j)
+            reconstructed_state(:, p, c, i, j) = primitive_vars(:, i, j)
           end do
         end do
       end do
@@ -146,7 +146,7 @@ contains
 
     select type(E0)
     class is(local_evo_operator_t)
-       call E0%e0_operator(cones=updown_mid_mach_cone, primitive_vars=evolved_downup_midpoint)
+      call E0%e0_operator(cones=updown_mid_mach_cone, primitive_vars=evolved_downup_midpoint)
     end select
 
     ! Assert on either side of the interface

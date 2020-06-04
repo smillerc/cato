@@ -231,24 +231,158 @@ def load_1d_dataset(folder, units="cgs"):
     config.read(os.path.join(folder, "input.ini"))
 
     pressure_pulse = False
-    if config["boundary_conditions"]["plus_x"].strip("'") == "pressure_input":
-        pressure_pulse = True
+    try:
+        if config["boundary_conditions"]["plus_x"].strip("'") == "pressure_input":
+            pressure_pulse = True
 
-        pulse_file = os.path.join(
-            folder, config["boundary_conditions"]["bc_pressure_input_file"].strip("'")
-        )
+            pulse_file = os.path.join(
+                folder,
+                config["boundary_conditions"]["bc_pressure_input_file"].strip("'"),
+            )
 
-        # Read the pulse input
-        pulse = np.loadtxt(pulse_file, skiprows=1)
-        pulse_t = pulse[ilo:ihi, j] * ureg("s")
-        pulse_p = pulse[:, 1] * ureg("barye")
+            # Read the pulse input
+            pulse = np.loadtxt(pulse_file, skiprows=1)
+            pulse_t = pulse[ilo:ihi, j] * ureg("s")
+            pulse_p = pulse[:, 1] * ureg("barye")
 
-        # Interpolate the pulse to the dataset time
-        data["pulse"] = np.interp(
-            data["time"].to("s").m, pulse_t.to("s").m, pulse_p.to("barye").m
-        ) * ureg("barye")
+            # Interpolate the pulse to the dataset time
+            data["pulse"] = np.interp(
+                data["time"].to("s").m, pulse_t.to("s").m, pulse_p.to("barye").m
+            ) * ureg("barye")
+    except Exception:
+        pass
 
     ds = generate_dataset(data, unit_system=units)
+
+    return ds
+
+
+def load_2d_dataset(folder, units="cgs"):
+    """Load a 2D CATO dataset into an xarray Dataset container
+
+    Parameters
+    ----------
+    folder : str
+        Folder containing the step files
+    units : str, optional
+        Desired unit system to convert the quantities to, by default 'cgs'. 'icf' will use
+        conventions typical in the ICF community, e.g. [g/cc, um, km/s, eV]
+
+    Returns
+    -------
+    xr.Dataset
+        An xarray Dataset containing the time-varying data
+    """
+
+    if units != "cgs" and units != "icf":
+        raise Exception("Unsupported units not in the set = {cgs, icf}")
+
+    step_files = sorted(
+        [
+            os.path.join(folder, f)
+            for f in os.listdir(folder)
+            if f.endswith(".h5") and f.startswith("step")
+        ]
+    )
+    data = read_stepfile(step_files[0])
+    cell_dims = data["density"].shape
+    nx_cells = cell_dims[0]
+    ny_cells = cell_dims[1]
+    nx_nodes = nx_cells + 1
+    ny_nodes = ny_cells + 1
+    data_dim_t = len(step_files)
+
+    data = {
+        "name": str(folder).split("/")[-1],
+        "time": np.zeros(data_dim_t),
+        "x": np.zeros((data_dim_t, nx_nodes, ny_nodes)),
+        "y": np.zeros((data_dim_t, nx_nodes, ny_nodes)),
+        "density": np.zeros((data_dim_t, nx_cells, ny_cells)),
+        "pressure": np.zeros((data_dim_t, nx_cells, ny_cells)),
+        "sound_speed": np.zeros((data_dim_t, nx_cells, ny_cells)),
+        "x_velocity": np.zeros((data_dim_t, nx_cells, ny_cells)),
+        "y_velocity": np.zeros((data_dim_t, nx_cells, ny_cells)),
+    }
+
+    for t, f in enumerate(step_files):
+        single_step_data = read_stepfile(f)
+        data["x"][t, :] = single_step_data["x"]
+        data["y"][t, :] = single_step_data["y"]
+        data["time"][t] = single_step_data["time"]
+        data["x_velocity"][t, :] = single_step_data["x_velocity"]
+        data["y_velocity"][t, :] = single_step_data["y_velocity"]
+        data["density"][t, :] = single_step_data["density"]
+        data["sound_speed"][t, :] = single_step_data["sound_speed"]
+        data["pressure"][t, :] = single_step_data["pressure"]
+
+    data["density"] = data["density"] * ureg(single_step_data["density_units"])
+    data["pressure"] = data["pressure"] * ureg(single_step_data["pressure_units"])
+    data["sound_speed"] = data["sound_speed"] * ureg(
+        single_step_data["sound_speed_units"]
+    )
+    data["x_velocity"] = data["x_velocity"] * ureg(single_step_data["x_velocity_units"])
+    data["y_velocity"] = data["y_velocity"] * ureg(single_step_data["y_velocity_units"])
+    data["time"] = data["time"] * ureg(single_step_data["time_units"])
+
+    # cell spacing
+    dy = (np.diff(data["x"][0, 0, :]) / 2.0)[0]
+    dx = (np.diff(data["y"][0, :, 0]) / 2.0)[0]
+
+    # cell center locations
+    data["x"] = (data["x"][0, :-1, :-1] + dx) * ureg(single_step_data["x_units"])
+    data["y"] = (data["y"][0, :-1, :-1] + dy) * ureg(single_step_data["x_units"])
+
+    if units == "icf":
+        density_units = "g/cc"
+        pressure_units = "Mbar"
+        vel_units = "um/ns"
+        time_units = "ns"
+        length_units = "um"
+    else:
+        density_units = "g/cc"
+        pressure_units = "barye"
+        vel_units = "cm/s"
+        time_units = "s"
+        length_units = "cm"
+
+    space_dims = ("t", "i", "j")
+    coords = {
+        "time": ("t", data["time"].m),
+        "x": (["i", "j"], data["x"].m),
+        "y": (["i", "j"], data["y"].m),
+    }
+
+    ds = xr.Dataset(
+        data_vars={
+            "density": xr.Variable(
+                space_dims,
+                data["density"].to(density_units).m,
+                attrs={"units": density_units},
+            ),
+            "x_velocity": xr.Variable(
+                space_dims,
+                data["x_velocity"].to(vel_units).m,
+                attrs={"units": vel_units},
+            ),
+            "y_velocity": xr.Variable(
+                space_dims,
+                data["y_velocity"].to(vel_units).m,
+                attrs={"units": vel_units},
+            ),
+            "sound_speed": xr.Variable(
+                space_dims,
+                data["sound_speed"].to(vel_units).m,
+                attrs={"units": vel_units},
+            ),
+            "pressure": xr.Variable(
+                space_dims,
+                data["pressure"].to(pressure_units).m,
+                attrs={"units": pressure_units},
+            ),
+        },
+        coords=coords,
+        attrs={"name": data["name"], "time_units": time_units},
+    )
 
     return ds
 

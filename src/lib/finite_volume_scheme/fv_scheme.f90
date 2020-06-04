@@ -19,6 +19,7 @@ module mod_finite_volume_schemes
   use mod_grid, only: grid_t
   use hdf5_interface, only: hdf5_file
   use mod_boundary_conditions, only: boundary_condition_t
+  use mod_nondimensionalization, only: set_scale_factors
 
   implicit none
   private
@@ -77,7 +78,6 @@ module mod_finite_volume_schemes
     procedure, public :: reconstruct
     procedure, public :: apply_primitive_vars_bc
     procedure, public :: apply_reconstructed_state_bc
-    procedure, public :: apply_cell_gradient_bc
     procedure, public :: apply_source_terms
     procedure, public :: set_time
     final :: finalize
@@ -96,7 +96,7 @@ contains
     allocate(fv)
     call fv%initialize(input)
 
-  end function
+  end function constructor
 
   subroutine initialize(self, input)
     !< Construct the finite volume local evolution Galerkin (fvleg) scheme
@@ -138,6 +138,12 @@ contains
     allocate(self%grid, source=grid, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%grid"
     deallocate(grid)
+
+    ! Now that the grid is set, we can finish setting up the scale factors
+    ! for non-dimensionalization. The grid sets the length scale automatically
+    ! so that the smallest cell edge length is 1.
+    call set_scale_factors(pressure_scale=input%reference_pressure, &
+                           density_scale=input%reference_density)
 
     ! Set boundary conditions
     bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input)
@@ -183,6 +189,8 @@ contains
     allocate(self%reconstruction_operator, source=r_omega, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%reconstruction_operator"
     deallocate(r_omega)
+
+    call self%reconstruction_operator%set_grid_pointer(self%grid)
 
     call debug_print('Making an E0 operator', __FILE__, __LINE__)
     E0 => evo_operator_factory(input=input, grid_target=self%grid, &
@@ -279,24 +287,27 @@ contains
 
   end subroutine apply_source_terms
 
-  subroutine reconstruct(self, primitive_vars, cell_lbounds, reconstructed_state)
+  subroutine reconstruct(self, primitive_var, lbounds, reconstructed_var, stage, name)
     !< Implementation of the FVLEG reconstruction.
     !< This reconstructs the entire grid at all the nodes/midpoints
     class(finite_volume_scheme_t), intent(inout) :: self
-    integer(ik), dimension(3), intent(in) :: cell_lbounds  !< lower bound of the cell-based arrays
-    real(rk), dimension(cell_lbounds(1):, cell_lbounds(2):, cell_lbounds(3):), intent(in), target :: primitive_vars
-    real(rk), dimension(:, :, :, cell_lbounds(2):, cell_lbounds(3):), intent(out) :: reconstructed_state
-    integer(ik), dimension(5) :: recon_bounds
+    integer(ik), dimension(2), intent(in) :: lbounds
+    integer(ik), intent(in) :: stage !< stage in the time integration scheme, e.g. stage 2 in RK2
+    character(len=*), intent(in) :: name !< what variable will be reconstructed
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: primitive_var !< (i,j); cell primitive variable to reconstruct
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out) :: reconstructed_var
+    !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+
+    character(len=50) :: stage_name = ''
+
+    write(stage_name, '(2(a, i0))') 'iter_', self%iteration, 'stage_', stage
 
     call debug_print('Running finite_volume_scheme_t%reconstruct()', __FILE__, __LINE__)
-    call self%reconstruction_operator%set_primitive_vars_pointer(primitive_vars=primitive_vars, &
-                                                                 lbounds=cell_lbounds)
-    call self%reconstruction_operator%set_grid_pointer(self%grid)
-
-    recon_bounds = lbound(reconstructed_state)
-    call self%reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_state, &
-                                                         lbounds=recon_bounds)
-
+    call self%reconstruction_operator%reconstruct(primitive_var=primitive_var, &
+                                                  reconstructed_var=reconstructed_var, &
+                                                  lbounds=lbounds, &
+                                                  name=name, &
+                                                  stage_name=stage_name)
   end subroutine reconstruct
 
   subroutine set_time(self, time, delta_t, iteration)
@@ -320,11 +331,14 @@ contains
 
   end subroutine set_time
 
-  subroutine apply_primitive_vars_bc(self, primitive_vars, lbounds)
+  subroutine apply_primitive_vars_bc(self, rho, u, v, p, lbounds)
     !< Apply the boundary conditions
     class(finite_volume_scheme_t), intent(inout) :: self
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
 
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
@@ -337,31 +351,33 @@ contains
     do priority = max_priority_bc, 0, -1
 
       if(self%bc_plus_x%priority == priority) then
-        call self%bc_plus_x%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbounds)
+        call self%bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
       if(self%bc_plus_y%priority == priority) then
-        call self%bc_plus_y%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbounds)
+        call self%bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
       if(self%bc_minus_x%priority == priority) then
-        call self%bc_minus_x%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbounds)
+        call self%bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
       if(self%bc_minus_y%priority == priority) then
-        call self%bc_minus_y%apply_primitive_var_bc(primitive_vars=primitive_vars, lbounds=lbounds)
+        call self%bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
     end do
 
   end subroutine apply_primitive_vars_bc
 
-  subroutine apply_reconstructed_state_bc(self, reconstructed_state, lbounds)
+  subroutine apply_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
     !< Apply the boundary conditions
     class(finite_volume_scheme_t), intent(inout) :: self
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, &
-                        lbounds(3):, lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
 
@@ -373,67 +389,34 @@ contains
     do priority = max_priority_bc, 0, -1
 
       if(self%bc_plus_x%priority == priority) then
-        call self%bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
-                                                         lbounds=lbounds)
+        call self%bc_plus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                         recon_u=recon_u, &
+                                                         recon_v=recon_v, &
+                                                         recon_p=recon_p, lbounds=lbounds)
       end if
 
       if(self%bc_plus_y%priority == priority) then
-        call self%bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
-                                                         lbounds=lbounds)
+        call self%bc_plus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                         recon_u=recon_u, &
+                                                         recon_v=recon_v, &
+                                                         recon_p=recon_p, lbounds=lbounds)
       end if
 
       if(self%bc_minus_x%priority == priority) then
-        call self%bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
-                                                          lbounds=lbounds)
+        call self%bc_minus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                          recon_u=recon_u, &
+                                                          recon_v=recon_v, &
+                                                          recon_p=recon_p, lbounds=lbounds)
       end if
 
       if(self%bc_minus_y%priority == priority) then
-        call self%bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_state, &
-                                                          lbounds=lbounds)
+        call self%bc_minus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                          recon_u=recon_u, &
+                                                          recon_v=recon_v, &
+                                                          recon_p=recon_p, lbounds=lbounds)
       end if
 
     end do
   end subroutine apply_reconstructed_state_bc
-
-  subroutine apply_cell_gradient_bc(self)
-    !< Apply the boundary conditions
-    class(finite_volume_scheme_t), intent(inout) :: self
-
-    integer(ik) :: priority
-    integer(ik) :: max_priority_bc !< highest goes first
-    integer(ik), dimension(4) :: bounds
-
-    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
-                          self%bc_minus_x%priority, self%bc_minus_y%priority)
-
-    bounds = lbound(self%reconstruction_operator%cell_gradient)
-    if(self%reconstruction_operator%order > 1) then
-      call debug_print('Running apply_cell_gradient_bc', __FILE__, __LINE__)
-      do priority = max_priority_bc, 0, -1
-
-        if(self%bc_plus_x%priority == priority) then
-          call self%bc_plus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient, &
-                                                     lbounds=bounds)
-        end if
-
-        if(self%bc_plus_y%priority == priority) then
-          call self%bc_plus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient, &
-                                                     lbounds=bounds)
-        end if
-
-        if(self%bc_minus_x%priority == priority) then
-          call self%bc_minus_x%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient, &
-                                                      lbounds=bounds)
-        end if
-
-        if(self%bc_minus_y%priority == priority) then
-          call self%bc_minus_y%apply_cell_gradient_bc(cell_gradient=self%reconstruction_operator%cell_gradient, &
-                                                      lbounds=bounds)
-        end if
-
-      end do
-    end if
-
-  end subroutine apply_cell_gradient_bc
 
 end module mod_finite_volume_schemes

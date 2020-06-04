@@ -68,7 +68,7 @@ set(SERIAL_BUILD On) # Make this default for now (until coarray is finished)
 
 find_package(
   HDF5
-  COMPONENTS Fortran_HL
+  COMPONENTS Fortran_HL Fortran
   REQUIRED)
 
 if(NOT SERIAL_BUILD)

@@ -69,7 +69,7 @@ module mod_functional
     module procedure :: complement_r4, complement_r8, complement_r16
     module procedure :: complement_c4, complement_c8, complement_c16
     module procedure :: complement_char
-  end interface operator(.complement.)
+  end interface
 
   interface empty
     module procedure :: empty_i1, empty_i2, empty_i4, empty_i8
@@ -114,7 +114,7 @@ module mod_functional
     module procedure :: head_r4, head_r8, head_r16
     module procedure :: head_c4, head_c8, head_c16
     module procedure :: head_char
-  end interface operator(.head.)
+  end interface
 
   interface init
     module procedure :: init_i1, init_i2, init_i4, init_i8
@@ -128,7 +128,7 @@ module mod_functional
     module procedure :: init_r4, init_r8, init_r16
     module procedure :: init_c4, init_c8, init_c16
     module procedure :: init_char
-  end interface operator(.init.)
+  end interface
 
   interface insert
     module procedure :: insert_i1, insert_i2, insert_i4, insert_i8
@@ -149,7 +149,7 @@ module mod_functional
     module procedure :: intersection_r4, intersection_r8, intersection_r16
     module procedure :: intersection_c4, intersection_c8, intersection_c16
     module procedure :: intersection_char
-  end interface operator(.intersection.)
+  end interface
 
   interface iterfold
     module procedure :: iterfold_i1, iterfold_i2, iterfold_i4, iterfold_i8
@@ -169,7 +169,7 @@ module mod_functional
     module procedure :: last_r4, last_r8, last_r16
     module procedure :: last_c4, last_c8, last_c16
     module procedure :: last_char
-  end interface operator(.last.)
+  end interface
 
   interface limit
     module procedure :: limit_i1, limit_i2, limit_i4, limit_i8
@@ -195,7 +195,7 @@ module mod_functional
     module procedure :: reverse_r4, reverse_r8, reverse_r16
     module procedure :: reverse_c4, reverse_c8, reverse_c16
     module procedure :: reverse_char
-  end interface operator(.reverse.)
+  end interface
 
   interface set
     module procedure :: set_i1, set_i2, set_i4, set_i8
@@ -209,7 +209,7 @@ module mod_functional
     module procedure :: set_r4, set_r8, set_r16
     module procedure :: set_c4, set_c8, set_c16
     module procedure :: set_char
-  end interface operator(.set.)
+  end interface
 
   interface sort
     module procedure :: sort_i1, sort_i2, sort_i4, sort_i8
@@ -223,7 +223,7 @@ module mod_functional
     module procedure :: sort_r4, sort_r8, sort_r16
     module procedure :: sort_c4, sort_c8, sort_c16
     module procedure :: sort_char
-  end interface operator(.sort.)
+  end interface
 
   interface split
     module procedure :: split_i1, split_i2, split_i4, split_i8
@@ -250,7 +250,7 @@ module mod_functional
     module procedure :: tail_r4, tail_r8, tail_r16
     module procedure :: tail_c4, tail_c8, tail_c16
     module procedure :: tail_char
-  end interface operator(.tail.)
+  end interface
 
   interface unfold
     module procedure :: unfold_i1, unfold_i2, unfold_i4, unfold_i8
@@ -270,7 +270,7 @@ module mod_functional
     module procedure :: union_r4, union_r8, union_r16
     module procedure :: union_c4, union_c8, union_c16
     module procedure :: union_char
-  end interface operator(.union.)
+  end interface
 
   interface operator(<)
     module procedure :: lt_c4, lt_c8, lt_c16

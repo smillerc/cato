@@ -73,7 +73,7 @@ contains
       if(v_tot_d > 0.0_rk) cos_theta = -v_dot_n / v_tot_d
 
       ! domain sound speed
-      cs_d = eos%sound_speed(pressure=p, density=rho)
+      call eos%sound_speed(p=p, rho=rho, cs=cs_d)
 
       ! stagnation sound speed
       cs_0_sq = cs_d**2 + ((gamma - 1.0_rk) / 2.0_rk) * v_tot_d**2
@@ -94,20 +94,10 @@ contains
       R_plus = v_dot_n + (2.0_rk * cs_b / (gamma - 1.0_rk))
 
       ! boundary state
-      ! T_b = T_0 * (cs_b**2 / cs_0_sq)
-
-      ! p_b = p_0 * (T_b / T_0)**(gamma / (gamma - 1.0_rk))
       p_b = p_0 * (cs_b**2 / cs_0_sq)**(gamma / (gamma - 1.0_rk))
-
-      ! rho_b = p_b / (R * T_b)
       rho_b = rho_0 * (p_b / p_0)**(1.0_rk / gamma)
-
-      ! v_tot_b = sqrt(2.0_rk * cp * abs(T_0 - T_b))
       v_tot_b = (2.0_rk * cs_b / (gamma - 1.0_rk)) - R_plus
 
-      ! write(*, *) "v_tot_b = sqrt(2.0_rk * cp * abs(T_0 - T_b))         : ", sqrt(2.0_rk * cp * abs(T_0 - T_b))
-      ! write(*, *) "v_tot_b = (2.0_rk * cs_b / (gamma - 1.0_rk)) - R_plus: ", (2.0_rk * cs_b / (gamma - 1.0_rk)) - R_plus
-      ! error stop
       u_b = v_tot_b * cos(theta)
       v_b = v_tot_b * sin(theta)
     end associate
@@ -138,7 +128,7 @@ contains
               n_x=>boundary_norm(1), n_y=>boundary_norm(2), &
               v_d=>domain_prim_vars(3), p_d=>domain_prim_vars(4))
 
-      cs_d = eos%sound_speed(pressure=p_d, density=rho_d)
+      call eos%sound_speed(p=p_d, rho=rho_d, cs=cs_d)
 
       rho_b = rho_d + (p_b - p_d) / cs_d**2
       u_b = u_d + n_x * (p_d - p_b) / (rho_d * cs_d)

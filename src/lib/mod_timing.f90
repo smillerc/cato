@@ -58,7 +58,7 @@ contains
 
     integer(int64) :: count_end
     real(rk) :: elapsed_walltime
-    real(rk) :: elapsed_cputime, end_cputim
+    real(rk) :: elapsed_cputime
     real(rk) :: end_cputime
 
     call cpu_time(end_cputime)
@@ -95,46 +95,22 @@ contains
     real(rk), intent(in) :: cfl
     class(finite_volume_scheme_t), intent(in) :: fv
     class(fluid_t), intent(in) :: fluid
-    real(rk), dimension(:, :), allocatable :: u, v
-    real(rk), dimension(:, :), allocatable :: sound_speed
 
     integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: ilo_d, ihi_d, jlo_d, jhi_d
 
-    ilo = fv%grid%ilo_bc_cell
-    ihi = fv%grid%ihi_bc_cell
-    jlo = fv%grid%jlo_bc_cell
-    jhi = fv%grid%jhi_bc_cell
+    ilo = fv%grid%ilo_cell
+    ihi = fv%grid%ihi_cell
+    jlo = fv%grid%jlo_cell
+    jhi = fv%grid%jhi_cell
 
-    ilo_d = fv%grid%ilo_cell
-    ihi_d = fv%grid%ihi_cell
-    jlo_d = fv%grid%jlo_cell
-    jhi_d = fv%grid%jhi_cell
+    if(.not. fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
+    associate(dx=>fv%grid%cell_dx, dy=>fv%grid%cell_dy)
 
-    allocate(u(ilo:ihi, jlo:jhi))
-    u = 0.0_rk
-    allocate(v(ilo:ihi, jlo:jhi))
-    v = 0.0_rk
-    allocate(sound_speed(ilo:ihi, jlo:jhi))
-    sound_speed = 0.0_rk
-
-    call fluid%get_sound_speed(sound_speed)
-    u = abs(fluid%conserved_vars(2, :, :)) / fluid%conserved_vars(1, :, :)
-    v = abs(fluid%conserved_vars(3, :, :)) / fluid%conserved_vars(1, :, :)
-
-    ! !$omp workshare
-    associate(dx=>fv%grid%cell_size(1, :, :), &
-              dy=>fv%grid%cell_size(2, :, :), &
-              cs=>sound_speed)
-
-      delta_t = minval(cfl / (((u(ilo_d:ihi_d, jlo_d:jhi_d) + cs(ilo_d:ihi_d, jlo_d:jhi_d)) / dx(ilo_d:ihi_d, jlo_d:jhi_d)) + &
-                              ((v(ilo_d:ihi_d, jlo_d:jhi_d) + cs(ilo_d:ihi_d, jlo_d:jhi_d)) / dy(ilo_d:ihi_d, jlo_d:jhi_d))))
+      delta_t = minval(cfl / (((abs(fluid%u(ilo:ihi, jlo:jhi)) + fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
+                              ((abs(fluid%v(ilo:ihi, jlo:jhi)) + fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
     end associate
     ! !$omp end workshare
 
-    deallocate(u)
-    deallocate(v)
-    deallocate(sound_speed)
   end function
 
 end module mod_timing

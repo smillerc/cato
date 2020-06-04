@@ -9,7 +9,9 @@ sys.path.append(os.path.abspath("../../.."))
 from pycato import make_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
-domain = make_uniform_grid(n_cells=(200, 200), xrange=(-0.5, 0.5), yrange=(-0.5, 0.5))
+domain = make_uniform_grid(
+    n_cells=(100, 100), xrange=(-0.25, 0.25), yrange=(-0.25, 0.25)
+)
 
 # Set the initial conditions
 domain["rho"] = domain["rho"] * 0.001
@@ -21,8 +23,10 @@ x = domain["xc"]
 y = domain["yc"]
 
 # Make pressure a centered gaussian with surrounding pressure of 1.0
-# domain["p"] = np.exp(-(x**2 + y**2)) * 1.0e6 + 1e6# 1 atm
-p = 10 * np.exp(-((x.m ** 2) / 0.001 + (y.m ** 2) / 0.001)) + p0
+fwhm = 0.001
+p_max = 10.0
+p = p_max * np.exp(-((x.m ** 2) / fwhm + (y.m ** 2) / fwhm)) + p0
+p = (p - p.max()) + p_max  # Make the max actually 10, since it's slightly off
 domain["p"] = p * ureg(str(domain["p"].units))
 
 # Zero velocity everywhere

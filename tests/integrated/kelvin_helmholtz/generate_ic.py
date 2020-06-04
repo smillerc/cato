@@ -58,27 +58,35 @@ for i in range(domain["xc"].shape[0]):
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
 # Plot the results
-fig, (ax1, ax2, ax3) = plt.subplots(figsize=(18, 8), nrows=1, ncols=3)
+try:
+    fig, (ax1, ax2, ax3) = plt.subplots(figsize=(18, 8), nrows=1, ncols=3)
 
-dens = ax1.pcolormesh(
-    domain["x"], domain["y"], domain["rho"], edgecolor="k", lw=0.001, antialiased=True
-)
-fig.colorbar(dens, ax=ax1, label="Density")
+    dens = ax1.pcolormesh(
+        domain["x"],
+        domain["y"],
+        domain["rho"],
+        edgecolor="k",
+        lw=0.001,
+        antialiased=True,
+    )
+    fig.colorbar(dens, ax=ax1, label="Density")
 
-uax = ax2.pcolormesh(
-    domain["x"], domain["y"], domain["u"], edgecolor="k", lw=0.001, antialiased=True
-)
-fig.colorbar(uax, ax=ax2, label="X Velocity")
+    uax = ax2.pcolormesh(
+        domain["x"], domain["y"], domain["u"], edgecolor="k", lw=0.001, antialiased=True
+    )
+    fig.colorbar(uax, ax=ax2, label="X Velocity")
 
-vax = ax3.pcolormesh(
-    domain["x"], domain["y"], domain["v"], edgecolor="k", lw=0.001, antialiased=True
-)
-fig.colorbar(vax, ax=ax3, label="Y Velocity")
+    vax = ax3.pcolormesh(
+        domain["x"], domain["y"], domain["v"], edgecolor="k", lw=0.001, antialiased=True
+    )
+    fig.colorbar(vax, ax=ax3, label="Y Velocity")
 
-for ax in [ax1, ax2, ax3]:
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.axis("equal")
+    for ax in [ax1, ax2, ax3]:
+        ax.set_xlabel("X")
+        ax.set_ylabel("Y")
+        ax.axis("equal")
 
-plt.tight_layout()
-plt.show()
+    plt.tight_layout()
+    plt.show()
+except Exception:
+    pass
