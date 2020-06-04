@@ -41,9 +41,9 @@ write_initial_hdf5(filename="double_shear", initial_condition_dict=double_shear)
 fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=1, ncols=2)
 
 vc = ax1.pcolormesh(
-    double_shear["x"],
-    double_shear["y"],
-    double_shear["v"],
+    double_shear["x"].m,
+    double_shear["y"].m,
+    double_shear["v"].m,
     edgecolor="k",
     lw=0.001,
     cmap="RdBu",
@@ -54,9 +54,9 @@ ax1.set_xlabel("X")
 ax1.set_ylabel("Y")
 
 uc = ax2.pcolormesh(
-    double_shear["x"],
-    double_shear["y"],
-    double_shear["u"],
+    double_shear["x"].m,
+    double_shear["y"].m,
+    double_shear["u"].m,
     edgecolor="k",
     lw=0.001,
     cmap="RdBu",
