@@ -51,7 +51,7 @@ add_library(
   # lib/boundary_conditions/farfield.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
-  # lib/boundary_conditions/reflection_bc.f90
+  lib/boundary_conditions/symmetry_bc.f90
   lib/boundary_conditions/bc_factory.f90
   lib/source_terms/source_factory.f90
   lib/source_terms/mod_source.f90

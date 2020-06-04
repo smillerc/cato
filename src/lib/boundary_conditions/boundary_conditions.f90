@@ -27,14 +27,6 @@ module mod_boundary_conditions
   end type boundary_condition_t
 
   abstract interface
-    ! subroutine initialize(self, location)
-    !   import :: boundary_condition_t
-    !   ! import :: input_t
-    !   class(boundary_condition_t), intent(inout) :: self
-    !   ! class(input_t), intent(in) :: input
-    !   character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
-    ! end subroutine initialize
-
     subroutine copy_bc(out_bc, in_bc)
       import :: boundary_condition_t
       class(boundary_condition_t), intent(in) :: in_bc
