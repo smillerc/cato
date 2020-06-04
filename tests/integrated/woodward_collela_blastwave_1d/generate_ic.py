@@ -13,12 +13,9 @@ sys.path.append(os.path.abspath("../../.."))
 from pycato import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
-ic = make_1d_in_x_uniform_grid(n_cells=1300, limits=(0, 1.0))
+ic = make_1d_in_x_uniform_grid(n_cells=500, limits=(0, 1.0))
 
 # Set the initial conditions
-# ic["rho"][:, :] = 1.0
-# ic["u"][:, :] = 0.0
-# ic["v"][:, :] = 0.0
 gamma = 1.4
 x = ic["xc"].m
 y = ic["yc"].m
@@ -43,8 +40,8 @@ write_initial_hdf5(filename="initial_conditions", initial_condition_dict=ic)
 # Plot the results
 fig, ax = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
 pax = ax.twinx()
-dens = ax.plot(ic["xc"][:, 1], ic["rho"][:, 1], color="k", label="Density")
-press = pax.plot(ic["xc"][:, 1], ic["p"][:, 1], color="b", label="Pressure")
+dens = ax.plot(ic["xc"][:, 1].m, ic["rho"][:, 1].m, color="k", label="Density")
+press = pax.plot(ic["xc"][:, 1].m, ic["p"][:, 1].m, color="b", label="Pressure")
 
 lns = dens + press
 labs = [l.get_label() for l in lns]
