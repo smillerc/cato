@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Make the double periodic shear test grid"""
+"""Make the initial conditions for the quarter circle sedov explosion"""
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
@@ -13,7 +13,6 @@ domain = make_uniform_grid(n_cells=(100, 100), xrange=(0, 0.25), yrange=(0, 0.25
 
 # Set the initial conditions
 domain["rho"] = domain["rho"] * 0.001
-# domain["p"] = domain["p"] * .001
 p0 = 1e-3
 domain["x"] = domain["x"]
 domain["y"] = domain["y"]
