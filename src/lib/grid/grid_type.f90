@@ -21,6 +21,7 @@ module mod_grid
   type, abstract :: grid_t
 
     logical :: grid_is_uniform = .false. !< are all the cells the same size?
+    integer(ik) :: n_ghost_layers = 2 !< Number of ghost layers included in the grid
 
     ! Node indicies
     integer(ik) :: ilo_bc_node = 0 !< low i boundary condition node index
@@ -36,6 +37,16 @@ module mod_grid
     integer(ik) :: nj_node = 0 !< Number of j nodes (not including boundary nodes)
 
     ! Cell indices (this may seem a bit redundant, but the main idea is to improved code readibility)
+    ! integer(ik), dimension(:), allocatable :: ilo_ghost_cell_layers !< ilo ghost boundary cell layers
+    ! integer(ik), dimension(:), allocatable :: ihi_ghost_cell_layers !< ihi ghost boundary cell layers
+    ! integer(ik), dimension(:), allocatable :: jlo_ghost_cell_layers !< jlo ghost boundary cell layers
+    ! integer(ik), dimension(:), allocatable :: jhi_ghost_cell_layers !< jhi ghost boundary cell layers
+
+    ! integer(ik), dimension(:), allocatable :: ilo_ghost_node_layers !< ilo ghost boundary nodes
+    ! integer(ik), dimension(:), allocatable :: ihi_ghost_node_layers !< ihi ghost boundary nodes
+    ! integer(ik), dimension(:), allocatable :: jlo_ghost_node_layers !< jlo ghost boundary nodes
+    ! integer(ik), dimension(:), allocatable :: jhi_ghost_node_layers !< jhi ghost boundary nodes
+
     integer(ik) :: ilo_bc_cell = 0 !< low i boundary condition cell index
     integer(ik) :: jlo_bc_cell = 0 !< low j boundary condition cell index
     integer(ik) :: ihi_bc_cell = 0 !< high i boundary condition cell index

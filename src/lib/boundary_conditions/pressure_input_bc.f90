@@ -37,14 +37,19 @@ module mod_pressure_input_bc
   end type
 contains
 
-  function pressure_input_bc_constructor(location, input) result(bc)
+  function pressure_input_bc_constructor(location, input, ghost_layers) result(bc)
     type(pressure_input_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
+    integer(ik), dimension(:, :), intent(in) :: ghost_layers
+    !< (ilo_layers(n), ihi_layers(n), jlo_layers(n), jhi_layers(n)); indices to the ghost layers.
+    !< The ilo_layers type var can be scalar or a vector, e.g. ilo_layers = [-1,0] or ilo_layers = 0
 
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
+    call bc%set_indices(ghost_layers)
+
     bc%density_input = input%bc_density / rho_0
     bc%constant_pressure = input%apply_constant_bc_pressure
     bc%scale_factor = input%bc_pressure_scale_factor
@@ -171,14 +176,6 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
 
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     logical :: inflow
     logical :: outflow
@@ -197,15 +194,6 @@ contains
     inflow = .false.
     outflow = .false.
 
-    left_ghost = lbound(rho, dim=1)
-    right_ghost = ubound(rho, dim=1)
-    bottom_ghost = lbound(rho, dim=2)
-    top_ghost = ubound(rho, dim=2)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
-
     desired_boundary_pressure = self%get_desired_pressure()
 
     if(allocated(self%edge_rho)) deallocate(self%edge_rho)
@@ -213,91 +201,99 @@ contains
     if(allocated(self%edge_v)) deallocate(self%edge_v)
     if(allocated(self%edge_p)) deallocate(self%edge_p)
 
-    select case(self%location)
-    case('+x', '-x')
-      allocate(self%edge_rho(bottom_ghost:top_ghost))
-      allocate(self%edge_u(bottom_ghost:top_ghost))
-      allocate(self%edge_v(bottom_ghost:top_ghost))
-      allocate(self%edge_p(bottom_ghost:top_ghost))
-      allocate(domain_rho(bottom_ghost:top_ghost))
-      allocate(domain_u(bottom_ghost:top_ghost))
-      allocate(domain_v(bottom_ghost:top_ghost))
-      allocate(domain_p(bottom_ghost:top_ghost))
-    case('+y', '-y')
-      allocate(self%edge_rho(left_ghost:right_ghost))
-      allocate(self%edge_u(left_ghost:right_ghost))
-      allocate(self%edge_v(left_ghost:right_ghost))
-      allocate(self%edge_p(left_ghost:right_ghost))
-      allocate(domain_rho(left_ghost:right_ghost))
-      allocate(domain_u(left_ghost:right_ghost))
-      allocate(domain_v(left_ghost:right_ghost))
-      allocate(domain_p(left_ghost:right_ghost))
-    end select
+    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
+              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
+              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost, &
+              n=>self%n_ghost_layers)
 
-    self%edge_rho = 0.0_rk
-    self%edge_u = 0.0_rk
-    self%edge_v = 0.0_rk
-    self%edge_p = 0.0_rk
+      select case(self%location)
+      case('+x', '-x')
+        allocate(self%edge_rho(bottom_ghost(1):top_ghost(n)))
+        allocate(self%edge_u(bottom_ghost(1):top_ghost(n)))
+        allocate(self%edge_v(bottom_ghost(1):top_ghost(n)))
+        allocate(self%edge_p(bottom_ghost(1):top_ghost(n)))
+        allocate(domain_rho(bottom_ghost(1):top_ghost(n)))
+        allocate(domain_u(bottom_ghost(1):top_ghost(n)))
+        allocate(domain_v(bottom_ghost(1):top_ghost(n)))
+        allocate(domain_p(bottom_ghost(1):top_ghost(n)))
+      case('+y', '-y')
+        allocate(self%edge_rho(left_ghost(1):right_ghost(n)))
+        allocate(self%edge_u(left_ghost(1):right_ghost(n)))
+        allocate(self%edge_v(left_ghost(1):right_ghost(n)))
+        allocate(self%edge_p(left_ghost(1):right_ghost(n)))
+        allocate(domain_rho(left_ghost(1):right_ghost(n)))
+        allocate(domain_u(left_ghost(1):right_ghost(n)))
+        allocate(domain_v(left_ghost(1):right_ghost(n)))
+        allocate(domain_p(left_ghost(1):right_ghost(n)))
+      end select
 
-    domain_rho = 0.0_rk
-    domain_u = 0.0_rk
-    domain_v = 0.0_rk
-    domain_p = 0.0_rk
+      self%edge_rho = 0.0_rk
+      self%edge_u = 0.0_rk
+      self%edge_v = 0.0_rk
+      self%edge_p = 0.0_rk
 
-    select case(self%location)
-    case('+x')
-      call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
-
-      domain_rho = rho(right, bottom_ghost:top_ghost)
-      domain_u = u(right, bottom_ghost:top_ghost)
+      domain_rho = 0.0_rk
+      domain_u = 0.0_rk
       domain_v = 0.0_rk
-      domain_p = p(right, bottom_ghost:top_ghost)
-      boundary_norm = [1.0_rk, 0.0_rk]
+      domain_p = 0.0_rk
 
-      do j = bottom, top
-        associate(rho_d=>domain_rho(j), u_d=>domain_u(j), &
-                  v_d=>domain_v(j), p_d=>domain_p(j))
-          domain_prim_vars = [rho_d, u_d, v_d, p_d]
+      select case(self%location)
+      case('+x')
+        call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
-          call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
-          mach_u = u_d / cs
+        domain_rho = rho(right, bottom_ghost(1):top_ghost(n))
+        domain_u = u(right, bottom_ghost(1):top_ghost(n))
+        domain_v = 0.0_rk
+        domain_p = p(right, bottom_ghost(1):top_ghost(n))
+        boundary_norm = [1.0_rk, 0.0_rk]
 
-          if(mach_u > 0.0_rk) then ! outlet
-            if(mach_u > 1.0_rk) then
+        do j = bottom, top
+          associate(rho_d=>domain_rho(j), u_d=>domain_u(j), &
+                    v_d=>domain_v(j), p_d=>domain_p(j))
+            domain_prim_vars = [rho_d, u_d, v_d, p_d]
 
-              boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
-            else
-              boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
-                                                   exit_pressure=desired_boundary_pressure, &
-                                                   boundary_norm=boundary_norm)
+            call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
+            mach_u = u_d / cs
+
+            if(mach_u > 0.0_rk) then ! outlet
+              if(mach_u > 1.0_rk) then
+
+                boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
+              else
+                boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
+                                                     exit_pressure=desired_boundary_pressure, &
+                                                     boundary_norm=boundary_norm)
+              end if
+            else ! inlet
+              if(abs(mach_u) > 1.0_rk) then
+                error stop 'supersonic inlet'
+              else
+                boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
+                                                    boundary_norm=boundary_norm, &
+                                                    inlet_density=self%density_input, &
+                                                    inlet_total_press=desired_boundary_pressure, &
+                                                    inlet_flow_angle=0.0_rk)
+              end if
             end if
-          else ! inlet
-            if(abs(mach_u) > 1.0_rk) then
-              error stop 'supersonic inlet'
-            else
-              boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
-                                                  boundary_norm=boundary_norm, &
-                                                  inlet_density=self%density_input, &
-                                                  inlet_total_press=desired_boundary_pressure, &
-                                                  inlet_flow_angle=0.0_rk)
-            end if
-          end if
-        end associate
-        self%edge_rho(j) = boundary_prim_vars(1)
-        self%edge_u(j) = boundary_prim_vars(2)
-        self%edge_v(j) = 0.0_rk
-        self%edge_p(j) = boundary_prim_vars(4)
-      end do
+          end associate
+          self%edge_rho(j) = boundary_prim_vars(1)
+          self%edge_u(j) = boundary_prim_vars(2)
+          self%edge_v(j) = 0.0_rk
+          self%edge_p(j) = boundary_prim_vars(4)
+        end do
 
-      rho(right_ghost, bottom:top) = self%edge_rho(bottom:top)
-      u(right_ghost, bottom:top) = self%edge_u(bottom:top)
-      v(right_ghost, bottom:top) = self%edge_v(bottom:top)
-      p(right_ghost, bottom:top) = self%edge_p(bottom:top)
-    case default
-      error stop "Unsupported location to apply the bc at in "// &
-        "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"
-    end select
+        do i = 1, self%n_ghost_layers
+          rho(right_ghost(i), bottom:top) = self%edge_rho(bottom:top)
+          u(right_ghost(i), bottom:top) = self%edge_u(bottom:top)
+          v(right_ghost(i), bottom:top) = self%edge_v(bottom:top)
+          p(right_ghost(i), bottom:top) = self%edge_p(bottom:top)
+        end do
+      case default
+        error stop "Unsupported location to apply the bc at in "// &
+          "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"
+      end select
 
+    end associate
     if(allocated(edge_pressure)) deallocate(edge_pressure)
 
   end subroutine apply_pressure_input_primitive_var_bc
@@ -313,50 +309,40 @@ contains
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
 
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
-    integer(ik) :: n, p
+    integer(ik) :: i, p
 
-    left_ghost = lbound(recon_rho, dim=2)
-    right_ghost = ubound(recon_rho, dim=2)
-    bottom_ghost = lbound(recon_rho, dim=3)
-    top_ghost = ubound(recon_rho, dim=3)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
+    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
+              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
+              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+      select case(self%location)
+      case('+x')
+        call debug_print('Running pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc() +x', __FILE__, __LINE__)
 
-    select case(self%location)
-    case('+x')
-      call debug_print('Running pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc() +x', __FILE__, __LINE__)
-      do p = 1, 8
-        recon_rho(p, right_ghost, :) = self%edge_rho
-        recon_u(p, right_ghost, :) = self%edge_u
-        recon_v(p, right_ghost, :) = self%edge_v
-        recon_p(p, right_ghost, :) = self%edge_p
-      end do
+        do i = 1, self%n_ghost_layers
+          do p = 1, 8
+            recon_rho(p, right_ghost(i), :) = self%edge_rho
+            recon_u(p, right_ghost(i), :) = self%edge_u
+            recon_v(p, right_ghost(i), :) = self%edge_v
+            recon_p(p, right_ghost(i), :) = self%edge_p
+          end do
+        end do
 
-      ! case('-x')
-      !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-      !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-      !   reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
-      ! case('+y')
-      !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-      !   reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-      !   reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
-      ! case('-y')
-      !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-      !   reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-      !   reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
-    case default
-      error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
-    end select
+        ! case('-x')
+        !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
+        !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
+        !   reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
+        ! case('+y')
+        !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
+        !   reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
+        !   reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
+        ! case('-y')
+        !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
+        !   reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
+        !   reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
+      case default
+        error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
+      end select
+    end associate
 
     if(allocated(self%edge_rho)) deallocate(self%edge_rho)
     if(allocated(self%edge_u)) deallocate(self%edge_u)

@@ -87,10 +87,10 @@ contains
     self%jlo_cell = 1
 
     ! Low i/j boundary condition indices
-    self%ilo_bc_node = 0
-    self%jlo_bc_node = 0
-    self%ilo_bc_cell = 0
-    self%jlo_bc_cell = 0
+    self%ilo_bc_node = 1 - self%n_ghost_layers
+    self%jlo_bc_node = 1 - self%n_ghost_layers
+    self%ilo_bc_cell = 1 - self%n_ghost_layers
+    self%jlo_bc_cell = 1 - self%n_ghost_layers
 
     if(input%read_init_cond_from_file .or. input%restart_from_file) then
       call self%initialize_from_hdf5(input)
@@ -268,10 +268,14 @@ contains
     write(*, *)
     write(*, '(a)') "Extents"
     write(*, '(a)') "-------"
-    write(*, '(2(a, es10.3))') "x range [non-dim] (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_x(self%ihi_node, self%jhi_node)
-    write(*, '(2(a, es10.3))') "y range [non-dim] (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_y(self%ihi_node, self%jhi_node)
-    write(*, '(2(a, es10.3))') "x range [dim]     (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_x(self%ihi_node, self%jhi_node) * l_0
-    write(*, '(2(a, es10.3))') "y range [dim]     (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_y(self%ihi_node, self%jhi_node) * l_0
+    write(*, '(2(a, es10.3))') "x range [non-dim] (w/o ghost)", &
+      self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_x(self%ihi_node, self%jhi_node)
+    write(*, '(2(a, es10.3))') "y range [non-dim] (w/o ghost)", &
+      self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_y(self%ihi_node, self%jhi_node)
+    write(*, '(2(a, es10.3))') "x range [dim]     (w/o ghost)", &
+      self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_x(self%ihi_node, self%jhi_node) * l_0
+    write(*, '(2(a, es10.3))') "y range [dim]     (w/o ghost)", &
+      self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_y(self%ihi_node, self%jhi_node) * l_0
     write(*, '(a)') "========================="
     write(*, *)
 
@@ -333,13 +337,13 @@ contains
     self%jhi_cell = self%jhi_node - 1
 
     ! High i/j boundary condition indices
-    self%ihi_bc_node = self%ihi_node + 1
-    self%jhi_bc_node = self%jhi_node + 1
-    self%ihi_bc_cell = self%ihi_cell + 1
-    self%jhi_bc_cell = self%jhi_cell + 1
+    self%ihi_bc_node = self%ihi_node + self%n_ghost_layers
+    self%jhi_bc_node = self%jhi_node + self%n_ghost_layers
+    self%ihi_bc_cell = self%ihi_cell + self%n_ghost_layers
+    self%jhi_bc_cell = self%jhi_cell + self%n_ghost_layers
 
-    self%ni_node = size(x, dim=1) - 2
-    self%nj_node = size(y, dim=2) - 2
+    self%ni_node = size(x, dim=1) - (2 * self%n_ghost_layers)
+    self%nj_node = size(y, dim=2) - (2 * self%n_ghost_layers)
     self%ni_cell = self%ni_node - 1
     self%nj_cell = self%nj_node - 1
 
@@ -376,10 +380,10 @@ contains
     self%jhi_cell = self%jhi_node - 1
 
     ! High i/j boundary condition indices
-    self%ihi_bc_node = self%ihi_node + 1
-    self%jhi_bc_node = self%jhi_node + 1
-    self%ihi_bc_cell = self%ihi_cell + 1
-    self%jhi_bc_cell = self%jhi_cell + 1
+    self%ihi_bc_node = self%ihi_node + self%n_ghost_layers
+    self%jhi_bc_node = self%jhi_node + self%n_ghost_layers
+    self%ihi_bc_cell = self%ihi_cell + self%n_ghost_layers
+    self%jhi_bc_cell = self%jhi_cell + self%n_ghost_layers
 
     self%ni_node = input%ni_nodes
     self%nj_node = input%nj_nodes

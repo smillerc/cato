@@ -8,7 +8,7 @@ import h5py
 from .unit_registry import ureg
 
 
-def make_uniform_grid(n_cells, xrange, yrange):
+def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=1):
     """Generate a uniform grid. This will output a dictionary
     that contains the appropriate arrays, which include the ghost
     cell layer.
@@ -29,15 +29,22 @@ def make_uniform_grid(n_cells, xrange, yrange):
         velocity, p), grid (x,y) points, and the cell center (xc,yc) points
     """
 
-    x = np.linspace(xrange[0], xrange[1], n_cells[0] - 1, dtype=np.float64)
-    ldx = x[1] - x[0]
-    rdx = x[-1] - x[-2]
-    x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)
+    dx = float(xrange[1] - xrange[0]) / float(n_cells[0])
+    dy = float(yrange[1] - yrange[0]) / float(n_cells[1])
 
-    y = np.linspace(yrange[0], yrange[1], n_cells[1] - 1, dtype=np.float64)
-    ldy = y[1] - y[0]
-    rdy = y[-1] - y[-2]
-    y = np.array([y[0] - ldy] + list(y) + [y[-1] + rdy], dtype=np.float64)
+    x = np.linspace(
+        start=xrange[0] - n_ghost_layers * dx,
+        stop=xrange[1] + n_ghost_layers * dx,
+        num=(n_cells[0] + 1) + (n_ghost_layers * 2),
+        dtype=np.float64,
+    )
+
+    y = np.linspace(
+        start=yrange[0] - n_ghost_layers * dy,
+        stop=yrange[1] + n_ghost_layers * dy,
+        num=(n_cells[1] + 1) + (n_ghost_layers * 2),
+        dtype=np.float64,
+    )
 
     xc = np.zeros(x.shape[0] - 1, dtype=np.float64)
     yc = np.zeros(y.shape[0] - 1, dtype=np.float64)
@@ -52,10 +59,6 @@ def make_uniform_grid(n_cells, xrange, yrange):
     u = np.ones(cell_shape)
     v = np.ones(cell_shape)
     p = np.ones(cell_shape)
-
-    # cell spacing
-    dy = (np.diff(y_2d[0, :]) / 2.0)[0]
-    dx = (np.diff(x_2d[:, 0]) / 2.0)[0]
 
     # cell center locations
     xc = x_2d[:-1, :-1] + dx
@@ -453,7 +456,7 @@ def make_1d_layered_grid(
     }
 
 
-def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1)):
+def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1), n_ghost_layers=1):
     """Generate a uniform grid 1d grid in x. This will output a dictionary
     that contains the appropriate arrays, which include the ghost
     cell layer.
@@ -472,12 +475,16 @@ def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1)):
         velocity, p), grid points, and the cell center (xc, yc) points
     """
 
-    x = np.linspace(limits[0], limits[1], n_cells - 1, dtype=np.float64)
-    ldx = x[1] - x[0]
-    rdx = x[-1] - x[-2]
-    x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)
+    dx = float(limits[1] - limits[0]) / float(n_cells[0])
 
-    y = np.array([-ldx, 0, ldx, ldx * 2], dtype=np.float64) - ldx / 2
+    x = np.linspace(
+        start=limits[0] - n_ghost_layers * dx,
+        stop=limits[1] + n_ghost_layers * dx,
+        num=(n_cells[0] + 1) + (n_ghost_layers * 2),
+        dtype=np.float64,
+    )
+
+    y = np.arange(-1 * n_ghost_layers, n_ghost_layers + 2, dtype=np.float64) - dx / 2.0
 
     xc = np.zeros(x.shape[0] - 1, dtype=np.float64)
     yc = np.zeros(y.shape[0] - 1, dtype=np.float64)
@@ -486,20 +493,15 @@ def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1)):
     y_2d, x_2d = np.meshgrid(y, x)  # nodes
 
     # cell-centered arrays
-    # node_shape = (x_2d.shape[0], x_2d.shape[1])
     cell_shape = (x_2d.shape[0] - 1, x_2d.shape[1] - 1)
     rho = np.ones(cell_shape)
     u = np.ones(cell_shape)
     v = np.ones(cell_shape)
     p = np.ones(cell_shape)
 
-    # cell spacing
-    dy = (np.diff(y_2d[0, :]) / 2.0)[0]
-    dx = (np.diff(x_2d[:, 0]) / 2.0)[0]
-
     # cell center locations
     xc = x_2d[:-1, :-1] + dx
-    yc = y_2d[:-1, :-1] + dy
+    yc = y_2d[:-1, :-1] + dx
 
     return {
         "x": x_2d * ureg("cm"),

@@ -110,6 +110,7 @@ contains
     class(abstract_evo_operator_t), pointer :: E0 => null()
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
+    integer(ik), dimension(:, :), allocatable :: ghost_layers
     character(32) :: str_buff
     alloc_status = 0
 
@@ -145,23 +146,29 @@ contains
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
 
+    allocate(ghost_layers(4, grid%n_ghost_layers))
+    ghost_layers(1, :) = [grid%ilo_bc_cell, grid%ilo_bc_cell + grid%n_ghost_layers] ! ilo
+    ghost_layers(3, :) = [grid%jlo_bc_cell, grid%jlo_bc_cell + grid%n_ghost_layers] ! jlo
+    ghost_layers(2, :) = [grid%ihi_bc_cell - grid%n_ghost_layers, grid%ihi_bc_cell] ! ihi
+    ghost_layers(4, :) = [grid%jhi_bc_cell - grid%n_ghost_layers, grid%jhi_bc_cell] ! jhi
+
     ! Set boundary conditions
-    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input)
+    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, ghost_layers=ghost_layers)
     allocate(self%bc_plus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input)
+    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, ghost_layers=ghost_layers)
     allocate(self%bc_plus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_y"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input)
+    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, ghost_layers=ghost_layers)
     allocate(self%bc_minus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input)
+    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, ghost_layers=ghost_layers)
     allocate(self%bc_minus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_y"
     deallocate(bc)
@@ -179,11 +186,6 @@ contains
     write(*, '(3(a),i0,a)') "+y: ", trim(self%bc_plus_y%name), ' (priority = ', self%bc_plus_y%priority, ')'
     write(*, '(3(a),i0,a)') "-y: ", trim(self%bc_minus_y%name), ' (priority = ', self%bc_minus_y%priority, ')'
     write(*, *)
-
-    associate(imin=>self%grid%ilo_bc_cell, imax=>self%grid%ihi_bc_cell, &
-              jmin=>self%grid%jlo_bc_cell, jmax=>self%grid%jhi_bc_cell)
-
-    end associate
 
     r_omega => reconstruction_factory(input=input, grid_target=self%grid)
     allocate(self%reconstruction_operator, source=r_omega, stat=alloc_status)

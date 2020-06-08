@@ -109,9 +109,6 @@ def generate_dataset(var_dict, unit_system="icf"):
     else:
         raise Exception("The dimensionality should be 1D or 2D...")
 
-    print("space_dims", space_dims)
-    print("x", x.shape)
-
     ds = xr.Dataset(
         data_vars={
             "density": xr.Variable(

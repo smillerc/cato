@@ -409,7 +409,8 @@ contains
     ! Mach Number
     unit_label = ""
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Vector" Center="Cell" Name="Mach" Dimensions="'//cell_shape//' 2">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape//' 2" ItemType="Function" Function="JOIN(ABS($0/$2), ABS($1/$2))">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape &
+      //' 2" ItemType="Function" Function="JOIN(ABS($0/$2), ABS($1/$2))">'
     write(xdmf_unit, '(a)') '          <DataItem DataType="Float" Dimensions="'//cell_shape// &
       '" Format="HDF" Precision="4">'//self%hdf5_filename//':/x_velocity</DataItem>'
     write(xdmf_unit, '(a)') '          <DataItem DataType="Float" Dimensions="'//cell_shape// &
