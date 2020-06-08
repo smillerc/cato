@@ -95,7 +95,13 @@ program cato
   print *
 
   call timer%start()
-  delta_t = 0.1_rk * get_timestep(cfl=input%cfl, fv=fv, fluid=U)
+  if(input%initial_delta_t > 0.0_rk) then
+    delta_t = input%initial_delta_t
+    write(std_out, '(a, es10.3)') "Starting timestep (given via input, not calculated):", delta_t
+  else
+    delta_t = 0.1_rk * get_timestep(cfl=input%cfl, fv=fv, fluid=U)
+  endif
+
   call fv%set_time(time, delta_t, iteration)
 
   if(input%restart_from_file) then
