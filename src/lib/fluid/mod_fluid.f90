@@ -442,17 +442,6 @@ contains
 
     allocate(local_d_dt, source=self)
 
-    ! print *, 'conserved vars differences'
-    ! write(*, '(a, 6(es16.6))') "rho  : ", maxval(self%rho(204, fv%grid%jlo_cell:fv%grid%jhi_cell)) - &
-    !   minval(self%rho(204, fv%grid%jlo_cell:fv%grid%jhi_cell))
-    ! write(*, '(a, 6(es16.6))') "rho u: ", maxval(self%rho_u(204, fv%grid%jlo_cell:fv%grid%jhi_cell)) - &
-    !   minval(self%rho_u(204, fv%grid%jlo_cell:fv%grid%jhi_cell))
-    ! write(*, '(a, 6(es16.6))') "rho v: ", maxval(self%rho_v(204, fv%grid%jlo_cell:fv%grid%jhi_cell)) - &
-    !   minval(self%rho_v(204, fv%grid%jlo_cell:fv%grid%jhi_cell))
-    ! write(*, '(a, 6(es16.6))') "rho E: ", maxval(self%rho_E(204, fv%grid%jlo_cell:fv%grid%jhi_cell)) - &
-    !   minval(self%rho_E(204, fv%grid%jlo_cell:fv%grid%jhi_cell))
-    ! print *
-
     if(.not. local_d_dt%prim_vars_updated) then
       call local_d_dt%calculate_derived_quantities()
     end if
@@ -460,14 +449,6 @@ contains
     bounds = lbound(local_d_dt%rho)
 
     call local_d_dt%apply_boundary_conditions(fv)
-
-    ! print *, 'primitive vars differences'
-    ! write(*, '(a, 6(es16.6))') "rho  : ", maxval(local_d_dt%rho(204, :)) - minval(local_d_dt%rho(204, :))
-    ! write(*, '(a, 6(es16.6))') "u    : ", maxval(local_d_dt%u(204, :)) - minval(local_d_dt%u(204, :))
-    ! write(*, '(a, 6(es16.6))') "v    : ", maxval(local_d_dt%v(204, :)) - minval(local_d_dt%v(204, :))
-    ! write(*, '(a, 6(es16.6))') "p    : ", maxval(local_d_dt%p(204, :)) - minval(local_d_dt%p(204, :))
-    ! print*
-    ! if (abs( maxval(local_d_dt%p(204, :)) - minval(local_d_dt%p(204, :))) > 0.0_rk) error stop
 
     ! Now we can reconstruct the entire domain
     call debug_print('Reconstructing density', __FILE__, __LINE__)
@@ -495,14 +476,7 @@ contains
                                                                 v=v_recon_state, &
                                                                 p=p_recon_state, &
                                                                 lbounds=bounds)
-    ! print *, 'recon state differences'
-    ! write(*, '(a, 8(es16.6))') "rho  : ", rho_recon_state(:, 204, 3) - rho_recon_state(:, 204, 2)
-    ! write(*, '(a, 8(es16.6))') "u    : ", u_recon_state(:, 204, 3) - u_recon_state(:, 204, 2)
-    ! write(*, '(a, 8(es16.6))') "v    : ", v_recon_state(:, 204, 3) - v_recon_state(:, 204, 2)
-    ! write(*, '(a, 8(es16.6))') "p    : ", p_recon_state(:, 204, 3) - p_recon_state(:, 204, 2)
-    ! print *
 
-    ! error stop
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
     bounds = lbound(evolved_du_mid_rho)
