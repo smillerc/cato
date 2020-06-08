@@ -9,7 +9,12 @@ module mod_piecewise_linear_reconstruction
   use mod_eos, only: eos
   use mod_floating_point_utils, only: equal
   use mod_gradients, only: green_gauss_gradient
-  use mod_edge_reconstruction, only: reconstruct_edge_values
+  use mod_edge_interp, only: edge_iterpolator_t
+  use mod_tvd_2nd_order, only: tvd_2nd_order_t
+  use mod_tvd_3rd_order, only: tvd_3rd_order_t
+  use mod_tvd_5th_order, only: tvd_5th_order_t
+  use mod_mlp_3rd_order, only: mlp_3rd_order_t
+  use mod_mlp_5th_order, only: mlp_5th_order_t
 
   implicit none
 
@@ -18,6 +23,7 @@ module mod_piecewise_linear_reconstruction
 
   type, extends(abstract_reconstruction_t) :: piecewise_linear_reconstruction_t
     !< Implementation of a 2nd order piecewise-linear reconstruction operator
+    class(edge_iterpolator_t), allocatable :: edge_interpolator !< how are the edges interpolated?, e.g. TVD2, MLP3, etc.
   contains
     procedure, public :: initialize
     procedure, public :: reconstruct
@@ -37,7 +43,27 @@ contains
     self%order = 2
     self%name = 'piecewise_linear'
     self%grid => grid_target
-    call self%set_slope_limiter(name=input%limiter)
+    ! call self%set_slope_limiter(name=input%limiter)
+
+    ! Set up the edge interpolation scheme
+    select case(trim(input%edge_interpolation_scheme))
+    case('TVD2')
+      allocate(tvd_2nd_order_t :: self%edge_interpolator)
+    case('TVD3')
+      allocate(tvd_3rd_order_t :: self%edge_interpolator)
+    case('TVD5')
+      allocate(tvd_5th_order_t :: self%edge_interpolator)
+    case('MLP3')
+      allocate(mlp_3rd_order_t :: self%edge_interpolator)
+    case('MLP5')
+      allocate(mlp_5th_order_t :: self%edge_interpolator)
+    case default
+      error stop "Unknown edge interpolation scheme, must be one of the following: "// &
+        "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
+    end select
+
+    ! FIXME:
+    ! call self%edge_interpolator%initialize(limiter=input%limiter)
 
   end subroutine initialize
 
@@ -45,6 +71,7 @@ contains
     !< Finalize the piecewise_linear_reconstruction_t type
     type(piecewise_linear_reconstruction_t), intent(inout) :: self
     call debug_print('Running piecewise_linear_reconstruction_t%finalize()', __FILE__, __LINE__)
+    if(allocated(self%edge_interpolator)) deallocate(self%edge_interpolator)
     if(associated(self%grid)) nullify(self%grid)
   end subroutine finalize
 
@@ -89,7 +116,7 @@ contains
     jhi = jhi_bc - n_ghost_layers
 
     ! Reconstruct the values at the cell interfaces
-    call reconstruct_edge_values(q=primitive_var, lbounds=lbounds, limiter=self%limiter, edge_values=edge_values)
+    call self%edge_interpolator%reconstruct_edge_values(q=primitive_var, lbounds=lbounds, edge_values=edge_values)
 
     ! Now find the cell gradient
     edge_lbounds = lbound(edge_values)

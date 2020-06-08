@@ -67,7 +67,7 @@ add_library(
   lib/spatial_reconstruction/piecewise_constant.f90
   lib/spatial_reconstruction/piecewise_linear.f90
   lib/spatial_reconstruction/edge_interpolator.f90
-  lib/spatial_reconstruction/edge_interpolation.f90
+  # lib/spatial_reconstruction/edge_interpolation.f90
   lib/spatial_reconstruction/high_order_tvd_interpolation.f90
   lib/spatial_reconstruction/tvd_2nd_order.f90
   lib/spatial_reconstruction/tvd_3rd_order.f90
@@ -75,7 +75,6 @@ add_library(
   lib/spatial_reconstruction/mlp_baseline.f90
   lib/spatial_reconstruction/mlp_3rd_order.f90
   lib/spatial_reconstruction/mlp_5th_order.f90
-  lib/spatial_reconstruction/mlp_edge_interpolation.f90
   lib/spatial_reconstruction/reconstruction_factory.f90
   lib/finite_volume_scheme/fv_scheme.f90
   lib/integrand.f90

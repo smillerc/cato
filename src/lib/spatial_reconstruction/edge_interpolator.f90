@@ -21,6 +21,7 @@ module mod_edge_interp
     private
     integer(ik), public :: order = 2 !< interpolation order
     character(len=32), public :: name = ''
+    character(len=32), public :: limiter_name = ''
   contains
     procedure, non_overridable, nopass :: get_delta
     procedure, non_overridable, nopass :: get_smoothness
@@ -28,13 +29,12 @@ module mod_edge_interp
   end type edge_iterpolator_t
 
   abstract interface
-    subroutine basic_interface(self, q, lbounds, limiter, edge_values)
+    subroutine basic_interface(self, q, lbounds, edge_values)
       import :: edge_iterpolator_t, ik, rk, slope_limiter_t
       class(edge_iterpolator_t), intent(in) :: self
       integer(ik), dimension(2), intent(in) :: lbounds
       real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
       !< (i,j); primitive variable to reconstruct at the edge
-      type(slope_limiter_t), intent(in) :: limiter !< slope limiter used to reconstruct the edge interface
       real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
       !<((bottom, right, top, left), i, j); reconstructed edge values
     end subroutine

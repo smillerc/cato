@@ -85,6 +85,9 @@ module mod_input
     ! finite volume scheme specifics
     character(len=32) :: evolution_operator_type = 'fvleg'        !< How are the cells being reconstructed
     character(len=32) :: cell_reconstruction = 'piecewise_linear' !< How are the cells being reconstructed
+    character(len=32) :: gradient_scheme = 'green_gauss'          !< How is the gradient estimated?
+    character(len=32) :: edge_interpolation_scheme = 'TVD2'       !< How are the edge values interpolated?
+
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: limiter
 
@@ -167,6 +170,12 @@ contains
     call cfg%get("scheme", "smooth_residuals", self%smooth_residuals, .true.)
     call cfg%get("scheme", "cell_reconstruction", char_buffer, 'piecewise_linear')
     self%cell_reconstruction = trim(char_buffer)
+
+    call cfg%get("scheme", "gradient_scheme", char_buffer, 'green_gauss')
+    self%gradient_scheme = trim(char_buffer)
+
+    call cfg%get("scheme", "edge_interpolation_scheme", char_buffer, 'TVD2')
+    self%edge_interpolation_scheme = trim(char_buffer)
 
     call cfg%get("scheme", "limiter", char_buffer, 'minmod')
     self%limiter = trim(char_buffer)

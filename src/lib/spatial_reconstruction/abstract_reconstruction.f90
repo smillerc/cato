@@ -21,11 +21,8 @@ module mod_abstract_reconstruction
 
     integer(ik), public :: order = 0  !< Reconstruction order
     character(:), allocatable, public :: name  !< Name of the reconstruction scheme
-    type(slope_limiter_t), public :: limiter  !< Slope limiter (if any)
-    ! type(flux_limiter_t), public :: limiter  !< Flux limiter (if any)
     logical :: use_post_limiter = .false. !< Use the 'a posteriori' limiter (Kitamura et al.)
   contains
-    procedure, public, non_overridable :: set_slope_limiter
     procedure, public, non_overridable :: set_grid_pointer
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct), public, deferred :: reconstruct
@@ -63,13 +60,6 @@ module mod_abstract_reconstruction
   end interface
 
 contains
-  subroutine set_slope_limiter(self, name)
-    !< Create the class's slope limiter
-    class(abstract_reconstruction_t), intent(inout) :: self
-    character(len=*) :: name
-    ! self%limiter = flux_limiter_t(name)
-    self%limiter = slope_limiter_t(name)
-  end subroutine set_slope_limiter
 
   subroutine set_grid_pointer(self, grid)
     !< Associate the grid with data

@@ -24,12 +24,11 @@ module mod_tvd_3rd_order
   end type tvd_3rd_order_t
 
 contains
-  subroutine reconstruct_edge_values(self, q, lbounds, limiter, edge_values)
+  subroutine reconstruct_edge_values(self, q, lbounds, edge_values)
     class(tvd_3rd_order_t), intent(in) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
     !< (i,j); primitive variable to reconstruct at the edge
-    type(slope_limiter_t), intent(in) :: limiter !< slope limiter used to reconstruct the edge interface
     real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
     !<((bottom, right, top, left), i, j); reconstructed edge values
   end subroutine
