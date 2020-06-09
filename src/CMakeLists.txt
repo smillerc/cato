@@ -79,8 +79,8 @@ add_library(
   lib/time_integrators/strategy.f90
   lib/time_integrators/surrogate.f90
   lib/time_integrators/time_integrator_factory.f90
-  lib/time_integrators/heun_2nd_order.f90
-  lib/time_integrators/ssp_runge_kutta_3rd_order.f90
+  lib/time_integrators/ssp_rk2.f90
+  lib/time_integrators/ssp_rk3.f90
   lib/time_integrators/ralston_2nd_order.f90)
 
 # target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})

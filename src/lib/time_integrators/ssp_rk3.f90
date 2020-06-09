@@ -1,4 +1,12 @@
-module mod_ssp_3rd_order_runge_kutta
+module mod_ssp_rk3
+  !< Summary:  Module that providse the implementation of the 3rd order SSP Runge-Kutta
+  !<           time integration
+  !< Date: 06/09/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
+  !<     [1] S. Gottlieb, CW Shu, E. Tadmor, "Strong Stability-Preservin gHigh-Order Time Discretization Methods",
+  !<      https://doi.org/10.1137/S003614450036757X
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
@@ -9,10 +17,10 @@ module mod_ssp_3rd_order_runge_kutta
 
   implicit none
   private
-  public :: ssp_runge_kutta_3rd
+  public :: ssp_rk3_t
 
-  type, extends(strategy) :: ssp_runge_kutta_3rd
-    !< 2nd-order Runge-Kutta time integration
+  type, extends(strategy) :: ssp_rk3_t
+    !< 3rd-order strong stability preserving RK tmie integration
   contains
     procedure, nopass :: integrate ! integration procedure
   end type
@@ -20,7 +28,7 @@ module mod_ssp_3rd_order_runge_kutta
 contains
 
   subroutine integrate(U, finite_volume_scheme, dt)
-    !< Time integrator implementation
+    !< Time integrator implementation. . See Eq. 4.2 in [1]
     class(surrogate), intent(inout) :: U
     class(finite_volume_scheme_t), intent(inout) :: finite_volume_scheme
     real(rk), intent(inout) :: dt
@@ -28,7 +36,7 @@ contains
     class(integrand_t), allocatable :: U_2 !< second stage
     class(integrand_t), allocatable :: R !< hist
 
-    call debug_print('Running ssp_runge_kutta_3rd%integrate()', __FILE__, __LINE__)
+    call debug_print('Running ssp_rk3_t%integrate()', __FILE__, __LINE__)
 
     select type(U)
     class is(integrand_t)
@@ -60,8 +68,8 @@ contains
       deallocate(U_1)
       deallocate(U_2)
     class default
-      error stop 'Error in ssp_runge_kutta_3rd%integrate - unsupported class'
+      error stop 'Error in ssp_rk3_t%integrate - unsupported class'
     end select
 
   end subroutine
-end module mod_ssp_3rd_order_runge_kutta
+end module mod_ssp_rk3
