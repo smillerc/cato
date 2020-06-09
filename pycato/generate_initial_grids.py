@@ -73,6 +73,7 @@ def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=1):
         "p": p * ureg("barye"),
         "xc": xc * ureg("cm"),
         "yc": yc * ureg("cm"),
+        "n_ghost_layers": n_ghost_layers,
     }
 
 
@@ -138,6 +139,7 @@ def make_2d_layered_grid(
     dy=None,
     layer_spacing=None,
     spacing_scale_factor=1.05,
+    n_ghost_layers=1,
 ):
     """Create a 2D layered grid (uniform in y, layers are in x)
 
@@ -301,6 +303,7 @@ def make_2d_layered_grid(
         "p": p * ureg("barye"),
         "xc": xc * ureg("cm"),
         "yc": yc * ureg("cm"),
+        "n_ghost_layers": n_ghost_layers,
     }
 
 
@@ -313,6 +316,7 @@ def make_1d_layered_grid(
     layer_pressure,
     layer_spacing=None,
     spacing_scale_factor=1.05,
+    n_ghost_layers=1,
 ):
     """Create a 1d layered grid
 
@@ -453,6 +457,7 @@ def make_1d_layered_grid(
         "p": p * ureg("barye"),
         "xc": xc * ureg("cm"),
         "yc": yc * ureg("cm"),
+        "n_ghost_layers": n_ghost_layers,
     }
 
 
@@ -475,17 +480,18 @@ def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1), n_ghost_layers=1):
         velocity, p), grid points, and the cell center (xc, yc) points
     """
 
-    dx = float(limits[1] - limits[0]) / float(n_cells[0])
-
+    dx = float(limits[1] - limits[0]) / float(n_cells)
     x = np.linspace(
         start=limits[0] - n_ghost_layers * dx,
         stop=limits[1] + n_ghost_layers * dx,
-        num=(n_cells[0] + 1) + (n_ghost_layers * 2),
+        num=(n_cells + 1) + (n_ghost_layers * 2),
         dtype=np.float64,
     )
 
-    y = np.arange(-1 * n_ghost_layers, n_ghost_layers + 2, dtype=np.float64) - dx / 2.0
-
+    y = (
+        np.arange(-1 * n_ghost_layers, n_ghost_layers + 2, dtype=np.float64) * dx
+        - dx / 2.0
+    )
     xc = np.zeros(x.shape[0] - 1, dtype=np.float64)
     yc = np.zeros(y.shape[0] - 1, dtype=np.float64)
 
@@ -512,6 +518,7 @@ def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1), n_ghost_layers=1):
         "p": p * ureg("barye"),
         "xc": xc * ureg("cm"),
         "yc": yc * ureg("cm"),
+        "n_ghost_layers": n_ghost_layers,
     }
 
 
@@ -533,46 +540,55 @@ def write_initial_hdf5(filename, initial_condition_dict):
     print("Writing to: ", filename)
     with h5py.File(filename, mode="w") as h5:
 
+        data = initial_condition_dict["n_ghost_layers"]
+        h5.create_dataset("/n_ghost_layers", data=data)
+
         data = initial_condition_dict["x"].to("cm").m
-        h5.create_dataset(
+        dset = h5.create_dataset(
             "/x", data=data.astype(np.float64).T, compression="gzip", compression_opts=9
         )
+        dset.attrs["units"] = "cm"
 
         data = initial_condition_dict["y"].to("cm").m
-        h5.create_dataset(
+        dset = h5.create_dataset(
             "/y", data=data.astype(np.float64).T, compression="gzip", compression_opts=9
         )
+        dset.attrs["units"] = "cm"
 
         data = initial_condition_dict["rho"].to("g/cc").m
-        h5.create_dataset(
+        dset = h5.create_dataset(
             "/density",
             data=data.astype(np.float64).T,
             compression="gzip",
             compression_opts=9,
         )
+        dset.attrs["units"] = "g/cc"
 
         data = initial_condition_dict["u"].to("cm/s").m
-        h5.create_dataset(
+        dset = h5.create_dataset(
             "/x_velocity",
             data=data.astype(np.float64).T,
             compression="gzip",
             compression_opts=9,
         )
+        dset.attrs["units"] = "cm/s"
 
         data = initial_condition_dict["v"].to("cm/s").m
-        h5.create_dataset(
+        dset = h5.create_dataset(
             "/y_velocity",
             data=data.astype(np.float64).T,
             compression="gzip",
             compression_opts=9,
         )
+        dset.attrs["units"] = "cm/s"
 
         data = initial_condition_dict["p"].to("barye").m
-        h5.create_dataset(
+        dset = h5.create_dataset(
             "/pressure",
             data=data.astype(np.float64).T,
             compression="gzip",
             compression_opts=9,
         )
+        dset.attrs["units"] = "barye"
 
         h5.close()
