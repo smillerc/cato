@@ -30,8 +30,8 @@ contains
     select case(trim(input%grid_type))
     case('2d_regular')
       grid => new_regular_2d_grid(input)
-      call set_domain_dimensionality(dimensionality='2D_XY', grid_orthogonality=.true.)
-      ! call grid%initialize(input)
+      call set_domain_dimensionality(dimensionality='2D_XY', &
+                                     grid_orthogonality=.true., num_ghost_layers=grid%n_ghost_layers)
 
     case default
       error stop 'Unsupported grid type in grid_factory'

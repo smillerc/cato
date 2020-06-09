@@ -57,13 +57,16 @@ contains
     end if
   end subroutine set_global_options
 
-  subroutine set_domain_dimensionality(dimensionality, grid_orthogonality)
+  subroutine set_domain_dimensionality(dimensionality, grid_orthogonality, num_ghost_layers)
     !< Set the global dimensionality of the domain. This helps the code
     !< make shortcuts elsewhere
     character(len=4), intent(in) :: dimensionality
     logical, intent(in) :: grid_orthogonality
+    integer(ik), intent(in) :: num_ghost_layers
 
     grid_is_orthogonal = grid_orthogonality
+
+    n_ghost_layers = num_ghost_layers
 
     select case(trim(dimensionality))
     case('1D_X')
