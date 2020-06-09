@@ -1,41 +1,44 @@
 module mod_tvd_2nd_order
-  !> Summary: Provide class for 2nd order TVD edge interpolation
-  !> Date: 06/08/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
-  !>   [1] M. Berger, M. Aftosmis, S. Muman, "Analysis of Slope Limiters on Irregular Grids",
-  !>       43rd AIAA Aerospace Sciences Meeting and Exhibit (2005), https://doi.org/10.2514/6.2005-490
-  !>
-  !>   [2] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
-  !>       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
+  !< Summary: Provide class for 2nd order TVD edge interpolation
+  !< Date: 06/08/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
+  !<   [1] M. Berger, M. Aftosmis, S. Muman, "Analysis of Slope Limiters on Irregular Grids",
+  !<       43rd AIAA Aerospace Sciences Meeting and Exhibit (2005), https://doi.org/10.2514/6.2005-490
+  !<
+  !<   [2] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
+  !<       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
   use mod_flux_limiter, only: flux_limiter_t
   use mod_slope_limiter, only: slope_limiter_t
   use mod_edge_interp, only: edge_iterpolator_t
+  use mod_globals, only: n_ghost_layers
 
   implicit none
+  private
+  public :: tvd_2nd_order_t
 
   type, extends(edge_iterpolator_t) :: tvd_2nd_order_t
+    !< 2nd order edge interpolation with TVD filtering
     type(slope_limiter_t) :: limiter
   contains
     procedure, public :: initialize
-    procedure, public :: reconstruct_edge_values
+    procedure, public :: interpolate_edge_values
   end type tvd_2nd_order_t
 
 contains
   subroutine initialize(self, limiter)
     class(tvd_2nd_order_t), intent(inout) :: self
     character(len=*), intent(in) :: limiter
-
     self%limiter_name = trim(limiter)
+    self%order = 2
     self%limiter = slope_limiter_t(trim(limiter))
-
   end subroutine initialize
 
-  subroutine reconstruct_edge_values(self, q, lbounds, edge_values)
+  subroutine interpolate_edge_values(self, q, lbounds, edge_values)
     !< Reconstruct the cell interface values, e.g. q_i-1/2, q_i+1/2. This assumes a cartesian
     !< structured square grid
 
@@ -60,17 +63,17 @@ contains
     real(rk) :: phi_left   !< limiter for the left edge
     real(rk) :: phi_right  !< limiter for the right edge
 
-    ! call debug_print('Running reconstruct_edge_values()', __FILE__, __LINE__)
+    ! call debug_print('Running interpolate_edge_values()', __FILE__, __LINE__)
 
     ilo_bc = lbound(q, dim=1)
     ihi_bc = ubound(q, dim=1)
     jlo_bc = lbound(q, dim=2)
     jhi_bc = ubound(q, dim=2)
 
-    ilo = ilo_bc ! + n_ghost_layers
-    ihi = ihi_bc ! - n_ghost_layers
-    jlo = jlo_bc ! + n_ghost_layers
-    jhi = jhi_bc ! - n_ghost_layers
+    ilo = ilo_bc + n_ghost_layers
+    ihi = ihi_bc - n_ghost_layers
+    jlo = jlo_bc + n_ghost_layers
+    jhi = jhi_bc - n_ghost_layers
 
     allocate(edge_values(4, ilo:ihi, jlo:jhi))
 
@@ -113,5 +116,5 @@ contains
     end do
     !$omp end do
     !$omp end parallel
-  end subroutine reconstruct_edge_values
+  end subroutine interpolate_edge_values
 end module mod_tvd_2nd_order

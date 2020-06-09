@@ -62,8 +62,7 @@ contains
         "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
     end select
 
-    ! FIXME:
-    ! call self%edge_interpolator%initialize(limiter=input%limiter)
+    call self%edge_interpolator%initialize(limiter=input%limiter)
 
   end subroutine initialize
 
@@ -116,7 +115,9 @@ contains
     jhi = jhi_bc - n_ghost_layers
 
     ! Reconstruct the values at the cell interfaces
-    call self%edge_interpolator%reconstruct_edge_values(q=primitive_var, lbounds=lbounds, edge_values=edge_values)
+    call self%edge_interpolator%interpolate_edge_values(q=primitive_var, &
+                                                        lbounds=lbounds, &
+                                                        edge_values=edge_values)
 
     ! Now find the cell gradient
     edge_lbounds = lbound(edge_values)

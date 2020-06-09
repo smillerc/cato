@@ -1,14 +1,14 @@
 module mod_edge_interp
-  !> Summary: Provide baseline class for edge interpolation schemes
-  !> Date: 06/08/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
-  !>   [1] M. Berger, M. Aftosmis, S. Muman, "Analysis of Slope Limiters on Irregular Grids",
-  !>       43rd AIAA Aerospace Sciences Meeting and Exhibit (2005), https://doi.org/10.2514/6.2005-490
-  !>
-  !>   [2] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
-  !>       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
+  !< Summary: Provide baseline class for edge interpolation schemes
+  !< Date: 06/08/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
+  !<   [1] M. Berger, M. Aftosmis, S. Muman, "Analysis of Slope Limiters on Irregular Grids",
+  !<       43rd AIAA Aerospace Sciences Meeting and Exhibit (2005), https://doi.org/10.2514/6.2005-490
+  !<
+  !<   [2] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
+  !<       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
@@ -25,10 +25,17 @@ module mod_edge_interp
   contains
     procedure, non_overridable, nopass :: get_delta
     procedure, non_overridable, nopass :: get_smoothness
-    procedure(basic_interface), deferred, public :: reconstruct_edge_values
+    procedure(init), deferred, public ::  initialize
+    procedure(basic_interface), deferred, public :: interpolate_edge_values
   end type edge_iterpolator_t
 
   abstract interface
+    subroutine init(self, limiter)
+      import :: edge_iterpolator_t
+      class(edge_iterpolator_t), intent(inout) :: self
+      character(len=*), intent(in) :: limiter
+    end subroutine init
+
     subroutine basic_interface(self, q, lbounds, edge_values)
       import :: edge_iterpolator_t, ik, rk, slope_limiter_t
       class(edge_iterpolator_t), intent(in) :: self
@@ -41,7 +48,7 @@ module mod_edge_interp
   end interface
 
 contains
-  real(rk) function get_delta(a, b) result(delta)
+  elemental real(rk) function get_delta(a, b) result(delta)
     !< Find the delta in the solution, e.g. delta = a - b. This checks for numbers
     !< near 0 and when a and b are very similar in magnitude. The aim is to avoid
     !< catastrophic cancellation and very small numbers that are essentially 0 for this scenario
@@ -70,7 +77,7 @@ contains
     end if
   end function get_delta
 
-  subroutine get_smoothness(minus, current, plus, R, R_inv)
+  elemental subroutine get_smoothness(minus, current, plus, R, R_inv)
     !< Calculate R = q(i+1) - q(i) / q(i) - q(i-1)
     real(rk), intent(in) :: minus   !< q(i-1)
     real(rk), intent(in) :: current !< q(i)

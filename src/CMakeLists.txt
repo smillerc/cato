@@ -67,8 +67,6 @@ add_library(
   lib/spatial_reconstruction/piecewise_constant.f90
   lib/spatial_reconstruction/piecewise_linear.f90
   lib/spatial_reconstruction/edge_interpolator.f90
-  # lib/spatial_reconstruction/edge_interpolation.f90
-  lib/spatial_reconstruction/high_order_tvd_interpolation.f90
   lib/spatial_reconstruction/tvd_2nd_order.f90
   lib/spatial_reconstruction/tvd_3rd_order.f90
   lib/spatial_reconstruction/tvd_5th_order.f90
