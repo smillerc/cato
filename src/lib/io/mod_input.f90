@@ -25,6 +25,7 @@ module mod_input
     real(rk) :: ymax = 0.0_rk   !< Maximum extent of the grid in y (ignored for .h5 initial grids)
     integer(ik) :: ni_nodes = 0 !< # of i nodes (not including ghost) (ignored for .h5 initial grids)
     integer(ik) :: nj_nodes = 0 !< # of j nodes (not including ghost) (ignored for .h5 initial grids)
+    integer(ik) :: n_ghost_layers = 1 !< # of ghost layers to use (based on spatial reconstruction order)
 
     ! initial conditions
     character(:), allocatable :: initial_condition_file
@@ -132,6 +133,7 @@ contains
     character(len=120) :: char_buffer
     type(cfg_t) :: cfg
     logical :: file_exists
+    integer(ik) :: required_n_ghost_layers = 0
 
     file_exists = .false.
 
@@ -219,6 +221,22 @@ contains
     end if
 
     ! Grid
+    select case(trim(self%edge_interpolation_scheme))
+    case('TVD2')
+      required_n_ghost_layers = 1
+      call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
+    case('TVD3', 'TVD5', 'MLP3', 'MLP5')
+      required_n_ghost_layers = 2
+      call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
+    case default
+      error stop "Unknown edge interpolation scheme, must be one of the following: "// &
+        "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
+    end select
+
+    if(self%n_ghost_layers /= required_n_ghost_layers) then
+      error stop "The number of required ghost cell layers doesn't match the edge interpolation order"
+    end if
+
     call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
     self%grid_type = trim(char_buffer)
 
@@ -314,62 +332,97 @@ contains
 
     write(*, '(a)') "Input settings:"
     write(*, '(a)') "==============="
-    write(*, '(a, a)') "title: ", self%title
-    write(*, '(a, a)') "unit_system: ", self%unit_system
-    write(*, '(a, es16.3)') "reference_pressure: ", self%reference_pressure
-    write(*, '(a, es16.3)') "reference_density: ", self%reference_density
-    write(*, '(a, a)') "grid_type: ", self%grid_type
-    write(*, '(a, es16.3)') "xmin: ", self%xmin
-    write(*, '(a, es16.3)') "xmax: ", self%xmax
-    write(*, '(a, es16.3)') "ymin: ", self%ymin
-    write(*, '(a, es16.3)') "ymax: ", self%ymax
-    write(*, '(a, i0)') "ni_nodes: ", self%ni_nodes
-    write(*, '(a, i0)') "nj_nodes: ", self%nj_nodes
-    write(*, '(a, a)') "initial_condition_file: ", self%initial_condition_file
-    write(*, '(a, l2)') "read_init_cond_from_file: ", self%read_init_cond_from_file
-    write(*, '(a, es16.6)') "init_x_velocity: ", self%init_x_velocity
-    write(*, '(a, es16.6)') "init_y_velocity: ", self%init_y_velocity
-    write(*, '(a, es16.6)') "init_density : ", self%init_density
-    write(*, '(a, es16.6)') "init_pressure: ", self%init_pressure
-    write(*, '(a, l2)') "restart_from_file: ", self%restart_from_file
-    write(*, '(a, a)') "restart_file: ", self%restart_file
-    write(*, '(a, a)') "bc_pressure_input_file: ", self%bc_pressure_input_file
-    write(*, '(a, l2)') "apply_constant_bc_pressure: ", self%apply_constant_bc_pressure
-    write(*, '(a, es16.6)') "constant_bc_pressure_value: ", self%constant_bc_pressure_value
-    write(*, '(a, es16.6)') "bc_pressure_scale_factor: ", self%bc_pressure_scale_factor
-    write(*, '(a, a)') "plus_x_bc: ", self%plus_x_bc
-    write(*, '(a, a)') "minus_x_bc: ", self%minus_x_bc
-    write(*, '(a, a)') "plus_y_bc : ", self%plus_y_bc
-    write(*, '(a, a)') "minus_y_bc: ", self%minus_y_bc
-    write(*, '(a, l2)') "enable_source_terms: ", self%enable_source_terms
-    write(*, '(a, a)') "source_term_type: ", self%source_term_type
-    write(*, '(a, l2)') "apply_constant_source: ", self%apply_constant_source
-    write(*, '(a, a)') "source_file: ", self%source_file
-    write(*, '(a, es16.6)') "constant_source_value: ", self%constant_source_value
-    write(*, '(a, es16.6)') "source_scale_factor  : ", self%source_scale_factor
-    write(*, '(a, i0)') "source_ilo: ", self%source_ilo
-    write(*, '(a, i0)') "source_ihi: ", self%source_ihi
-    write(*, '(a, i0)') "source_jlo: ", self%source_jlo
-    write(*, '(a, i0)') "source_jhi: ", self%source_jhi
-    write(*, '(a, a)') "contour_io_format: ", self%contour_io_format
-    write(*, '(a, l2)') "append_date_to_result_folder: ", self%append_date_to_result_folder
-    write(*, '(a, l2)') "plot_reconstruction_states: ", self%plot_reconstruction_states
-    write(*, '(a, l2)') "plot_reference_states: ", self%plot_reference_states
-    write(*, '(a, l2)') "plot_evolved_states: ", self%plot_evolved_states
-    write(*, '(a, l2)') "plot_64bit: ", self%plot_64bit
-    write(*, '(a, l2)') "plot_ghost_cells: ", self%plot_ghost_cells
-    write(*, '(a, es16.6)') "max_time: ", self%max_time
-    write(*, '(a, f0.3)') "cfl: ", self%cfl
-    write(*, '(a, es16.6)') "initial_delta_t: ", self%initial_delta_t
-    write(*, '(a, es16.6)') "contour_interval_dt: ", self%contour_interval_dt
-    write(*, '(a, i0)') "max_iterations: ", self%max_iterations
-    write(*, '(a, a)') "time_integration_strategy: ", self%time_integration_strategy
-    write(*, '(a, l2)') "smooth_residuals: ", self%smooth_residuals
-    write(*, '(a, es16.3)') "polytropic_index: ", self%polytropic_index
-    write(*, '(a, a)') "evolution_operator_type: ", self%evolution_operator_type
-    write(*, '(a, a)') "cell_reconstruction: ", self%cell_reconstruction
-    write(*, '(a, es16.6)') "tau: ", self%tau
-    write(*, '(a, a)') "limiter: ", self%limiter
+    write(*, *)
+    write(*, '(a)') "[general]"
+    write(*, '(3(a))') "title = '", trim(self%title), "'"
+    write(*, '(3(a))') "unit_system = '", trim(self%unit_system), "'"
+
+    write(*, *)
+    write(*, '(a)') "[time]"
+    write(*, '(a, es9.3)') "max_time = ", self%max_time
+    write(*, '(a, f5.3)') "cfl = ", self%cfl
+    write(*, '(a, es9.3)') "initial_delta_t = ", self%initial_delta_t
+    write(*, '(a, i0)') "max_iterations = ", self%max_iterations
+    write(*, '(3(a))') "time_integration_strategy = '", trim(self%unit_system), "'"
+
+    write(*, *)
+    write(*, '(a)') "[grid]"
+    write(*, '(a, a)') "grid_type = ", self%grid_type
+    write(*, '(a, es9.3)') "xmin = ", self%xmin
+    write(*, '(a, es9.3)') "xmax = ", self%xmax
+    write(*, '(a, es9.3)') "ymin = ", self%ymin
+    write(*, '(a, es9.3)') "ymax = ", self%ymax
+    write(*, '(a, i0)') "ni_nodes = ", self%ni_nodes
+    write(*, '(a, i0)') "nj_nodes = ", self%nj_nodes
+    write(*, '(a, i0)') "n_ghost_layers = ", self%n_ghost_layers
+
+    write(*, *)
+    write(*, '(a)') "[reference_state]"
+    write(*, '(a, es9.3)') "reference_pressure = ", self%reference_pressure
+    write(*, '(a, es9.3)') "reference_density = ", self%reference_density
+
+    write(*, *)
+    write(*, '(a)') "[initial_conditions]"
+    write(*, '(a, a)') "initial_condition_file = ", self%initial_condition_file
+    write(*, '(a, l1)') "read_init_cond_from_file = ", self%read_init_cond_from_file
+    write(*, '(a, es9.3)') "init_x_velocity = ", self%init_x_velocity
+    write(*, '(a, es9.3)') "init_y_velocity = ", self%init_y_velocity
+    write(*, '(a, es9.3)') "init_density  = ", self%init_density
+    write(*, '(a, es9.3)') "init_pressure = ", self%init_pressure
+
+    write(*, *)
+    write(*, '(a)') "[restart]"
+    write(*, '(a, l1)') "restart_from_file = ", self%restart_from_file
+    write(*, '(a, a)') "restart_file = ", self%restart_file
+
+    write(*, *)
+    write(*, '(a)') "[source_terms]"
+    write(*, '(a, l1)') "enable_source_terms = ", self%enable_source_terms
+    write(*, '(a, a)') "source_term_type = ", self%source_term_type
+    write(*, '(a, l1)') "apply_constant_source = ", self%apply_constant_source
+    write(*, '(a, a)') "source_file = ", self%source_file
+    write(*, '(a, es9.3)') "constant_source_value = ", self%constant_source_value
+    write(*, '(a, es9.3)') "source_scale_factor   = ", self%source_scale_factor
+    write(*, '(a, i0)') "source_ilo = ", self%source_ilo
+    write(*, '(a, i0)') "source_ihi = ", self%source_ihi
+    write(*, '(a, i0)') "source_jlo = ", self%source_jlo
+    write(*, '(a, i0)') "source_jhi = ", self%source_jhi
+
+    write(*, *)
+    write(*, '(a)') "[boundary_conditions]"
+    write(*, '(a, a)') "bc_pressure_input_file = ", self%bc_pressure_input_file
+    write(*, '(a, l1)') "apply_constant_bc_pressure = ", self%apply_constant_bc_pressure
+    write(*, '(a, es9.3)') "constant_bc_pressure_value = ", self%constant_bc_pressure_value
+    write(*, '(a, es9.3)') "bc_pressure_scale_factor = ", self%bc_pressure_scale_factor
+    write(*, '(a, a)') "plus_x_bc = ", self%plus_x_bc
+    write(*, '(a, a)') "minus_x_bc = ", self%minus_x_bc
+    write(*, '(a, a)') "plus_y_bc  = ", self%plus_y_bc
+    write(*, '(a, a)') "minus_y_bc = ", self%minus_y_bc
+
+    write(*, *)
+    write(*, '(a)') "[scheme]"
+    write(*, '(a, l1)') "smooth_residuals = ", self%smooth_residuals
+    write(*, '(a, a)') "evolution_operator_type = ", self%evolution_operator_type
+    write(*, '(a, a)') "cell_reconstruction = ", self%cell_reconstruction
+    write(*, '(a, a)') "edge_interpolation_scheme = ", self%edge_interpolation_scheme
+    write(*, '(a, es9.3)') "tau = ", self%tau
+    write(*, '(a, a)') "limiter = ", self%limiter
+
+    write(*, *)
+    write(*, '(a)') "[physics]"
+    write(*, '(a, f5.3)') "polytropic_index = ", self%polytropic_index
+
+    write(*, *)
+    write(*, '(a)') "[io]"
+    write(*, '(a, a)') "contour_io_format = ", self%contour_io_format
+    write(*, '(a, es9.3)') "contour_interval_dt = ", self%contour_interval_dt
+    write(*, '(a, l1)') "append_date_to_result_folder = ", self%append_date_to_result_folder
+    write(*, '(a, l1)') "plot_reconstruction_states = ", self%plot_reconstruction_states
+    write(*, '(a, l1)') "plot_reference_states = ", self%plot_reference_states
+    write(*, '(a, l1)') "plot_evolved_states = ", self%plot_evolved_states
+    write(*, '(a, l1)') "plot_64bit = ", self%plot_64bit
+    write(*, '(a, l1)') "plot_ghost_cells = ", self%plot_ghost_cells
+
     write(*, '(a)') "==============="
     print *
 

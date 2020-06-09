@@ -146,11 +146,15 @@ contains
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
 
-    allocate(ghost_layers(4, grid%n_ghost_layers))
-    ghost_layers(1, :) = [grid%ilo_bc_cell, grid%ilo_bc_cell + grid%n_ghost_layers] ! ilo
-    ghost_layers(3, :) = [grid%jlo_bc_cell, grid%jlo_bc_cell + grid%n_ghost_layers] ! jlo
-    ghost_layers(2, :) = [grid%ihi_bc_cell - grid%n_ghost_layers, grid%ihi_bc_cell] ! ihi
-    ghost_layers(4, :) = [grid%jhi_bc_cell - grid%n_ghost_layers, grid%jhi_bc_cell] ! jhi
+    allocate(ghost_layers(4, 2))
+
+    ! The ghost_layers array just tells the boundary condition which cell indices
+    ! are tagged as boundaries. See boundary_condition_t%set_indices() for details
+    ghost_layers(1, :) = [self%grid%ilo_bc_cell, self%grid%ilo_cell - 1] ! ilo
+    ghost_layers(3, :) = [self%grid%jlo_bc_cell, self%grid%jlo_cell - 1] ! jlo
+
+    ghost_layers(2, :) = [self%grid%ihi_cell + 1, self%grid%ihi_bc_cell] ! ihi
+    ghost_layers(4, :) = [self%grid%jhi_cell + 1, self%grid%jhi_bc_cell] ! jhi
 
     ! Set boundary conditions
     bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, ghost_layers=ghost_layers)

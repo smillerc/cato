@@ -1,5 +1,5 @@
 module mod_regular_2d_grid
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit, std_error => error_unit
   use mod_grid, only: grid_t, C1, M1, C2, M2, C3, M3, C4, M4
   use mod_units
   use mod_quad_cell, only: quad_cell_t
@@ -86,15 +86,11 @@ contains
     self%ilo_cell = 1
     self%jlo_cell = 1
 
-    ! Low i/j boundary condition indices
-    self%ilo_bc_node = 1 - self%n_ghost_layers
-    self%jlo_bc_node = 1 - self%n_ghost_layers
-    self%ilo_bc_cell = 1 - self%n_ghost_layers
-    self%jlo_bc_cell = 1 - self%n_ghost_layers
-
     if(input%read_init_cond_from_file .or. input%restart_from_file) then
+      write(*, '(a)') 'Initializing the grid via .hdf5'
       call self%initialize_from_hdf5(input)
     else
+      write(*, '(a)') 'Initializing the grid via .ini'
       call self%initialize_from_ini(input)
     end if
 
@@ -247,6 +243,7 @@ contains
     print *
     write(*, '(a)') "Grid stats:"
     write(*, '(a)') "========================="
+    write(*, '(a, i6)') "n_ghost_layers: ", self%n_ghost_layers
     write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_node, ' -> ', self%ihi_node
     write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_node, ' -> ', self%jhi_node
     write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_cell, ' -> ', self%ihi_cell
@@ -265,6 +262,8 @@ contains
     write(*, '(a, i0)') "nj_nodes: ", self%nj_node
     write(*, '(a, i0)') "ni_cells: ", self%ni_cell
     write(*, '(a, i0)') "nj_cells: ", self%nj_cell
+    write(*, '(a, i0)') "total cells: ", self%nj_cell * self%ni_node
+
     write(*, *)
     write(*, '(a)') "Extents"
     write(*, '(a)') "-------"
@@ -312,6 +311,16 @@ contains
     end if
 
     call h5%initialize(filename=filename, status='old', action='r')
+
+    ! Low i/j boundary condition indices
+    call h5%get('/n_ghost_layers', self%n_ghost_layers)
+
+    if(self%n_ghost_layers /= input%n_ghost_layers) then
+      write(std_error, '(2(a, i0))') "regular_2d_grid_t%n_ghost_layers: ", self%n_ghost_layers, ", input%n_ghost_layers: ", input%n_ghost_layers
+      error stop "The number of ghost layers in the .hdf5 file does not match the"// &
+        " input requirement set by the edge interpolation scheme"
+    end if
+
     call h5%get('/x', x)
     call h5%get('/y', y)
 
@@ -330,17 +339,31 @@ contains
 
     call h5%finalize()
 
-    ! High node/cell indices
-    self%ihi_node = ubound(x, dim=1) - 2
-    self%jhi_node = ubound(y, dim=2) - 2
+    ! Node
+    self%ilo_node = 1
+    self%jlo_node = 1
+    self%ilo_bc_node = 1 - self%n_ghost_layers
+    self%jlo_bc_node = 1 - self%n_ghost_layers
+    self%ihi_bc_node = ubound(x, dim=1) - self%n_ghost_layers
+    self%jhi_bc_node = ubound(x, dim=2) - self%n_ghost_layers
+    self%ihi_node = self%ihi_bc_node - self%n_ghost_layers
+    self%jhi_node = self%jhi_bc_node - self%n_ghost_layers
+
+    ! Cell
+    self%ilo_cell = 1
+    self%jlo_cell = 1
+    self%ilo_bc_cell = self%ilo_bc_node
+    self%jlo_bc_cell = self%jlo_bc_node
+
     self%ihi_cell = self%ihi_node - 1
     self%jhi_cell = self%jhi_node - 1
+    self%ihi_bc_cell = self%ihi_bc_node - 1
+    self%jhi_bc_cell = self%jhi_bc_node - 1
 
-    ! High i/j boundary condition indices
-    self%ihi_bc_node = self%ihi_node + self%n_ghost_layers
-    self%jhi_bc_node = self%jhi_node + self%n_ghost_layers
-    self%ihi_bc_cell = self%ihi_cell + self%n_ghost_layers
-    self%jhi_bc_cell = self%jhi_cell + self%n_ghost_layers
+    write(*, '(a, 2(i5))') "cell jlo: ", self%jlo_cell, self%jlo_bc_cell
+    write(*, '(a, 2(i5))') "cell jhi: ", self%jhi_cell, self%jhi_bc_cell
+    write(*, '(a, 2(i5))') "node jlo: ", self%jlo_node, self%jlo_bc_node
+    write(*, '(a, 2(i5))') "node jhi: ", self%jhi_node, self%jhi_bc_node
 
     self%ni_node = size(x, dim=1) - (2 * self%n_ghost_layers)
     self%nj_node = size(y, dim=2) - (2 * self%n_ghost_layers)
@@ -372,6 +395,13 @@ contains
 
     integer(ik) :: alloc_status
     integer(ik) :: i, j
+
+    self%n_ghost_layers = input%n_ghost_layers
+
+    self%ilo_bc_node = 1 - self%n_ghost_layers
+    self%jlo_bc_node = 1 - self%n_ghost_layers
+    self%ilo_bc_cell = 1 - self%n_ghost_layers
+    self%jlo_bc_cell = 1 - self%n_ghost_layers
 
     ! High node/cell indices
     self%ihi_node = input%ni_nodes
@@ -578,7 +608,6 @@ contains
 
   subroutine finalize(self)
     class(regular_2d_grid_t), intent(inout) :: self
-    integer(ik) :: alloc_status
 
     call debug_print('Running regular_2d_grid_t%finalize()', __FILE__, __LINE__)
 

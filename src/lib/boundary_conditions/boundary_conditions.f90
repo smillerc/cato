@@ -18,14 +18,14 @@ module mod_boundary_conditions
     integer(ik) :: io_unit = 0
 
     integer(ik) :: n_ghost_layers = 0
-    integer(ik), dimension(:), allocatable :: ilo_ghost !< ilo ghost boundary layers
-    integer(ik), dimension(:), allocatable :: ihi_ghost !< ihi ghost boundary layers
-    integer(ik), dimension(:), allocatable :: jlo_ghost !< jlo ghost boundary layers
-    integer(ik), dimension(:), allocatable :: jhi_ghost !< jhi ghost boundary layers
-    integer(ik) :: ilo = 0 !< ilo real domain index
-    integer(ik) :: ihi = 0 !< ihi real domain index
-    integer(ik) :: jlo = 0 !< jlo real domain index
-    integer(ik) :: jhi = 0 !< jhi real domain index
+    integer(ik), dimension(:), allocatable :: ilo_ghost !< ilo ghost boundary cell indices
+    integer(ik), dimension(:), allocatable :: ihi_ghost !< ihi ghost boundary cell indices
+    integer(ik), dimension(:), allocatable :: jlo_ghost !< jlo ghost boundary cell indices
+    integer(ik), dimension(:), allocatable :: jhi_ghost !< jhi ghost boundary cell indices
+    integer(ik) :: ilo = 0 !< ilo real domain cell index
+    integer(ik) :: ihi = 0 !< ihi real domain cell index
+    integer(ik) :: jlo = 0 !< jlo real domain cell index
+    integer(ik) :: jhi = 0 !< jhi real domain cell index
   contains
     procedure, public :: set_time
     procedure, public :: get_time
@@ -68,20 +68,20 @@ module mod_boundary_conditions
 
   end interface
 contains
-  subroutine set_time(self, time)
+  pure subroutine set_time(self, time)
     class(boundary_condition_t), intent(inout) :: self
     real(rk), intent(in) :: time
     self%time = time
   end subroutine
 
-  function get_time(self) result(time)
+  pure real(rk) function get_time(self) result(time)
     class(boundary_condition_t), intent(in) :: self
-    real(rk) :: time
     time = self%time
   end function
 
   subroutine set_indices(self, ghost_layers)
-    !< Set the indices of where the ghost layers are and where the first real domain indices are
+    !< Save the indices for the cells that are tagged as ghost cells. These indices will be used
+    !< by the other procedures that apply the boundary conditions
 
     class(boundary_condition_t), intent(inout) :: self
 
@@ -89,6 +89,9 @@ contains
     !< (ilo_layers(n), ihi_layers(n), jlo_layers(n), jhi_layers(n)); indices to the ghost layers.
     !< The ilo_layers type var can be scalar or a vector, e.g. ilo_layers = [-1,0] or ilo_layers = 0
 
+    ! Example:
+    ! the cells are numbered as follows: [-1 0 | 1 2 3 4 | 5 6]
+    ! the real cells are [1,2,3,4] and the ghost cells are [-1 0] and [5 6]
     self%n_ghost_layers = size(ghost_layers(1, :))
 
     allocate(self%ilo_ghost(self%n_ghost_layers))
@@ -108,6 +111,5 @@ contains
 
     self%jlo = maxval(self%jlo_ghost) + 1
     self%jhi = minval(self%jhi_ghost) - 1
-
   end subroutine set_indices
 end module mod_boundary_conditions
