@@ -358,7 +358,6 @@ contains
     real(rk) :: rho_v_diff !< difference in the rhov residual
     real(rk) :: rho_E_diff !< difference in the rhoE residual
     integer(ik) :: io
-    logical :: file_exists
 
     rho_diff = maxval(abs(self%rho))
     rho_u_diff = maxval(abs(self%rho_u))
@@ -381,7 +380,7 @@ contains
     ! Locals
     class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
     type(fluid_t), allocatable :: local_d_dt !< dU/dt
-    integer(ik) :: alloc_status, error_code, i, j
+    integer(ik) :: error_code
 
     real(rk), dimension(:, :), allocatable :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
     real(rk), dimension(:, :), allocatable :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
@@ -649,7 +648,7 @@ contains
     type(flux_array_t) :: leftright_mid_fluxes
 
     real(rk) :: f_sum, g_sum
-    real(rk) :: diff, rel_error
+    real(rk) :: diff
 
     real(rk), dimension(4) :: bottom_flux
     real(rk), dimension(4) :: right_flux
@@ -979,7 +978,7 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: b
     real(rk), dimension(:, :), contiguous, intent(inout) :: c
     real(rk) :: diff, threshold
-    integer(ik) :: i, j, k
+    integer(ik) :: i, j
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
     integer(ik) :: jlo = 0
@@ -1017,7 +1016,7 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: b
     real(rk), dimension(:, :), contiguous, intent(inout) :: c
     real(rk) :: diff, threshold
-    integer(ik) :: i, j, k
+    integer(ik) :: i, j
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
     integer(ik) :: jlo = 0
@@ -1053,7 +1052,7 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: a
     real(rk), dimension(:, :), contiguous, intent(in) :: b
     real(rk), dimension(:, :), contiguous, intent(inout) :: c
-    integer(ik) :: i, j, k
+    integer(ik) :: i, j
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
     integer(ik) :: jlo = 0
@@ -1084,7 +1083,7 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: a
     real(rk), intent(in) :: b
     real(rk), dimension(:, :), contiguous, intent(inout) :: c
-    integer(ik) :: i, j, k
+    integer(ik) :: i, j
     integer(ik) :: ilo = 0
     integer(ik) :: ihi = 0
     integer(ik) :: jlo = 0
@@ -1162,14 +1161,7 @@ contains
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
     class(fluid_t), intent(inout) :: lhs
     class(integrand_t), intent(in) :: rhs
-    integer(ik) :: alloc_status
-    integer(ik) :: i, j, k
-    integer(ik) :: ilo = 0
-    integer(ik) :: ihi = 0
-    integer(ik) :: jlo = 0
-    integer(ik) :: jhi = 0
 
-    alloc_status = 0
     call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
 
     call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
