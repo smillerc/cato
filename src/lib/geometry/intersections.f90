@@ -1,12 +1,12 @@
 module mod_intersections
-  !> Summary: Provide procedures to calculate the intersection of a line segment and a circle
-  !> Date: 05/20/2020
-  !> Author: Sam Miller
-  !> References:
-  !>      [1] https://cp-algorithms.com/geometry/circle-line-intersection.html
-  !> Notes: Reference [1] had some errors in it, but otherwise this is better than using
-  !>        the quadratic formula to find the intersects. Using the quadratic formula is by far
-  !>        the most common algorithim online.
+  !< Summary: Provide procedures to calculate the intersection of a line segment and a circle
+  !< Date: 05/20/2020
+  !< Author: Sam Miller
+  !< References:
+  !<      [1] https://cp-algorithms.com/geometry/circle-line-intersection.html
+  !< Notes: Reference [1] had some errors in it, but otherwise this is better than using
+  !<        the quadratic formula to find the intersects. Using the quadratic formula is by far
+  !<        the most common algorithim online.
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   implicit none

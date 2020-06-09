@@ -1,9 +1,9 @@
 module mod_inlet_outlet
-  !> Summary: Define the supersonic and subsonic inlet/outlet functions
-  !> Date: 04/23/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
+  !< Summary: Define the supersonic and subsonic inlet/outlet functions
+  !< Date: 04/23/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
   !      [1] J. Blazek, "Computational Fluid Dynamics: Principles and Applications",
   !          https://doi.org/10.1016/C2013-0-19038-1
 

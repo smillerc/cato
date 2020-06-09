@@ -27,7 +27,6 @@ contains
     class(integrand_t), allocatable :: U_1
     class(integrand_t), allocatable :: R
 
-    real(rk) :: min_dt = 1.0e-30_rk
     call debug_print('Running heun_2nd%integrate()', __FILE__, __LINE__)
 
     select type(U)

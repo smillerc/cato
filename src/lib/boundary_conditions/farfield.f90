@@ -1,9 +1,9 @@
 module mod_farfield
-  !> Summary: Provide the procedures for farfield boundary conditions
-  !> Date: 04/23/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
+  !< Summary: Provide the procedures for farfield boundary conditions
+  !< Date: 04/23/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
   !      [1]
   implicit none
 

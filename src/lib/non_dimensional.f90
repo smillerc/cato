@@ -1,9 +1,9 @@
 module mod_nondimensionalization
-  !> Summary: Provide scaling factors to non-dimensionalize the Euler equations
-  !> Date: 04/25/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
+  !< Summary: Provide scaling factors to non-dimensionalize the Euler equations
+  !< Date: 04/25/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
   !      [1]
 
   use iso_fortran_env, only: rk => real64

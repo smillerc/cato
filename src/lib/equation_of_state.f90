@@ -1,9 +1,9 @@
 module mod_eos
-  !> Summary:  Short module description
-  !> Date: 04/22/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
+  !< Summary:  Short module description
+  !< Date: 04/22/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
   !      [1]
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
