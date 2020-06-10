@@ -11,7 +11,7 @@ import sys
 import os
 
 sys.path.append(os.path.abspath("../../.."))
-from pycato import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
+from pycato import make_uniform_grid, write_initial_hdf5, ureg
 
 # Read the input file and make sure the spatial order is consistent
 config = ConfigParser()
