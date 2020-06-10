@@ -11,9 +11,10 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import os, sys
 import subprocess
+import pandas as pd
 
 sys.path.append("../../..")
-from pycato import load_2d_dataset
+from pycato import *
 
 tz = pytz.timezone("America/New_York")
 now = datetime.now(tz)
@@ -47,10 +48,13 @@ try:
 except Exception:
     walltime_sec = "N/A"
 
-# # Load cato results
-ds = load_2d_dataset("results")
+# Load cato results
+ds = load_dataset(".")
+ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
-plt.figure(figsize=(12, 12))
+df = pd.read_csv("residual_hist.csv", index_col=False)
+
+fig, (contour_ax, resid_ax) = plt.subplots(ncols=2, nrows=1, figsize=(24, 12))
 ds.density[-1].plot.pcolormesh(
     x="x",
     y="y",
@@ -60,23 +64,36 @@ ds.density[-1].plot.pcolormesh(
     cmap="viridis",
     vmin=0.0,
     vmax=2.4e-3,
-)
-t = ds.time[-1].data
-plt.title(
-    f"Sedov Test @ {now} \nsimulation t={t:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+    ax=contour_ax,
 )
 
-# Plot a circle to check symmetry with the eye
-theta = np.linspace(0, 2 * np.pi, 200)
-radius = 0.131313
-circle_x = radius * np.cos(theta)
-circle_y = radius * np.sin(theta)
-plt.plot(circle_x, circle_y, color="k")
+ds.density[-1].plot.contour(
+    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=12, ax=contour_ax
+)
 
-plt.axis("equal")
+# Plot the residual history
+df.plot(
+    x="time",
+    y=["rho", "rho_u", "rho_v", "rho_E"],
+    kind="line",
+    logy=True,
+    ax=resid_ax,
+    antialiased=True,
+    lw=0.75,
+)
+resid_ax.set_ylabel("residual")
+resid_ax.set_xlabel("time")
+resid_ax.set_ylim(1e-16, 0.1)
+
+t = ds.t[-1].data
+contour_ax.set_title(
+    f"Sedov Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+)
+
+contour_ax.axis("equal")
 r = 0.2
-plt.xlim(-r, r)
-plt.ylim(-r, r)
+contour_ax.set_xlim(-r, r)
+contour_ax.set_ylim(-r, r)
 plt.tight_layout()
 plt.savefig("sedov_2d_results.png")
 

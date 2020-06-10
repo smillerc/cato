@@ -11,9 +11,10 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import os, sys
 import subprocess
+import pandas as pd
 
 sys.path.append("../../..")
-from pycato import load_2d_dataset
+from pycato import *
 
 tz = pytz.timezone("America/New_York")
 now = datetime.now(tz)
@@ -47,17 +48,41 @@ try:
 except Exception:
     walltime_sec = "N/A"
 
-# # Load cato results
-ds = load_2d_dataset("results")
+# Load cato results
+ds = load_dataset(".")
+ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
-plt.figure(figsize=(12, 12))
-ds.density[-1].plot(x="x", y="y")
-t = ds.time[-1].data
-plt.title(
-    f"Kelvin-Helmholtz Test @ {now} \nsimulation t={t:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+df = pd.read_csv("residual_hist.csv", index_col=False)
+
+fig, (contour_ax, resid_ax) = plt.subplots(ncols=2, nrows=1, figsize=(24, 12))
+ds.density[-1].plot.pcolormesh(
+    x="x", y="y", ec="k", lw=0.1, antialiased=True, cmap="viridis", ax=contour_ax
 )
 
-plt.axis("equal")
+ds.density[-1].plot.contour(
+    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=12, ax=contour_ax
+)
+
+# Plot the residual history
+df.plot(
+    x="time",
+    y=["rho", "rho_u", "rho_v", "rho_E"],
+    kind="line",
+    logy=True,
+    ax=resid_ax,
+    antialiased=True,
+    lw=0.75,
+)
+resid_ax.set_ylabel("residual")
+resid_ax.set_xlabel("time")
+resid_ax.set_ylim(1e-16, 0.1)
+
+t = ds.t[-1].data
+contour_ax.set_title(
+    f"Kelvin-Helmholtz Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+)
+
+contour_ax.axis("equal")
 plt.tight_layout()
 plt.savefig("kh_2d_results.png")
 
