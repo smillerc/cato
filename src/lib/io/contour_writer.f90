@@ -222,16 +222,12 @@ contains
 
     ! Write a simple flag to tag ghost cells
     dataset_name = '/ghost_cell'
-    int_data_buffer = 0
-    associate(ilo_g=>fv_scheme%grid%ilo_bc_cell, &
-              ihi_g=>fv_scheme%grid%ihi_bc_cell, &
-              jlo_g=>fv_scheme%grid%jlo_bc_cell, &
-              jhi_g=>fv_scheme%grid%jhi_bc_cell)
-
-      int_data_buffer(ilo_g, :) = 1
-      int_data_buffer(ihi_g, :) = 1
-      int_data_buffer(:, jlo_g) = 1
-      int_data_buffer(:, jhi_g) = 1
+    int_data_buffer = 1
+    associate(ilo_r=>fv_scheme%grid%ilo_cell, &
+              ihi_r=>fv_scheme%grid%ihi_cell, &
+              jlo_r=>fv_scheme%grid%jlo_cell, &
+              jhi_r=>fv_scheme%grid%jhi_cell)
+      int_data_buffer(ilo_r:ihi_r, jlo_r:jhi_r) = 0
     end associate
     call self%hdf5_file%add(trim(dataset_name), int_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Ghost Cell [0=no, 1=yes]')
