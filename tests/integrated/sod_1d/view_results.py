@@ -48,7 +48,12 @@ try:
 except Exception:
     walltime_sec = "N/A"
 
+# Load cato results
+ds = load_1d_dataset("results")
+
 t = 0.2
+actual_time = ds.density.sel(time=t, method="nearest").time.data
+
 gamma = 1.4
 npts = 500
 
@@ -57,7 +62,7 @@ positions, regions, values = sod.solve(
     left_state=(1, 1, 0),
     right_state=(0.1, 0.125, 0.0),
     geometry=(0.0, 1.0, 0.5),
-    t=t,
+    t=actual_time,
     gamma=gamma,
     npts=npts,
 )
@@ -65,8 +70,6 @@ p = values["p"]
 rho = values["rho"]
 u = values["u"]
 
-# Load cato results
-ds = load_1d_dataset("results")
 
 plt.figure(figsize=(12, 6))
 
@@ -80,7 +83,7 @@ ds.pressure.sel(time=t, method="nearest").plot(label="CATO Pressure")
 plt.plot(values["x"], p, label="Exact Pressure")
 
 plt.title(
-    f"Sod 1D Test @ {now} \nsimulation t={t:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+    f"Sod 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
 )
 plt.ylabel("")
 plt.xlabel("X")

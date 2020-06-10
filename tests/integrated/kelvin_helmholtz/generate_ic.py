@@ -10,15 +10,33 @@ try:
 except ImportError:
     pass
 
+from configparser import ConfigParser
 import numpy as np
 import sys
 import os
 
 sys.path.append(os.path.abspath("../../.."))
-from pycato import make_uniform_grid, write_initial_hdf5
+from pycato import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
+
+# Read the input file and make sure the spatial order is consistent
+config = ConfigParser()
+config.read("input.ini")
+config.sections()
+edge_interp = config["scheme"]["edge_interpolation_scheme"]
+edge_interp = edge_interp.strip("'").strip('"')
+
+if edge_interp in ["TVD3", "TVD5", "MLP3", "MLP5"]:
+    n_ghost_layers = 2
+else:
+    n_ghost_layers = 1
 
 # Make the empty grid
-domain = make_uniform_grid(n_cells=(200, 200), xrange=(0.0, 1.0), yrange=(0.0, 1.0))
+domain = make_uniform_grid(
+    n_cells=(200, 200),
+    xrange=(0.0, 1.0),
+    yrange=(0.0, 1.0),
+    n_ghost_layers=n_ghost_layers,
+)
 
 # Set the initial conditions
 domain["p"] = domain["p"] * 2.5
