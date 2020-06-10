@@ -64,7 +64,7 @@ def read_ini(filename):
     return flatten_dict(as_dict(config))
 
 
-def load_dataset(folder):
+def load_dataset(folder, use_dask=False):
     """Read the dataset info
 
     Parameters
@@ -90,7 +90,6 @@ def load_dataset(folder):
 
     var_list = [
         "density",
-        "ghost_cell",
         "pressure",
         "sound_speed",
         "temperature",
@@ -100,16 +99,43 @@ def load_dataset(folder):
 
     data_vars = {}
     space_dims = ("t", "i", "j")
-    for v in var_list:
-        data_vars[f"{v}"] = xr.Variable(
-            space_dims,
-            np.array([h5[f"/{v}"][()] for h5 in h5_files], dtype=np.float32),
-            attrs={"units": h5_files[0][f"/{v}"].attrs["units"].decode("utf-8")},
-        )
+
+    # The ghost cell array is a special case
+    data_vars[f"ghost_cell"] = xr.Variable(
+        ("i", "j"),
+        np.array(h5_files[0]["/ghost_cell"][()], dtype=np.int8),
+        attrs={"units": h5_files[0]["/ghost_cell"].attrs["units"].decode("utf-8")},
+    )
+
+    if use_dask:
+        import dask.array as da
+
+        for v in var_list:
+            chunk_size = h5_files[0][f"/{v}"].shape
+            datasets = [h5[f"/{v}"][()] for h5 in h5_files]
+            arrays = [da.from_array(dataset, chunks=chunk_size) for dataset in datasets]
+            data_array = da.transpose(da.stack(arrays, axis=0), axes=[0, 2, 1])
+
+            data_vars[f"{v}"] = xr.Variable(
+                space_dims,
+                data_array,
+                attrs={"units": h5_files[0][f"/{v}"].attrs["units"].decode("utf-8")},
+            )
+
+    else:
+
+        for v in var_list:
+            data_vars[f"{v}"] = xr.Variable(
+                space_dims,
+                np.array([h5[f"/{v}"][()] for h5 in h5_files], dtype=np.float32),
+                attrs={"units": h5_files[0][f"/{v}"].attrs["units"].decode("utf-8")},
+            )
 
     x = np.array(h5_files[0][f"/x"][()], dtype=np.float32)
     x_units = h5_files[0][f"/x"].attrs["units"].decode("utf-8")
     y = np.array(h5_files[0][f"/y"][()], dtype=np.float32)
+
+    # Get the cell centers
     dy = (np.diff(x[0, :]) / 2.0)[0]
     dx = (np.diff(y[:, 0]) / 2.0)[0]
 
@@ -150,4 +176,22 @@ def load_dataset(folder):
 
     ds = xr.Dataset(data_vars=data_vars, coords=coords, attrs=attr_dict)
 
+    # Compute a few variables
+    ds["mach_x"] = ds.x_velocity / ds.sound_speed
+    ds["mach_y"] = ds.y_velocity / ds.sound_speed
+
     return ds
+
+
+def serialize_dataset(dataset):
+    """Serialize the xarray dataset to file
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+    """
+    comp = dict(zlib=True, complevel=9)
+    encoding = {var: comp for var in dataset.data_vars}
+    filename = "dataset.nc"
+    print(f"Saving dataset to: {os.path.abspath(filename)}")
+    dataset.to_netcdf(filename, engine="h5netcdf", encoding=encoding)
