@@ -181,7 +181,7 @@ contains
     call self%hdf5_file%add('/cato_info', 'CATO info')
     call self%hdf5_file%writeattr('/cato_info', 'compiler_flags', compiler_flags_str)
     call self%hdf5_file%writeattr('/cato_info', 'compiler_version', compiler_version_str)
-    call self%hdf5_file%writeattr('/cato_info', 'git_hast', git_hash)
+    call self%hdf5_file%writeattr('/cato_info', 'git_hash', git_hash)
     call self%hdf5_file%writeattr('/cato_info', 'git_ref', git_ref)
     call self%hdf5_file%writeattr('/cato_info', 'git_changes', git_local_changes)
     call self%hdf5_file%writeattr('/cato_info', 'version', cato_version)
@@ -222,16 +222,12 @@ contains
 
     ! Write a simple flag to tag ghost cells
     dataset_name = '/ghost_cell'
-    int_data_buffer = 0
-    associate(ilo_g=>fv_scheme%grid%ilo_bc_cell, &
-              ihi_g=>fv_scheme%grid%ihi_bc_cell, &
-              jlo_g=>fv_scheme%grid%jlo_bc_cell, &
-              jhi_g=>fv_scheme%grid%jhi_bc_cell)
-
-      int_data_buffer(ilo_g, :) = 1
-      int_data_buffer(ihi_g, :) = 1
-      int_data_buffer(:, jlo_g) = 1
-      int_data_buffer(:, jhi_g) = 1
+    int_data_buffer = 1
+    associate(ilo_r=>fv_scheme%grid%ilo_cell, &
+              ihi_r=>fv_scheme%grid%ihi_cell, &
+              jlo_r=>fv_scheme%grid%jlo_cell, &
+              jhi_r=>fv_scheme%grid%jhi_cell)
+      int_data_buffer(ilo_r:ihi_r, jlo_r:jhi_r) = 0
     end associate
     call self%hdf5_file%add(trim(dataset_name), int_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Ghost Cell [0=no, 1=yes]')
@@ -409,8 +405,8 @@ contains
     ! Mach Number
     unit_label = ""
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Vector" Center="Cell" Name="Mach" Dimensions="'//cell_shape//' 2">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape//' 2" ItemType="Function" Function="JOIN(ABS($0/$2), ABS($1/$2))">'
-    write(xdmf_unit, '(a)') '          <DataItem DataType="Float" Dimensions="'//cell_shape// &
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape &
+      //' 2" ItemType="Function" Function="JOIN(ABS($0/$2), ABS($1/$2))">'    write(xdmf_unit, '(a)') '          <DataItem DataType="Float" Dimensions="'//cell_shape// &
       '" Format="HDF" Precision="4">'//self%hdf5_filename//':/x_velocity</DataItem>'
     write(xdmf_unit, '(a)') '          <DataItem DataType="Float" Dimensions="'//cell_shape// &
       '" Format="HDF" Precision="4">'//self%hdf5_filename//':/y_velocity</DataItem>'
