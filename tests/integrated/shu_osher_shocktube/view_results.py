@@ -6,23 +6,67 @@ A simple script to view the results from the simulation
 import h5py
 import numpy as np
 import os
+import pytz
+from datetime import datetime
 import matplotlib.pyplot as plt
 import os, sys
+import subprocess
 
 sys.path.append("../../..")
-from pycato import load_1d_dataset
+from pycato import *
 
-t = 0.17
+tz = pytz.timezone("America/New_York")
+now = datetime.now(tz)
+
+try:
+    short_hash = (
+        subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
+        .decode("utf-8")
+        .strip()
+    )
+except Exception:
+    short_hash = "N/A"
+
+try:
+    branch = (
+        subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+        .decode("utf-8")
+        .strip()
+    )
+
+    if branch == "HEAD":
+        branch = os.getenv("CI_COMMIT_REF_NAME")
+    if branch is None:
+        branch = "N/A"
+
+except Exception:
+    branch = "N/A"
+
+try:
+    walltime_sec = np.loadtxt("timing.csv", delimiter=",", skiprows=1)[-1][1]
+except Exception:
+    walltime_sec = "N/A"
 
 # Load cato results
-ds = load_1d_dataset("results")
+ds = load_dataset(".")
+
+# Remove the ghost layers (bc's)
+ds = ds.where(ds["ghost_cell"] == 0, drop=True)
+
+t = 0.17
+actual_time = ds.density.sel(t=t, method="nearest").t.data
 
 plt.figure(figsize=(12, 6))
+ds.density.sel(t=t, method="nearest").plot(x="x")
 
-ds.density.sel(time=t, method="nearest").plot()
-plt.title(f"Time: {t:.2f}")
-plt.ylabel("Density")
-plt.xlabel("X")
+plt.title(
+    f"Shu-Osher 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+)
+plt.ylabel("Density [g/cc]")
+plt.xlabel("X [cm]")
+plt.legend()
+plt.ylim(0, 4.5)
+plt.tight_layout()
 plt.savefig("shu_osher_1d_results.png")
 
 try:

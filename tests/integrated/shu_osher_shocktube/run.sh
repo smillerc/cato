@@ -12,7 +12,7 @@ export OMP_NUM_THREADS=6
 cato_dir=../../../build
 run_dir=`pwd`
 rm -rf results
-# python generate_ic.py
+python generate_ic.py
 
 if [ -f "cato.x" ]; then rm cato.x; fi
 if [ -f "cato.error" ]; then rm cato.error; fi
