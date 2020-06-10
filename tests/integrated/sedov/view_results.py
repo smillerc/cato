@@ -11,6 +11,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import os, sys
 import subprocess
+import pandas as pd
 
 sys.path.append("../../..")
 from pycato import *
@@ -47,11 +48,13 @@ try:
 except Exception:
     walltime_sec = "N/A"
 
-# # Load cato results
+# Load cato results
 ds = load_dataset(".")
 ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
-plt.figure(figsize=(12, 12))
+df = pd.read_csv("residual_hist.csv", index_col=False)
+
+fig, (contour_ax, resid_ax) = plt.subplots(ncols=2, nrows=1, figsize=(24, 12))
 ds.density[-1].plot.pcolormesh(
     x="x",
     y="y",
@@ -61,21 +64,36 @@ ds.density[-1].plot.pcolormesh(
     cmap="viridis",
     vmin=0.0,
     vmax=2.4e-3,
+    ax=contour_ax,
 )
 
 ds.density[-1].plot.contour(
-    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=12
+    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=12, ax=contour_ax
 )
 
+# Plot the residual history
+df.plot(
+    x="time",
+    y=["rho", "rho_u", "rho_v", "rho_E"],
+    kind="line",
+    logy=True,
+    ax=resid_ax,
+    antialiased=True,
+    lw=0.75,
+)
+resid_ax.set_ylabel("residual")
+resid_ax.set_xlabel("time")
+resid_ax.set_ylim(1e-16, 0.1)
+
 t = ds.t[-1].data
-plt.title(
+contour_ax.set_title(
     f"Sedov Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
 )
 
-plt.axis("equal")
+contour_ax.axis("equal")
 r = 0.2
-plt.xlim(-r, r)
-plt.ylim(-r, r)
+contour_ax.set_xlim(-r, r)
+contour_ax.set_ylim(-r, r)
 plt.tight_layout()
 plt.savefig("sedov_2d_results.png")
 

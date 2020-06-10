@@ -123,7 +123,7 @@ contains
     deallocate(time_integrator)
 
     open(newunit=io, file=trim(self%residual_hist_file), status='replace')
-    write(io, '(a)') 'iteration, time, rho, rho_u, rho_v, rho_E'
+    write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
     close(io)
 
     if(input%read_init_cond_from_file .or. input%restart_from_file) then
