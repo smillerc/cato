@@ -68,6 +68,8 @@ contains
     real(rk) :: phi_left   !< limiter for the left edge
     real(rk) :: phi_right  !< limiter for the right edge
 
+    real(rk) :: delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus
+
     ! call debug_print('Running interpolate_edge_values()', __FILE__, __LINE__)
 
     ilo_bc = lbound(q, dim=1)
@@ -94,6 +96,7 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
     !$omp private(phi_bottom, phi_top, phi_left, phi_right) &
+    !$omp private(delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus) &
     !$omp shared(r_i, r_i_inv, r_j, r_j_inv) &
     !$omp shared(beta_bottom, beta_top, beta_left, beta_right) &
     !$omp shared(q, self, edge_values)
@@ -110,7 +113,7 @@ contains
     end do
     !$omp end do
 
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         ! 3rd order interpolation function
@@ -118,36 +121,39 @@ contains
         beta_right(i, j) = (1.0_rk + 2.0_rk * r_i_inv(i, j)) / 3.0_rk
         beta_top(i, j) = (1.0_rk + 2.0_rk * r_j(i, j)) / 3.0_rk
         beta_bottom(i, j) = (1.0_rk + 2.0_rk * r_j_inv(i, j)) / 3.0_rk
+
+        ! write(*,'(4(es16.6))') r_i(i, j), r_i_inv(i, j), r_j(i, j), r_j_inv(i, j)
+        ! write(*,'(4(es16.6))') beta_left(i, j), beta_right(i, j), beta_top(i, j), beta_bottom(i, j)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
+    ! error stop
 
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
 
-        ! slope limiters
-        phi_top = 0.0_rk
-        phi_bottom = 0.0_rk
-        phi_left = 0.0_rk
-        phi_right = 0.0_rk
+        ! (i, j+1/2), top edge
+        phi_top = max(0.0_rk, min(2.0_rk, 2.0_rk * r_j(i, j), beta_top(i, j)))
+        delta_j_plus = self%get_delta(q(i, j), q(i, j - 1)) ! q(i,j) - q(i,j-1)
+        edge_values(3, i, j) = q(i, j) + 0.5_rk * phi_top * delta_j_plus
 
         ! (i, j-1/2), bottom edge
         phi_bottom = max(0.0_rk, min(2.0_rk, 2.0_rk * r_j_inv(i, j), beta_bottom(i, j)))
-        edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_bottom * (q(i, j + 1) - q(i, j - 1))
+        delta_j_minus = self%get_delta(q(i, j + 1), q(i, j)) ! q(i,j+1) - q(i,j)
+        edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_bottom * delta_j_minus
 
         ! (i+1/2, j), right edge
         phi_right = max(0.0_rk, min(2.0_rk, 2.0_rk * r_i(i, j), beta_right(i, j)))
-        edge_values(2, i, j) = q(i, j) + 0.5_rk * phi_right * (q(i + 1, j) - q(i - 1, j))
-
-        ! (i, j+1/2), top edge
-        phi_right = max(0.0_rk, min(2.0_rk, 2.0_rk * r_j(i, j), beta_top(i, j)))
-        edge_values(3, i, j) = q(i, j) + 0.5_rk * phi_top * (q(i, j + 1) - q(i, j - 1))
+        delta_i_plus = self%get_delta(q(i, j), q(i - 1, j)) ! q(i,j) - q(i-1,j)
+        edge_values(2, i, j) = q(i, j) + 0.5_rk * phi_right * delta_i_plus
 
         ! (i-1/2, j), left edge
         phi_left = max(0.0_rk, min(2.0_rk, 2.0_rk * r_i_inv(i, j), beta_left(i, j)))
-        edge_values(4, i, j) = q(i, j) - 0.5_rk * phi_left * (q(i + 1, j) - q(i - 1, j))
+        delta_i_minus = self%get_delta(q(i + 1, j), q(i, j)) ! q(i+1,j) - q(i,j)
+        edge_values(4, i, j) = q(i, j) - 0.5_rk * phi_left * delta_i_minus
 
+        ! write(*,'(5(es16.6))') q(i,j), edge_values(1, i, j), edge_values(2, i, j), edge_values(3, i, j), edge_values(4, i, j)
       end do
     end do
     !$omp end do
