@@ -11,7 +11,7 @@ import sys
 import os
 
 sys.path.append(os.path.abspath("../../.."))
-from pycato import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
+from pycato import *
 
 # Read the input file and make sure the spatial order is consistent
 config = ConfigParser()
@@ -45,12 +45,13 @@ y = domain["yc"]
 fwhm = 0.001
 p_max = 10.0
 p = p_max * np.exp(-((x.m ** 2) / fwhm + (y.m ** 2) / fwhm)) + p0
-p = (p - p.max()) + p_max  # Make the max actually 10, since it's slightly off
 domain["p"] = p * ureg(str(domain["p"].units))
 
 # Zero velocity everywhere
 domain["u"] = domain["u"] * 0.0
 domain["v"] = domain["v"] * 0.0
+
+print(domain["p"].min())
 
 write_initial_hdf5(filename="sedov", initial_condition_dict=domain)
 

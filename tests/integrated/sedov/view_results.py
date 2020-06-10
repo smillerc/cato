@@ -13,7 +13,7 @@ import os, sys
 import subprocess
 
 sys.path.append("../../..")
-from pycato import load_2d_dataset
+from pycato import *
 
 tz = pytz.timezone("America/New_York")
 now = datetime.now(tz)
@@ -48,7 +48,8 @@ except Exception:
     walltime_sec = "N/A"
 
 # # Load cato results
-ds = load_2d_dataset("results")
+ds = load_dataset(".")
+ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
 plt.figure(figsize=(12, 12))
 ds.density[-1].plot.pcolormesh(
@@ -61,17 +62,15 @@ ds.density[-1].plot.pcolormesh(
     vmin=0.0,
     vmax=2.4e-3,
 )
-t = ds.time[-1].data
-plt.title(
-    f"Sedov Test @ {now} \nsimulation t={t:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+
+ds.density[-1].plot.contour(
+    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=12
 )
 
-# Plot a circle to check symmetry with the eye
-theta = np.linspace(0, 2 * np.pi, 200)
-radius = 0.131313
-circle_x = radius * np.cos(theta)
-circle_y = radius * np.sin(theta)
-plt.plot(circle_x, circle_y, color="k")
+t = ds.t[-1].data
+plt.title(
+    f"Sedov Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+)
 
 plt.axis("equal")
 r = 0.2

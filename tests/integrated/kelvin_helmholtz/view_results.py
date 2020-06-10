@@ -13,7 +13,7 @@ import os, sys
 import subprocess
 
 sys.path.append("../../..")
-from pycato import load_2d_dataset
+from pycato import *
 
 tz = pytz.timezone("America/New_York")
 now = datetime.now(tz)
@@ -47,8 +47,11 @@ try:
 except Exception:
     walltime_sec = "N/A"
 
-# # Load cato results
-ds = load_2d_dataset("results")
+# Load cato results
+ds = load_dataset(".")
+
+# Remove the ghost layers (bc's)
+ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
 plt.figure(figsize=(12, 12))
 ds.density[-1].plot(x="x", y="y")

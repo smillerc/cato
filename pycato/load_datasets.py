@@ -109,7 +109,7 @@ def load_dataset(folder):
 
     x = np.array(h5_files[0][f"/x"][()], dtype=np.float32)
     x_units = h5_files[0][f"/x"].attrs["units"].decode("utf-8")
-    y = np.array(h5_files[0][f"/x"][()], dtype=np.float32)
+    y = np.array(h5_files[0][f"/y"][()], dtype=np.float32)
     dy = (np.diff(x[0, :]) / 2.0)[0]
     dx = (np.diff(y[:, 0]) / 2.0)[0]
 
@@ -146,6 +146,7 @@ def load_dataset(folder):
     attr_dict = info_attr
     attr_dict.update(input_dict)
     attr_dict["time_units"] = time_units
+    attr_dict["x_units"] = x_units
 
     ds = xr.Dataset(data_vars=data_vars, coords=coords, attrs=attr_dict)
 

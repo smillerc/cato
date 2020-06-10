@@ -181,7 +181,7 @@ contains
     call self%hdf5_file%add('/cato_info', 'CATO info')
     call self%hdf5_file%writeattr('/cato_info', 'compiler_flags', compiler_flags_str)
     call self%hdf5_file%writeattr('/cato_info', 'compiler_version', compiler_version_str)
-    call self%hdf5_file%writeattr('/cato_info', 'git_hast', git_hash)
+    call self%hdf5_file%writeattr('/cato_info', 'git_hash', git_hash)
     call self%hdf5_file%writeattr('/cato_info', 'git_ref', git_ref)
     call self%hdf5_file%writeattr('/cato_info', 'git_changes', git_local_changes)
     call self%hdf5_file%writeattr('/cato_info', 'version', cato_version)
