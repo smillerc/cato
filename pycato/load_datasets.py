@@ -183,7 +183,7 @@ def load_dataset(folder, use_dask=False):
     return ds
 
 
-def serialize_dataset(dataset):
+def serialize_dataset(dataset, name="dataset"):
     """Serialize the xarray dataset to file
 
     Parameters
@@ -192,6 +192,13 @@ def serialize_dataset(dataset):
     """
     comp = dict(zlib=True, complevel=9)
     encoding = {var: comp for var in dataset.data_vars}
-    filename = "dataset.nc"
+
+    if not name:
+        filename = "dataset.nc"
+    else:
+        if not name.endswith(".nc"):
+            filename = name + ".nc"
+        else:
+            filename = name
     print(f"Saving dataset to: {os.path.abspath(filename)}")
     dataset.to_netcdf(filename, engine="h5netcdf", encoding=encoding)
