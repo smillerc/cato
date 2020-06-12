@@ -77,34 +77,34 @@ contains
     end if
   end function get_delta
 
-  elemental subroutine get_smoothness(minus, current, plus, R, R_inv)
-    !< Calculate R = q(i+1) - q(i) / q(i) - q(i-1)
+  elemental subroutine get_smoothness(minus, current, plus, r, r_inv)
+    !< Calculate r = q(i+1) - q(i) / q(i) - q(i-1)
     real(rk), intent(in) :: minus   !< q(i-1)
     real(rk), intent(in) :: current !< q(i)
     real(rk), intent(in) :: plus    !< q(i+1)
-    real(rk), intent(out) :: R      !< R
-    real(rk), intent(out) :: R_inv  !< 1/R
+    real(rk), intent(out) :: r      !< r
+    real(rk), intent(out) :: r_inv  !< 1/r
 
     real(rk) :: delta_plus, delta_minus
     real(rk), parameter :: infinity = 1e20_rk
 
-    delta_minus = get_delta(current, minus) ! q(i) - q(i-1)
     delta_plus = get_delta(plus, current)   ! q(i+1) - q(i)
+    delta_minus = get_delta(current, minus) ! q(i) - q(i-1)
 
-    if(abs(delta_plus - delta_minus) < epsilon(1.0_rk) .or. & ! deltas are the same
+    if((abs(delta_plus - delta_minus)) < epsilon(1.0_rk) .or. & ! deltas are the same
        (abs(delta_plus) < tiny(1.0_rk) .and. abs(delta_minus) < tiny(1.0_rk)) & ! both are 0
        ) then
-      R = 1.0_rk
-      R_inv = 1.0_rk
+      r = 1.0_rk
+      r_inv = 1.0_rk
     else if(abs(delta_minus) < tiny(1.0_rk)) then ! delta- is 0
-      R = infinity
-      R_inv = 0.0_rk
+      r = infinity
+      r_inv = 0.0_rk
     else if(abs(delta_plus) < tiny(1.0_rk)) then ! delta+ is 0
-      R = 0.0_rk
-      R_inv = infinity
+      r = 0.0_rk
+      r_inv = infinity
     else
-      R = delta_plus / delta_minus
-      R_inv = 1.0_rk / R
+      r = delta_plus / delta_minus
+      r_inv = 1.0_rk / r
     end if
   end subroutine get_smoothness
 end module mod_edge_interp

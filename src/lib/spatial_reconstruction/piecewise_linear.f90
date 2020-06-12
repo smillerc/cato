@@ -48,22 +48,28 @@ contains
     ! Set up the edge interpolation scheme
     select case(trim(input%edge_interpolation_scheme))
     case('TVD2')
+      write(*, '(a)') "Using 2nd order TVD for edge interpolation"
       allocate(tvd_2nd_order_t :: self%edge_interpolator)
     case('TVD3')
+      write(*, '(a)') "Using 3rd order TVD for edge interpolation"
       allocate(tvd_3rd_order_t :: self%edge_interpolator)
     case('TVD5')
+      write(*, '(a)') "Using 5th order TVD for edge interpolation"
       allocate(tvd_5th_order_t :: self%edge_interpolator)
     case('MLP3')
+      write(*, '(a)') "Using MLP3 for edge interpolation"
       allocate(mlp_3rd_order_t :: self%edge_interpolator)
     case('MLP5')
+      write(*, '(a)') "Using MLP5 for edge interpolation"
       allocate(mlp_5th_order_t :: self%edge_interpolator)
     case default
       error stop "Unknown edge interpolation scheme, must be one of the following: "// &
         "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
     end select
 
-    call self%edge_interpolator%initialize(limiter=input%limiter)
+    print *
 
+    call self%edge_interpolator%initialize(limiter=input%limiter)
   end subroutine initialize
 
   subroutine finalize(self)
