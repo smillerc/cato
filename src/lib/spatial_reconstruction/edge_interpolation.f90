@@ -128,7 +128,7 @@ contains
     jlo = jlo_bc + n_ghost_layers
     jhi = jhi_bc - n_ghost_layers
 
-    allocate(edge_values(4, ilo:ihi, jlo:jhi))
+    allocate(edge_values(4, ilo_bc:ihi_bc, jlo_bc:jhi_bc))
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -211,7 +211,7 @@ contains
   !   jlo = jlo_bc + n_ghost_layers
   !   jhi = jhi_bc - n_ghost_layers
 
-  !   allocate(edge_values(4, ilo:ihi, jlo:jhi))
+  !   allocate(edge_values(4, ilo_bc:ihi_bc, jlo_bc:jhi_bc))
 
   !   !$omp parallel default(none), &
   !   !$omp firstprivate(ilo, ihi, jlo, jhi) &

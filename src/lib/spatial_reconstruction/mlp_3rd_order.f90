@@ -89,7 +89,7 @@ contains
     jlo = jlo_bc + n_ghost_layers
     jhi = jhi_bc - n_ghost_layers
 
-    allocate(edge_values(4, ilo:ihi, jlo:jhi))
+    allocate(edge_values(4, ilo_bc:ihi_bc, jlo_bc:jhi_bc))
 
     allocate(r_L_i(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     allocate(r_R_i(ilo - 1:ihi + 1, jlo - 1:jhi + 1))

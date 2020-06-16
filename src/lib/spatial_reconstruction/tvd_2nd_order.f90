@@ -81,7 +81,7 @@ contains
     jlo = jlo_bc + n_ghost_layers
     jhi = jhi_bc - n_ghost_layers
 
-    allocate(edge_values(4, ilo:ihi, jlo:jhi))
+    allocate(edge_values(4, ilo_bc:ihi_bc, jlo_bc:jhi_bc))
 
     allocate(r_L_i(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     allocate(r_R_i(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
@@ -98,7 +98,7 @@ contains
 
     !$omp do
     do j = jlo, jhi
-      do i = ilo - 1, ihi + 1
+      do i = ilo, ihi
         r_L_i(i, j) = smoothness(q(i - 1, j), q(i, j), q(i + 1, j))
         r_R_i(i, j) = 1.0_rk / r_L_i(i, j)
 
