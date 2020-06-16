@@ -6,7 +6,6 @@
 #module load intel/2019.3
 
 # Error checking
-set -e
 set -u
 
 export I_MPI_REMOVED_VAR_WARNING=0
