@@ -78,6 +78,7 @@ module mod_finite_volume_schemes
     procedure, public :: reconstruct
     procedure, public :: apply_primitive_vars_bc
     procedure, public :: apply_reconstructed_state_bc
+    procedure, public :: apply_gradient_bc
     procedure, public :: apply_source_terms
     procedure, public :: set_time
     final :: finalize
@@ -375,6 +376,62 @@ contains
     end do
 
   end subroutine apply_primitive_vars_bc
+
+  subroutine apply_gradient_bc(self)
+    !< Apply the boundary conditions
+    class(finite_volume_scheme_t), intent(inout) :: self
+
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
+    integer(ik), dimension(2) :: lbounds
+
+    call debug_print('Running finite_volume_scheme_t%apply_gradient_bc()', __FILE__, __LINE__)
+
+    lbounds = lbound(self%reconstruction_operator%grad_x_rho)
+    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
+                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+
+    do priority = max_priority_bc, 0, -1
+
+      if(self%bc_plus_x%priority == priority) then
+        call self%bc_plus_x%apply_gradient_bc(grad_x=self%reconstruction_operator%grad_x_rho, &
+                                              grad_y=self%reconstruction_operator%grad_y_rho, &
+                                              lbounds=lbounds)
+        call self%bc_plus_x%apply_gradient_bc(grad_x=self%reconstruction_operator%grad_x_p, &
+                                              grad_y=self%reconstruction_operator%grad_y_p, &
+                                              lbounds=lbounds)
+      end if
+
+      if(self%bc_plus_y%priority == priority) then
+        call self%bc_plus_y%apply_gradient_bc(grad_x=self%reconstruction_operator%grad_x_rho, &
+                                              grad_y=self%reconstruction_operator%grad_y_rho, &
+                                              lbounds=lbounds)
+        call self%bc_plus_y%apply_gradient_bc(grad_x=self%reconstruction_operator%grad_x_p, &
+                                              grad_y=self%reconstruction_operator%grad_y_p, &
+                                              lbounds=lbounds)
+      end if
+
+      if(self%bc_minus_x%priority == priority) then
+        call self%bc_minus_x%apply_gradient_bc(grad_x=self%reconstruction_operator%grad_x_rho, &
+                                               grad_y=self%reconstruction_operator%grad_y_rho, &
+                                               lbounds=lbounds)
+        call self%bc_minus_x%apply_gradient_bc(grad_x=self%reconstruction_operator%grad_x_p, &
+                                               grad_y=self%reconstruction_operator%grad_y_p, &
+                                               lbounds=lbounds)
+      end if
+
+      if(self%bc_minus_y%priority == priority) then
+        call self%bc_minus_y%apply_gradient_bc(grad_x=self%reconstruction_operator%grad_x_rho, &
+                                               grad_y=self%reconstruction_operator%grad_y_rho, &
+                                               lbounds=lbounds)
+        call self%bc_minus_y%apply_gradient_bc(grad_x=self%reconstruction_operator%grad_x_p, &
+                                               grad_y=self%reconstruction_operator%grad_y_p, &
+                                               lbounds=lbounds)
+      end if
+
+    end do
+
+  end subroutine apply_gradient_bc
 
   subroutine apply_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
     !< Apply the boundary conditions

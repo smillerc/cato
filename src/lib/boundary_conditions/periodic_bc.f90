@@ -16,8 +16,7 @@ module mod_periodic_bc
     ! procedure, public :: initialize => init_periodic_bc
     procedure, public :: apply_primitive_var_bc => apply_periodic_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_periodic_reconstructed_state_bc
-    procedure, public :: copy => copy_periodic_bc
-
+    procedure, public :: apply_gradient_bc
   end type periodic_bc_t
 
 contains
@@ -44,17 +43,6 @@ contains
     end if
 
   end function periodic_bc_constructor
-
-  subroutine copy_periodic_bc(out_bc, in_bc)
-    class(boundary_condition_t), intent(in) :: in_bc
-    class(periodic_bc_t), intent(inout) :: out_bc
-
-    call debug_print('Running periodic_bc_t%copy_periodic_bc()', __FILE__, __LINE__)
-    ! if (allocated(out_bc%name)) deallocate(out_bc%name)
-    ! allocate(out_bc%name, source=in_bc%name)
-    out_bc%name = in_bc%name
-    out_bc%location = in_bc%location
-  end subroutine copy_periodic_bc
 
   subroutine apply_periodic_primitive_var_bc(self, rho, u, v, p, lbounds)
 
@@ -314,5 +302,97 @@ contains
     end associate
 
   end subroutine apply_periodic_reconstructed_state_bc
+
+  subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
+    class(periodic_bc_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
+    integer(ik)  :: i
+
+    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
+              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
+              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+
+      select case(self%location)
+      case('+x')
+        call debug_print('Running periodic_bc_t%apply_gradient_bc() +x', __FILE__, __LINE__)
+        if(self%do_corners) then
+          do i = 1, self%n_ghost_layers
+            grad_x(right_ghost(i), top_ghost(i)) = grad_x(left + (i - 1), bottom + (i - 1))
+            grad_x(right_ghost(i), bottom_ghost(i)) = grad_x(left + (i - 1), top + (i - 1))
+            grad_x(right_ghost(i), bottom:top) = grad_x(left + (i - 1), bottom:top)
+
+            grad_y(right_ghost(i), top_ghost(i)) = grad_y(left + (i - 1), bottom + (i - 1))
+            grad_y(right_ghost(i), bottom_ghost(i)) = grad_y(left + (i - 1), top + (i - 1))
+            grad_y(right_ghost(i), bottom:top) = grad_y(left + (i - 1), bottom:top)
+          end do
+        else
+          do i = 1, self%n_ghost_layers
+            grad_x(right_ghost(i), :) = grad_x(left + (i - 1), :)
+            grad_y(right_ghost(i), :) = grad_y(left + (i - 1), :)
+          end do
+        end if
+
+      case('-x')
+        call debug_print('Running periodic_bc_t%apply_gradient_bc() -x', __FILE__, __LINE__)
+        if(self%do_corners) then
+          do i = 1, self%n_ghost_layers
+            grad_x(left_ghost(i), top_ghost(i)) = grad_x(right + (i - 1), bottom + (i - 1))
+            grad_x(left_ghost(i), bottom_ghost(i)) = grad_x(right + (i - 1), top + (i - 1))
+            grad_x(left_ghost(i), bottom:top) = grad_x(right + (i - 1), bottom:top)
+
+            grad_y(left_ghost(i), top_ghost(i)) = grad_y(right + (i - 1), bottom + (i - 1))
+            grad_y(left_ghost(i), bottom_ghost(i)) = grad_y(right + (i - 1), top + (i - 1))
+            grad_y(left_ghost(i), bottom:top) = grad_y(right + (i - 1), bottom:top)
+          end do
+        else
+          do i = 1, self%n_ghost_layers
+            grad_x(left_ghost(i), :) = grad_x(right + (i - 1), :)
+            grad_y(left_ghost(i), :) = grad_y(right + (i - 1), :)
+          end do
+        end if
+      case('+y')
+        call debug_print('Running periodic_bc_t%apply_gradient_bc() +y', __FILE__, __LINE__)
+        if(self%do_corners) then
+          do i = 1, self%n_ghost_layers
+            grad_x(left_ghost(i), top_ghost(i)) = grad_x(right + (i - 1), bottom + (i - 1))
+            grad_x(right_ghost(i), top_ghost(i)) = grad_x(left + (i - 1), bottom + (i - 1))
+            grad_x(left:right, top_ghost(i)) = grad_x(left:right, bottom + (i - 1))
+
+            grad_y(left_ghost(i), top_ghost(i)) = grad_y(right + (i - 1), bottom + (i - 1))
+            grad_y(right_ghost(i), top_ghost(i)) = grad_y(left + (i - 1), bottom + (i - 1))
+            grad_y(left:right, top_ghost(i)) = grad_y(left:right, bottom + (i - 1))
+          end do
+        else
+          do i = 1, self%n_ghost_layers
+            grad_x(:, top_ghost(i)) = grad_x(:, bottom + (i - 1))
+            grad_y(:, top_ghost(i)) = grad_y(:, bottom + (i - 1))
+          end do
+        end if
+      case('-y')
+        call debug_print('Running periodic_bc_t%apply_gradient_bc() -y', __FILE__, __LINE__)
+        if(self%do_corners) then
+          do i = 1, self%n_ghost_layers
+            grad_x(left_ghost(i), bottom_ghost(i)) = grad_x(right + (i - 1), top + (i - 1))
+            grad_x(right_ghost(i), bottom_ghost(i)) = grad_x(left + (i - 1), top + (i - 1))
+            grad_x(left:right, bottom_ghost(i)) = grad_x(left:right, top + (i - 1))
+
+            grad_y(left_ghost(i), bottom_ghost(i)) = grad_y(right + (i - 1), top + (i - 1))
+            grad_y(right_ghost(i), bottom_ghost(i)) = grad_y(left + (i - 1), top + (i - 1))
+            grad_y(left:right, bottom_ghost(i)) = grad_y(left:right, top + (i - 1))
+          end do
+        else
+          do i = 1, self%n_ghost_layers
+            grad_x(:, bottom_ghost(i)) = grad_x(:, top + (i - 1))
+            grad_y(:, bottom_ghost(i)) = grad_y(:, top + (i - 1))
+          end do
+        end if
+      case default
+        error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_gradient_bc()"
+      end select
+    end associate
+
+  end subroutine apply_gradient_bc
 
 end module mod_periodic_bc

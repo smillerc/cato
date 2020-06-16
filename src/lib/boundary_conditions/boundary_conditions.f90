@@ -31,19 +31,11 @@ module mod_boundary_conditions
     procedure, public :: get_time
     procedure, public :: set_indices
     procedure(apply_primitive_var_bc), public, deferred :: apply_primitive_var_bc
+    procedure(apply_gradient_bc), public, deferred :: apply_gradient_bc
     procedure(apply_reconstructed_state_bc), public, deferred :: apply_reconstructed_state_bc
-    procedure(copy_bc), public, deferred :: copy
-    generic :: assignment(=) => copy
-
   end type boundary_condition_t
 
   abstract interface
-    subroutine copy_bc(out_bc, in_bc)
-      import :: boundary_condition_t
-      class(boundary_condition_t), intent(in) :: in_bc
-      class(boundary_condition_t), intent(inout) :: out_bc
-    end subroutine
-
     subroutine apply_primitive_var_bc(self, rho, u, v, p, lbounds)
       import :: boundary_condition_t
       import :: ik, rk
@@ -54,6 +46,15 @@ module mod_boundary_conditions
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
     end subroutine apply_primitive_var_bc
+
+    subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
+      import :: boundary_condition_t
+      import :: ik, rk
+      class(boundary_condition_t), intent(inout) :: self
+      integer(ik), dimension(2), intent(in) :: lbounds
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
+    end subroutine apply_gradient_bc
 
     subroutine apply_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
       import :: boundary_condition_t

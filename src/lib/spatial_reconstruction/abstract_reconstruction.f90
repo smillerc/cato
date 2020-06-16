@@ -19,13 +19,23 @@ module mod_abstract_reconstruction
     class(grid_t), pointer :: grid => null()
     !< Pointer to the grid object, which should be managed by the finite_volume_scheme_t puppeteer class
 
+    real(rk), dimension(:, :), pointer :: rho !< cell average density (used to find rho(P') at any (x,y))
+    real(rk), dimension(:, :), pointer :: p   !< cell average pressure (used to find p(P') at any (x,y))
+
+    real(rk), dimension(:, :), allocatable :: grad_x_rho !< x-gradient of density (used to find rho(P') at any (x,y))
+    real(rk), dimension(:, :), allocatable :: grad_x_p   !< x-gradient of pressure (used to find p(P') at any (x,y))
+    real(rk), dimension(:, :), allocatable :: grad_y_rho !< y-gradient of density (used to find rho(P') at any (x,y))
+    real(rk), dimension(:, :), allocatable :: grad_y_p   !< y-gradient of pressure (used to find p(P') at any (x,y))
+
     integer(ik), public :: order = 0  !< Reconstruction order
     character(:), allocatable, public :: name  !< Name of the reconstruction scheme
     logical :: use_post_limiter = .false. !< Use the 'a posteriori' limiter (Kitamura et al.)
   contains
     procedure, public, non_overridable :: set_grid_pointer
+    procedure, public, non_overridable :: set_cell_average_pointers
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct), public, deferred :: reconstruct
+    procedure(reconstruct_at_point), public, deferred :: reconstruct_at_point
   end type abstract_reconstruction_t
 
   abstract interface
@@ -52,6 +62,15 @@ module mod_abstract_reconstruction
 
     end subroutine reconstruct
 
+    real(rk) function reconstruct_at_point(self, i, j, x, y, var) result(q)
+      import :: abstract_reconstruction_t
+      import :: ik, rk
+      class(abstract_reconstruction_t), intent(in) :: self
+      real(rk), intent(in) :: x, y  !< location within cell
+      integer(ik), intent(in) :: i, j !< cell indices
+      character(len=*), intent(in) :: var !< variable to reconstruct ('rho', or 'p')
+    end function
+
     subroutine copy_recon(out_recon, in_recon)
       import :: abstract_reconstruction_t
       class(abstract_reconstruction_t), intent(in) :: in_recon
@@ -68,5 +87,17 @@ contains
 
     if(.not. associated(self%grid)) self%grid => grid
   end subroutine set_grid_pointer
+
+  subroutine set_cell_average_pointers(self, rho, p, lbounds)
+    !< Make the cell average quantities point to the real values (taken from the fluid class).
+    !< These values are used later on to reconstruct at a given P'(x,y) point needed by the
+    !< Mach cones and evolution operator E0
+    class(abstract_reconstruction_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), target :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), target :: p
+    self%rho => rho
+    self%p => p
+  end subroutine set_cell_average_pointers
 
 end module mod_abstract_reconstruction

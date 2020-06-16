@@ -91,7 +91,6 @@ contains
     !< are the midpoints defined by vectors pointing to the left and right.
 
     class(local_evo_operator_t), intent(inout) :: self
-
     integer(ik), dimension(2), intent(in) :: lbounds
     character(len=*), intent(in) :: location !< Mach cone location ['corner', 'left/right midpoint', or 'down/up midpoint']
     integer(ik), intent(out) :: error_code
@@ -210,7 +209,8 @@ contains
                                              reconstructed_v=reconstructed_v, &
                                              reconstructed_p=reconstructed_p, &
                                              cell_indices=self%corner_neighbors, &
-                                             cone_location=trim(location))
+                                             cone_location=trim(location), &
+                                             reconstruction_operator=self%reconstruction_operator)
       call self%e0_operator(cones=self%corner_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
 
@@ -282,7 +282,8 @@ contains
                                                          reconstructed_v=reconstructed_v, &
                                                          reconstructed_p=reconstructed_p, &
                                                          cell_indices=self%leftright_midpoint_neighbors, &
-                                                         cone_location=trim(location))
+                                                         cone_location=trim(location), &
+                                                         reconstruction_operator=self%reconstruction_operator)
       call self%e0_operator(cones=self%leftright_midpoint_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
 
@@ -343,7 +344,8 @@ contains
                                                       reconstructed_v=reconstructed_v, &
                                                       reconstructed_p=reconstructed_p, &
                                                       cell_indices=self%downup_midpoint_neighbors, &
-                                                      cone_location=trim(location))
+                                                      cone_location=trim(location), &
+                                                      reconstruction_operator=self%reconstruction_operator)
       call self%e0_operator(cones=self%downup_midpoint_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
 

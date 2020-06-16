@@ -30,8 +30,6 @@ add_library(
   lib/grid/grid_type.f90
   lib/grid/regular_2d_grid.f90
   lib/grid/grid_factory.f90
-  lib/mach_cone/mach_cone_utilities.f90
-  lib/mach_cone/mach_cone_collection.f90
   lib/geometry/geometry.f90
   lib/geometry/intersections.f90
   lib/geometry/vector_2d.f90
@@ -42,6 +40,8 @@ target_link_libraries(geometry PUBLIC globals io eos)
 
 add_library(
   cato
+  lib/mach_cone/mach_cone_utilities.f90
+  lib/mach_cone/mach_cone_collection.f90
   lib/mod_timing.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90

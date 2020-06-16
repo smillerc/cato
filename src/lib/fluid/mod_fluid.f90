@@ -447,7 +447,13 @@ contains
 
     bounds = lbound(local_d_dt%rho)
 
-    call local_d_dt%apply_boundary_conditions(fv)
+    call fv%reconstruction_operator%set_cell_average_pointers(rho=local_d_dt%rho, &
+                                                              p=local_d_dt%p, &
+                                                              lbounds=bounds)
+    call fv%apply_primitive_vars_bc(rho=local_d_dt%rho, &
+                                    u=local_d_dt%u, &
+                                    v=local_d_dt%v, &
+                                    p=local_d_dt%p, lbounds=bounds)
 
     ! Now we can reconstruct the entire domain
     call debug_print('Reconstructing density', __FILE__, __LINE__)
@@ -465,6 +471,10 @@ contains
     call debug_print('Reconstructing pressure', __FILE__, __LINE__)
     call fv%reconstruct(primitive_var=local_d_dt%p, lbounds=bounds, &
                         reconstructed_var=p_recon_state, name='p', stage=stage)
+
+    ! The gradients have to be applied to the boundaries as well, since reconstructing
+    ! at P'(x,y) requires the cell gradient
+    call fv%apply_gradient_bc()
 
     ! Apply the reconstructed state to the ghost layers
     call fv%apply_reconstructed_state_bc(recon_rho=rho_recon_state, recon_u=u_recon_state, &
@@ -511,6 +521,9 @@ contains
     nullify(fv%evolution_operator%reconstructed_u)
     nullify(fv%evolution_operator%reconstructed_v)
     nullify(fv%evolution_operator%reconstructed_p)
+
+    nullify(fv%reconstruction_operator%rho)
+    nullify(fv%reconstruction_operator%p)
 
     call self%flux_edges(grid=fv%grid, &
                          evolved_corner_rho=evolved_corner_rho, &

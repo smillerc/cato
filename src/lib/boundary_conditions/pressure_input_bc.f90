@@ -33,7 +33,7 @@ module mod_pressure_input_bc
     procedure, private :: get_desired_pressure
     procedure, public :: apply_primitive_var_bc => apply_pressure_input_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_pressure_input_reconstructed_state_bc
-    procedure, public :: copy => copy_pressure_input_bc
+    procedure, public :: apply_gradient_bc
   end type
 contains
 
@@ -128,26 +128,6 @@ contains
 
     deallocate(time_sec)
     deallocate(pressure_barye)
-  end subroutine
-
-  subroutine copy_pressure_input_bc(out_bc, in_bc)
-    class(boundary_condition_t), intent(in) :: in_bc
-    class(pressure_input_bc_t), intent(inout) :: out_bc
-
-    call debug_print('Running pressure_input_bc_t%copy_pressure_input_bc()', __FILE__, __LINE__)
-
-    out_bc%name = in_bc%name
-    out_bc%location = in_bc%location
-    select type(in_bc)
-    class is(pressure_input_bc_t)
-      out_bc%constant_pressure = in_bc%constant_pressure
-      out_bc%pressure_input = in_bc%pressure_input
-      out_bc%temporal_pressure_input = in_bc%temporal_pressure_input
-      out_bc%input_filename = in_bc%input_filename
-    class default
-      error stop 'pressure_input_bc_t%copy_pressure_input_bc: unsupported in_bc class'
-    end select
-
   end subroutine
 
   real(rk) function get_desired_pressure(self) result(desired_pressure)
@@ -350,4 +330,47 @@ contains
     if(allocated(self%edge_p)) deallocate(self%edge_p)
   end subroutine apply_pressure_input_reconstructed_state_bc
 
+  subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
+    class(pressure_input_bc_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
+    integer(ik) :: i
+
+    associate(left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
+              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+
+      select case(self%location)
+      case('+x')
+        call debug_print('Running pressure_input_bc_t%apply_gradient_bc() +x', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(right_ghost(i), :) = 0.0_rk
+          grad_y(right_ghost(i), :) = 0.0_rk
+        end do
+
+      case('-x')
+        call debug_print('Running pressure_input_bc_t%apply_gradient_bc() -x', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(left_ghost(i), :) = 0.0_rk
+          grad_y(left_ghost(i), :) = 0.0_rk
+        end do
+
+      case('+y')
+        call debug_print('Running pressure_input_bc_t%apply_gradient_bc() +y', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(:, top_ghost(i)) = 0.0_rk
+          grad_y(:, top_ghost(i)) = 0.0_rk
+        end do
+      case('-y')
+        call debug_print('Running pressure_input_bc_t%apply_gradient_bc() -y', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(:, bottom_ghost(i)) = 0.0_rk
+          grad_y(:, bottom_ghost(i)) = 0.0_rk
+        end do
+      case default
+        error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_gradient_bc()"
+      end select
+    end associate
+
+  end subroutine apply_gradient_bc
 end module mod_pressure_input_bc

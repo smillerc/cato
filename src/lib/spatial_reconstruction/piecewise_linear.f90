@@ -27,6 +27,7 @@ module mod_piecewise_linear_reconstruction
   contains
     procedure, public :: initialize
     procedure, public :: reconstruct
+    procedure, public :: reconstruct_at_point
     final :: finalize
   end type
 
@@ -77,8 +78,73 @@ contains
     type(piecewise_linear_reconstruction_t), intent(inout) :: self
     call debug_print('Running piecewise_linear_reconstruction_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%edge_interpolator)) deallocate(self%edge_interpolator)
+
     if(associated(self%grid)) nullify(self%grid)
+    if(associated(self%rho)) nullify(self%rho)
+    if(associated(self%p)) nullify(self%p)
+
+    if(allocated(self%grad_x_rho)) deallocate(self%grad_x_rho)
+    if(allocated(self%grad_x_p)) deallocate(self%grad_x_p)
+    if(allocated(self%grad_y_rho)) deallocate(self%grad_y_rho)
+    if(allocated(self%grad_y_p)) deallocate(self%grad_y_p)
+
   end subroutine finalize
+
+  real(rk) function reconstruct_at_point(self, i, j, x, y, var) result(q)
+    class(piecewise_linear_reconstruction_t), intent(in) :: self
+    real(rk), intent(in) :: x, y  !< location within cell
+    integer(ik), intent(in) :: i, j !< cell indices
+    character(len=*), intent(in) :: var !< variable to reconstruct ('rho', or 'p')
+
+    real(rk) :: x_ij !< cell centroid x location
+    real(rk) :: y_ij !< cell centroid y location
+
+    real(rk) :: q_x, q_y
+    real(rk) :: q_bar !< cell average quantity
+    real(rk) :: grad_x, grad_y
+
+    x_ij = self%grid%cell_centroid_x(i, j)
+    y_ij = self%grid%cell_centroid_y(i, j)
+
+    select case(trim(var))
+    case('rho')
+      if(.not. associated(self%rho)) then
+        error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%rho isn't associated!"
+      end if
+
+      if(.not. allocated(self%grad_x_rho) .or. .not. allocated(self%grad_y_rho)) then
+        error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), grad_rho isn't allocated!"
+      end if
+      q_bar = self%rho(i, j)
+      grad_x = self%grad_x_rho(i, j)
+      grad_y = self%grad_y_rho(i, j)
+
+    case('p')
+      if(.not. associated(self%p)) then
+        error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%p isn't associated!"
+      end if
+
+      if(.not. allocated(self%grad_x_p) .or. .not. allocated(self%grad_y_p)) then
+        error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), grad_p isn't allocated!"
+      end if
+      q_bar = self%p(i, j)
+      grad_x = self%grad_x_p(i, j)
+      grad_y = self%grad_y_p(i, j)
+
+      ! write(*, '(3(a,es16.6))') 'ave p: ', q_bar, ' d/dx: ', grad_x, ' d/dy: ', grad_y
+    case default
+      error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), var must be 'p' or 'rho'"
+    end select
+
+    q_x = grad_x * (x - x_ij)
+    q_y = grad_y * (y - y_ij)
+
+    if(abs(q_x) < 1e-9_rk) q_x = 0.0_rk
+    if(abs(q_y) < 1e-9_rk) q_y = 0.0_rk
+
+    q = q_bar + (q_x + q_y)
+    if(abs(q - q_bar) < 1e-12_rk) q = q_bar
+  end function
 
   subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
     !< Reconstruct each corner/midpoint. This converts the cell centered conserved
@@ -127,8 +193,27 @@ contains
 
     ! Now find the cell gradient
     edge_lbounds = lbound(edge_values)
+    allocate(grad_x(ilo_bc:ihi_bc, jlo_bc:jhi_bc))
+    allocate(grad_y(ilo_bc:ihi_bc, jlo_bc:jhi_bc))
+    grad_x = 0.0_rk
+    grad_y = 0.0_rk
     call green_gauss_gradient(edge_vars=edge_values, lbounds=edge_lbounds, grid=self%grid, &
                               grad_x=grad_x, grad_y=grad_y, name=name, stage_name=stage_name)
+
+    ! print*, name, ' grad_x', grad_x
+    ! print*, name, ' grad_y', grad_y
+    select case(trim(name))
+    case('rho')
+      if(.not. allocated(self%grad_x_rho)) allocate(self%grad_x_rho, mold=grad_x)
+      if(.not. allocated(self%grad_y_rho)) allocate(self%grad_y_rho, mold=grad_y)
+      self%grad_x_rho(:, :) = grad_x
+      self%grad_y_rho(:, :) = grad_y
+    case('p')
+      if(.not. allocated(self%grad_x_p)) allocate(self%grad_x_p, mold=grad_x)
+      if(.not. allocated(self%grad_y_p)) allocate(self%grad_y_p, mold=grad_y)
+      self%grad_x_p(:, :) = grad_x
+      self%grad_y_p(:, :) = grad_y
+    end select
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -164,5 +249,9 @@ contains
     end do
     !$omp end do
     !$omp end parallel
+
+    deallocate(grad_x)
+    deallocate(grad_y)
+    deallocate(edge_values)
   end subroutine reconstruct
 end module mod_piecewise_linear_reconstruction

@@ -13,7 +13,7 @@ module mod_zero_gradient_bc
   contains
     procedure, public :: apply_primitive_var_bc => apply_zero_gradient_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_zero_gradient_reconstructed_state_bc
-    procedure, public :: copy => copy_zero_gradient_bc
+    procedure, public :: apply_gradient_bc
   end type
 contains
 
@@ -30,11 +30,6 @@ contains
     bc%location = location
     call bc%set_indices(ghost_layers)
   end function zero_gradient_bc_constructor
-
-  subroutine copy_zero_gradient_bc(out_bc, in_bc)
-    class(boundary_condition_t), intent(in) :: in_bc
-    class(zero_gradient_bc_t), intent(inout) :: out_bc
-  end subroutine
 
   subroutine apply_zero_gradient_primitive_var_bc(self, rho, u, v, p, lbounds)
 
@@ -152,5 +147,49 @@ contains
     end associate
 
   end subroutine apply_zero_gradient_reconstructed_state_bc
+
+  subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
+    class(zero_gradient_bc_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
+    integer(ik) :: i
+
+    associate(left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
+              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+
+      select case(self%location)
+      case('+x')
+        call debug_print('Running zero_gradient_bc_t%apply_gradient_bc() +x', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(right_ghost(i), :) = 0.0_rk
+          grad_y(right_ghost(i), :) = 0.0_rk
+        end do
+
+      case('-x')
+        call debug_print('Running zero_gradient_bc_t%apply_gradient_bc() -x', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(left_ghost(i), :) = 0.0_rk
+          grad_y(left_ghost(i), :) = 0.0_rk
+        end do
+
+      case('+y')
+        call debug_print('Running zero_gradient_bc_t%apply_gradient_bc() +y', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(:, top_ghost(i)) = 0.0_rk
+          grad_y(:, top_ghost(i)) = 0.0_rk
+        end do
+      case('-y')
+        call debug_print('Running zero_gradient_bc_t%apply_gradient_bc() -y', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(:, bottom_ghost(i)) = 0.0_rk
+          grad_y(:, bottom_ghost(i)) = 0.0_rk
+        end do
+      case default
+        error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_gradient_bc()"
+      end select
+    end associate
+
+  end subroutine apply_gradient_bc
 
 end module mod_zero_gradient_bc

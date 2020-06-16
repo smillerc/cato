@@ -13,7 +13,7 @@ module mod_symmetry_bc
   contains
     procedure, public :: apply_primitive_var_bc => apply_symmetry_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_symmetry_reconstructed_state_bc
-    procedure, public :: copy => copy_symmetry_bc
+    procedure, public :: apply_gradient_bc
   end type
 contains
   function symmetry_bc_constructor(location, input, ghost_layers) result(bc)
@@ -30,11 +30,6 @@ contains
     call bc%set_indices(ghost_layers)
   end function symmetry_bc_constructor
 
-  subroutine copy_symmetry_bc(out_bc, in_bc)
-    class(boundary_condition_t), intent(in) :: in_bc
-    class(symmetry_bc_t), intent(inout) :: out_bc
-  end subroutine
-
   subroutine apply_symmetry_primitive_var_bc(self, rho, u, v, p, lbounds)
 
     class(symmetry_bc_t), intent(inout) :: self
@@ -44,52 +39,56 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
 
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
+    integer(ik) :: i
 
-    left_ghost = lbound(rho, dim=1)
-    right_ghost = ubound(rho, dim=1)
-    bottom_ghost = lbound(rho, dim=2)
-    top_ghost = ubound(rho, dim=2)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
+    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
+              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
+              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
 
-    select case(self%location)
-    case('+x')
-      call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
-      rho(right_ghost, :) = rho(right, :)
-      u(right_ghost, :) = -u(right, :)
-      v(right_ghost, :) = v(right, :)
-      p(right_ghost, :) = p(right, :)
-    case('-x')
-      call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
-      rho(left_ghost, :) = rho(left, :)
-      u(left_ghost, :) = -u(left, :)
-      v(left_ghost, :) = v(left, :)
-      p(left_ghost, :) = p(left, :)
-    case('+y')
-      call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
-      rho(:, top_ghost) = rho(:, top)
-      u(:, top_ghost) = u(:, top)
-      v(:, top_ghost) = -v(:, top)
-      p(:, top_ghost) = p(:, top)
-    case('-y')
-      call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
-      rho(:, bottom_ghost) = rho(:, bottom)
-      u(:, bottom_ghost) = u(:, bottom)
-      v(:, bottom_ghost) = -v(:, bottom)
-      p(:, bottom_ghost) = p(:, bottom)
-    case default
-      error stop "Unsupported location to apply the bc at in symmetry_bc_t%apply_symmetry_cell_gradient_bc()"
-    end select
+      select case(self%location)
+      case('+x')
+        call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
+
+        do i = 1, self%n_ghost_layers
+          rho(right_ghost(i), :) = rho(right + (i - 1), :)
+          u(right_ghost(i), :) = -u(right + (i - 1), :)
+          v(right_ghost(i), :) = v(right + (i - 1), :)
+          p(right_ghost(i), :) = p(right + (i - 1), :)
+        end do
+
+      case('-x')
+        call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
+
+        do i = 1, self%n_ghost_layers
+          rho(left_ghost(i), :) = rho(left + (i - 1), :)
+          u(left_ghost(i), :) = -u(left + (i - 1), :)
+          v(left_ghost(i), :) = v(left + (i - 1), :)
+          p(left_ghost(i), :) = p(left + (i - 1), :)
+        end do
+
+      case('+y')
+        call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
+
+        do i = 1, self%n_ghost_layers
+          rho(:, top_ghost(i)) = rho(:, top + (i - 1))
+          u(:, top_ghost(i)) = u(:, top + (i - 1))
+          v(:, top_ghost(i)) = -v(:, top + (i - 1))
+          p(:, top_ghost(i)) = p(:, top + (i - 1))
+        end do
+
+      case('-y')
+        call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          rho(:, bottom_ghost(i)) = rho(:, bottom + (i - 1))
+          u(:, bottom_ghost(i)) = u(:, bottom + (i - 1))
+          v(:, bottom_ghost(i)) = -v(:, bottom + (i - 1))
+          p(:, bottom_ghost(i)) = p(:, bottom + (i - 1))
+        end do
+
+      case default
+        error stop "Unsupported location to apply the bc at in symmetry_bc_t%apply_symmetry_primitive_var_bc()"
+      end select
+    end associate
 
   end subroutine apply_symmetry_primitive_var_bc
 
@@ -104,53 +103,97 @@ contains
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
 
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
+    integer(ik) :: i
 
-    left_ghost = lbound(recon_rho, dim=2)
-    right_ghost = ubound(recon_rho, dim=2)
-    bottom_ghost = lbound(recon_rho, dim=3)
-    top_ghost = ubound(recon_rho, dim=3)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
+    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
+              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
+              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
 
-    select case(self%location)
-    case('+x')
-      call debug_print('Running symmetry_bc_t%apply_symmetry_reconstructed_state_bc() +x', __FILE__, __LINE__)
-      recon_rho(:, right_ghost, :) = recon_rho(:, right, :)
-      recon_u(:, right_ghost, :) = -recon_u(:, right, :)
-      recon_v(:, right_ghost, :) = recon_v(:, right, :)
-      recon_p(:, right_ghost, :) = recon_p(:, right, :)
-    case('-x')
-      call debug_print('Running symmetry_bc_t%apply_symmetry_reconstructed_state_bc() -x', __FILE__, __LINE__)
-      recon_rho(:, left_ghost, :) = recon_rho(:, left, :)
-      recon_u(:, left_ghost, :) = -recon_u(:, left, :)
-      recon_v(:, left_ghost, :) = recon_v(:, left, :)
-      recon_p(:, left_ghost, :) = recon_p(:, left, :)
-    case('+y')
-      call debug_print('Running symmetry_bc_t%apply_symmetry_reconstructed_state_bc() +y', __FILE__, __LINE__)
-      recon_rho(:, :, top_ghost) = recon_rho(:, :, top)
-      recon_u(:, :, top_ghost) = recon_u(:, :, top)
-      recon_v(:, :, top_ghost) = -recon_v(:, :, top)
-      recon_p(:, :, top_ghost) = recon_p(:, :, top)
-    case('-y')
-      call debug_print('Running symmetry_bc_t%apply_symmetry_reconstructed_state_bc() -y', __FILE__, __LINE__)
-      recon_rho(:, :, bottom_ghost) = recon_rho(:, :, bottom)
-      recon_u(:, :, bottom_ghost) = recon_u(:, :, bottom)
-      recon_v(:, :, bottom_ghost) = -recon_v(:, :, bottom)
-      recon_p(:, :, bottom_ghost) = recon_p(:, :, bottom)
-    case default
-      error stop "Unsupported location to apply the bc at in symmetry_bc_t%apply_symmetry_reconstructed_state_bc()"
-    end select
+      select case(self%location)
+      case('+x')
+        call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() +x', __FILE__, __LINE__)
+
+        do i = 1, self%n_ghost_layers
+          recon_rho(:, right_ghost(i), :) = recon_rho(:, right + (i - 1), :)
+          recon_u(:, right_ghost(i), :) = -recon_u(:, right + (i - 1), :)
+          recon_v(:, right_ghost(i), :) = recon_v(:, right + (i - 1), :)
+          recon_p(:, right_ghost(i), :) = recon_p(:, right + (i - 1), :)
+        end do
+
+      case('-x')
+        call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() -x', __FILE__, __LINE__)
+
+        do i = 1, self%n_ghost_layers
+          recon_rho(:, left_ghost(i), :) = recon_rho(:, left + (i - 1), :)
+          recon_u(:, left_ghost(i), :) = -recon_u(:, left + (i - 1), :)
+          recon_v(:, left_ghost(i), :) = recon_v(:, left + (i - 1), :)
+          recon_p(:, left_ghost(i), :) = recon_p(:, left + (i - 1), :)
+        end do
+      case('+y')
+        call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() +y', __FILE__, __LINE__)
+
+        do i = 1, self%n_ghost_layers
+          recon_rho(:, :, top_ghost(i)) = recon_rho(:, :, top + (i - 1))
+          recon_u(:, :, top_ghost(i)) = recon_u(:, :, top + (i - 1))
+          recon_v(:, :, top_ghost(i)) = -recon_v(:, :, top + (i - 1))
+          recon_p(:, :, top_ghost(i)) = recon_p(:, :, top + (i - 1))
+        end do
+      case('-y')
+        call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() -y', __FILE__, __LINE__)
+
+        do i = 1, self%n_ghost_layers
+          recon_rho(:, :, bottom_ghost(i)) = recon_rho(:, :, bottom + (i - 1))
+          recon_u(:, :, bottom_ghost(i)) = recon_u(:, :, bottom + (i - 1))
+          recon_v(:, :, bottom_ghost(i)) = -recon_v(:, :, bottom + (i - 1))
+          recon_p(:, :, bottom_ghost(i)) = recon_p(:, :, bottom + (i - 1))
+        end do
+      case default
+        error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_reconstructed_state_bc()"
+      end select
+    end associate
 
   end subroutine apply_symmetry_reconstructed_state_bc
+
+  subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
+    class(symmetry_bc_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
+    integer(ik) :: i
+
+    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
+              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
+              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+
+      select case(self%location)
+      case('+x')
+        call debug_print('Running periodic_bc_t%apply_gradient_bc() +x', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(right_ghost(i), :) = -grad_x(left + (i - 1), :)
+          grad_y(right_ghost(i), :) = grad_y(left + (i - 1), :)
+        end do
+      case('-x')
+        call debug_print('Running periodic_bc_t%apply_gradient_bc() -x', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(left_ghost(i), :) = -grad_x(right + (i - 1), :)
+          grad_y(left_ghost(i), :) = grad_y(right + (i - 1), :)
+        end do
+      case('+y')
+        call debug_print('Running periodic_bc_t%apply_gradient_bc() +y', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(:, top_ghost(i)) = grad_x(:, bottom + (i - 1))
+          grad_y(:, top_ghost(i)) = -grad_y(:, bottom + (i - 1))
+        end do
+      case('-y')
+        call debug_print('Running periodic_bc_t%apply_gradient_bc() -y', __FILE__, __LINE__)
+        do i = 1, self%n_ghost_layers
+          grad_x(:, bottom_ghost(i)) = grad_x(:, top + (i - 1))
+          grad_y(:, bottom_ghost(i)) = -grad_y(:, top + (i - 1))
+        end do
+      case default
+        error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_gradient_bc()"
+      end select
+    end associate
+  end subroutine apply_gradient_bc
 
 end module mod_symmetry_bc

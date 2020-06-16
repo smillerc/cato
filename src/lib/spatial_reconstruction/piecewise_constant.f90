@@ -15,6 +15,7 @@ module mod_piecewise_constant_reconstruction
   contains
     procedure, public :: initialize => init_first_order
     procedure, public :: reconstruct
+    procedure, public :: reconstruct_at_point
     final :: finalize
   end type
 
@@ -46,14 +47,38 @@ contains
     call debug_print('Running piecewise_constant_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
-    ! if(associated(self%rho)) nullify(self%rho)
-    ! if(associated(self%u)) nullify(self%u)
-    ! if(associated(self%v)) nullify(self%v)
-    ! if(associated(self%p)) nullify(self%p)
+    if(associated(self%rho)) nullify(self%rho)
+    if(associated(self%p)) nullify(self%p)
 
-    ! if(allocated(self%cell_gradient)) deallocate(self%cell_gradient)
+    if(allocated(self%grad_x_rho)) deallocate(self%grad_x_rho)
+    if(allocated(self%grad_x_p)) deallocate(self%grad_x_p)
+    if(allocated(self%grad_y_rho)) deallocate(self%grad_y_rho)
+    if(allocated(self%grad_y_p)) deallocate(self%grad_y_p)
 
   end subroutine finalize
+
+  pure real(rk) function reconstruct_at_point(self, i, j, x, y, var) result(q)
+    class(piecewise_constant_reconstruction_t), intent(in) :: self
+    real(rk), intent(in) :: x, y  !< location within cell
+    integer(ik), intent(in) :: i, j !< cell indices
+    character(len=*), intent(in) :: var !< variable to reconstruct ('rho', or 'p')
+
+    select case(trim(var))
+    case('rho')
+      if(.not. associated(self%rho)) then
+        error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%rho isn't associated!"
+      end if
+      q = self%rho(i, j)
+
+    case('p')
+      if(.not. associated(self%p)) then
+        error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%p isn't associated!"
+      end if
+      q = self%p(i, j)
+    case default
+      error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), var must be 'p' or 'rho'"
+    end select
+  end function
 
   subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
