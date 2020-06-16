@@ -1,5 +1,6 @@
 add_subdirectory(test_misc)
 add_subdirectory(test_geometry)
+add_subdirectory(test_mach_cones)
 add_subdirectory(test_bc)
 add_subdirectory(test_limiters)
 add_subdirectory(test_fv_schemes)

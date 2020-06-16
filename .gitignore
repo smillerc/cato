@@ -45,6 +45,7 @@ papers/~$method_explanation.pptx
 # test details
 tests/**/cato.x
 tests/**/*.txt
+tests/**/*.png
 tests/**/*.error
 tests/**/*.ipynb
 tests/**/*/timing.csv

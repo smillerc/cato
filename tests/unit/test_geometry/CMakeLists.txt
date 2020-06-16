@@ -1,11 +1,7 @@
 add_pfunit_ctest(vector_tests TEST_SOURCES test_vector.pf LINK_LIBRARIES geometry)
 
-# add_pfunit_ctest(mach_cone_tests TEST_SOURCES test_mach_cone_geometry.pf LINK_LIBRARIES geometry)
-
-add_pfunit_ctest(mach_cone_collection_tests TEST_SOURCES test_mach_cone_collection.pf
-                 LINK_LIBRARIES geometry)
-
 add_pfunit_ctest(quad_element_tests TEST_SOURCES test_quad_cell.pf LINK_LIBRARIES geometry)
+
 add_pfunit_ctest(intersection_tests TEST_SOURCES test_intersections.pf LINK_LIBRARIES geometry)
 
 # The simple.h5 grid is also needed by the fvleg tests, but this will place it in the same directory
