@@ -75,6 +75,7 @@ module mod_input
     real(rk) :: max_time = 1.0_rk
     real(rk) :: cfl = 0.1_rk ! Courant–Friedrichs–Lewy condition
     real(rk) :: initial_delta_t = 0.0_rk
+    logical :: use_constant_delta_t = .false.
     real(rk) :: contour_interval_dt = 0.5_rk
     integer(ik) :: max_iterations = huge(1)
     character(:), allocatable :: time_integration_strategy !< How is time integration handled? e.g. 'rk2', 'rk4', etc.
@@ -160,6 +161,7 @@ contains
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "initial_delta_t", self%initial_delta_t, 0.0_rk)
+    call cfg%get("time", "use_constant_delta_t", self%use_constant_delta_t, .false.)
     call cfg%get("time", "cfl", self%cfl, 0.1_rk)
     call cfg%get("time", "integration_strategy", char_buffer)
     call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
@@ -341,9 +343,10 @@ contains
     write(*, '(a)') "[time]"
     write(*, '(a, es10.3)') "max_time = ", self%max_time
     write(*, '(a, f5.3)') "cfl = ", self%cfl
+    write(*, '(a, l1)') "use_constant_delta_t = ", self%use_constant_delta_t
     write(*, '(a, es10.3)') "initial_delta_t = ", self%initial_delta_t
     write(*, '(a, i0)') "max_iterations = ", self%max_iterations
-    write(*, '(3(a))') "time_integration_strategy = '", trim(self%unit_system), "'"
+    write(*, '(3(a))') "time_integration_strategy = '", trim(self%time_integration_strategy), "'"
 
     write(*, *)
     write(*, '(a)') "[grid]"
@@ -373,7 +376,7 @@ contains
     write(*, *)
     write(*, '(a)') "[restart]"
     write(*, '(a, l1)') "restart_from_file = ", self%restart_from_file
-    write(*, '(a, a)') "restart_file = ", self%restart_file
+    write(*, '(3(a))') "restart_file = '", trim(self%restart_file), "'"
 
     write(*, *)
     write(*, '(a)') "[source_terms]"

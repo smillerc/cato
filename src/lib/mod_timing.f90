@@ -1,7 +1,7 @@
 module mod_timing
   !< Define the type used for timing
 
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64, std_out => output_unit
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
   use mod_nondimensionalization, only: t_0
   use mod_fluid, only: fluid_t
@@ -83,12 +83,24 @@ contains
 
   subroutine output_stats(self)
     class(timer_t), intent(in) :: self
-    write(*, '(a, es10.3)') "Total elapsed wall time [s]:", self%elapsed_walltime
-    write(*, '(a, es10.3)') "Total elapsed wall time [m]:", self%elapsed_walltime / 60.0_rk
-    write(*, '(a, es10.3)') "Total elapsed wall time [hr]:", self%elapsed_walltime / 3600.0_rk
-    write(*, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
-    write(*, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
-    write(*, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
+
+    integer(ik) :: io
+    integer(ik) :: i, unit
+    integer(ik), dimension(2) :: units
+
+    open(newunit=io, file='timing_summary.yaml', status='new')
+    units = [io, std_out]
+
+    do i = 1, size(units)
+      unit = units(i)
+      write(unit, '(a, es10.3)') "Total elapsed wall time [s]:", self%elapsed_walltime
+      write(unit, '(a, es10.3)') "Total elapsed wall time [m]:", self%elapsed_walltime / 60.0_rk
+      write(unit, '(a, es10.3)') "Total elapsed wall time [hr]:", self%elapsed_walltime / 3600.0_rk
+      write(unit, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
+      write(unit, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
+      write(unit, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
+    end do
+    close(io)
   end subroutine
 
   real(rk) function get_timestep(cfl, fv, fluid) result(delta_t)

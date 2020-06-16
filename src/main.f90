@@ -95,12 +95,16 @@ program cato
   print *
 
   call timer%start()
-  if(input%initial_delta_t > 0.0_rk) then
-    delta_t = input%initial_delta_t
-    write(std_out, '(a, es10.3)') "Starting timestep (given via input, not calculated):", delta_t
+  if(input%use_constant_delta_t) then
+    delta_t = input%initial_delta_t / t_0
   else
-    delta_t = 0.1_rk * get_timestep(cfl=input%cfl, fv=fv, fluid=U)
-  endif
+    if(input%initial_delta_t > 0.0_rk) then
+      delta_t = input%initial_delta_t / t_0
+      write(std_out, '(a, es10.3)') "Starting timestep (given via input, not calculated):", delta_t
+    else
+      delta_t = 0.1_rk * get_timestep(cfl=input%cfl, fv=fv, fluid=U)
+    endif
+  end if
 
   call fv%set_time(time, delta_t, iteration)
 
@@ -140,7 +144,7 @@ program cato
       last_io_iteration = iteration
     end if
 
-    delta_t = get_timestep(cfl=input%cfl, fv=fv, fluid=U)
+    if(.not. input%use_constant_delta_t) delta_t = get_timestep(cfl=input%cfl, fv=fv, fluid=U)
   end do
 
   call timer%stop()
