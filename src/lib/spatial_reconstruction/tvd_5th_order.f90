@@ -117,10 +117,14 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         ! 5th order interpolation function
-        beta_L_i(i, j) = ((-2.0_rk/r_L_i(i-1, j)) + 11.0_rk + 24.0_rk * r_L_i(i, j) - (3.0_rk * r_L_i(i,j) * r_L_i(i+1,j))) / 30.0_rk
-        beta_R_i(i, j) = ((-2.0_rk/r_R_i(i-1, j)) + 11.0_rk + 24.0_rk * r_R_i(i, j) - (3.0_rk * r_R_i(i,j) * r_R_i(i+1,j))) / 30.0_rk
-        beta_L_j(i, j) = ((-2.0_rk/r_L_j(i, j-1)) + 11.0_rk + 24.0_rk * r_L_j(i, j) - (3.0_rk * r_L_j(i,j) * r_L_j(i,j+1))) / 30.0_rk
-        beta_R_j(i, j) = ((-2.0_rk/r_R_j(i, j-1)) + 11.0_rk + 24.0_rk * r_R_j(i, j) - (3.0_rk * r_R_j(i,j) * r_R_j(i,j+1))) / 30.0_rk
+        beta_L_i(i, j) = ((-2.0_rk / r_L_i(i - 1, j)) + 11.0_rk + &
+                          24.0_rk * r_L_i(i, j) - (3.0_rk * r_L_i(i, j) * r_L_i(i + 1, j))) / 30.0_rk
+        beta_R_i(i, j) = ((-2.0_rk / r_R_i(i - 1, j)) + 11.0_rk + &
+                          24.0_rk * r_R_i(i, j) - (3.0_rk * r_R_i(i, j) * r_R_i(i + 1, j))) / 30.0_rk
+        beta_L_j(i, j) = ((-2.0_rk / r_L_j(i, j - 1)) + 11.0_rk + &
+                          24.0_rk * r_L_j(i, j) - (3.0_rk * r_L_j(i, j) * r_L_j(i, j + 1))) / 30.0_rk
+        beta_R_j(i, j) = ((-2.0_rk / r_R_j(i, j - 1)) + 11.0_rk + &
+                          24.0_rk * r_R_j(i, j) - (3.0_rk * r_R_j(i, j) * r_R_j(i, j + 1))) / 30.0_rk
       end do
     end do
     !$omp end do

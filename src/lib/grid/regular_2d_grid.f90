@@ -316,7 +316,8 @@ contains
     call h5%get('/n_ghost_layers', self%n_ghost_layers)
 
     if(self%n_ghost_layers /= input%n_ghost_layers) then
-      write(std_error, '(2(a, i0))') "regular_2d_grid_t%n_ghost_layers: ", self%n_ghost_layers, ", input%n_ghost_layers: ", input%n_ghost_layers
+      write(std_error, '(2(a, i0))') "regular_2d_grid_t%n_ghost_layers: ", &
+        self%n_ghost_layers, ", input%n_ghost_layers: ", input%n_ghost_layers
       error stop "The number of ghost layers in the .hdf5 file does not match the"// &
         " input requirement set by the edge interpolation scheme"
     end if

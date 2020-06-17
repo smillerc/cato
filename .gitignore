@@ -49,6 +49,7 @@ tests/**/*.png
 tests/**/*.error
 tests/**/*.ipynb
 tests/**/*/timing.csv
+tests/**/*/timing_summary.yaml
 tests/integrated/**/input_source_value.dat
 tests/integrated/**/boundary_pressure_input_value.dat
 
