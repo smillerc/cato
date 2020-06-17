@@ -44,6 +44,10 @@ module test_mach_cone_collection
   real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_v
   real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_p
 
+  integer(ik), allocatable, dimension(:, :, :, :) :: corner_neighbors
+  integer(ik), allocatable, dimension(:, :, :, :) :: leftright_midpoint_neighbors
+  integer(ik), allocatable, dimension(:, :, :, :) :: downup_midpoint_neighbors
+
 contains
 
   ! Corner/midpoint index convention         Cell Indexing convention
@@ -65,14 +69,16 @@ contains
 
   @before
   subroutine before()
+
     class(abstract_reconstruction_t), pointer :: r_omega => null()
+    integer(ik) :: i, j
 
     print *, 'Creating reconstruction_operator in test_mach_cone_collection before()'
     input = input_t(cell_reconstruction='piecewise_linear', &
                     edge_interpolation_scheme='TVD2', &
                     limiter='none', &
                     gradient_scheme='green_gauss', &
-                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    ni_nodes=ni_nodes-2, nj_nodes=nj_nodes-2, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
@@ -82,10 +88,50 @@ contains
     allocate(reconstruction_operator, source=r_omega)
     deallocate(r_omega)
 
+    associate(imin_node=>grid%ilo_node, imax_node=>grid%ihi_node, &
+              jmin_node=>grid%jlo_node, jmax_node=>grid%jhi_node, &
+              imin_cell=>grid%ilo_cell, imax_cell=>grid%ihi_cell, &
+              jmin_cell=>grid%jlo_cell, jmax_cell=>grid%jhi_cell)
+
+      allocate(corner_neighbors(2, 4, imin_node:imax_node, jmin_node:jmax_node))
+      allocate(leftright_midpoint_neighbors(2, 2, imin_cell:imax_cell, jmin_node:jmax_node))
+      allocate(downup_midpoint_neighbors(2, 2, imin_node:imax_node, jmin_cell:jmax_cell))
+
+      corner_neighbors = 0
+      downup_midpoint_neighbors = 0
+      leftright_midpoint_neighbors = 0
+
+      do j = jmin_node, jmax_node
+        do i = imin_node, imax_node
+          corner_neighbors(:, 1, i, j) = [i - 1, j - 1] ! lower left
+          corner_neighbors(:, 2, i, j) = [i, j - 1]     ! lower right
+          corner_neighbors(:, 3, i, j) = [i, j]         ! upper right
+          corner_neighbors(:, 4, i, j) = [i - 1, j]     ! upper left
+        end do
+      end do
+
+      do j = jmin_node, jmax_node
+        do i = imin_cell, imax_cell
+          leftright_midpoint_neighbors(:, 1, i, j) = [i, j]     ! above
+          leftright_midpoint_neighbors(:, 2, i, j) = [i, j - 1] ! below
+        end do
+      end do
+
+      do j = jmin_cell, jmax_cell
+        do i = imin_node, imax_node
+          downup_midpoint_neighbors(:, 1, i, j) = [i - 1, j] ! left
+          downup_midpoint_neighbors(:, 2, i, j) = [i, j]     ! right
+        end do
+      end do
+    end associate
+
   end subroutine
 
   @after
   subroutine after()
+    deallocate(corner_neighbors)
+    deallocate(leftright_midpoint_neighbors)
+    deallocate(downup_midpoint_neighbors)
     deallocate(reconstruction_operator)
     deallocate(grid)
   end subroutine
@@ -94,45 +140,44 @@ contains
   subroutine test_midpoint_lr_p_prime_below_no_int()
     !< Test the Mach cone, where the apex is a midpoint and P' is below it
 
-    !  |          |
-    !  |  cell 1  |
-    !  |  (i,j)   |
-    !  C1---M----C2
-    !  |  (.) P'  |
-    !  |  cell 2  |
-    !  | (i,j-1)  |
-
     type(mach_cone_collection_t) :: mach_cone
-    real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
-    real(rk), dimension(1, 1) :: vector_scaling
-    integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
-    real(rk), dimension(4, 2, 1, 1) :: midpoint_state
+    real(rk), allocatable, dimension(:,:,:) :: midpoint_reconstructed_rho
+    real(rk), allocatable, dimension(:,:,:) :: midpoint_reconstructed_u
+    real(rk), allocatable, dimension(:,:,:) :: midpoint_reconstructed_v
+    real(rk), allocatable, dimension(:,:,:) :: midpoint_reconstructed_p
 
     integer(ik) :: i, j
+    integer(ik) :: ilo, ihi, jlo, jhi
     real(rk), dimension(4) :: dtheta !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
 
     print *, "Calling test_midpoint_lr_p_prime_below_no_int"
-    i = 1
-    j = 1
-    ! <----M---->  (left and right vectors)
-    edge_vectors(:, 0, i, j) = [1.0_rk, 1.0_rk] ! origin
-    edge_vectors(:, 1, i, j) = [-1.0_rk, 1.0_rk] ! left
-    edge_vectors(:, 2, i, j) = [3.0_rk, 1.0_rk] ! right
-    vector_scaling = 1.0_rk
 
-    ! cell ordering is 1) top, 2) bottom
-    neighbor_cell_indices(:, 1, 1, 1) = [i, j] ! top
-    neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! bottom
+    !  |          |
+    !  |  cell 1  |
+    !  |  (2,2)   |
+    !  C1----M----C2
+    !  |  (.) P'  |
+    !  |  (2,1)   |
+    !  |  cell 2  |
 
-    rho = 0.0_rk
-    rho(:, 1) = 1.0_rk
+    ! For cell (i = 2, j = 2), the midpoint index is also (2,2)
+
+    !           Domain                     -->     Primitive Variable (rho)
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   1   |   1   ||   1   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   3   ||   2   |   2   ||   3   |
+    ! |-------||-------|---M---||-------|  -->  |-------||-------|---M---||-------|
+    ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   3   ||   3   |   3   ||   3   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   4   ||   4   |   4   ||   4   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+
+    rho(:, 3) = 1.0_rk
     rho(:, 2) = 2.0_rk
-    rho(:, 3) = 3.0_rk
+    rho(:, 1) = 3.0_rk
+    rho(:, 0) = 4.0_rk
 
-    print *, 'rho'
-    do j = nj_cells - 1, 0, -1
-      write(*, '(a, i3, 8(es16.6))') 'j -> ', j, rho(:, j)
-    end do
     u = 0.0_rk
     v = 4.0_rk
     p = 1.0_rk
@@ -142,55 +187,86 @@ contains
                                              reconstructed_var=recon_rho, &
                                              lbounds=lbound(rho), &
                                              name='rho', stage_name='test_1')
-    call reconstruction_operator%reconstruct(primitive_var=u, &
-                                             reconstructed_var=recon_u, &
-                                             lbounds=lbound(p), &
-                                             name='u', stage_name='test_1')
-    call reconstruction_operator%reconstruct(primitive_var=v, &
-                                             reconstructed_var=recon_v, &
-                                             lbounds=lbound(v), &
-                                             name='v', stage_name='test_1')
     call reconstruction_operator%reconstruct(primitive_var=p, &
                                              reconstructed_var=recon_p, &
                                              lbounds=lbound(p), &
                                              name='p', stage_name='test_1')
 
-    ! print*, reconstruction_operator%grad_x_p
-    ! print*
-    ! print*, reconstruction_operator%grad_y_p
-    ! print*
-    ! print*, reconstruction_operator%grad_x_rho
-    ! print*
-    ! print*, reconstruction_operator%grad_y_rho
 
-    print *, 'lbound(reconstruction_operator%grad_x_rho): ', lbound(reconstruction_operator%grad_x_rho)
-    print *, 'ubound(reconstruction_operator%grad_x_rho): ', ubound(reconstruction_operator%grad_x_rho)
-    print *, 'grad x rho'
-    do j = nj_cells - 1, 0, -1
-      write(*, '(a, i3, 8(es16.6))') 'j -> ', j, reconstruction_operator%grad_x_rho(:, j)
+
+    ! Top BC
+    recon_rho(M4,:,3) = 1.0_rk; recon_rho(M2,:,3) = 1.0_rk
+    recon_rho(C3,:,3) = 0.5_rk; recon_rho(C4,:,3) = 0.5_rk; recon_rho(M3,:,3) = 0.5_rk
+    recon_rho(C1,:,3) = 1.5_rk; recon_rho(C2,:,3) = 1.5_rk; recon_rho(M1,:,3) = 1.5_rk
+
+    ! Bottom BC
+    recon_rho(M4,:,0) = 4.0_rk; recon_rho(M2,:,0) = 4.0_rk
+    recon_rho(C3,:,0) = 3.5_rk; recon_rho(C4,:,0) = 3.5_rk; recon_rho(M3,:,0) = 3.5_rk
+    recon_rho(C1,:,0) = 4.5_rk; recon_rho(C2,:,0) = 4.5_rk; recon_rho(M1,:,0) = 4.5_rk
+
+    ! Left/Right BC -> just put numbers in, it doesn't matter for this test
+    recon_rho(:,0,1:2) = 3.0_rk
+    recon_rho(:,3,1:2) = 3.0_rk
+
+
+    reconstruction_operator%grad_x_rho = 0.0_rk
+    reconstruction_operator%grad_y_rho = -1.0_rk
+
+    ilo = 1
+    ihi = 2
+    jlo = 1
+    jhi = 3
+
+    allocate(midpoint_reconstructed_rho(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_u(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_v(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_p(2, ilo:ihi, jlo:jhi))
+
+    midpoint_reconstructed_u = 0.0_rk
+    midpoint_reconstructed_v = 4.0_rk
+    midpoint_reconstructed_p = 1.0_rk
+
+    do j = jlo, jhi
+      do i = ilo, ihi
+        ! Cell 1 -> use M1 from the cell above
+        midpoint_reconstructed_rho(1, i, j) = recon_rho(M1, i, j)
+
+        ! Cell 2 -> use M3 from the cell below
+        midpoint_reconstructed_rho(2, i, j) = recon_rho(M3, i, j - 1)
+      end do
     end do
-    print *, 'grad y rho'
-    do j = nj_cells - 1, 0, -1
-      write(*, '(a, i3, 8(es16.6))') 'j -> ', j, reconstruction_operator%grad_y_rho(:, j)
-    end do
 
-    ! rho, u, v, p
-    midpoint_state(:, 1, i, j) = [1.0_rk, 0.0_rk, 4.0_rk, 1.0_rk]
-    midpoint_state(:, 2, i, j) = [1.0_rk, 0.0_rk, 4.0_rk, 1.0_rk]
+    ! do j =  grid%ihi_bc_node, grid%ilo_bc_node, -1
+    !   ! do i = grid%ilo_bc_node, grid%ilo_bc_node
+    !   write(*, '(10(f8.3))') grid%node_x(:,j)
+    ! end do
+    ! print*
+    ! do j =  grid%ihi_bc_node, grid%ilo_bc_node, -1
+    !   ! do i = grid%ilo_bc_node, grid%ilo_bc_node
+    !   write(*, '(10(f8.3))') grid%node_y(:,j)
+    ! end do
 
+
+    i = 2; j = 2
     call mach_cone%initialize(tau=1.0e-2_rk, &
-                              edge_vectors=edge_vectors, &
-                              reconstructed_rho=recon_rho, &
-                              reconstructed_u=recon_u, &
-                              reconstructed_v=recon_v, &
-                              reconstructed_p=recon_p, &
-                              cell_indices=neighbor_cell_indices, &
+                              edge_vectors=grid%leftright_midpoint_edge_vectors, &
+                              reconstructed_rho=midpoint_reconstructed_rho, &
+                              reconstructed_u=  midpoint_reconstructed_u, &
+                              reconstructed_v=  midpoint_reconstructed_v, &
+                              reconstructed_p=  midpoint_reconstructed_p, &
+                              cell_indices=leftright_midpoint_neighbors, &
                               cone_location='left/right midpoint', &
+                              lbounds=[1,1,1], &
                               reconstruction_operator=reconstruction_operator)
-    ! call mach_cone(1,1)
+    call mach_cone%print(i,j)
+
     ! P' should be in the cell below the midpoint
-    @assertEqual([1.0_rk, 0.96_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([0.5_rk, 0.0_rk],[mach_cone%p0_x(i, j), mach_cone%p0_y(i, j)])
+    @assertEqual([0.5_rk, -0.04_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([2,1],mach_cone%p_prime_ij(:,i,j))
     @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
+    @assertEqual(2.54_rk, mach_cone%density_p_prime(i,j))
+    @assertEqual(1.0_rk, mach_cone%pressure_p_prime(i,j))
 
     !print*, mach_cone
     dtheta = 0.0_rk
@@ -203,7 +279,40 @@ contains
     @assertEqual(0.0_rk, mach_cone%sin_d2theta)
     @assertEqual(0.0_rk, mach_cone%cos_d2theta)
 
+    deallocate(midpoint_reconstructed_rho)
+    deallocate(midpoint_reconstructed_u  )
+    deallocate(midpoint_reconstructed_v  )
+    deallocate(midpoint_reconstructed_p  )
+
   end subroutine test_midpoint_lr_p_prime_below_no_int
+
+  !   ! Left BC
+  ! recon_rho(M1,0,:) = 1.0_rk; recon_rho(M3,0,:) = 1.0_rk
+  ! recon_rho(C1,0,:) = 0.5_rk; recon_rho(C4,0,:) = 0.5_rk; recon_rho(M4,0,:) = 0.5_rk
+  ! recon_rho(C2,0,:) = 1.5_rk; recon_rho(C3,0,:) = 1.5_rk; recon_rho(M2,0,:) = 1.5_rk
+
+  ! ! Right BC
+  ! recon_rho(M1,3,:) = 4.0_rk; recon_rho(M3,3,:) = 4.0_rk
+  ! recon_rho(C1,3,:) = 3.5_rk; recon_rho(C4,3,:) = 3.5_rk; recon_rho(M4,3,:) = 3.5_rk
+  ! recon_rho(C2,3,:) = 4.5_rk; recon_rho(C3,3,:) = 4.5_rk; recon_rho(M2,3,:) = 4.5_rk
+
+  ! ! Bottom BC
+  ! recon_rho(M1,1,0) = 2.0_rk; recon_rho(M3,1,0) = 2.0_rk
+  ! recon_rho(C1,1,0) = 1.5_rk; recon_rho(C4,1,0) = 1.5_rk; recon_rho(M4,1,0) = 1.5_rk
+  ! recon_rho(C2,1,0) = 2.5_rk; recon_rho(C3,1,0) = 2.5_rk; recon_rho(M2,1,0) = 2.5_rk
+
+  ! recon_rho(M1,2,0) = 3.0_rk; recon_rho(M3,2,0) = 3.0_rk
+  ! recon_rho(C1,2,0) = 2.5_rk; recon_rho(C4,2,0) = 2.5_rk; recon_rho(M4,2,0) = 2.5_rk
+  ! recon_rho(C2,2,0) = 3.5_rk; recon_rho(C3,2,0) = 3.5_rk; recon_rho(M2,2,0) = 3.5_rk
+
+  ! ! Top BC
+  ! recon_rho(M1,1,3) = 2.0_rk; recon_rho(M3,1,3) = 2.0_rk
+  ! recon_rho(C1,1,3) = 1.5_rk; recon_rho(C4,1,3) = 1.5_rk; recon_rho(M4,1,3) = 1.5_rk
+  ! recon_rho(C2,1,3) = 2.5_rk; recon_rho(C3,1,3) = 2.5_rk; recon_rho(M2,1,3) = 2.5_rk
+
+  ! recon_rho(M1,2,3) = 3.0_rk; recon_rho(M3,2,3) = 3.0_rk
+  ! recon_rho(C1,2,3) = 2.5_rk; recon_rho(C4,2,3) = 2.5_rk; recon_rho(M4,2,3) = 2.5_rk
+  ! recon_rho(C2,2,3) = 3.5_rk; recon_rho(C3,2,3) = 3.5_rk; recon_rho(M2,2,3) = 3.5_rk
 
   ! @test
   ! subroutine test_midpoint_lr_p_prime_below_with_int()

@@ -210,6 +210,7 @@ contains
                                              reconstructed_p=reconstructed_p, &
                                              cell_indices=self%corner_neighbors, &
                                              cone_location=trim(location), &
+                                             lbounds=lbound(reconstructed_rho), &
                                              reconstruction_operator=self%reconstruction_operator)
       call self%e0_operator(cones=self%corner_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
@@ -283,6 +284,7 @@ contains
                                                          reconstructed_p=reconstructed_p, &
                                                          cell_indices=self%leftright_midpoint_neighbors, &
                                                          cone_location=trim(location), &
+                                                         lbounds=lbound(reconstructed_rho), &
                                                          reconstruction_operator=self%reconstruction_operator)
       call self%e0_operator(cones=self%leftright_midpoint_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
@@ -345,6 +347,7 @@ contains
                                                       reconstructed_p=reconstructed_p, &
                                                       cell_indices=self%downup_midpoint_neighbors, &
                                                       cone_location=trim(location), &
+                                                      lbounds=lbound(reconstructed_rho), &
                                                       reconstruction_operator=self%reconstruction_operator)
       call self%e0_operator(cones=self%downup_midpoint_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
