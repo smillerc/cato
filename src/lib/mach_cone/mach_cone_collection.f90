@@ -141,6 +141,7 @@ module mod_mach_cone_collection
     procedure, private :: find_arc_angles
     procedure, private :: compute_trig_angles
     procedure, private :: get_p_prime_quantities
+    procedure, private :: get_transonic_cone_extents
     final :: finalize
   end type mach_cone_collection_t
 
@@ -173,6 +174,8 @@ contains
     integer(ik) :: idx, arc, c, i, j, ni, nj, nc, n_p_prime_cells
 
     real(rk) :: recon_u, recon_v, recon_p
+    real(rk), dimension(2) :: transonic_origin !< (x,y); origin for the transonic cone
+    real(rk) :: transonic_radius               !< radius for the transonic cone
 
     self%ni = size(reconstructed_rho, dim=2)
     self%nj = size(reconstructed_rho, dim=3)
@@ -324,6 +327,7 @@ contains
     call self%get_reference_state()
 
     !$omp parallel default(none) &
+    !$omp private(transonic_origin, transonic_radius), &
     !$omp shared(self) &
     !$omp private(i,j)
     if(.not. self%is_initialized) then
@@ -337,30 +341,18 @@ contains
       !$omp end do
     end if
 
-    ! if(cone%cone_is_transonic) then
-    !   call cone%get_transonic_cone_extents(origin=cone%p_prime_xy, &
-    !                                        radius=cone%radius)
-    !   cone%reference_sound_speed = cone%radius / cone%tau
-    ! else
-    !   call get_cone_extents(tau=cone%tau, xy=cone%p_xy, &
-    !                         vel=[cone%reference_u, cone%reference_v], &
-    !                         sound_speed=cone%reference_sound_speed, &
-    !                         origin=cone%p_prime_xy, &
-    !                         radius=cone%radius)
-    ! end if
-
     !$omp do
     do j = self%jlo, self%jhi
       do i = self%ilo, self%ihi
 
+        ! if(self%cone_is_transonic(i, j)) then
+        !   call self%get_transonic_cone_extents(i, j, transonic_origin, transonic_radius)
+        !   self%p_prime_x(i, j) = transonic_origin(1)
+        !   self%p_prime_y(i, j) = transonic_origin(2)
+        !   self%radius(i, j) = transonic_radius
+        ! else
         self%radius(i, j) = self%tau * self%reference_sound_speed(i, j)
-      end do
-    end do
-    !$omp end do
 
-    !$omp do
-    do j = self%jlo, self%jhi
-      do i = self%ilo, self%ihi
         if(abs(self%p0_x(i, j) - self%tau * self%reference_u(i, j)) < epsilon(1.0_rk)) then
           self%p_prime_x(i, j) = self%p0_x(i, j)
         else
@@ -373,6 +365,7 @@ contains
           self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
         end if
 
+        ! end if
       end do
     end do
     !$omp end do
@@ -382,14 +375,14 @@ contains
 
     ! Assign the reconstructed quantities to the primitive var values for each arc of the mach cone
     !$omp parallel default(none) &
-    !$omp reduction(+:density_p_prime, pressure_p_prime) private(n_p_prime_cells) &
+    !$omp private(n_p_prime_cells) &
     !$omp shared(self) &
     !$omp private(i,j,c, arc, idx,recon_u, recon_v, recon_p)
 
     !$omp do
     do j = self%jlo, self%jhi
       do i = self%ilo, self%ihi
-        do c = 1, nc
+        do c = 1, self%n_neighbor_cells
           recon_u = self%recon_u(c, i, j)
           recon_v = self%recon_v(c, i, j)
           recon_p = self%recon_p(c, i, j)
@@ -404,27 +397,6 @@ contains
     end do
     !$omp end do nowait
 
-    ! !$omp do
-    ! do j = self%jlo, self%jhi
-    !   do i = self%ilo, self%ihi
-    !     n_p_prime_cells = count(self%p_prime_in_cell(:, i, j))
-    !     if(n_p_prime_cells > 1) then
-    !       pressure_p_prime = sum(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
-    !       density_p_prime = sum(self%recon_rho(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
-    !       self%pressure_p_prime(i, j) = pressure_p_prime
-    !       self%density_p_prime(i, j) = density_p_prime
-    !     else
-    !       do c = 1, nc
-    !         if(self%p_prime_in_cell(c, i, j)) then
-    !           self%density_p_prime(i, j) = self%recon_rho(c, i, j)
-    !           self%pressure_p_prime(i, j) = self%recon_p(c, i, j)
-    !         end if
-    !       end do
-    !     end if
-
-    !   end do
-    ! end do
-    ! !$omp end do
     !$omp end parallel
     call self%get_p_prime_quantities(recon_operator=reconstruction_operator)
 
@@ -479,8 +451,8 @@ contains
     real(rk) :: ref_v        !< Reference v-velocity
     real(rk) :: ref_rho      !< Reference density
     real(rk) :: ref_p        !< Reference pressure
-    real(rk) :: vel          !< Total cell velocity
-    real(rk) :: cs           !< Cell sound speed
+    real(rk), dimension(self%n_neighbor_cells) :: vel          !< Total cell velocity
+    real(rk), dimension(self%n_neighbor_cells) :: cs           !< Cell sound speed
     integer(ik) :: n_supersonic_cells !< how many neighbor cells are supersonic? (used to determine if a cell is transonic)
 
     gamma = eos%get_gamma()
@@ -540,13 +512,16 @@ contains
 
         cell_is_supersonic = .false.
 
+        vel = 0.0_rk
+        cs = 0.0_rk
         do c = 1, self%n_neighbor_cells
-          vel = sqrt(self%recon_u(c, i, j)**2 + self%recon_v(c, i, j)**2)
-          cs = sqrt(gamma * self%recon_p(c, i, j) / self%recon_rho(c, i, j))
-          if(vel > cs .or. (vel - cs) < epsilon(1.0_rk)) cell_is_supersonic(c) = .true.
+          vel(c) = sqrt(self%recon_u(c, i, j)**2 + self%recon_v(c, i, j)**2)
+          cs(c) = sqrt(gamma * self%recon_p(c, i, j) / self%recon_rho(c, i, j))
+          if(vel(c) > cs(c) .or. abs(vel(c) - cs(c)) < epsilon(1.0_rk)) cell_is_supersonic(c) = .true.
         end do
 
         n_supersonic_cells = count(cell_is_supersonic)
+
         ! If some, but not all of the cells are supersonic, this is a "transonic" mach cone
         if(n_supersonic_cells > 0 .and. n_supersonic_cells < self%n_neighbor_cells) then
           self%cone_is_transonic(i, j) = .true.
@@ -554,6 +529,36 @@ contains
           self%cone_is_transonic(i, j) = .false.
         end if
 
+        ! If the cone is transonic, use the subsonic linearization, e.g. averages from the subsonic cells
+        ! if(self%cone_is_transonic(i, j)) then
+
+        !   ! self%reference_sound_speed(i, j) = sum(cs, mask=cell_is_supersonic) / &
+        !   !                                    real(n_supersonic_cells, rk)
+        !   ! self%reference_density(i, j) = sum(self%recon_rho(:, i, j), mask=cell_is_supersonic) / &
+        !   !                                real(n_supersonic_cells, rk)
+        !   ! self%reference_u(i, j) = sum(self%recon_u(:, i, j), mask=cell_is_supersonic) / &
+        !   !                                 real(n_supersonic_cells, rk)
+        !   ! self%reference_v(i, j) = sum(self%recon_v(:, i, j), mask=cell_is_supersonic) / &
+        !   !                                 real(n_supersonic_cells, rk)
+        !   ! self%reference_pressure(i, j) = sum(self%recon_p(:, i, j), mask=cell_is_supersonic) / &
+        !   !                                 real(n_supersonic_cells, rk)
+
+        !   self%reference_sound_speed(i, j) = sum(cs, mask=.not.cell_is_supersonic) / &
+        !                                      real(self%n_neighbor_cells - n_supersonic_cells, rk)
+        !   self%reference_density(i, j) = sum(self%recon_rho(:, i, j), mask=.not.cell_is_supersonic) / &
+        !                                  real(self%n_neighbor_cells - n_supersonic_cells, rk)
+        !   ! self%reference_u(i, j) = sum(self%recon_u(:, i, j), mask=.not.cell_is_supersonic) / &
+        !   !                                 real(self%n_neighbor_cells - n_supersonic_cells, rk)
+        !   ! self%reference_v(i, j) = sum(self%recon_v(:, i, j), mask=.not.cell_is_supersonic) / &
+        !   !                                 real(self%n_neighbor_cells - n_supersonic_cells, rk)
+
+        !   ! self%reference_pressure(i, j) = sum(self%recon_p(:, i, j), mask=.not.cell_is_supersonic) / &
+        !   !                                       real(self%n_neighbor_cells - n_supersonic_cells, rk)
+
+        !   ! self%reference_sound_speed(i, j) = minval(cs, mask=.not. cell_is_supersonic)
+        !   ! self%reference_density(i, j) = self%recon_rho(minloc(cs, dim=1), i, j)
+
+        ! end if
       end do
     end do
     !$omp end do
@@ -562,65 +567,78 @@ contains
 
   end subroutine get_reference_state
 
-  subroutine get_transonic_cone_extents(self, origin, radius)
+  subroutine get_transonic_cone_extents(self, i, j, origin, radius)
     !< If the set of neighbor cells are transonic (some supersonic, some subsonic),
     !< then the cone needs to be extended so that it encorporates both supersonic and subsonic cells.
     class(mach_cone_collection_t), intent(inout) :: self
 
+    integer(ik), intent(in) :: i !< i index of the transonic cone
+    integer(ik), intent(in) :: j !< j index of the transonic cone
     real(rk), dimension(2), intent(out) :: origin  !< origin of the new cone
     real(rk), intent(out) :: radius                !< radius of the new cone
 
-    ! real(rk), dimension(2) :: origin_1v3, origin_2v4
-    ! real(rk) :: radius_1v3, radius_2v4
-    ! real(rk), dimension(2, 2) :: origins_to_compare
-    ! real(rk), dimension(2) :: radii_to_compare
-    ! integer(ik) :: i
-    ! real(rk) :: sound_speed
-    ! logical :: is_inside
-    ! real(rk), dimension(2) :: vel
-    ! integer(ik) :: largest_cone_idx
-    ! !< index of the cone with the largets radius
-    ! real(rk), dimension(self%n_neighbor_cells) :: cone_radii
-    ! !< (cell); radius of each cone based on the neighbor cell state
-    ! real(rk), dimension(2, self%n_neighbor_cells) :: cone_origins
-    ! !< ((x,y), cell); origin of each cone based on the neighbor cell state
+    real(rk), dimension(2) :: origin_1v3 !< (x,y) origin of the circle that superscribes circles 1 and 3
+    real(rk), dimension(2) :: origin_2v4 !< (x,y) origin of the circle that superscribes circles 2 and 4
+    real(rk) :: radius_1v3               !< radius of the circle that superscribes circles 1 and 3
+    real(rk) :: radius_2v4               !< radius of the circle that superscribes circles 1 and 3
 
-    ! associate(u=>self%recon_state(2, :), &
-    !           v=>self%recon_state(3, :), &
-    !           cs=>self%sound_speed)
-    !   ! Get the cone size based on each neighbor cell's state
-    !   do i = 1, self%n_neighbor_cells
-    !     vel = [u(i), v(i)]
-    !     call get_cone_extents(tau=self%tau, &
-    !                           xy=self%p_xy, vel=vel, sound_speed=cs(i), &
-    !                           origin=cone_origins(:, i), radius=cone_radii(i))
-    !   end do
-    ! end associate
+    real(rk), dimension(2, 2) :: origins_to_compare !< ((x,y), cell); set of origins to compare between 2 circle
+    real(rk), dimension(2) :: radii_to_compare      !< (cell); set of radii to compare between 2 circle
 
-    ! Since the circle comparison is only 2 at a time, this
-    ! does the diagonal cells first (1v3 and 2v4) then then
-    ! compares the results from those for the final circle
+    real(rk), dimension(self%n_neighbor_cells) :: cone_radii      !< (cell); radius of each cone based on the neighbor cell state
+    real(rk), dimension(2, self%n_neighbor_cells) :: cone_origins !< ((x,y), cell); origin of each cone based on the neighbor cell state
 
-    ! ! Compare cells 1 and 3
-    ! origins_to_compare(:, 1) = cone_origins(:, 1)
-    ! origins_to_compare(:, 2) = cone_origins(:, 3)
-    ! radii_to_compare = [cone_radii(1), cone_radii(3)]
-    ! call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
-    !                   new_origin=origin_1v3, new_radius=radius_1v3)
+    integer(ik) :: c !< neighbor cell index
+    real(rk) :: cs  !< single cell sound speed
+    real(rk) :: vel !< single cell velocity
+    real(rk) :: gamma !< EOS gamma
 
-    ! ! Compare cells 2 and 4
-    ! origins_to_compare(:, 1) = cone_origins(:, 2)
-    ! origins_to_compare(:, 2) = cone_origins(:, 4)
-    ! radii_to_compare = [cone_radii(2), cone_radii(4)]
-    ! call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
-    !                   new_origin=origin_2v4, new_radius=radius_2v4)
+    gamma = eos%get_gamma()
 
-    ! ! Compare result from 1 vs 3 and 2 vs 4
-    ! origins_to_compare(:, 1) = origin_1v3
-    ! origins_to_compare(:, 2) = origin_2v4
-    ! radii_to_compare = [radius_1v3, radius_2v4]
-    ! call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
-    !                   new_origin=origin, new_radius=radius)
+    ! Get the cone size based on each neighbor cell's state
+    do c = 1, self%n_neighbor_cells
+      vel = sqrt(self%recon_u(c, i, j)**2 + self%recon_v(c, i, j)**2)
+      cs = sqrt(gamma * self%recon_p(c, i, j) / self%recon_rho(c, i, j))
+
+      cone_radii(c) = self%tau * cs
+      cone_origins(1, c) = self%p0_x(i, j) - self%tau * self%recon_u(c, i, j)
+      cone_origins(2, c) = self%p0_y(i, j) - self%tau * self%recon_v(c, i, j)
+    end do
+
+    select case(self%n_neighbor_cells)
+    case(2)
+      call super_circle(origins=cone_origins, radii=cone_radii, &
+                        new_origin=origin, new_radius=radius)
+    case(4)
+      ! Since the circle comparison is only 2 at a time, this
+      ! does the diagonal cells first (1v3 and 2v4) then then
+      ! compares the results from those for the final circle
+
+      ! Compare cells 1 and 3
+      origins_to_compare(:, 1) = cone_origins(:, 1)
+      origins_to_compare(:, 2) = cone_origins(:, 3)
+      radii_to_compare = [cone_radii(1), cone_radii(3)]
+      call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
+                        new_origin=origin_1v3, new_radius=radius_1v3)
+
+      ! Compare cells 2 and 4
+      origins_to_compare(:, 1) = cone_origins(:, 2)
+      origins_to_compare(:, 2) = cone_origins(:, 4)
+      radii_to_compare = [cone_radii(2), cone_radii(4)]
+      call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
+                        new_origin=origin_2v4, new_radius=radius_2v4)
+
+      ! Compare result from 1 vs 3 and 2 vs 4
+      origins_to_compare(:, 1) = origin_1v3
+      origins_to_compare(:, 2) = origin_2v4
+      radii_to_compare = [radius_1v3, radius_2v4]
+      call super_circle(origins=origins_to_compare, radii=radii_to_compare, &
+                        new_origin=origin, new_radius=radius)
+    case default
+      error stop "Error in mach_cone_collection_t%(get_transonic_cone_extents)"// &
+        ", unsupported value of self%n_neighbor_cells"
+    end select
+
   end subroutine get_transonic_cone_extents
 
   subroutine get_p_prime_quantities(self, recon_operator)
@@ -632,10 +650,17 @@ contains
     integer(ik) :: pp_i !< P' i
     integer(ik) :: pp_j !< P' j
     integer(ik) :: n_p_prime_cells !< how many neighbor cells claim that P' is contained in it?
+    ! real(rk) :: pressure_p_prime
+    ! real(rk) :: density_p_prime
     real(rk), dimension(self%n_neighbor_cells) :: pressure_p_prime !< temp variable for finding p(P') when multiple cells claim that P' is in it
     real(rk), dimension(self%n_neighbor_cells) :: density_p_prime  !< temp variable for finding rho(P') when multiple cells claim that P' is in it
 
-    ! Find rho(P')
+    !$omp parallel default(none) &
+    !$omp reduction(max:density_p_prime, pressure_p_prime) &
+    !$omp private(n_p_prime_cells) &
+    !$omp shared(self, recon_operator) &
+    !$omp private(i,j,c, pp_i, pp_j)
+    !$omp do
     do j = self%jlo, self%jhi
       do i = self%ilo, self%ihi
 
@@ -671,8 +696,8 @@ contains
           end do
 
           ! Set P' to take the state of cell with the highest pressure
-          self%pressure_p_prime(i, j) = maxval(pressure_p_prime)
-          self%density_p_prime(i, j) = density_p_prime(maxloc(pressure_p_prime, dim=1))
+          self%pressure_p_prime(i, j) = sum(pressure_p_prime) / real(n_p_prime_cells, rk)
+          self%density_p_prime(i, j) = sum(density_p_prime) / real(n_p_prime_cells, rk)
 
           ! write(*,'(a, 4(es16.6))') "  p(P'): ", pressure_p_prime
           ! write(*,'(a, 4(es16.6))') "rho(P'): ", density_p_prime
@@ -692,7 +717,36 @@ contains
         end if
       end do
     end do
+    !$omp end do
+    !$omp end parallel
 
+    ! !$omp parallel default(none) &
+    ! !$omp reduction(+:density_p_prime, pressure_p_prime) &
+    ! !$omp private(n_p_prime_cells) &
+    ! !$omp shared(self) &
+    ! !$omp private(i,j,c)
+    ! !$omp do
+    ! do j = self%jlo, self%jhi
+    !   do i = self%ilo, self%ihi
+    !     n_p_prime_cells = count(self%p_prime_in_cell(:, i, j))
+    !     if(n_p_prime_cells > 1) then
+    !       pressure_p_prime = sum(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
+    !       density_p_prime = sum(self%recon_rho(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
+    !       self%pressure_p_prime(i, j) = pressure_p_prime
+    !       self%density_p_prime(i, j) = density_p_prime
+    !     else
+    !       do c = 1, self%n_neighbor_cells
+    !         if(self%p_prime_in_cell(c, i, j)) then
+    !           self%density_p_prime(i, j) = self%recon_rho(c, i, j)
+    !           self%pressure_p_prime(i, j) = self%recon_p(c, i, j)
+    !         end if
+    !       end do
+    !     end if
+
+    !   end do
+    ! end do
+    ! !$omp end do
+    ! !$omp end parallel
   end subroutine get_p_prime_quantities
 
   subroutine compute_trig_angles(self)
@@ -746,7 +800,7 @@ contains
     !$omp shared(sin_theta_ib, sin_theta_ie) &
     !$omp shared(cos_theta_ib, cos_theta_ie) &
     !$omp firstprivate(idx_max) &
-    !$omp private(i, j, idx, diff)
+    !$omp private(i, j, idx)
 
     !$omp do
     do j = self%jlo, self%jhi
@@ -1159,7 +1213,8 @@ contains
       self%p_prime_x(i, j) - self%p0_x(i, j), self%p_prime_y(i, j) - self%p0_y(i, j), "]"
 
     write(*, '(a, i7,",",i7, a)') 'cone["P'//"'(i,j)"//'"] = [', self%p_prime_ij(:, i, j), "]"
-    write(*, *) "P' in cell: ", self%p_prime_in_cell(:, i, j)
+    write(*, '(a, 4(l1, 1x))') "P' in cell: ", self%p_prime_in_cell(:, i, j)
+    write(*, '(a, l1)') "Cone is transonic: ", self%cone_is_transonic(i, j)
     write(*, '(a, es16.6)') "rho(P'): ", self%density_p_prime(i, j)
     write(*, '(a, es16.6)') "p(P')  : ", self%pressure_p_prime(i, j)
     print *

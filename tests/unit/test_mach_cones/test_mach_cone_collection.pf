@@ -78,7 +78,7 @@ contains
                     edge_interpolation_scheme='TVD2', &
                     limiter='none', &
                     gradient_scheme='green_gauss', &
-                    ni_nodes=ni_nodes-2, nj_nodes=nj_nodes-2, &
+                    ni_nodes=ni_nodes - 2, nj_nodes=nj_nodes - 2, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
 
@@ -141,10 +141,10 @@ contains
     !< Test the Mach cone, where the apex is a midpoint and P' is below it
 
     type(mach_cone_collection_t) :: mach_cone
-    real(rk), allocatable, dimension(:,:,:) :: midpoint_reconstructed_rho
-    real(rk), allocatable, dimension(:,:,:) :: midpoint_reconstructed_u
-    real(rk), allocatable, dimension(:,:,:) :: midpoint_reconstructed_v
-    real(rk), allocatable, dimension(:,:,:) :: midpoint_reconstructed_p
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_rho
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_u
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_v
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_p
 
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
@@ -166,7 +166,7 @@ contains
     ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
     ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   1   |   1   ||   1   |
     ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
-    ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   3   ||   2   |   2   ||   3   |
+    ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   3   ||   2      2   ||   3   |
     ! |-------||-------|---M---||-------|  -->  |-------||-------|---M---||-------|
     ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   3   ||   3   |   3   ||   3   |
     ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
@@ -192,22 +192,19 @@ contains
                                              lbounds=lbound(p), &
                                              name='p', stage_name='test_1')
 
-
-
     ! Top BC
-    recon_rho(M4,:,3) = 1.0_rk; recon_rho(M2,:,3) = 1.0_rk
-    recon_rho(C3,:,3) = 0.5_rk; recon_rho(C4,:,3) = 0.5_rk; recon_rho(M3,:,3) = 0.5_rk
-    recon_rho(C1,:,3) = 1.5_rk; recon_rho(C2,:,3) = 1.5_rk; recon_rho(M1,:,3) = 1.5_rk
+    recon_rho(M4, :, 3) = 1.0_rk; recon_rho(M2, :, 3) = 1.0_rk
+    recon_rho(C3, :, 3) = 0.5_rk; recon_rho(C4, :, 3) = 0.5_rk; recon_rho(M3, :, 3) = 0.5_rk
+    recon_rho(C1, :, 3) = 1.5_rk; recon_rho(C2, :, 3) = 1.5_rk; recon_rho(M1, :, 3) = 1.5_rk
 
     ! Bottom BC
-    recon_rho(M4,:,0) = 4.0_rk; recon_rho(M2,:,0) = 4.0_rk
-    recon_rho(C3,:,0) = 3.5_rk; recon_rho(C4,:,0) = 3.5_rk; recon_rho(M3,:,0) = 3.5_rk
-    recon_rho(C1,:,0) = 4.5_rk; recon_rho(C2,:,0) = 4.5_rk; recon_rho(M1,:,0) = 4.5_rk
+    recon_rho(M4, :, 0) = 4.0_rk; recon_rho(M2, :, 0) = 4.0_rk
+    recon_rho(C3, :, 0) = 3.5_rk; recon_rho(C4, :, 0) = 3.5_rk; recon_rho(M3, :, 0) = 3.5_rk
+    recon_rho(C1, :, 0) = 4.5_rk; recon_rho(C2, :, 0) = 4.5_rk; recon_rho(M1, :, 0) = 4.5_rk
 
     ! Left/Right BC -> just put numbers in, it doesn't matter for this test
-    recon_rho(:,0,1:2) = 3.0_rk
-    recon_rho(:,3,1:2) = 3.0_rk
-
+    recon_rho(:, 0, 1:2) = 3.0_rk
+    recon_rho(:, 3, 1:2) = 3.0_rk
 
     reconstruction_operator%grad_x_rho = 0.0_rk
     reconstruction_operator%grad_y_rho = -1.0_rk
@@ -236,37 +233,26 @@ contains
       end do
     end do
 
-    ! do j =  grid%ihi_bc_node, grid%ilo_bc_node, -1
-    !   ! do i = grid%ilo_bc_node, grid%ilo_bc_node
-    !   write(*, '(10(f8.3))') grid%node_x(:,j)
-    ! end do
-    ! print*
-    ! do j =  grid%ihi_bc_node, grid%ilo_bc_node, -1
-    !   ! do i = grid%ilo_bc_node, grid%ilo_bc_node
-    !   write(*, '(10(f8.3))') grid%node_y(:,j)
-    ! end do
-
-
     i = 2; j = 2
     call mach_cone%initialize(tau=1.0e-2_rk, &
                               edge_vectors=grid%leftright_midpoint_edge_vectors, &
                               reconstructed_rho=midpoint_reconstructed_rho, &
-                              reconstructed_u=  midpoint_reconstructed_u, &
-                              reconstructed_v=  midpoint_reconstructed_v, &
-                              reconstructed_p=  midpoint_reconstructed_p, &
+                              reconstructed_u=midpoint_reconstructed_u, &
+                              reconstructed_v=midpoint_reconstructed_v, &
+                              reconstructed_p=midpoint_reconstructed_p, &
                               cell_indices=leftright_midpoint_neighbors, &
                               cone_location='left/right midpoint', &
-                              lbounds=[1,1,1], &
+                              lbounds=[1, 1, 1], &
                               reconstruction_operator=reconstruction_operator)
-    call mach_cone%print(i,j)
+    call mach_cone%print(i, j)
 
     ! P' should be in the cell below the midpoint
     @assertEqual([0.5_rk, 0.0_rk],[mach_cone%p0_x(i, j), mach_cone%p0_y(i, j)])
     @assertEqual([0.5_rk, -0.04_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
-    @assertEqual([2,1],mach_cone%p_prime_ij(:,i,j))
+    @assertEqual([2, 1], mach_cone%p_prime_ij(:, i, j))
     @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
-    @assertEqual(2.54_rk, mach_cone%density_p_prime(i,j))
-    @assertEqual(1.0_rk, mach_cone%pressure_p_prime(i,j))
+    @assertEqual(2.54_rk, mach_cone%density_p_prime(i, j))
+    @assertEqual(1.0_rk, mach_cone%pressure_p_prime(i, j))
 
     !print*, mach_cone
     dtheta = 0.0_rk
@@ -280,9 +266,9 @@ contains
     @assertEqual(0.0_rk, mach_cone%cos_d2theta)
 
     deallocate(midpoint_reconstructed_rho)
-    deallocate(midpoint_reconstructed_u  )
-    deallocate(midpoint_reconstructed_v  )
-    deallocate(midpoint_reconstructed_p  )
+    deallocate(midpoint_reconstructed_u)
+    deallocate(midpoint_reconstructed_v)
+    deallocate(midpoint_reconstructed_p)
 
   end subroutine test_midpoint_lr_p_prime_below_no_int
 
@@ -1336,83 +1322,137 @@ contains
 
   ! end subroutine test_corner_p_prime_upper_left_2_arcs
 
-  ! ! Transonic tests
-  ! ! TODO: enable transonic tests!
-  ! ! !@test
-  ! subroutine test_transonic_du_midpoint()
-  !   !< Test the Mach cone, when the cell set is transonic
+  ! Transonic tests
+  @test
+  subroutine test_transonic_du_midpoint()
+    !< Test the Mach cone, when the cell set is transonic
 
-  !   !  |         C2         |
-  !   !  |  cell 1 |  cell 2  |
-  !   !  | (i-1,j) |    (i,j) |
-  !   !  |         M          |
-  !   !  |  (.) P' |          |
-  !   !  |         |          |
-  !   !  |         C1         |
+    type(mach_cone_collection_t) :: mach_cone
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_rho
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_u
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_v
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_p
 
-  !   type(mach_cone_collection_t) :: mach_cone
-  !   real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
-  !   real(rk), dimension(1, 1) :: vector_scaling
-  !   integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
-  !   real(rk), dimension(4, 2, 1, 1) :: midpoint_state
-  !   integer(ik) :: i, j
-  !   real(rk), dimension(4) :: dtheta = 0.0_rk  !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
-  !   real(rk), dimension(4) :: theta_ie = 0.0_rk
-  !   real(rk), dimension(4) :: theta_ib = 0.0_rk
-  !   real(rk), dimension(4) :: data_buffer = 0.0_rk
-  !   real(rk) :: theta_11, theta_12
-  !   real(rk) :: pressure
+    integer(ik) :: i, j
+    real(rk) :: sonic_pressure = 3.0_rk / 5.0_rk !< This odd value is to make the sound speed = 1, since gamma = 5/3
+    integer(ik) :: ilo, ihi, jlo, jhi
+    real(rk) :: theta_11 !< scratch values for arc angles
+    real(rk) :: theta_12 !< scratch values for arc angles
+    real(rk), dimension(4) :: dtheta = 0.0_rk !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+    real(rk), dimension(4) :: theta = 0.0_rk !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+    real(rk), dimension(4) :: theta_ie = 0.0_rk
+    real(rk), dimension(4) :: theta_ib = 0.0_rk
+    real(rk), dimension(4) :: data_buffer = 0.0_rk
 
-  !   print *
-  !   print *, "Calling test_transonic_du_midpoint()"
-  !   print *
-  !   i = 1
-  !   j = 1
-  !   edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk]
-  !   edge_vectors(:, 2, i, j) = [0.0_rk, 1.0_rk]
-  !   vector_scaling = 1.0_rk
+    print *, "Calling test_transonic_du_midpoint"
 
-  !   ! cell ordering is 1) left, 2) right
-  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j] ! left
-  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j] ! right
+    !  |         C2         |
+    !  |  cell 1 |  cell 2  |
+    !  | (i-1,j) |  (i,j)   |
+    !  |         M          |
+    !  |  (.) P' |          |
+    !  |         |          |
+    !  |         C1         |
 
-  !   ! This odd value is to make the sound speed = 1, since gamma = 5/3
-  !   pressure = 3.0_rk / 5.0_rk
+    ! For cell (i = 2, j = 2), the midpoint index is also (2,2)
 
-  !   ! Left cell state (subsonic cell)
-  !   midpoint_state(:, 1, 1, 1) = [1.0_rk, 0.9_rk, 0.0_rk, pressure]
+    !           Domain                     -->             Cell Mach number
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |  .9   ||  .9   |  .9   ||  .9   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,2) || (1,2) M (2,2) || (3,2) |  -->  |  .9   ||  .9   M   2   ||  .9   |
+    ! |-------||-------|---M---||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |  .9   ||  .9   |  .9   ||  .9   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |  .9   ||  .9   |  .9   ||  .9   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
 
-  !   ! Right cell state (supersonic cell)
-  !   midpoint_state(:, 2, 1, 1) = [1.0_rk, 2.0_rk, 0.0_rk, pressure]
+    rho = 1.0_rk
+    u = 0.9_rk
+    v = 0.0_rk
+    p = 1.0_rk
 
-  !   call mach_cone%initialize(tau=1.0e-2_rk, &
-  !                             edge_vectors=edge_vectors, &
-  !                             reconstructed_rho=midpoint_state(1, :, :, :), &
-  !                             reconstructed_u=midpoint_state(2, :, :, :), &
-  !                             reconstructed_v=midpoint_state(3, :, :, :), &
-  !                             reconstructed_p=midpoint_state(4, :, :, :), &
-  !                             cell_indices=neighbor_cell_indices, &
-  !                             cone_location='down/up midpoint')
-  !   ! P' should be in the left cell
-  !   @assertEqual(-1.45e-2_rk, mach_cone%p_prime_x(i, j), 1e-10_rk)
-  !   @assertEqual(0.0_rk, mach_cone%p_prime_x(i, j), 1e-10_rk)
-  !   @assertEqual(1.55e-2_rk, mach_cone%radius)
-  !   @assertEqual([.true., .false.], mach_cone%p_prime_in_cell(:, i, j))
+    call reconstruction_operator%set_cell_average_pointers(rho=rho, p=p, lbounds=lbound(p))
+    call reconstruction_operator%reconstruct(primitive_var=rho, &
+                                             reconstructed_var=recon_rho, &
+                                             lbounds=lbound(rho), &
+                                             name='rho', stage_name='test_1')
+    call reconstruction_operator%reconstruct(primitive_var=p, &
+                                             reconstructed_var=recon_p, &
+                                             lbounds=lbound(p), &
+                                             name='p', stage_name='test_1')
 
-  !   ! ! arc begin angles
-  !   ! theta = 0.0_rk
-  !   ! theta_11 = 0.36117042838139601_rk
-  !   ! theta_12 = -0.36117042838139601_rk
-  !   ! theta(1, 1) = theta_11 ! cell 1 (left)
-  !   ! theta(1, 2) = theta_12 ! cell 2 (right)
-  !   ! ! @assertEqual(theta, mach_cone%theta_ib, 1e-8_rk)
+    ! ! Left cell state (subsonic cell)
+    ! midpoint_state(:, 1, 1, 1) = [1.0_rk, 0.9_rk, 0.0_rk, pressure]
 
-  !   ! ! arc end angles
-  !   ! theta = 0.0_rk
-  !   ! theta(1, 1) = theta_12 + 2 * pi ! cell 1 (left)
-  !   ! theta(1, 2) = theta_11 ! cell 2 (right)
-  !   ! @assertEqual(theta, mach_cone%theta_ie, 1e-8_rk)
-  ! end subroutine test_transonic_du_midpoint
+    ! ! Right cell state (supersonic cell)
+    ! midpoint_state(:, 2, 1, 1) = [1.0_rk, 2.0_rk, 0.0_rk, pressure]
+
+    ilo = 1; ihi = 3
+    jlo = 1; jhi = 2
+
+    allocate(midpoint_reconstructed_rho(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_u(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_v(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_p(2, ilo:ihi, jlo:jhi))
+
+    midpoint_reconstructed_rho = 1.0_rk
+    midpoint_reconstructed_u = 0.9_rk
+    midpoint_reconstructed_u(1, 2, 2) = 2.0_rk
+    midpoint_reconstructed_v = 0.0_rk
+    midpoint_reconstructed_p = sonic_pressure
+
+    i = 2; j = 2
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=grid%downup_midpoint_edge_vectors, &
+                              reconstructed_rho=midpoint_reconstructed_rho, &
+                              reconstructed_u=midpoint_reconstructed_u, &
+                              reconstructed_v=midpoint_reconstructed_v, &
+                              reconstructed_p=midpoint_reconstructed_p, &
+                              cell_indices=downup_midpoint_neighbors, &
+                              cone_location='down/up midpoint', &
+                              lbounds=[1, 1, 1], &
+                              reconstruction_operator=reconstruction_operator)
+    call mach_cone%print(i, j)
+
+    ! P' should be in the left cell
+    @assertEqual(-1.45e-2_rk, mach_cone%p_prime_x(i, j), 1e-10_rk)
+    @assertEqual(0.5_rk, mach_cone%p_prime_y(i, j), 1e-10_rk)
+    @assertEqual(.true., mach_cone%cone_is_transonic(i, j))
+
+    ! The expanded transonic cone should now extend into both neighbor cells
+    @assertEqual(1, mach_cone%n_arcs_per_cell(:, i, j))
+
+    @assertEqual(1.55e-2_rk, mach_cone%radius(i, j))
+    @assertEqual([.true., .false.], mach_cone%p_prime_in_cell(:, i, j))
+    @assertEqual([1, 2], mach_cone%p_prime_ij(:, i, j))
+
+    ! arc begin angles
+    theta = 0.0_rk
+    theta_11 = 0.36117042838139601_rk
+    theta_12 = -0.36117042838139601_rk
+
+    ! These values are known a priori (this is a test after all)
+    ! indexing is (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+    theta_ib = [theta_11, 0.0_rk, theta_12, 0.0_rk]
+    theta_ie = [theta_12 + 2 * pi, 0.0_rk, theta_11, 0.0_rk]
+
+    dtheta = theta_ie - theta_ib
+    @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = sin(theta_ie) - sin(theta_ib)
+    @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = cos(theta_ie) - cos(theta_ib)
+    @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+    @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+    data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+    @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  end subroutine test_transonic_du_midpoint
 
   ! !@test
   ! subroutine test_transonic_corner()

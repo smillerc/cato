@@ -88,7 +88,7 @@ contains
     integer(ik) :: i, unit
     integer(ik), dimension(2) :: units
 
-    open(newunit=io, file='timing_summary.yaml', status='new')
+    open(newunit=io, file='timing_summary.yaml', status='replace')
     units = [io, std_out]
 
     do i = 1, size(units)

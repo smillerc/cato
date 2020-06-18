@@ -43,7 +43,7 @@ dy = None  # will use smallest dx if None
 interface_loc = 20.0
 layer_thicknesses = [interface_loc, 10, 3] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [40, 40, 40] * ureg("1/um")
+layer_resolution = [20, 20, 20] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
