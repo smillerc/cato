@@ -18,7 +18,7 @@ module mod_integrand
     procedure, non_overridable :: get_time_integrator
     procedure(time_derivative), deferred :: t ! Time derivative that evaluates evolution equations
     procedure(sanity_check), deferred :: sanity_check
-    procedure(basic_fv_inout), deferred :: apply_boundary_conditions
+    ! procedure(basic_fv_inout), deferred :: apply_boundary_conditions
     procedure(basic), deferred :: calculate_derived_quantities
     procedure(basic), deferred :: residual_smoother
     procedure(basic_fv_in), deferred :: write_residual_history
@@ -74,7 +74,7 @@ module mod_integrand
     function symmetric_operator(lhs, rhs) result(operator_result)
       import :: integrand_t
       class(integrand_t), intent(in) :: lhs, rhs
-      class(integrand_t), allocatable :: operator_result
+      class(*), allocatable :: operator_result
     end function symmetric_operator
 
     function asymmetric_operator_lhs(lhs, rhs) result(operator_result)
@@ -132,7 +132,7 @@ contains
     call debug_print('Running integrand_t%integrate', __FILE__, __LINE__)
     if(allocated(model%time_integrator)) then
       call model%time_integrator%integrate(model, finite_volume_scheme, dt)
-      call model%apply_boundary_conditions(finite_volume_scheme)
+      ! call model%apply_boundary_conditions(finite_volume_scheme)
       call model%calculate_derived_quantities()
       call model%sanity_check(error_code)
     else

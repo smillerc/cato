@@ -20,6 +20,7 @@ module mod_finite_volume_schemes
   use hdf5_interface, only: hdf5_file
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_nondimensionalization, only: set_scale_factors
+  use mod_fluid, only: fluid_t
 
   implicit none
   private
@@ -29,7 +30,7 @@ module mod_finite_volume_schemes
     !< Abstract representation of the finite volume scheme. This is essentially a puppeteer that
     !< manages the reconstruction, grid, and evolution operator to ultimately calculate the conserved
     !< state variables of each finite cell. The reconstruction, grid, and evolution implementations are passed
-    !< on to decendents like the FVLEG scheme.
+    !< on to decendants like the FVLEG scheme.
 
     character(len=32) :: title = ''
     integer(ik) :: iteration = 0
@@ -37,41 +38,18 @@ module mod_finite_volume_schemes
     real(rk) :: time = 0.0_rk
     integer(ik) :: error_code = 0
 
-    class(abstract_reconstruction_t), allocatable :: reconstruction_operator
-    !< R_Omega reconstruction operator used to reconstruct the corners/midpoints based on the cell
-    !< average (and gradient if high(er) order reconstruction used)
+    ! class(abstract_reconstruction_t), allocatable :: reconstruction_operator
+    ! !< R_Omega reconstruction operator used to reconstruct the corners/midpoints based on the cell
+    ! !< average (and gradient if high(er) order reconstruction used)
 
-    class(abstract_evo_operator_t), allocatable :: evolution_operator
-    !< Evolution operator to construct (rho, u, v, p) at each corner and midpoint
+    ! class(abstract_evo_operator_t), allocatable :: evolution_operator
+    ! !< Evolution operator to construct (rho, u, v, p) at each corner and midpoint
 
     class(grid_t), allocatable :: grid
     !< Grid class to hold geometric information (edge lengths, volumes, etc.)
 
-    class(boundary_condition_t), allocatable :: bc_plus_x
-    class(boundary_condition_t), allocatable :: bc_plus_y
-    class(boundary_condition_t), allocatable :: bc_minus_x
-    class(boundary_condition_t), allocatable :: bc_minus_y
-
     class(source_t), allocatable :: source_term
-
-    ! Corner/midpoint index convention
-    ! --------------------------------
-    !
-    !   C----M----C----M----C
-    !   |         |         |
-    !   O    x    O    x    O
-    !   |         |         |
-    !   C----M----C----M----C
-    !   |         |         |
-    !   O    x    O    x    O
-    !   |         |         |
-    !   C----M----C----M----C
-
-    ! C: corner, M: left/right midpoint, O: up/down midpoint, x: cell
-
-    ! Since the reconstructed state at the corners (C) and midpoints (M) are reused by multiple cells,
-    ! the datastructures are set up for maximum reuse.
-    ! If they were indexed via cell, each cell would duplicate information since they share corners and midpoints
+    class(fluid_t), allocatable :: fluid
 
   contains
     procedure, public :: initialize
@@ -104,7 +82,7 @@ contains
     class(finite_volume_scheme_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
-    class(boundary_condition_t), pointer :: bc => null()
+    ! class(boundary_condition_t), pointer :: bc => null()
     class(source_t), pointer :: source_term => null()
     class(grid_t), pointer :: grid => null()
     class(abstract_reconstruction_t), pointer :: r_omega => null()
@@ -147,36 +125,36 @@ contains
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
 
-    allocate(ghost_layers(4, 2))
+    ! allocate(ghost_layers(4, 2))
 
-    ! The ghost_layers array just tells the boundary condition which cell indices
-    ! are tagged as boundaries. See boundary_condition_t%set_indices() for details
-    ghost_layers(1, :) = [self%grid%ilo_bc_cell, self%grid%ilo_cell - 1] ! ilo
-    ghost_layers(3, :) = [self%grid%jlo_bc_cell, self%grid%jlo_cell - 1] ! jlo
+    ! ! The ghost_layers array just tells the boundary condition which cell indices
+    ! ! are tagged as boundaries. See boundary_condition_t%set_indices() for details
+    ! ghost_layers(1, :) = [self%grid%ilo_bc_cell, self%grid%ilo_cell - 1] ! ilo
+    ! ghost_layers(3, :) = [self%grid%jlo_bc_cell, self%grid%jlo_cell - 1] ! jlo
 
-    ghost_layers(2, :) = [self%grid%ihi_cell + 1, self%grid%ihi_bc_cell] ! ihi
-    ghost_layers(4, :) = [self%grid%jhi_cell + 1, self%grid%jhi_bc_cell] ! jhi
+    ! ghost_layers(2, :) = [self%grid%ihi_cell + 1, self%grid%ihi_bc_cell] ! ihi
+    ! ghost_layers(4, :) = [self%grid%jhi_cell + 1, self%grid%jhi_bc_cell] ! jhi
 
-    ! Set boundary conditions
-    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, ghost_layers=ghost_layers)
-    allocate(self%bc_plus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_x"
-    deallocate(bc)
+    ! ! Set boundary conditions
+    ! bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, ghost_layers=ghost_layers)
+    ! allocate(self%bc_plus_x, source=bc, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_x"
+    ! deallocate(bc)
 
-    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, ghost_layers=ghost_layers)
-    allocate(self%bc_plus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_y"
-    deallocate(bc)
+    ! bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, ghost_layers=ghost_layers)
+    ! allocate(self%bc_plus_y, source=bc, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_y"
+    ! deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, ghost_layers=ghost_layers)
-    allocate(self%bc_minus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_x"
-    deallocate(bc)
+    ! bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, ghost_layers=ghost_layers)
+    ! allocate(self%bc_minus_x, source=bc, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_x"
+    ! deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, ghost_layers=ghost_layers)
-    allocate(self%bc_minus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_y"
-    deallocate(bc)
+    ! bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, ghost_layers=ghost_layers)
+    ! allocate(self%bc_minus_y, source=bc, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_y"
+    ! deallocate(bc)
 
     if(input%enable_source_terms) then
       source_term => source_factory(input)

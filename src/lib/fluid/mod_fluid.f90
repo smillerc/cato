@@ -16,7 +16,6 @@ module mod_fluid
   use mod_units
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_strategy, only: strategy
-  use mod_integrand, only: integrand_t
   use mod_surrogate, only: surrogate
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -26,6 +25,7 @@ module mod_fluid
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use mod_time_integrator_factory, only: time_integrator_factory
+  use mod_riemann_solver, only: riemann_solver_t
 
   implicit none
 
@@ -34,39 +34,57 @@ module mod_fluid
 
   logical, parameter :: filter_small_mach = .false.
 
-  type, extends(integrand_t) :: fluid_t
-    real(rk), dimension(:, :), allocatable :: rho    !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: rho_u  !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: rho_v  !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: rho_E  !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: u      !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: v      !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: p      !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: cs     !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: mach_u   !< (i, j); Conserved quantities
-    real(rk), dimension(:, :), allocatable :: mach_v   !< (i, j); Conserved quantities
+  type :: fluid_t
+    private ! make all private by default
+
+    real(rk), dimension(:, :), allocatable, public :: rho    !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: rho_u  !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: rho_v  !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: rho_E  !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: u      !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: v      !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: p      !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: cs     !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: mach_u   !< (i, j); Conserved quantities
+    real(rk), dimension(:, :), allocatable, public :: mach_v   !< (i, j); Conserved quantities
+
+    type(riemann_solver_t), allocatable :: solver
+
     logical :: prim_vars_updated = .false.
     logical :: smooth_residuals = .true.
+
+    ! Residual history
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
     logical :: residual_hist_header_written = .false.
+    character(len=10) :: time_integration_scheme = 'ssp_rk2'
   contains
-    procedure, public :: initialize
+    ! Private methods
     procedure, private :: initialize_from_ini
     procedure, private :: initialize_from_hdf5
-    procedure, public :: t => time_derivative
-    procedure, public :: residual_smoother
-    procedure, public :: write_residual_history
-    procedure, public :: sanity_check
-    procedure, public :: calculate_derived_quantities
-    procedure, public :: apply_boundary_conditions
-    procedure, nopass, private :: flux_edges
-    procedure, pass(lhs), public :: type_plus_type => add_fluid
-    procedure, pass(lhs), public :: type_minus_type => subtract_fluid
-    procedure, pass(lhs), public :: type_mul_real => fluid_mul_real
-    procedure, pass(rhs), public :: real_mul_type => real_mul_fluid
-    procedure, pass(lhs), public :: assign => assign_fluid
-    procedure, public :: force_finalization
+    procedure, private :: residual_smoother
+    procedure, private :: write_residual_history
+    procedure, private :: calculate_derived_quantities
+    procedure, private :: sanity_check
+    procedure, private :: ssp_rk2
+    procedure, private :: ssp_rk3
     procedure, private, nopass :: add_fields
+    procedure, private, nopass :: mult_fields
+    procedure, private, nopass :: subtract_fields
+
+    ! Operators
+    procedure, pass(lhs), public :: add_fluid
+    procedure, pass(lhs), public :: subtract_fluid
+    procedure, pass(lhs), public :: fluid_mul_real
+    procedure, pass(rhs), public :: real_mul_fluid
+    procedure, pass(lhs), public :: assign_fluid
+
+    ! Public methods
+    procedure, public :: initialize
+    procedure, public :: integrate
+    procedure, public :: t => time_derivative
+    procedure, public :: force_finalization
+
+    ! Finalizer
     final :: finalize
   end type fluid_t
 
@@ -370,223 +388,31 @@ contains
 
   end subroutine
 
-  function time_derivative(self, fv, stage) result(d_dt)
-    !< Implementation of dU/dt
-
-    class(fluid_t), intent(in) :: self
-    class(finite_volume_scheme_t), intent(inout) :: fv
-    integer(ik), intent(in) :: stage !< which stage in the time integration scheme are we in, e.g. RK2 stage 1
-
-    ! Locals
-    class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
-    type(fluid_t), allocatable :: local_d_dt !< dU/dt
-    integer(ik) :: error_code
-
-    real(rk), dimension(:, :), allocatable :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
-    real(rk), dimension(:, :), allocatable :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
-    real(rk), dimension(:, :), allocatable :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
-    real(rk), dimension(:, :), allocatable :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
-    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
-    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
-    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
-    real(rk), dimension(:, :), allocatable :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
-    real(rk), dimension(:, :), allocatable :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
-    real(rk), dimension(:, :), allocatable :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
-    real(rk), dimension(:, :), allocatable :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
-    real(rk), dimension(:, :), allocatable :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
-
-    real(rk), dimension(:, :, :), allocatable, target :: rho_recon_state
-    !< ((corner1:midpoint4), i, j); reconstructed density, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
-    real(rk), dimension(:, :, :), allocatable, target :: u_recon_state
-    !< ((corner1:midpoint4), i, j); reconstructed x-velocity, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
-    real(rk), dimension(:, :, :), allocatable, target :: v_recon_state
-    !< ((corner1:midpoint4), i, j); reconstructed y-velocity, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
-    real(rk), dimension(:, :, :), allocatable, target :: p_recon_state
-    !< ((corner1:midpoint4), i, j); reconstructed pressure, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
-
-    integer(ik), dimension(2) :: bounds
-
-    call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
-
-    associate(imin=>fv%grid%ilo_bc_cell, imax=>fv%grid%ihi_bc_cell, &
-              jmin=>fv%grid%jlo_bc_cell, jmax=>fv%grid%jhi_bc_cell)
-
-      allocate(rho_recon_state(1:8, imin:imax, jmin:jmax))
-      allocate(u_recon_state(1:8, imin:imax, jmin:jmax))
-      allocate(v_recon_state(1:8, imin:imax, jmin:jmax))
-      allocate(p_recon_state(1:8, imin:imax, jmin:jmax))
-    end associate
-
-    associate(imin_node=>fv%grid%ilo_node, imax_node=>fv%grid%ihi_node, &
-              jmin_node=>fv%grid%jlo_node, jmax_node=>fv%grid%jhi_node, &
-              imin_cell=>fv%grid%ilo_cell, imax_cell=>fv%grid%ihi_cell, &
-              jmin_cell=>fv%grid%jlo_cell, jmax_cell=>fv%grid%jhi_cell)
-
-      allocate(evolved_corner_rho(imin_node:imax_node, jmin_node:jmax_node))
-      allocate(evolved_corner_u(imin_node:imax_node, jmin_node:jmax_node))
-      allocate(evolved_corner_v(imin_node:imax_node, jmin_node:jmax_node))
-      allocate(evolved_corner_p(imin_node:imax_node, jmin_node:jmax_node))
-
-      allocate(evolved_lr_mid_rho(imin_cell:imax_cell, jmin_node:jmax_node))
-      allocate(evolved_lr_mid_u(imin_cell:imax_cell, jmin_node:jmax_node))
-      allocate(evolved_lr_mid_v(imin_cell:imax_cell, jmin_node:jmax_node))
-      allocate(evolved_lr_mid_p(imin_cell:imax_cell, jmin_node:jmax_node))
-
-      allocate(evolved_du_mid_rho(imin_node:imax_node, jmin_cell:jmax_cell))
-      allocate(evolved_du_mid_u(imin_node:imax_node, jmin_cell:jmax_cell))
-      allocate(evolved_du_mid_v(imin_node:imax_node, jmin_cell:jmax_cell))
-      allocate(evolved_du_mid_p(imin_node:imax_node, jmin_cell:jmax_cell))
-
-    end associate
-
-    allocate(local_d_dt, source=self)
-
-    if(.not. local_d_dt%prim_vars_updated) then
-      call local_d_dt%calculate_derived_quantities()
-    end if
-
-    bounds = lbound(local_d_dt%rho)
-
-    call fv%reconstruction_operator%set_cell_average_pointers(rho=local_d_dt%rho, &
-                                                              p=local_d_dt%p, &
-                                                              lbounds=bounds)
-    call fv%apply_primitive_vars_bc(rho=local_d_dt%rho, &
-                                    u=local_d_dt%u, &
-                                    v=local_d_dt%v, &
-                                    p=local_d_dt%p, lbounds=bounds)
-
-    ! Now we can reconstruct the entire domain
-    call debug_print('Reconstructing density', __FILE__, __LINE__)
-    call fv%reconstruct(primitive_var=local_d_dt%rho, lbounds=bounds, &
-                        reconstructed_var=rho_recon_state, name='rho', stage=stage)
-
-    call debug_print('Reconstructing x-velocity', __FILE__, __LINE__)
-    call fv%reconstruct(primitive_var=local_d_dt%u, lbounds=bounds, &
-                        reconstructed_var=u_recon_state, name='u', stage=stage)
-
-    call debug_print('Reconstructing y-velocity', __FILE__, __LINE__)
-    call fv%reconstruct(primitive_var=local_d_dt%v, lbounds=bounds, &
-                        reconstructed_var=v_recon_state, name='v', stage=stage)
-
-    call debug_print('Reconstructing pressure', __FILE__, __LINE__)
-    call fv%reconstruct(primitive_var=local_d_dt%p, lbounds=bounds, &
-                        reconstructed_var=p_recon_state, name='p', stage=stage)
-
-    ! The gradients have to be applied to the boundaries as well, since reconstructing
-    ! at P'(x,y) requires the cell gradient
-    call fv%apply_gradient_bc()
-
-    ! Apply the reconstructed state to the ghost layers
-    call fv%apply_reconstructed_state_bc(recon_rho=rho_recon_state, recon_u=u_recon_state, &
-                                         recon_v=v_recon_state, recon_p=p_recon_state, lbounds=bounds)
-
-    call fv%evolution_operator%set_reconstructed_state_pointers(rho=rho_recon_state, &
-                                                                u=u_recon_state, &
-                                                                v=v_recon_state, &
-                                                                p=p_recon_state, &
-                                                                lbounds=bounds)
-
-    ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
-    call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
-    bounds = lbound(evolved_du_mid_rho)
-    call fv%evolution_operator%evolve(evolved_rho=evolved_du_mid_rho, evolved_u=evolved_du_mid_u, &
-                                      evolved_v=evolved_du_mid_v, evolved_p=evolved_du_mid_p, &
-                                      location='down/up midpoint', &
-                                      lbounds=bounds, &
-                                      error_code=error_code)
-
-    ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
-    call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
-    bounds = lbound(evolved_lr_mid_rho)
-    call fv%evolution_operator%evolve(evolved_rho=evolved_lr_mid_rho, evolved_u=evolved_lr_mid_u, &
-                                      evolved_v=evolved_lr_mid_v, evolved_p=evolved_lr_mid_p, &
-                                      location='left/right midpoint', &
-                                      lbounds=bounds, &
-                                      error_code=error_code)
-
-    ! Evolve, i.e. E0(R_omega), at all corner nodes
-    call debug_print('Evolving corner nodes', __FILE__, __LINE__)
-    bounds = lbound(evolved_corner_rho)
-    call fv%evolution_operator%evolve(evolved_rho=evolved_corner_rho, evolved_u=evolved_corner_u, &
-                                      evolved_v=evolved_corner_v, evolved_p=evolved_corner_p, &
-                                      location='corner', &
-                                      lbounds=bounds, &
-                                      error_code=error_code)
-
-    if(error_code /= 0) then
-      fv%error_code = error_code
-    end if
-
-    nullify(fv%evolution_operator%reconstructed_rho)
-    nullify(fv%evolution_operator%reconstructed_u)
-    nullify(fv%evolution_operator%reconstructed_v)
-    nullify(fv%evolution_operator%reconstructed_p)
-
-    nullify(fv%reconstruction_operator%rho)
-    nullify(fv%reconstruction_operator%p)
-
-    call self%flux_edges(grid=fv%grid, &
-                         evolved_corner_rho=evolved_corner_rho, &
-                         evolved_corner_u=evolved_corner_u, &
-                         evolved_corner_v=evolved_corner_v, &
-                         evolved_corner_p=evolved_corner_p, &
-                         evolved_lr_mid_rho=evolved_lr_mid_rho, &
-                         evolved_lr_mid_u=evolved_lr_mid_u, &
-                         evolved_lr_mid_v=evolved_lr_mid_v, &
-                         evolved_lr_mid_p=evolved_lr_mid_p, &
-                         evolved_du_mid_rho=evolved_du_mid_rho, &
-                         evolved_du_mid_u=evolved_du_mid_u, &
-                         evolved_du_mid_v=evolved_du_mid_v, &
-                         evolved_du_mid_p=evolved_du_mid_p, &
-                         d_rho_dt=local_d_dt%rho, &
-                         d_rhou_dt=local_d_dt%rho_u, &
-                         d_rhov_dt=local_d_dt%rho_v, &
-                         d_rhoE_dt=local_d_dt%rho_E)
-
-    call move_alloc(local_d_dt, d_dt)
-
-    call d_dt%set_temp(calling_function='fluid_t%time_derivative (d_dt)', line=__LINE__)
-
-    ! Now deallocate everything
-    deallocate(evolved_corner_rho)
-    deallocate(evolved_corner_u)
-    deallocate(evolved_corner_v)
-    deallocate(evolved_corner_p)
-
-    deallocate(evolved_lr_mid_rho)
-    deallocate(evolved_lr_mid_u)
-    deallocate(evolved_lr_mid_v)
-    deallocate(evolved_lr_mid_p)
-
-    deallocate(evolved_du_mid_rho)
-    deallocate(evolved_du_mid_u)
-    deallocate(evolved_du_mid_v)
-    deallocate(evolved_du_mid_p)
-
-    deallocate(rho_recon_state)
-    deallocate(u_recon_state)
-    deallocate(v_recon_state)
-    deallocate(p_recon_state)
-
-  end function time_derivative
-
-  subroutine apply_boundary_conditions(self, fv)
-    !< Apply the primitive variable boundary conditions. This is separated out from the
-    !< time derivative procedure, b/c it is helpful to view the bc in the contour files.
-    !< This is also called by the integrand_t%integrate procedure after all of the
-    !< time integration.
-
+  function integrate(self, dt, grid) result(d_dt)
+    !< Integrate in time
     class(fluid_t), intent(inout) :: self
-    class(finite_volume_scheme_t), intent(inout) :: fv
-    integer(ik), dimension(2) :: bounds
+    real(rk), intent(in) :: dt !< time step
+    class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
+    type(fluid_t), allocatable :: d_dt !< dU/dt
 
-    bounds = lbound(self%rho)
-    call fv%apply_primitive_vars_bc(rho=self%rho, &
-                                    u=self%u, &
-                                    v=self%v, &
-                                    p=self%p, lbounds=bounds)
+    select case(trim(self%time_integration_scheme))
+    case('ssp_rk2')
+      d_dt = self%ssp_rk2(grid, dt)
+    case('ssp_rk3')
+      d_dt = self%ssp_rk2(grid, dt)
+    end select
+  end function integrate
 
-  end subroutine apply_boundary_conditions
+  function time_derivative(self, grid, dt)
+    class(fluid_t), intent(inout) :: self
+    class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
+    real(rk), intent(in) :: dt !< time step
+    real(rk), dimension(2) :: lbounds
+
+    lbounds = lbound(self%rho)
+
+    call self%solver%solve(grid)
+  end function time_derivative
 
   subroutine calculate_derived_quantities(self)
     !< Find derived quantities like sound speed, mach number, primitive variables
@@ -935,53 +761,38 @@ contains
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
     class(fluid_t), intent(in) :: lhs
-    class(integrand_t), intent(in) :: rhs
-
-    class(integrand_t), allocatable :: difference
-    type(fluid_t), allocatable :: local_difference
+    class(fluid_t), intent(in) :: rhs
+    type(fluid_t), allocatable :: difference
 
     call debug_print('Running fluid_t%subtract_fluid()', __FILE__, __LINE__)
 
-    select type(rhs)
-    class is(fluid_t)
-      allocate(local_difference, source=lhs)
-      call subtract_fields(a=lhs%rho, b=rhs%rho, c=local_difference%rho) ! c=a+b
-      call subtract_fields(a=lhs%rho_u, b=rhs%rho_u, c=local_difference%rho_u) ! c=a+b
-      call subtract_fields(a=lhs%rho_v, b=rhs%rho_v, c=local_difference%rho_v) ! c=a+b
-      call subtract_fields(a=lhs%rho_E, b=rhs%rho_E, c=local_difference%rho_E) ! c=a+b
-      local_difference%prim_vars_updated = .false.
-    class default
-      error stop 'fluid_t%subtract_fluid: unsupported rhs class'
-    end select
+    allocate(difference, source=lhs)
+    call subtract_fields(a=lhs%rho, b=rhs%rho, c=difference%rho) ! c=a+b
+    call subtract_fields(a=lhs%rho_u, b=rhs%rho_u, c=difference%rho_u) ! c=a+b
+    call subtract_fields(a=lhs%rho_v, b=rhs%rho_v, c=difference%rho_v) ! c=a+b
+    call subtract_fields(a=lhs%rho_E, b=rhs%rho_E, c=difference%rho_E) ! c=a+b
+    difference%prim_vars_updated = .false.
 
-    call move_alloc(local_difference, difference)
     call difference%set_temp(calling_function='subtract_fluid (difference)', line=__LINE__)
   end function subtract_fluid
 
   function add_fluid(lhs, rhs) result(sum)
     !< Implementation of the (+) operator for the fluid type
     class(fluid_t), intent(in) :: lhs
-    class(integrand_t), intent(in) :: rhs
-
-    class(integrand_t), allocatable :: sum
-    type(fluid_t), allocatable :: local_sum
+    class(fluid_t), intent(in) :: rhs
+    type(fluid_t), allocatable :: sum
 
     call debug_print('Running fluid_t%add_fluid()', __FILE__, __LINE__)
 
-    select type(rhs)
-    class is(fluid_t)
-      allocate(local_sum, source=lhs)
-      call add_fields(a=lhs%rho, b=rhs%rho, c=local_sum%rho) ! c=a+b
-      call add_fields(a=lhs%rho_u, b=rhs%rho_u, c=local_sum%rho_u) ! c=a+b
-      call add_fields(a=lhs%rho_v, b=rhs%rho_v, c=local_sum%rho_v) ! c=a+b
-      call add_fields(a=lhs%rho_E, b=rhs%rho_E, c=local_sum%rho_E) ! c=a+b
-      local_sum%prim_vars_updated = .false.
-    class default
-      error stop 'fluid_t%add_fluid: unsupported rhs class'
-    end select
+    allocate(sum, source=lhs)
+    call add_fields(a=lhs%rho, b=rhs%rho, c=sum%rho) ! c=a+b
+    call add_fields(a=lhs%rho_u, b=rhs%rho_u, c=sum%rho_u) ! c=a+b
+    call add_fields(a=lhs%rho_v, b=rhs%rho_v, c=sum%rho_v) ! c=a+b
+    call add_fields(a=lhs%rho_E, b=rhs%rho_E, c=sum%rho_E) ! c=a+b
+    sum%prim_vars_updated = .false.
 
-    call local_sum%set_temp(calling_function='fluid_t%add_fluid(local_sum)', line=__LINE__)
-    call move_alloc(local_sum, sum)
+    call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
+    call move_alloc(sum, sum)
     call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
   end function add_fluid
 
@@ -1125,23 +936,22 @@ contains
     !< Implementation of the fluid * real operation
     class(fluid_t), intent(in) :: lhs
     real(rk), intent(in) :: rhs
-    class(integrand_t), allocatable :: product
+    type(fluid_t), allocatable :: product
 
-    class(fluid_t), allocatable :: local_product
     integer(ik) :: alloc_status
 
     call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
 
-    allocate(local_product, source=lhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%fluid_mul_real"
+    allocate(product, source=lhs, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate product in fluid_t%fluid_mul_real"
 
-    call mult_field_by_real(a=lhs%rho, b=rhs, c=local_product%rho)
-    call mult_field_by_real(a=lhs%rho_u, b=rhs, c=local_product%rho_u)
-    call mult_field_by_real(a=lhs%rho_v, b=rhs, c=local_product%rho_v)
-    call mult_field_by_real(a=lhs%rho_E, b=rhs, c=local_product%rho_E)
-    local_product%prim_vars_updated = .false.
+    call mult_field_by_real(a=lhs%rho, b=rhs, c=product%rho)
+    call mult_field_by_real(a=lhs%rho_u, b=rhs, c=product%rho_u)
+    call mult_field_by_real(a=lhs%rho_v, b=rhs, c=product%rho_v)
+    call mult_field_by_real(a=lhs%rho_E, b=rhs, c=product%rho_E)
+    product%prim_vars_updated = .false.
 
-    call move_alloc(local_product, product)
+    call move_alloc(product, product)
     call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
   end function fluid_mul_real
 
@@ -1149,46 +959,40 @@ contains
     !< Implementation of the real * fluid operation
     class(fluid_t), intent(in) :: rhs
     real(rk), intent(in) :: lhs
-    class(integrand_t), allocatable :: product
-
-    type(fluid_t), allocatable :: local_product
+    type(fluid_t), allocatable :: product
     integer(ik) :: alloc_status
 
     call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
 
-    allocate(local_product, source=rhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate local_product in fluid_t%real_mul_fluid"
+    allocate(product, source=rhs, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate product in fluid_t%real_mul_fluid"
 
-    local_product%time_integrator = rhs%time_integrator
-    call mult_field_by_real(a=rhs%rho, b=lhs, c=local_product%rho)
-    call mult_field_by_real(a=rhs%rho_u, b=lhs, c=local_product%rho_u)
-    call mult_field_by_real(a=rhs%rho_v, b=lhs, c=local_product%rho_v)
-    call mult_field_by_real(a=rhs%rho_E, b=lhs, c=local_product%rho_E)
-    local_product%prim_vars_updated = .false.
+    product%time_integrator = rhs%time_integrator
+    call mult_field_by_real(a=rhs%rho, b=lhs, c=product%rho)
+    call mult_field_by_real(a=rhs%rho_u, b=lhs, c=product%rho_u)
+    call mult_field_by_real(a=rhs%rho_v, b=lhs, c=product%rho_v)
+    call mult_field_by_real(a=rhs%rho_E, b=lhs, c=product%rho_E)
+    product%prim_vars_updated = .false.
 
-    call move_alloc(local_product, product)
+    call move_alloc(product, product)
     call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
   end function real_mul_fluid
 
   subroutine assign_fluid(lhs, rhs)
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
     class(fluid_t), intent(inout) :: lhs
-    class(integrand_t), intent(in) :: rhs
+    type(fluid_t), intent(in) :: rhs
 
     call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
 
     call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
-    select type(rhs)
-    class is(fluid_t)
-      lhs%time_integrator = rhs%time_integrator
-      lhs%residual_hist_header_written = rhs%residual_hist_header_written
-      lhs%rho = rhs%rho
-      lhs%rho_u = rhs%rho_u
-      lhs%rho_v = rhs%rho_v
-      lhs%rho_E = rhs%rho_E
-    class default
-      error stop 'Error in fluid_t%assign_fluid: unsupported class'
-    end select
+
+    lhs%time_integrator = rhs%time_integrator
+    lhs%residual_hist_header_written = rhs%residual_hist_header_written
+    lhs%rho = rhs%rho
+    lhs%rho_u = rhs%rho_u
+    lhs%rho_v = rhs%rho_v
+    lhs%rho_E = rhs%rho_E
 
     call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
   end subroutine assign_fluid
@@ -1282,5 +1086,87 @@ contains
     !$omp end parallel
 
   end subroutine sanity_check
+
+  subroutine ssp_rk3(self, grid, dt)
+    !< Strong-stability preserving Runge-Kutta 3rd order
+    class(fluid_t), intent(inout) :: self
+    class(grid_t), intent(inout) :: grid
+    real(rk), intent(inout) :: dt
+
+    class(fluid_t), allocatable :: U_1 !< first stage
+    class(fluid_t), allocatable :: U_2 !< second stage
+    class(fluid_t), allocatable :: R !< hist
+
+    allocate(U_1, source=self)
+    allocate(U_2, source=self)
+    allocate(R, source=self)
+
+    associate(self=>U)
+      ! 1st stage
+      U_1 = U + dt * U%t(grid, stage=1)
+      call U_1%residual_smoother()
+
+      ! 2nd stage
+      U_2 = (3.0_rk / 4.0_rk) * U &
+            + (1.0_rk / 4.0_rk) * U_1 &
+            + (1.0_rk / 4.0_rk) * dt * U_1%t(grid, stage=2)
+      call U_2%residual_smoother()
+
+      ! Final stage
+      U = (1.0_rk / 3.0_rk) * U &
+          + (2.0_rk / 3.0_rk) * U_2 &
+          + (2.0_rk / 3.0_rk) * dt * U_2%t(grid, stage=3)
+      call U%residual_smoother()
+
+      ! Convergence history
+      R = U - U_1
+      call R%write_residual_history()
+    end associate
+
+    deallocate(R)
+    deallocate(U_1)
+    deallocate(U_2)
+
+  end subroutine ssp_rk3
+
+  subroutine ssp_rk2(self, grid, dt)
+    !< Strong-stability preserving Runge-Kutta 2nd order
+    class(fluid_t), intent(inout) :: self
+    class(grid_t), intent(inout) :: grid
+    real(rk), intent(inout) :: dt
+
+    class(fluid_t), allocatable :: U_1 !< first stage
+    class(fluid_t), allocatable :: R !< hist
+
+    allocate(U_1, source=self)
+    allocate(R, source=self)
+
+    associate(self=>U)
+      allocate(U_1, source=U)
+      allocate(R, source=U)
+
+      ! 1st stage
+      call debug_print('Running ssp_rk2_t 1st stage', __FILE__, __LINE__)
+      U_1 = U + U%t(grid, stage=1) * dt
+      call U_1%residual_smoother()
+
+      ! Final stage
+      call debug_print('Running ssp_rk2_t 2nd stage', __FILE__, __LINE__)
+      U = 0.5_rk * U + 0.5_rk * U_1 + &
+          (0.5_rk * dt) * U_1%t(grid, stage=2)
+      call U%residual_smoother()
+
+      ! Convergence history
+      R = U - U_1
+      call R%write_residual_history()
+
+      deallocate(R)
+      deallocate(U_1)
+    end associate
+
+    deallocate(R)
+    deallocate(U_1)
+
+  end subroutine ssp_rk2
 
 end module mod_fluid
