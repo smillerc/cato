@@ -85,7 +85,7 @@ module mod_input
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
     ! finite volume scheme specifics
-    character(len=32) :: evolution_operator_type = 'fvleg'        !< How are the cells being reconstructed
+    character(len=32) :: flux_solver = 'fvleg'        !< How are the cells being reconstructed
     character(len=32) :: cell_reconstruction = 'piecewise_linear' !< How are the cells being reconstructed
     character(len=32) :: gradient_scheme = 'green_gauss'          !< How is the gradient estimated?
     character(len=32) :: edge_interpolation_scheme = 'TVD2'       !< How are the edge values interpolated?
@@ -405,7 +405,7 @@ contains
     write(*, *)
     write(*, '(a)') "[scheme]"
     write(*, '(a, l1)') "smooth_residuals = ", self%smooth_residuals
-    write(*, '(a, a)') "evolution_operator_type = ", self%evolution_operator_type
+    write(*, '(a, a)') "flux_solver = ", self%flux_solver
     write(*, '(a, a)') "cell_reconstruction = ", self%cell_reconstruction
     write(*, '(a, a)') "edge_interpolation_scheme = ", self%edge_interpolation_scheme
     write(*, '(a, es10.3)') "tau = ", self%tau

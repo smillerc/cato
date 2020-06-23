@@ -11,7 +11,6 @@ module mod_fluid
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
-  use mod_flux_array, only: get_fluxes, flux_array_t
   use mod_units
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_grid, only: grid_t
@@ -19,7 +18,9 @@ module mod_fluid
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
   use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
-  use mod_riemann_solver, only: riemann_solver_t
+  use mod_flux_solver, only: flux_solver_t
+  use mod_ausm_solver, only: ausm_solver_t
+  use mod_fvleg_solver, only: fvleg_solver_t
 
   implicit none
 
@@ -29,6 +30,8 @@ module mod_fluid
   logical, parameter :: filter_small_mach = .false.
 
   type :: fluid_t
+    !< Fluid solver physics package
+
     private ! make all private by default
 
     real(rk), dimension(:, :), allocatable, public :: rho    !< (i, j); Conserved quantities
@@ -42,7 +45,7 @@ module mod_fluid
     real(rk), dimension(:, :), allocatable, public :: mach_u   !< (i, j); Conserved quantities
     real(rk), dimension(:, :), allocatable, public :: mach_v   !< (i, j); Conserved quantities
 
-    class(riemann_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
+    class(flux_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
 
     ! Time variables
     character(len=10) :: time_integration_scheme = 'ssp_rk2'
@@ -141,11 +144,15 @@ contains
     self%smooth_residuals = input%smooth_residuals
 
     self%time_integration_scheme = trim(input%time_integration_strategy)
-    ! time_integrator => time_integrator_factory(input)
-    ! allocate(self%time_integrator, source=time_integrator, stat=alloc_status)
-    ! if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%time_integrator"
-    ! deallocate(time_integrator)
 
+    select case(trim(input%flux_solver))
+    case('fvleg')
+      allocate(fvleg_solver_t :: self%solver)
+    case('ausm')
+      allocate(ausm_solver_t :: self%solver)
+    end select
+
+    call self%solver%initialize(grid, input)
     open(newunit=io, file=trim(self%residual_hist_file), status='replace')
     write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
     close(io)
@@ -386,7 +393,7 @@ contains
     write(io, '(i0, ",", 5(es16.6, ","))') self%iteration, self%time * t_0, rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
     close(io)
 
-  end subroutine
+  end subroutine write_residual_history
 
   subroutine integrate(self, dt, grid)
     !< Integrate in time
@@ -462,272 +469,6 @@ contains
     self%prim_vars_updated = .true.
 
   end subroutine calculate_derived_quantities
-
-  subroutine flux_edges(grid, &
-                        evolved_corner_rho, evolved_corner_u, evolved_corner_v, evolved_corner_p, &
-                        evolved_lr_mid_rho, evolved_lr_mid_u, evolved_lr_mid_v, evolved_lr_mid_p, &
-                        evolved_du_mid_rho, evolved_du_mid_u, evolved_du_mid_v, evolved_du_mid_p, &
-                        d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
-    !< Evaluate the fluxes along the edges. This is equation 13 in the paper
-    ! FIXME: Move this into a separate class/module - this will allow easier unit testing
-    class(grid_t), intent(in) :: grid
-
-    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
-    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
-    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
-    real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rho_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhou_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhov_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhoE_dt
-
-    integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: i, j, k, edge, xy
-    real(rk), dimension(2, 4) :: n_hat
-    real(rk), dimension(4) :: delta_l
-    integer(ik), dimension(2) :: bounds
-
-    type(flux_array_t) :: corner_fluxes
-    type(flux_array_t) :: downup_mid_fluxes
-    type(flux_array_t) :: leftright_mid_fluxes
-
-    real(rk) :: f_sum, g_sum
-    real(rk) :: diff
-
-    real(rk), dimension(4) :: bottom_flux
-    real(rk), dimension(4) :: right_flux
-    real(rk), dimension(4) :: top_flux
-    real(rk), dimension(4) :: left_flux
-
-    real(rk) :: rho_flux, ave_rho_flux
-    real(rk) :: rhou_flux, ave_rhou_flux
-    real(rk) :: rhov_flux, ave_rhov_flux
-    real(rk) :: rhoE_flux, ave_rhoE_flux
-    real(rk) :: threshold
-
-    real(rk), parameter :: FLUX_EPS = 1e-13_rk !epsilon(1.0_rk)
-    real(rk), parameter :: REL_THRESHOLD = 1e-5_rk
-
-    call debug_print('Running fluid_t%flux_edges()', __FILE__, __LINE__)
-    ! Get the flux arrays for each corner node or midpoint
-    ilo = grid%ilo_node; ihi = grid%ihi_node
-    jlo = grid%jlo_node; jhi = grid%jhi_node
-    bounds = [ilo, jlo]
-    corner_fluxes = get_fluxes(rho=evolved_corner_rho, u=evolved_corner_u, v=evolved_corner_v, &
-                               p=evolved_corner_p, lbounds=bounds)
-
-    ilo = grid%ilo_cell; ihi = grid%ihi_cell
-    jlo = grid%jlo_node; jhi = grid%jhi_node
-    bounds = [ilo, jlo]
-    leftright_mid_fluxes = get_fluxes(rho=evolved_lr_mid_rho, u=evolved_lr_mid_u, v=evolved_lr_mid_v, &
-                                      p=evolved_lr_mid_p, lbounds=bounds)
-
-    ilo = grid%ilo_node; ihi = grid%ihi_node
-    jlo = grid%jlo_cell; jhi = grid%jhi_cell
-    bounds = [ilo, jlo]
-    downup_mid_fluxes = get_fluxes(rho=evolved_du_mid_rho, u=evolved_du_mid_u, v=evolved_du_mid_v, &
-                                   p=evolved_du_mid_p, lbounds=bounds)
-
-    ilo = grid%ilo_cell; ihi = grid%ihi_cell
-    jlo = grid%jlo_cell; jhi = grid%jhi_cell
-    !$omp parallel default(none), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, k, delta_l, n_hat) &
-    !$omp private(bottom_flux, right_flux, left_flux, top_flux) &
-    !$omp private(f_sum, g_sum, diff) &
-    !$omp shared(grid, corner_fluxes, leftright_mid_fluxes, downup_mid_fluxes) &
-    !$omp shared(d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt) &
-    !$omp private(rho_flux, ave_rho_flux, rhou_flux, ave_rhou_flux, rhov_flux, ave_rhov_flux, rhoE_flux, ave_rhoE_flux, threshold)
-    !$omp do simd
-    do j = jlo, jhi
-      do i = ilo, ihi
-
-        delta_l = grid%cell_edge_lengths(:, i, j)
-
-        do edge = 1, 4
-          do xy = 1, 2
-            n_hat(xy, edge) = grid%cell_edge_norm_vectors(xy, edge, i, j)
-          end do
-        end do
-
-        associate(F_c1=>corner_fluxes%F(:, i, j), &
-                  G_c1=>corner_fluxes%G(:, i, j), &
-                  F_c2=>corner_fluxes%F(:, i + 1, j), &
-                  G_c2=>corner_fluxes%G(:, i + 1, j), &
-                  F_c3=>corner_fluxes%F(:, i + 1, j + 1), &
-                  G_c3=>corner_fluxes%G(:, i + 1, j + 1), &
-                  F_c4=>corner_fluxes%F(:, i, j + 1), &
-                  G_c4=>corner_fluxes%G(:, i, j + 1), &
-                  F_m1=>leftright_mid_fluxes%F(:, i, j), &
-                  G_m1=>leftright_mid_fluxes%G(:, i, j), &
-                  F_m2=>downup_mid_fluxes%F(:, i + 1, j), &
-                  G_m2=>downup_mid_fluxes%G(:, i + 1, j), &
-                  F_m3=>leftright_mid_fluxes%F(:, i, j + 1), &
-                  G_m3=>leftright_mid_fluxes%G(:, i, j + 1), &
-                  G_m4=>downup_mid_fluxes%G(:, i, j), &
-                  F_m4=>downup_mid_fluxes%F(:, i, j), &
-                  n_hat_1=>grid%cell_edge_norm_vectors(:, 1, i, j), &
-                  n_hat_2=>grid%cell_edge_norm_vectors(:, 2, i, j), &
-                  n_hat_3=>grid%cell_edge_norm_vectors(:, 3, i, j), &
-                  n_hat_4=>grid%cell_edge_norm_vectors(:, 4, i, j))
-
-          !  Bottom
-          ! bottom_flux (rho, rhou, rhov, rhoE)
-          do k = 1, 4
-            f_sum = sum([F_c1(k), 4.0_rk * F_m1(k), F_c2(k)]) * n_hat_1(1)
-            g_sum = sum([G_c1(k), 4.0_rk * G_m1(k), G_c2(k)]) * n_hat_1(2)
-            ! if(abs(f_sum + g_sum) < epsilon(1.0_rk)) then !FIXME: is this the right way to do it?
-            !   bottom_flux(k) = 0.0_rk
-            ! else
-            bottom_flux(k) = (f_sum + g_sum) * (delta_l(1) / 6.0_rk)
-            ! end if
-          end do
-
-          !  Right
-          ! right_flux (rho, rhou, rhov, rhoE)
-          do k = 1, 4
-            f_sum = sum([F_c2(k), 4.0_rk * F_m2(k), F_c3(k)]) * n_hat_2(1)
-            g_sum = sum([G_c2(k), 4.0_rk * G_m2(k), G_c3(k)]) * n_hat_2(2)
-            ! if(abs(f_sum + g_sum) < epsilon(1.0_rk)) then
-            !   right_flux(k) = 0.0_rk
-            ! else
-            right_flux(k) = (f_sum + g_sum) * (delta_l(2) / 6.0_rk)
-            ! end if
-          end do
-
-          ! Top
-          ! top_flux (rho, rhou, rhov, rhoE)
-          do k = 1, 4
-            f_sum = sum([F_c3(k), 4.0_rk * F_m3(k), F_c4(k)]) * n_hat_3(1)
-            g_sum = sum([G_c3(k), 4.0_rk * G_m3(k), G_c4(k)]) * n_hat_3(2)
-            ! if(abs(f_sum + g_sum) < epsilon(1.0_rk)) then
-            !   top_flux(k) = 0.0_rk
-            ! else
-            top_flux(k) = (f_sum + g_sum) * (delta_l(3) / 6.0_rk)
-            ! end if
-          end do
-
-          ! Left
-          ! left_flux (rho, rhou, rhov, rhoE)
-          do k = 1, 4
-            f_sum = sum([F_c4(k), 4.0_rk * F_m4(k), F_c1(k)]) * n_hat_4(1)
-            g_sum = sum([G_c4(k), 4.0_rk * G_m4(k), G_c1(k)]) * n_hat_4(2)
-            ! if(abs(f_sum + g_sum) < epsilon(1.0_rk)) then
-            ! left_flux(k) = 0.0_rk
-            ! else
-            left_flux(k) = (f_sum + g_sum) * (delta_l(4) / 6.0_rk)
-            ! end if
-          end do
-
-          ave_rho_flux = sum([abs(left_flux(1)), abs(right_flux(1)), abs(top_flux(1)), abs(bottom_flux(1))]) / 4.0_rk
-          ave_rhou_flux = sum([abs(left_flux(2)), abs(right_flux(2)), abs(top_flux(2)), abs(bottom_flux(2))]) / 4.0_rk
-          ave_rhov_flux = sum([abs(left_flux(3)), abs(right_flux(3)), abs(top_flux(3)), abs(bottom_flux(3))]) / 4.0_rk
-          ave_rhoE_flux = sum([abs(left_flux(4)), abs(right_flux(4)), abs(top_flux(4)), abs(bottom_flux(4))]) / 4.0_rk
-
-          ! Now sum them all up together
-          rho_flux = neumaier_sum_4([left_flux(1), right_flux(1), top_flux(1), bottom_flux(1)])
-          rhou_flux = neumaier_sum_4([left_flux(2), right_flux(2), top_flux(2), bottom_flux(2)])
-          rhov_flux = neumaier_sum_4([left_flux(3), right_flux(3), top_flux(3), bottom_flux(3)])
-          rhoE_flux = neumaier_sum_4([left_flux(4), right_flux(4), top_flux(4), bottom_flux(4)])
-
-          threshold = abs(ave_rho_flux) * REL_THRESHOLD
-          if(abs(rho_flux) < threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
-            rho_flux = 0.0_rk
-          end if
-
-          threshold = abs(ave_rhou_flux) * REL_THRESHOLD
-          if(abs(rhou_flux) < threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
-            rhou_flux = 0.0_rk
-          end if
-
-          threshold = abs(ave_rhov_flux) * REL_THRESHOLD
-          if(abs(rhov_flux) < threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
-            rhov_flux = 0.0_rk
-          end if
-
-          threshold = abs(ave_rhoE_flux) * REL_THRESHOLD
-          if(abs(rhoE_flux) < threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
-            rhoE_flux = 0.0_rk
-          end if
-
-          d_rho_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rho_flux
-          d_rhou_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhou_flux
-          d_rhov_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhov_flux
-          d_rhoE_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhoE_flux
-
-          ! if(abs(rhov_flux) > 0.0_rk) then
-          !   print *, 'i,j', i, j
-          !   write(*, '(a, es16.6)') 'rhov_flux:                        : ', rhov_flux
-          !   ! write(*, '(a, es16.6)') 'FLUX_EPS                          : ', FLUX_EPS
-          !   ! write(*, '(a, es16.6)') 'ave_rhov_flux                     : ', ave_rhov_flux
-          !   ! write(*, '(a, es16.6)') 'REL_THRESHOLD                     : ', REL_THRESHOLD
-          !   ! write(*, '(a, es16.6)') 'abs(ave_rhov_flux) * REL_THRESHOLD: ', abs(ave_rhov_flux) * REL_THRESHOLD
-          !   ! write(*, '(a, 4(es16.6, 1x))') ' -> ', left_flux(3), right_flux(3), top_flux(3), bottom_flux(3)
-
-          !   print*, 'bottom flux'
-          !   print*, 'n_hat_1: ', n_hat_1
-          !   write(*, '(a, 4(es16.6))') "F_c1:          ", F_c1
-          !   write(*, '(a, 4(es16.6))') "4.0_rk * F_m1: ", 4.0_rk * F_m1
-          !   write(*, '(a, 4(es16.6))') "F_c2:          ", F_c2
-          !   write(*, '(a, 4(es16.6))') "G_c1:          ", G_c1
-          !   write(*, '(a, 4(es16.6))') "4.0_rk * G_m1: ", 4.0_rk * G_m1
-          !   write(*, '(a, 4(es16.6))') "G_c2:          ", G_c2
-          !   print*, '(delta_l(1) / 6.0_rk) ', (delta_l(1) / 6.0_rk)
-          !   do k = 1, 4
-          !     f_sum = sum([F_c1(k), 4.0_rk * F_m1(k), F_c2(k)]) * n_hat_1(1)
-          !     g_sum = sum([G_c1(k), 4.0_rk * G_m1(k), G_c2(k)]) * n_hat_1(2)
-          !     print*, 'f_sum', k, f_sum
-          !     print*, 'g_sum', k, g_sum
-          !   end do
-
-          !   error stop
-          ! end if
-
-        end associate
-
-      end do ! i
-    end do ! j
-    !$omp end do simd
-    !$omp end parallel
-
-    ilo = grid%ilo_bc_cell; ihi = grid%ihi_bc_cell
-    jlo = grid%jlo_bc_cell; jhi = grid%jhi_bc_cell
-    d_rho_dt(ilo, :) = 0.0_rk
-    d_rho_dt(ihi, :) = 0.0_rk
-    d_rho_dt(:, jlo) = 0.0_rk
-    d_rho_dt(:, jhi) = 0.0_rk
-
-    d_rhou_dt(ilo, :) = 0.0_rk
-    d_rhou_dt(ihi, :) = 0.0_rk
-    d_rhou_dt(:, jlo) = 0.0_rk
-    d_rhou_dt(:, jhi) = 0.0_rk
-
-    d_rhov_dt(ilo, :) = 0.0_rk
-    d_rhov_dt(ihi, :) = 0.0_rk
-    d_rhov_dt(:, jlo) = 0.0_rk
-    d_rhov_dt(:, jhi) = 0.0_rk
-
-    d_rhoE_dt(ilo, :) = 0.0_rk
-    d_rhoE_dt(ihi, :) = 0.0_rk
-    d_rhoE_dt(:, jlo) = 0.0_rk
-    d_rhoE_dt(:, jhi) = 0.0_rk
-
-    ! print *, 'fluxed vars differences'
-    ! write(*, '(a, 6(es16.6))') "d/dt rho   : ", maxval(d_rho_dt(204, jlo + 1:jhi - 1)) - minval(d_rho_dt(204, jlo + 1:jhi - 1))
-    ! write(*, '(a, 6(es16.6))') "d/dt rho u : ", maxval(d_rhou_dt(204, jlo + 1:jhi - 1)) - minval(d_rhou_dt(204, jlo + 1:jhi - 1))
-    ! write(*, '(a, 6(es16.6))') "d/dt rho v : ", maxval(d_rhov_dt(204, jlo + 1:jhi - 1)) - minval(d_rhov_dt(204, jlo + 1:jhi - 1))
-    ! write(*, '(a, 6(es16.6))') "d/dt rho E : ", maxval(d_rhoE_dt(204, jlo + 1:jhi - 1)) - minval(d_rhoE_dt(204, jlo + 1:jhi - 1))
-    ! print *
-
-  end subroutine flux_edges
 
   subroutine residual_smoother(self)
     class(fluid_t), intent(inout) :: self

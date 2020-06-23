@@ -59,11 +59,9 @@ add_library(
   lib/fluid/fluxes.f90
   lib/fluid/flux_array.f90
   lib/fluid/mod_fluid.f90
-
-  lib/riemann_solvers/riemann_solver.f90
-  lib/riemann_solvers/fvleg_solver.f90
-  lib/riemann_solvers/ausm_solver.f90
-
+  lib/flux_solvers/flux_solver.f90
+  lib/flux_solvers/fvleg_solver.f90
+  lib/flux_solvers/ausm_solver.f90
   lib/evolution_operator/abstract_evo_operator.f90
   lib/evolution_operator/local_evo_operator.f90
   lib/evolution_operator/evo_operator_factory.f90
