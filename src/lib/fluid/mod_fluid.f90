@@ -12,19 +12,13 @@ module mod_fluid
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
   use mod_flux_array, only: get_fluxes, flux_array_t
-  use mod_surrogate, only: surrogate
   use mod_units
   use mod_boundary_conditions, only: boundary_condition_t
-  use mod_strategy, only: strategy
-  use mod_surrogate, only: surrogate
   use mod_grid, only: grid_t
   use mod_input, only: input_t
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
-  use mod_finite_volume_schemes, only: finite_volume_scheme_t
-  use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
-  use mod_time_integrator_factory, only: time_integrator_factory
   use mod_riemann_solver, only: riemann_solver_t
 
   implicit none
@@ -48,28 +42,34 @@ module mod_fluid
     real(rk), dimension(:, :), allocatable, public :: mach_u   !< (i, j); Conserved quantities
     real(rk), dimension(:, :), allocatable, public :: mach_v   !< (i, j); Conserved quantities
 
-    type(riemann_solver_t), allocatable :: solver
+    class(riemann_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
 
-    logical :: prim_vars_updated = .false.
+    ! Time variables
+    character(len=10) :: time_integration_scheme = 'ssp_rk2'
+    real(rk) :: time = 0.0_rk !< current simulation time
+    real(rk) :: dt = 0.0_rk   !< time step
+    integer(ik) :: iteration = 0 !< current iteration number
+
+    logical, public :: prim_vars_updated = .false.
     logical :: smooth_residuals = .true.
 
     ! Residual history
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
     logical :: residual_hist_header_written = .false.
-    character(len=10) :: time_integration_scheme = 'ssp_rk2'
   contains
     ! Private methods
-    procedure, private :: initialize_from_ini
-    procedure, private :: initialize_from_hdf5
-    procedure, private :: residual_smoother
-    procedure, private :: write_residual_history
-    procedure, private :: calculate_derived_quantities
-    procedure, private :: sanity_check
-    procedure, private :: ssp_rk2
-    procedure, private :: ssp_rk3
-    procedure, private, nopass :: add_fields
-    procedure, private, nopass :: mult_fields
-    procedure, private, nopass :: subtract_fields
+    private
+    procedure :: initialize_from_ini
+    procedure :: initialize_from_hdf5
+    procedure :: residual_smoother
+    procedure :: write_residual_history
+    procedure :: calculate_derived_quantities
+    procedure :: sanity_check
+    procedure :: ssp_rk2
+    procedure :: ssp_rk3
+    procedure, nopass :: add_fields
+    procedure, nopass :: mult_fields
+    procedure, nopass :: subtract_fields
 
     ! Operators
     procedure, pass(lhs), public :: add_fluid
@@ -86,25 +86,30 @@ module mod_fluid
 
     ! Finalizer
     final :: finalize
+
+    ! Map operators to corresponding procedures
+    generic :: operator(+) => add_fluid
+    generic :: operator(-) => subtract_fluid
+    generic :: operator(*) => real_mul_fluid, fluid_mul_real
+    generic :: assignment(=) => assign_fluid
   end type fluid_t
 
 contains
 
-  function new_fluid(input, finite_volume_scheme) result(fluid)
+  function new_fluid(input, grid) result(fluid)
     !< Fluid constructor
     class(input_t), intent(in) :: input
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
+    class(grid_t), intent(in) :: grid
     type(fluid_t), pointer :: fluid
 
     allocate(fluid)
-    call fluid%initialize(input, finite_volume_scheme)
+    call fluid%initialize(input, grid)
   end function new_fluid
 
-  subroutine initialize(self, input, finite_volume_scheme)
+  subroutine initialize(self, input, grid)
     class(fluid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
-    class(strategy), pointer :: time_integrator => null()
+    class(grid_t), intent(in) :: grid
 
     integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi, io
 
@@ -116,10 +121,10 @@ contains
         "scale factors haven't been set yet. These need to be set before fluid initialization"
     end if
 
-    associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, &
-              imax=>finite_volume_scheme%grid%ihi_bc_cell, &
-              jmin=>finite_volume_scheme%grid%jlo_bc_cell, &
-              jmax=>finite_volume_scheme%grid%jhi_bc_cell)
+    associate(imin=>grid%ilo_bc_cell, &
+              imax=>grid%ihi_bc_cell, &
+              jmin=>grid%jlo_bc_cell, &
+              jmax=>grid%jhi_bc_cell)
 
       allocate(self%rho(imin:imax, jmin:jmax))
       allocate(self%u(imin:imax, jmin:jmax))
@@ -135,17 +140,18 @@ contains
 
     self%smooth_residuals = input%smooth_residuals
 
-    time_integrator => time_integrator_factory(input)
-    allocate(self%time_integrator, source=time_integrator, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%time_integrator"
-    deallocate(time_integrator)
+    self%time_integration_scheme = trim(input%time_integration_strategy)
+    ! time_integrator => time_integrator_factory(input)
+    ! allocate(self%time_integrator, source=time_integrator, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate fvleg_t%time_integrator"
+    ! deallocate(time_integrator)
 
     open(newunit=io, file=trim(self%residual_hist_file), status='replace')
     write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
     close(io)
 
     if(input%read_init_cond_from_file .or. input%restart_from_file) then
-      call self%initialize_from_hdf5(input, finite_volume_scheme)
+      call self%initialize_from_hdf5(input)
     else
       call self%initialize_from_ini(input)
     end if
@@ -175,12 +181,11 @@ contains
 
   end subroutine initialize
 
-  subroutine initialize_from_hdf5(self, input, finite_volume_scheme)
+  subroutine initialize_from_hdf5(self, input)
     !< Initialize from an .hdf5 file. The conserved variables are already allocated appropriately from
     !< from the grid class, but this will just initialize them to the values found in the hdf5 file
     class(fluid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
-    class(finite_volume_scheme_t), intent(in) :: finite_volume_scheme
     type(hdf5_file) :: h5
     logical :: file_exists
     character(:), allocatable :: filename
@@ -262,15 +267,11 @@ contains
       error stop "Some (or all) of the density array is ~0 in fluid_t%initialize_from_hdf5"
     end if
 
-    ! associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, imax=>finite_volume_scheme%grid%ihi_bc_cell, &
-    !           jmin=>finite_volume_scheme%grid%jlo_bc_cell, jmax=>finite_volume_scheme%grid%jhi_bc_cell)
-
     self%rho = density
     self%u = x_velocity
     self%v = y_velocity
     self%p = pressure
-    ! error stop
-    ! end associate
+
     call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
                                     rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
@@ -338,7 +339,7 @@ contains
     if(allocated(self%cs)) deallocate(self%cs)
     if(allocated(self%mach_u)) deallocate(self%mach_u)
     if(allocated(self%mach_v)) deallocate(self%mach_v)
-    if(allocated(self%time_integrator)) deallocate(self%time_integrator)
+    ! if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine force_finalization
 
   subroutine finalize(self)
@@ -355,10 +356,10 @@ contains
     if(allocated(self%cs)) deallocate(self%cs)
     if(allocated(self%mach_u)) deallocate(self%mach_u)
     if(allocated(self%mach_v)) deallocate(self%mach_v)
-    if(allocated(self%time_integrator)) deallocate(self%time_integrator)
+    ! if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine finalize
 
-  subroutine write_residual_history(self, fv)
+  subroutine write_residual_history(self)
     !< This writes out the change in residual to a file for convergence history monitoring. This
     !< should not be called on a single instance of fluid_t. It should be called something like the following:
     !<
@@ -369,7 +370,6 @@ contains
     !<
 
     class(fluid_t), intent(inout) :: self
-    class(finite_volume_scheme_t), intent(in) :: fv
 
     real(rk) :: rho_diff   !< difference in the rho residual
     real(rk) :: rho_u_diff !< difference in the rhou residual
@@ -383,35 +383,48 @@ contains
     rho_E_diff = maxval(abs(self%rho_E))
 
     open(newunit=io, file=trim(self%residual_hist_file), status='old', position="append")
-    write(io, '(i0, ",", 5(es16.6, ","))') fv%iteration, fv%time * t_0, rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
+    write(io, '(i0, ",", 5(es16.6, ","))') self%iteration, self%time * t_0, rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
     close(io)
 
   end subroutine
 
-  function integrate(self, dt, grid) result(d_dt)
+  subroutine integrate(self, dt, grid)
     !< Integrate in time
     class(fluid_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< time step
     class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
     type(fluid_t), allocatable :: d_dt !< dU/dt
 
+    self%time = self%time + dt
+
     select case(trim(self%time_integration_scheme))
     case('ssp_rk2')
-      d_dt = self%ssp_rk2(grid, dt)
+      call self%ssp_rk2(grid)
     case('ssp_rk3')
-      d_dt = self%ssp_rk2(grid, dt)
+      call self%ssp_rk3(grid)
+    case default
+      error stop "Error: Unknown time integration scheme in fluid_t%integrate()"
     end select
-  end function integrate
+  end subroutine integrate
 
-  function time_derivative(self, grid, dt)
+  function time_derivative(self, grid, stage) result(d_dt)
+    !< Implementation of the time derivative
+
+    ! Inputs/Output
     class(fluid_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
-    real(rk), intent(in) :: dt !< time step
-    real(rk), dimension(2) :: lbounds
+    class(grid_t), intent(in) :: grid     !< grid class - the solver needs grid topology
+    type(fluid_t), allocatable :: d_dt    !< dU/dt
+    integer(ik), intent(in) :: stage      !< stage in the time integration scheme
+
+    ! Locals
+    integer(ik), dimension(2) :: lbounds
 
     lbounds = lbound(self%rho)
 
-    call self%solver%solve(grid)
+    call self%solver%solve(time=self%time, &
+                           grid=grid, lbounds=lbounds, &
+                           rho=self%rho, u=self%u, v=self%v, p=self%p, &
+                           rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
   end function time_derivative
 
   subroutine calculate_derived_quantities(self)
@@ -773,7 +786,7 @@ contains
     call subtract_fields(a=lhs%rho_E, b=rhs%rho_E, c=difference%rho_E) ! c=a+b
     difference%prim_vars_updated = .false.
 
-    call difference%set_temp(calling_function='subtract_fluid (difference)', line=__LINE__)
+    ! call difference%set_temp(calling_function='subtract_fluid (difference)', line=__LINE__)
   end function subtract_fluid
 
   function add_fluid(lhs, rhs) result(sum)
@@ -791,9 +804,9 @@ contains
     call add_fields(a=lhs%rho_E, b=rhs%rho_E, c=sum%rho_E) ! c=a+b
     sum%prim_vars_updated = .false.
 
-    call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
-    call move_alloc(sum, sum)
-    call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
+    ! call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
+    ! call move_alloc(sum, sum)
+    ! call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
   end function add_fluid
 
   subroutine add_fields(a, b, c)
@@ -951,8 +964,8 @@ contains
     call mult_field_by_real(a=lhs%rho_E, b=rhs, c=product%rho_E)
     product%prim_vars_updated = .false.
 
-    call move_alloc(product, product)
-    call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
+    ! call move_alloc(product, product)
+    ! call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
   end function fluid_mul_real
 
   function real_mul_fluid(lhs, rhs) result(product)
@@ -967,15 +980,15 @@ contains
     allocate(product, source=rhs, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate product in fluid_t%real_mul_fluid"
 
-    product%time_integrator = rhs%time_integrator
+    ! product%time_integrator = rhs%time_integrator
     call mult_field_by_real(a=rhs%rho, b=lhs, c=product%rho)
     call mult_field_by_real(a=rhs%rho_u, b=lhs, c=product%rho_u)
     call mult_field_by_real(a=rhs%rho_v, b=lhs, c=product%rho_v)
     call mult_field_by_real(a=rhs%rho_E, b=lhs, c=product%rho_E)
     product%prim_vars_updated = .false.
 
-    call move_alloc(product, product)
-    call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
+    ! call move_alloc(product, product)
+    ! call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
   end function real_mul_fluid
 
   subroutine assign_fluid(lhs, rhs)
@@ -985,16 +998,16 @@ contains
 
     call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
 
-    call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
+    ! call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
 
-    lhs%time_integrator = rhs%time_integrator
+    ! lhs%time_integrator = rhs%time_integrator
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
     lhs%rho = rhs%rho
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
 
-    call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
+    ! call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
   end subroutine assign_fluid
 
   subroutine sanity_check(self, error_code)
@@ -1087,21 +1100,20 @@ contains
 
   end subroutine sanity_check
 
-  subroutine ssp_rk3(self, grid, dt)
+  subroutine ssp_rk3(U, grid)
     !< Strong-stability preserving Runge-Kutta 3rd order
-    class(fluid_t), intent(inout) :: self
-    class(grid_t), intent(inout) :: grid
-    real(rk), intent(inout) :: dt
+    class(fluid_t), intent(inout) :: U
+    class(grid_t), intent(in) :: grid
 
-    class(fluid_t), allocatable :: U_1 !< first stage
-    class(fluid_t), allocatable :: U_2 !< second stage
-    class(fluid_t), allocatable :: R !< hist
+    type(fluid_t), allocatable :: U_1 !< first stage
+    type(fluid_t), allocatable :: U_2 !< second stage
+    type(fluid_t), allocatable :: R !< hist
 
-    allocate(U_1, source=self)
-    allocate(U_2, source=self)
-    allocate(R, source=self)
+    allocate(U_1, source=U)
+    allocate(U_2, source=U)
+    allocate(R, source=U)
 
-    associate(self=>U)
+    associate(dt=>U%dt)
       ! 1st stage
       U_1 = U + dt * U%t(grid, stage=1)
       call U_1%residual_smoother()
@@ -1129,23 +1141,19 @@ contains
 
   end subroutine ssp_rk3
 
-  subroutine ssp_rk2(self, grid, dt)
+  subroutine ssp_rk2(U, grid)
     !< Strong-stability preserving Runge-Kutta 2nd order
-    class(fluid_t), intent(inout) :: self
-    class(grid_t), intent(inout) :: grid
-    real(rk), intent(inout) :: dt
+    class(fluid_t), intent(inout) :: U
+    class(grid_t), intent(in) :: grid
 
-    class(fluid_t), allocatable :: U_1 !< first stage
-    class(fluid_t), allocatable :: R !< hist
+    type(fluid_t), allocatable :: U_1 !< first stage
+    type(fluid_t), allocatable :: R !< hist
 
-    allocate(U_1, source=self)
-    allocate(R, source=self)
+    allocate(U_1, source=U)
+    allocate(R, source=U)
 
-    associate(self=>U)
-      allocate(U_1, source=U)
-      allocate(R, source=U)
-
-      ! 1st stage
+    ! 1st stage
+    associate(dt=>U%dt)
       call debug_print('Running ssp_rk2_t 1st stage', __FILE__, __LINE__)
       U_1 = U + U%t(grid, stage=1) * dt
       call U_1%residual_smoother()
@@ -1159,9 +1167,6 @@ contains
       ! Convergence history
       R = U - U_1
       call R%write_residual_history()
-
-      deallocate(R)
-      deallocate(U_1)
     end associate
 
     deallocate(R)

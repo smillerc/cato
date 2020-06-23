@@ -10,6 +10,7 @@ module mod_ausm_solver
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_riemann_solver, only: riemann_solver_t
   use mod_grid, only: grid_t
+  use mod_input, only: input_t
 
   implicit none
 
@@ -18,15 +19,24 @@ module mod_ausm_solver
 
   type, extends(riemann_solver_t) :: ausm_solver_t
   contains
-    procedure, public :: solve
+    procedure, public :: initialize => initialize_ausm
+    procedure, public :: solve => solve_ausm
     final :: finalize
   end type ausm_solver_t
 
 contains
-  subroutine solve(self, grid, lbounds, rho, u, v, p, rho_u, rho_v, rho_E)
+
+  subroutine initialize_ausm(self, grid, input)
     class(ausm_solver_t), intent(in) :: self
     class(grid_t), intent(in) :: grid
-    real(rk), dimension(2), intent(in) :: lbounds
+    class(input_t), intent(in) :: input
+  end subroutine initialize_ausm
+
+  subroutine solve_ausm(self, time, grid, lbounds, rho, u, v, p, rho_u, rho_v, rho_E)
+    class(ausm_solver_t), intent(in) :: self
+    class(grid_t), intent(in) :: grid
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), intent(in) :: time
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: u
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: v
@@ -34,11 +44,15 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: rho_u
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: rho_v
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: rho_E
-  end subroutine solve
+  end subroutine solve_ausm
 
   subroutine finalize(self)
     !< Class finalizer
     type(ausm_solver_t), intent(inout) :: self
     if(allocated(self%reconstructor)) deallocate(self%reconstructor)
-  end subroutine
+    if(allocated(self%bc_plus_x)) deallocate(self%bc_plus_x)
+    if(allocated(self%bc_plus_y)) deallocate(self%bc_plus_y)
+    if(allocated(self%bc_minus_x)) deallocate(self%bc_minus_x)
+    if(allocated(self%bc_minus_y)) deallocate(self%bc_minus_y)
+  end subroutine finalize
 end module mod_ausm_solver

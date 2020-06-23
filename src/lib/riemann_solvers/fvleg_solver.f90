@@ -11,6 +11,7 @@ module mod_fvleg_solver
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_finite_volume_schemes, only: finite_volume_scheme_t
   use mod_grid, only: grid_t
+  use mod_input, only: input_t
 
   implicit none
 
@@ -18,17 +19,25 @@ module mod_fvleg_solver
   public :: riemann_solver_t
 
   type, extends(riemann_solver_t) :: fvleg_solver_t
-    type(abstract_evo_operator_t), allocatable :: evolution_operator
+    class(abstract_evo_operator_t), allocatable :: evolution_operator
   contains
-    procedure, public :: solve
+    procedure, public :: initialize => initialize_fvleg
+    procedure, public :: solve => solve_fvleg
     final :: finalize
   end type fvleg_solver_t
 
 contains
-  subroutine solve(self, grid, lbounds, rho, u, v, p, rho_u, rho_v, rho_E)
+  subroutine initialize_fvleg(self, grid, input)
     class(fvleg_solver_t), intent(in) :: self
     class(grid_t), intent(in) :: grid
-    real(rk), dimension(2), intent(in) :: lbounds
+    class(input_t), intent(in) :: input
+  end subroutine initialize_fvleg
+
+  subroutine solve_fvleg(self, time, grid, lbounds, rho, u, v, p, rho_u, rho_v, rho_E)
+    class(fvleg_solver_t), intent(in) :: self
+    real(rk), intent(in) :: time
+    class(grid_t), intent(in) :: grid
+    integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: u
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(in) :: v
@@ -59,18 +68,18 @@ contains
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
 
-    ! real(rk), dimension(:, :, :), allocatable, target :: rho_recon_state
-    ! !< ((corner1:midpoint4), i, j); reconstructed density, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
-    ! real(rk), dimension(:, :, :), allocatable, target :: u_recon_state
-    ! !< ((corner1:midpoint4), i, j); reconstructed x-velocity, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
-    ! real(rk), dimension(:, :, :), allocatable, target :: v_recon_state
-    ! !< ((corner1:midpoint4), i, j); reconstructed y-velocity, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
-    ! real(rk), dimension(:, :, :), allocatable, target :: p_recon_state
-    ! !< ((corner1:midpoint4), i, j); reconstructed pressure, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+    real(rk), dimension(:, :, :), allocatable, target :: rho_recon_state
+    !< ((corner1:midpoint4), i, j); reconstructed density, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+    real(rk), dimension(:, :, :), allocatable, target :: u_recon_state
+    !< ((corner1:midpoint4), i, j); reconstructed x-velocity, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+    real(rk), dimension(:, :, :), allocatable, target :: v_recon_state
+    !< ((corner1:midpoint4), i, j); reconstructed y-velocity, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
+    real(rk), dimension(:, :, :), allocatable, target :: p_recon_state
+    !< ((corner1:midpoint4), i, j); reconstructed pressure, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
-    ! integer(ik), dimension(2) :: bounds
+    integer(ik), dimension(2) :: bounds
 
-    ! call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
     ! associate(imin=>fv%grid%ilo_bc_cell, imax=>fv%grid%ihi_bc_cell, &
     !           jmin=>fv%grid%jlo_bc_cell, jmax=>fv%grid%jhi_bc_cell)
@@ -232,12 +241,16 @@ contains
     deallocate(v_recon_state)
     deallocate(p_recon_state)
 
-  end subroutine
+  end subroutine solve_fvleg
 
   subroutine finalize(self)
     !< Class finalizer
     type(fvleg_solver_t), intent(inout) :: self
     if(allocated(self%reconstructor)) deallocate(self%reconstructor)
     if(allocated(self%evolution_operator)) deallocate(self%evolution_operator)
-  end subroutine
+    if(allocated(self%bc_plus_x)) deallocate(self%bc_plus_x)
+    if(allocated(self%bc_plus_y)) deallocate(self%bc_plus_y)
+    if(allocated(self%bc_minus_x)) deallocate(self%bc_minus_x)
+    if(allocated(self%bc_minus_y)) deallocate(self%bc_minus_y)
+  end subroutine finalize
 end module mod_fvleg_solver

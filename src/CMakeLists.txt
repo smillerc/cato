@@ -59,9 +59,11 @@ add_library(
   lib/fluid/fluxes.f90
   lib/fluid/flux_array.f90
   lib/fluid/mod_fluid.f90
-  # lib/fluid/base_fluid.f90
-  # lib/fluid/ausm_fluid.f90
-  # lib/fluid/fvleg_fluid.f90
+
+  lib/riemann_solvers/riemann_solver.f90
+  lib/riemann_solvers/fvleg_solver.f90
+  lib/riemann_solvers/ausm_solver.f90
+
   lib/evolution_operator/abstract_evo_operator.f90
   lib/evolution_operator/local_evo_operator.f90
   lib/evolution_operator/evo_operator_factory.f90
@@ -77,14 +79,7 @@ add_library(
   lib/spatial_reconstruction/mlp_3rd_order.f90
   lib/spatial_reconstruction/mlp_5th_order.f90
   lib/spatial_reconstruction/reconstruction_factory.f90
-  lib/finite_volume_scheme/fv_scheme.f90
-  lib/integrand.f90
-  lib/time_integrators/strategy.f90
-  lib/time_integrators/surrogate.f90
-  lib/time_integrators/time_integrator_factory.f90
-  lib/time_integrators/ssp_rk2.f90
-  lib/time_integrators/ssp_rk3.f90
-  lib/time_integrators/ralston_2nd_order.f90)
+  lib/finite_volume_scheme/fv_scheme.f90)
 
 # target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(

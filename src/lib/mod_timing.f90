@@ -103,10 +103,9 @@ contains
     close(io)
   end subroutine
 
-  real(rk) function get_timestep(cfl, fv, fluid) result(delta_t)
+  real(rk) function get_timestep(cfl, fv) result(delta_t)
     real(rk), intent(in) :: cfl
     class(finite_volume_scheme_t), intent(in) :: fv
-    class(fluid_t), intent(in) :: fluid
 
     integer(ik) :: ilo, ihi, jlo, jhi
 
@@ -115,11 +114,11 @@ contains
     jlo = fv%grid%jlo_cell
     jhi = fv%grid%jhi_cell
 
-    if(.not. fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
+    if(.not. fv%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
     associate(dx=>fv%grid%cell_dx, dy=>fv%grid%cell_dy)
 
-      delta_t = minval(cfl / (((abs(fluid%u(ilo:ihi, jlo:jhi)) + fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
-                              ((abs(fluid%v(ilo:ihi, jlo:jhi)) + fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
+      delta_t = minval(cfl / (((abs(fv%fluid%u(ilo:ihi, jlo:jhi)) + fv%fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
+                              ((abs(fv%fluid%v(ilo:ihi, jlo:jhi)) + fv%fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
     end associate
     ! !$omp end workshare
 
