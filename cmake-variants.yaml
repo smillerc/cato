@@ -1,0 +1,61 @@
+buildType:
+  default: debug
+  choices:
+    debug:
+      short: Debug
+      long: Emit debug information
+      buildType: Debug
+    release:
+      short: Release
+      long: Optimize generated code
+      buildType: Release
+    asan:
+      short: Asan
+      long: Instrument with Address Sanitizer
+      buildType: Asan
+    tsan:
+      short: Tsan
+      long: Instrument with Thread Sanitizer
+      buildType: Tsan
+
+# EnableOpenMP:
+#   default: "yes"
+#   short: Enable OpenMP Testing
+#   choices:
+#     yes:
+#     short: OpenMP
+#     long: Enable OpenMP
+#     settings:
+#       USE_OPENMP: yes
+#     no:
+#       short: OpenMP
+#       long: Disable OpenMP
+#       settings:
+#         USE_OPENMP: no
+EnableOpenMP:
+  default: yes
+  choices:
+    yes:
+      short: With_OpenMP
+      long: Enable PFUnit Unit testing
+      settings:
+        USE_OPENMP: YES
+    no:
+      short: Without_OpenMP
+      long: Disable PFUnit Unit testing
+      settings:
+        USE_OPENMP: NO
+
+EnableTesting:
+  default: no
+  choices:
+    yes:
+      short: With_PFUnit
+      long: Enable PFUnit Unit testing
+      settings:
+        DENABLE_TESTING: YES
+    no:
+      short: Without_PFUnit
+      long: Disable PFUnit Unit testing
+      settings:
+        DENABLE_TESTING: NO

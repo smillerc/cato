@@ -1,0 +1,39 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "Config Debug GCC",
+            "command": "cmake",
+            "args": [
+                "..",
+                "-DCMAKE_BUILD_TYPE='Debug'",
+                "-DENABLE_TESTING=NO",
+                "-DUSE_OPENMP=YES",
+                "-DENABLE_PROFILING=NO",
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build",
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "type": "shell",
+            "label": "Build",
+            "command": "make",
+            "args": [
+                "-j"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/build",
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

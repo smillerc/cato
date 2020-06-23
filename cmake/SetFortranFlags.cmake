@@ -55,8 +55,19 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
 
   set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -funroll-loops -finline-functions ${GNUNATIVE}")
 
-  if(ENABLE_PROFILING)
-    # set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address")
+  if(NOT USE_ASAN)
+    set(USE_ASAN Off)
+  endif()
+
+  if(NOT USE_TSAN)
+    set(USE_TSAN Off)
+  endif()
+
+  if(USE_ASAN)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address")
+  endif()
+
+  if(USE_TSAN)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fsanitize=thread")
   endif()
 
@@ -65,6 +76,9 @@ endif()
 # ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
+  if (USE_ASAN or USE_TSAN)
+    message(FATAL_ERROR "Cannot enable USE_ASAN or USE_TSAN with the Intel Fortran Compiler, this is a GCC/Clang feature")
+  endif()
   # if(SERIAL_BUILD) set(IFORT_COARRAY "-coarray=single") elseif(SHARED_MEMORY) set(IFORT_COARRAY
   # "-coarray=shared") elseif(DISTRIBUTED_MEMORY) set(IFORT_COARRAY "-coarray=distributed") endif()
 
