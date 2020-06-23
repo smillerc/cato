@@ -14,7 +14,7 @@ module mod_finite_volume_schemes
   use mod_grid_factory, only: grid_factory
   use hdf5_interface, only: hdf5_file
   use mod_nondimensionalization, only: set_scale_factors
-  use mod_fluid, only: fluid_t
+  use mod_fluid, only: fluid_t, new_fluid
 
   implicit none
   private
@@ -97,6 +97,7 @@ contains
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
 
+    self%fluid = new_fluid(input, self%grid)
   end subroutine initialize
 
   subroutine finalize(self)

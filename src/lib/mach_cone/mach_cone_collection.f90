@@ -179,8 +179,13 @@ contains
 
     self%ni = size(reconstructed_rho, dim=2)
     self%nj = size(reconstructed_rho, dim=3)
+    if(self%ni <= 1 .or. self%nj <= 1) then
+      error stop "Error in mach_cone_collection_t%initialize(), ni <= 1 .or. nj <= 1, e.g. not enough mach cones!"
+    end if
+
     self%cone_location = trim(cone_location)
     self%tau = tau
+    if(self%tau < tiny(1.0_rk)) error stop "Error in mach_cone_collection_t%initialize(), tau < tiny(1.0)"
 
     ni = self%ni
     nj = self%nj

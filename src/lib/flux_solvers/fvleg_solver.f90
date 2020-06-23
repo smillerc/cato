@@ -76,29 +76,22 @@ contains
 
   end subroutine initialize_fvleg
 
-  subroutine solve_fvleg(self, time, grid, lbounds, rho, u, v, p, rho_u, rho_v, rho_E)
-    !< Solve the edge fluxes
+  subroutine solve_fvleg(self, time, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    !< Solve and flux the edges
     class(fvleg_solver_t), intent(inout) :: self
-    real(rk), intent(in) :: time
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: p
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: rho_u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: rho_v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: rho_E
+    real(rk), intent(in) :: time
+    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: rho !< density
+    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: u   !< x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: v   !< y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: p   !< pressure
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
-    ! class(fluid_t), intent(in) :: self
-    ! class(finite_volume_scheme_t), intent(inout) :: fv
-    ! integer(ik), intent(in) :: stage !< which stage in the time integration scheme are we in, e.g. RK2 stage 1
-
-    ! ! Locals
-    ! class(integrand_t), allocatable :: d_dt !< dU/dt (integrand_t to satisfy parent interface)
-    ! type(fluid_t), allocatable :: local_d_dt !< dU/dt
-    ! integer(ik) :: error_code
-
+    ! Locals
     real(rk), dimension(:, :), allocatable :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
     real(rk), dimension(:, :), allocatable :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
     real(rk), dimension(:, :), allocatable :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
@@ -121,11 +114,13 @@ contains
     real(rk), dimension(:, :, :), allocatable, target :: p_recon_state
     !< ((corner1:midpoint4), i, j); reconstructed pressure, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
-    integer(ik), dimension(2) :: bounds
+    integer(ik), dimension(2) :: evo_bounds
     integer(ik) :: error_code, alloc_status
     integer(ik) :: stage = 0
     character(len=50) :: stage_name = ''
+
     error_code = 0
+    evo_bounds = 0
 
     call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
@@ -160,32 +155,26 @@ contains
 
     end associate
 
-    ! allocate(local_d_dt, source=self)
-
-    ! if(.not. prim_vars_updated) then
-    !   call calculate_derived_quantities()
-    ! end if
-
     write(stage_name, '(2(a, i0))') 'iter_', self%iteration, 'stage_', stage
 
     call self%reconstructor%set_cell_average_pointers(rho=rho, p=p, lbounds=lbounds)
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=bounds)
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
     ! Now we can reconstruct the entire domain
     call debug_print('Reconstructing density', __FILE__, __LINE__)
-    call self%reconstructor%reconstruct(primitive_var=rho, lbounds=bounds, &
+    call self%reconstructor%reconstruct(primitive_var=rho, lbounds=lbounds, &
                                         reconstructed_var=rho_recon_state, name='rho', stage_name=stage_name)
 
     call debug_print('Reconstructing x-velocity', __FILE__, __LINE__)
-    call self%reconstructor%reconstruct(primitive_var=u, lbounds=bounds, &
+    call self%reconstructor%reconstruct(primitive_var=u, lbounds=lbounds, &
                                         reconstructed_var=u_recon_state, name='u', stage_name=stage_name)
 
     call debug_print('Reconstructing y-velocity', __FILE__, __LINE__)
-    call self%reconstructor%reconstruct(primitive_var=v, lbounds=bounds, &
+    call self%reconstructor%reconstruct(primitive_var=v, lbounds=lbounds, &
                                         reconstructed_var=v_recon_state, name='v', stage_name=stage_name)
 
     call debug_print('Reconstructing pressure', __FILE__, __LINE__)
-    call self%reconstructor%reconstruct(primitive_var=p, lbounds=bounds, &
+    call self%reconstructor%reconstruct(primitive_var=p, lbounds=lbounds, &
                                         reconstructed_var=p_recon_state, name='p', stage_name=stage_name)
 
     ! The gradients have to be applied to the boundaries as well, since reconstructing
@@ -194,39 +183,39 @@ contains
 
     ! Apply the reconstructed state to the ghost layers
     call self%apply_reconstructed_bc(recon_rho=rho_recon_state, recon_u=u_recon_state, &
-                                     recon_v=v_recon_state, recon_p=p_recon_state, lbounds=bounds)
+                                     recon_v=v_recon_state, recon_p=p_recon_state, lbounds=lbounds)
 
     call self%evolution_operator%set_reconstructed_state_pointers(rho=rho_recon_state, &
                                                                   u=u_recon_state, &
                                                                   v=v_recon_state, &
                                                                   p=p_recon_state, &
-                                                                  lbounds=bounds)
+                                                                  lbounds=lbounds)
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
-    bounds = lbound(evolved_du_mid_rho)
+    evo_bounds = lbound(evolved_du_mid_rho)
     call self%evolution_operator%evolve(evolved_rho=evolved_du_mid_rho, evolved_u=evolved_du_mid_u, &
                                         evolved_v=evolved_du_mid_v, evolved_p=evolved_du_mid_p, &
                                         location='down/up midpoint', &
-                                        lbounds=bounds, &
+                                        lbounds=evo_bounds, &
                                         error_code=error_code)
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
-    bounds = lbound(evolved_lr_mid_rho)
+    evo_bounds = lbound(evolved_lr_mid_rho)
     call self%evolution_operator%evolve(evolved_rho=evolved_lr_mid_rho, evolved_u=evolved_lr_mid_u, &
                                         evolved_v=evolved_lr_mid_v, evolved_p=evolved_lr_mid_p, &
                                         location='left/right midpoint', &
-                                        lbounds=bounds, &
+                                        lbounds=evo_bounds, &
                                         error_code=error_code)
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
-    bounds = lbound(evolved_corner_rho)
+    evo_bounds = lbound(evolved_corner_rho)
     call self%evolution_operator%evolve(evolved_rho=evolved_corner_rho, evolved_u=evolved_corner_u, &
                                         evolved_v=evolved_corner_v, evolved_p=evolved_corner_p, &
                                         location='corner', &
-                                        lbounds=bounds, &
+                                        lbounds=evo_bounds, &
                                         error_code=error_code)
 
     nullify(self%evolution_operator%reconstructed_rho)
@@ -250,10 +239,10 @@ contains
                          evolved_du_mid_u=evolved_du_mid_u, &
                          evolved_du_mid_v=evolved_du_mid_v, &
                          evolved_du_mid_p=evolved_du_mid_p, &
-                         d_rho_dt=rho, &
-                         d_rhou_dt=rho_u, &
-                         d_rhov_dt=rho_v, &
-                         d_rhoE_dt=rho_E)
+                         d_rho_dt=d_rho_dt, &
+                         d_rhou_dt=d_rho_u_dt, &
+                         d_rhov_dt=d_rho_v_dt, &
+                         d_rhoE_dt=d_rho_E_dt)
 
     ! Now deallocate everything
     deallocate(evolved_corner_rho)

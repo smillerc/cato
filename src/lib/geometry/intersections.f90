@@ -36,7 +36,6 @@ contains
     integer(ik) :: n_intersections
     !< number of intersections (not all may be valid yet, since it assumes the line is infinite at first)
 
-    real(rk), parameter :: r = 1.0_rk !< radius of the scaled circle
     real(rk), parameter :: r_sq = 1.0_rk !< r**2. This makes the code easier to read
     real(rk) :: x1, y1, x2, y2
     real(rk) :: ax, ay !< 1st intersection point
@@ -57,23 +56,35 @@ contains
 
     x1 = line_xy(1, 1) - circle_xy(1)
     threshold = abs(line_xy(1, 1) + circle_xy(1)) * EPS
-    if(abs(x1) < threshold) x1 = 0.0_rk
-    x1 = x1 / circle_radius
+    if(abs(x1) < threshold) then
+      x1 = 0.0_rk
+    else
+      x1 = x1 / circle_radius
+    end if
 
     y1 = line_xy(2, 1) - circle_xy(2)
     threshold = abs(line_xy(2, 1) + circle_xy(2)) * EPS
-    if(abs(y1) < threshold) y1 = 0.0_rk
-    y1 = y1 / circle_radius
+    if(abs(y1) < threshold) then
+      y1 = 0.0_rk
+    else
+      y1 = y1 / circle_radius
+    end if
 
     x2 = line_xy(1, 2) - circle_xy(1)
     threshold = abs(line_xy(1, 2) + circle_xy(1)) * EPS
-    if(abs(x2) < threshold) x2 = 0.0_rk
-    x2 = x2 / circle_radius
+    if(abs(x2) < threshold) then
+      x2 = 0.0_rk
+    else
+      x2 = x2 / circle_radius
+    end if
 
     y2 = line_xy(2, 2) - circle_xy(2)
     threshold = abs(line_xy(2, 2) + circle_xy(2)) * EPS
-    if(abs(y2) < threshold) y2 = 0.0_rk
-    y2 = y2 / circle_radius
+    if(abs(y2) < threshold) then
+      y2 = 0.0_rk
+    else
+      y2 = y2 / circle_radius
+    end if
 
     A = y2 - y1
     if(abs(A) < epsilon(1.0_rk)) A = 0.0_rk

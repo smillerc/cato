@@ -427,11 +427,15 @@ contains
     integer(ik), dimension(2) :: lbounds
 
     lbounds = lbound(self%rho)
-
+    allocate(d_dt, source=self)
     call self%solver%solve(time=self%time, &
                            grid=grid, lbounds=lbounds, &
                            rho=self%rho, u=self%u, v=self%v, p=self%p, &
-                           rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
+                           d_rho_dt=d_dt%rho, &
+                           d_rho_u_dt=d_dt%rho_u, &
+                           d_rho_v_dt=d_dt%rho_v, &
+                           d_rho_E_dt=d_dt%rho_E)
+
   end function time_derivative
 
   subroutine calculate_derived_quantities(self)
@@ -747,6 +751,7 @@ contains
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
+    call lhs%calculate_derived_quantities()
 
     ! call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
   end subroutine assign_fluid
