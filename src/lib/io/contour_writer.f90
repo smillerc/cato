@@ -55,8 +55,13 @@ contains
 
     integer(ik) :: dt(8)
     character(len=32) :: str_buff = ''
-    integer(ik) :: cstat, estat
+    integer(ik) :: cstat
+    integer(ik) :: estat
     character(100) :: cmsg
+
+    cmsg = ''
+    cstat = 0
+    estat = 0
 
     call date_and_time(values=dt)
 

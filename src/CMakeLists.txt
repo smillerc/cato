@@ -62,9 +62,9 @@ add_library(
   lib/flux_solvers/flux_solver.f90
   lib/flux_solvers/fvleg_solver.f90
   lib/flux_solvers/ausm_solver.f90
-  lib/evolution_operator/abstract_evo_operator.f90
+  # lib/evolution_operator/abstract_evo_operator.f90
   lib/evolution_operator/local_evo_operator.f90
-  lib/evolution_operator/evo_operator_factory.f90
+  # lib/evolution_operator/evo_operator_factory.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
   lib/spatial_reconstruction/gradients.f90
   lib/spatial_reconstruction/piecewise_constant.f90

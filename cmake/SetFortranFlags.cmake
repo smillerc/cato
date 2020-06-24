@@ -64,11 +64,11 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   endif()
 
   if(USE_ASAN)
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address -fno-omit-frame-pointer")
   endif()
 
   if(USE_TSAN)
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fsanitize=thread")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fsanitize=thread -fno-omit-frame-pointer")
   endif()
 
 endif()

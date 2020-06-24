@@ -13,44 +13,7 @@ module mod_abstract_evo_operator
   public :: abstract_evo_operator_t
 
   type, abstract :: abstract_evo_operator_t
-    !< This class provides the framework for any evolution operators. For example, the local evolution
-    !< operator will inherit from this class. Most of the attributes are the same, just that the
-    !< implementation varies between those who inherit this class
 
-    class(grid_t), pointer :: grid => null()
-    !< pointer to the grid object
-
-    real(rk), dimension(:, :, :), pointer :: reconstructed_rho => null()
-    !< (point 1:8, i, j); pointer to reconstructed density
-    real(rk), dimension(:, :, :), pointer :: reconstructed_u => null()
-    !< (point 1:8, i, j); pointer to reconstructed x-velocity
-    real(rk), dimension(:, :, :), pointer :: reconstructed_v => null()
-    !< (point 1:8, i, j); pointer to reconstructed y-velocity
-    real(rk), dimension(:, :, :), pointer :: reconstructed_p => null()
-    !< (point 1:8, i, j); pointer to reconstructed pressure
-
-    class(abstract_reconstruction_t), pointer :: reconstruction_operator => null()
-    !< pointer to the R_Omega operator used to provide values at the P' location
-
-    integer(ik), dimension(:, :, :, :), allocatable :: leftright_midpoint_neighbors
-    !< ((i,j), (cell 1:2), i, j); (i,j) indices of the cells on either side of the left/right vector midpoint
-
-    integer(ik), dimension(:, :, :, :), allocatable :: downup_midpoint_neighbors
-    !< ((i,j), (cell 1:2), i, j); (i,j) indices of the cells on either side of the down/up vector midpoint
-
-    integer(ik), dimension(:, :, :, :), allocatable :: corner_neighbors
-    !< ((i,j), (cell 1:4), i, j); (i,j) indices of the cells surrounding the corner vector set
-
-    type(mach_cone_collection_t) :: leftright_midpoint_mach_cones
-    type(mach_cone_collection_t) :: downup_midpoint_mach_cones
-    type(mach_cone_collection_t) :: corner_mach_cones
-
-    character(:), allocatable :: name  !< Name of the evolution operator
-    real(rk) :: tau !< time increment to evolve
-
-    integer(ik) :: iteration = 0
-    real(rk) :: time = 0.0_rk
-    real(rk) :: time_step = 0.0_rk
   contains
     procedure(initialize), public, deferred :: initialize
     procedure(evolve_location), public, deferred :: evolve
