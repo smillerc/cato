@@ -8,6 +8,7 @@ module mod_ausm_solver
   !<         Journal of Computational Physics 214 (2006) 137–170
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_globals, only: debug_print
   use mod_flux_solver, only: flux_solver_t
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -19,9 +20,18 @@ module mod_ausm_solver
 
   type, extends(flux_solver_t) :: ausm_solver_t
   contains
+    ! Public methods
     procedure, public :: initialize => initialize_ausm
     procedure, public :: solve => solve_ausm
+    procedure, public, pass(lhs) :: copy => copy_ausm
+
+    ! Private methods
+    procedure, private, nopass :: flux_edges
+    procedure, private :: apply_primitive_bc
     final :: finalize
+
+    ! Operators
+    generic :: assignment(=) => copy
   end type ausm_solver_t
 
 contains
@@ -30,14 +40,34 @@ contains
     class(ausm_solver_t), intent(inout) :: self
     class(grid_t), intent(in), target :: grid
     class(input_t), intent(in) :: input
+
+    call debug_print('Running ausm_solver_t%initialize_ausm()', __FILE__, __LINE__)
   end subroutine initialize_ausm
 
-  subroutine solve_ausm(self, time, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine copy_ausm(lhs, rhs)
+    !< Implement LHS = RHS
+    class(ausm_solver_t), intent(inout) :: lhs
+    type(ausm_solver_t), intent(in) :: rhs
+
+    call debug_print('Running ausm_solver_t%copy()', __FILE__, __LINE__)
+
+    allocate(lhs%bc_plus_x, source=rhs%bc_plus_x)
+    allocate(lhs%bc_plus_y, source=rhs%bc_plus_y)
+    allocate(lhs%bc_minus_x, source=rhs%bc_minus_x)
+    allocate(lhs%bc_minus_y, source=rhs%bc_minus_y)
+
+    lhs%iteration = rhs%iteration
+    lhs%time = rhs%time
+    lhs%dt = rhs%dt
+
+  end subroutine copy_ausm
+
+  subroutine solve_ausm(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(ausm_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), intent(in) :: time
+    real(rk), intent(in) :: dt
     real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: rho !< density
     real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: u   !< x-velocity
     real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: v   !< y-velocity
@@ -47,11 +77,61 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
+    call debug_print('Running ausm_solver_t%solve_ausm()', __FILE__, __LINE__)
+
+    if(dt < tiny(1.0_rk)) error stop "Error in ausm_solver_t%solve_ausm(), the timestep dt is < tiny(1.0_rk)"
+    self%time = self%time + dt
+    self%dt = dt
+    self%iteration = self%iteration + 1
+
   end subroutine solve_ausm
+
+  subroutine flux_edges()
+  end subroutine flux_edges
+
+  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p)
+    class(ausm_solver_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
+
+    call debug_print('Running ausm_solver_t%apply_primitive_var_bc()', __FILE__, __LINE__)
+
+    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
+                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+
+    do priority = max_priority_bc, 0, -1
+
+      if(self%bc_plus_x%priority == priority) then
+        call self%bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(self%bc_plus_y%priority == priority) then
+        call self%bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(self%bc_minus_x%priority == priority) then
+        call self%bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(self%bc_minus_y%priority == priority) then
+        call self%bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+    end do
+
+  end subroutine apply_primitive_bc
 
   subroutine finalize(self)
     !< Class finalizer
     type(ausm_solver_t), intent(inout) :: self
+
+    call debug_print('Running ausm_solver_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%reconstructor)) deallocate(self%reconstructor)
     if(allocated(self%bc_plus_x)) deallocate(self%bc_plus_x)
     if(allocated(self%bc_plus_y)) deallocate(self%bc_plus_y)

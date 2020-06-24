@@ -35,6 +35,7 @@ module mod_fvleg_solver
     ! Public methods
     procedure, public :: initialize => initialize_fvleg
     procedure, public :: solve => solve_fvleg
+    procedure, public, pass(lhs) :: copy => copy_fvleg
 
     ! Private methods
     procedure, private, nopass :: flux_edges
@@ -42,6 +43,9 @@ module mod_fvleg_solver
     procedure, private :: apply_gradient_bc
     procedure, private :: apply_reconstructed_bc
     final :: finalize
+
+    ! Operators
+    generic :: assignment(=) => copy
   end type fvleg_solver_t
 
 contains
@@ -57,6 +61,8 @@ contains
     integer(ik) :: alloc_status
     alloc_status = 0
 
+    call debug_print('Running fvleg_solver_t%initialize_fvleg()', __FILE__, __LINE__)
+
     call self%init_boundary_conditions(input, grid)
 
     r_omega => reconstruction_factory(input=input, grid_target=grid)
@@ -64,24 +70,38 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%reconstructor"
     deallocate(r_omega)
 
-    call self%reconstructor%set_grid_pointer(grid)
-
-    call debug_print('Making an E0 operator', __FILE__, __LINE__)
-
     allocate(local_evo_operator_t :: self%evolution_operator)
     call self%evolution_operator%initialize(input=input, grid_target=grid, recon_operator_target=self%reconstructor)
 
-    call self%evolution_operator%set_grid_pointer(grid_target=grid)
-    call self%evolution_operator%set_reconstruction_operator_pointer(operator_target=self%reconstructor)
-
   end subroutine initialize_fvleg
 
-  subroutine solve_fvleg(self, time, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine copy_fvleg(lhs, rhs)
+    !< Implement LHS = RHS
+    class(fvleg_solver_t), intent(inout) :: lhs
+    type(fvleg_solver_t), intent(in) :: rhs
+
+    call debug_print('Running fvleg_solver_t%copy()', __FILE__, __LINE__)
+
+    allocate(lhs%bc_plus_x, source=rhs%bc_plus_x)
+    allocate(lhs%bc_plus_y, source=rhs%bc_plus_y)
+    allocate(lhs%bc_minus_x, source=rhs%bc_minus_x)
+    allocate(lhs%bc_minus_y, source=rhs%bc_minus_y)
+    allocate(lhs%evolution_operator, source=rhs%evolution_operator)
+    allocate(lhs%reconstructor, source=rhs%reconstructor)
+
+    lhs%iteration = rhs%iteration
+    lhs%time = rhs%time
+    lhs%dt = rhs%dt
+    lhs%reconstruct_p_prime = rhs%reconstruct_p_prime
+
+  end subroutine copy_fvleg
+
+  subroutine solve_fvleg(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(fvleg_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), intent(in) :: time
+    real(rk), intent(in) :: dt
     real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: rho !< density
     real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: u   !< x-velocity
     real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: v   !< y-velocity
@@ -122,7 +142,18 @@ contains
     error_code = 0
     evo_bounds = 0
 
-    call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
+    if(dt < tiny(1.0_rk)) error stop "Error in fvleg_solver_t%solve_fvleg(), the timestep dt is < tiny(1.0_rk)"
+    self%time = self%time + dt
+    self%dt = dt
+    self%iteration = self%iteration + 1
+    self%evolution_operator%time = self%evolution_operator%time + dt
+    self%evolution_operator%time_step = dt
+
+    call self%reconstructor%set_grid_pointer(grid)
+    call self%evolution_operator%set_grid_pointer(grid_target=grid)
+    call self%evolution_operator%set_reconstruction_operator_pointer(operator_target=self%reconstructor)
+
+    call debug_print('Running fvleg_t%solve_fvleg()', __FILE__, __LINE__)
 
     associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
               jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
@@ -194,7 +225,7 @@ contains
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
     evo_bounds = lbound(evolved_du_mid_rho)
-    call self%evolution_operator%evolve(evolved_rho=evolved_du_mid_rho, evolved_u=evolved_du_mid_u, &
+    call self%evolution_operator%evolve(dt=dt, evolved_rho=evolved_du_mid_rho, evolved_u=evolved_du_mid_u, &
                                         evolved_v=evolved_du_mid_v, evolved_p=evolved_du_mid_p, &
                                         location='down/up midpoint', &
                                         lbounds=evo_bounds, &
@@ -203,7 +234,7 @@ contains
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
     evo_bounds = lbound(evolved_lr_mid_rho)
-    call self%evolution_operator%evolve(evolved_rho=evolved_lr_mid_rho, evolved_u=evolved_lr_mid_u, &
+    call self%evolution_operator%evolve(dt=dt, evolved_rho=evolved_lr_mid_rho, evolved_u=evolved_lr_mid_u, &
                                         evolved_v=evolved_lr_mid_v, evolved_p=evolved_lr_mid_p, &
                                         location='left/right midpoint', &
                                         lbounds=evo_bounds, &
@@ -212,19 +243,19 @@ contains
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
     evo_bounds = lbound(evolved_corner_rho)
-    call self%evolution_operator%evolve(evolved_rho=evolved_corner_rho, evolved_u=evolved_corner_u, &
+    call self%evolution_operator%evolve(dt=dt, evolved_rho=evolved_corner_rho, evolved_u=evolved_corner_u, &
                                         evolved_v=evolved_corner_v, evolved_p=evolved_corner_p, &
                                         location='corner', &
                                         lbounds=evo_bounds, &
                                         error_code=error_code)
 
-    nullify(self%evolution_operator%reconstructed_rho)
-    nullify(self%evolution_operator%reconstructed_u)
-    nullify(self%evolution_operator%reconstructed_v)
-    nullify(self%evolution_operator%reconstructed_p)
+    ! nullify(self%evolution_operator%reconstructed_rho)
+    ! nullify(self%evolution_operator%reconstructed_u)
+    ! nullify(self%evolution_operator%reconstructed_v)
+    ! nullify(self%evolution_operator%reconstructed_p)
 
-    nullify(self%reconstructor%rho)
-    nullify(self%reconstructor%p)
+    ! nullify(self%reconstructor%rho)
+    ! nullify(self%reconstructor%p)
 
     call self%flux_edges(grid=grid, &
                          evolved_corner_rho=evolved_corner_rho, &
@@ -278,7 +309,7 @@ contains
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
 
-    call debug_print('Running apply_primitive_var_bc', __FILE__, __LINE__)
+    call debug_print('Running fvleg_solver_t%apply_primitive_var_bc()', __FILE__, __LINE__)
 
     max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
                           self%bc_minus_x%priority, self%bc_minus_y%priority)
@@ -315,7 +346,7 @@ contains
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
 
-    call debug_print('Running apply_reconstructed_state_bc', __FILE__, __LINE__)
+    call debug_print('Running fvleg_solver_t%apply_reconstructed_state_bc()', __FILE__, __LINE__)
 
     max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
                           self%bc_minus_x%priority, self%bc_minus_y%priority)
@@ -361,7 +392,7 @@ contains
     integer(ik) :: max_priority_bc !< highest goes first
     integer(ik), dimension(2) :: lbounds
 
-    call debug_print('Running finite_volume_scheme_t%apply_gradient_bc()', __FILE__, __LINE__)
+    call debug_print('Running fvleg_solver_t%apply_gradient_bc()', __FILE__, __LINE__)
 
     lbounds = lbound(self%reconstructor%grad_x_rho)
     max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
@@ -461,7 +492,8 @@ contains
     real(rk), parameter :: FLUX_EPS = 1e-13_rk !epsilon(1.0_rk)
     real(rk), parameter :: REL_THRESHOLD = 1e-5_rk
 
-    call debug_print('Running fluid_t%flux_edges()', __FILE__, __LINE__)
+    call debug_print('Running fvleg_solver_t%flux_edges()', __FILE__, __LINE__)
+
     ! Get the flux arrays for each corner node or midpoint
     ilo = grid%ilo_node; ihi = grid%ihi_node
     jlo = grid%jlo_node; jhi = grid%jhi_node
@@ -624,6 +656,9 @@ contains
   subroutine finalize(self)
     !< Class finalizer
     type(fvleg_solver_t), intent(inout) :: self
+
+    call debug_print('Running fvleg_solver_t%finalize()', __FILE__, __LINE__)
+
     if(allocated(self%reconstructor)) deallocate(self%reconstructor)
     if(allocated(self%evolution_operator)) deallocate(self%evolution_operator)
     if(allocated(self%bc_plus_x)) deallocate(self%bc_plus_x)

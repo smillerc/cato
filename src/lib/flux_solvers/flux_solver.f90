@@ -25,14 +25,23 @@ module mod_flux_solver
     class(boundary_condition_t), allocatable :: bc_minus_x
     class(boundary_condition_t), allocatable :: bc_minus_y
     integer(ik) :: iteration = 0
+    real(rk) :: time = 0.0_rk
+    real(rk) :: dt = 0.0_rk
   contains
+    ! Public methods
+    procedure, public :: init_boundary_conditions
+
+    ! Deferred methods
     procedure(initialize), deferred, public :: initialize
     procedure(solve), deferred, public :: solve
-    procedure, public :: init_boundary_conditions
+    ! procedure(copy), deferred, public, pass(lhs) :: copy
+
+    ! Operators
+    ! generic :: assignment(=) => copy
   end type flux_solver_t
 
   abstract interface
-    subroutine solve(self, time, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    subroutine solve(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
       !< Solve and flux the edges
       import :: ik, rk
       import :: flux_solver_t
@@ -40,7 +49,7 @@ module mod_flux_solver
       class(flux_solver_t), intent(inout) :: self
       class(grid_t), intent(in) :: grid
       integer(ik), dimension(2), intent(in) :: lbounds
-      real(rk), intent(in) :: time
+      real(rk), intent(in) :: dt
       real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: rho !< density
       real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: u   !< x-velocity
       real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: v   !< y-velocity
@@ -58,6 +67,13 @@ module mod_flux_solver
       class(flux_solver_t), intent(inout) :: self
       class(grid_t), intent(in), target :: grid
       class(input_t), intent(in) :: input
+    end subroutine
+
+    subroutine copy(lhs, rhs)
+      !< Copy, e.g. LHS = RHS
+      import :: flux_solver_t
+      class(flux_solver_t), intent(inout) :: lhs
+      class(flux_solver_t), intent(in) :: rhs
     end subroutine
   end interface
 

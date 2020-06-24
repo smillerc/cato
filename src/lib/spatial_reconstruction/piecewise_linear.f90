@@ -76,7 +76,9 @@ contains
   subroutine finalize(self)
     !< Finalize the piecewise_linear_reconstruction_t type
     type(piecewise_linear_reconstruction_t), intent(inout) :: self
+
     call debug_print('Running piecewise_linear_reconstruction_t%finalize()', __FILE__, __LINE__)
+
     if(allocated(self%edge_interpolator)) deallocate(self%edge_interpolator)
 
     if(associated(self%grid)) nullify(self%grid)
@@ -144,7 +146,7 @@ contains
 
     q = q_bar + (q_x + q_y)
     if(abs(q - q_bar) < 1e-12_rk) q = q_bar
-  end function
+  end function reconstruct_at_point
 
   subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
     !< Reconstruct each corner/midpoint. This converts the cell centered conserved
@@ -173,6 +175,8 @@ contains
     real(rk) :: x_ij, y_ij !< cell centroin location
     integer(ik), dimension(3) :: edge_lbounds
 
+    call debug_print('Running piecewise_linear_reconstruction_t%reconstruct()', __FILE__, __LINE__)
+
     if(.not. associated(self%grid)) error stop "Grid not associated"
     ! Bounds do not include ghost cells. Ghost cells get their
     ! reconstructed values and gradients from the boundary conditions
@@ -200,8 +204,6 @@ contains
     call green_gauss_gradient(edge_vars=edge_values, lbounds=edge_lbounds, grid=self%grid, &
                               grad_x=grad_x, grad_y=grad_y, name=name, stage_name=stage_name)
 
-    ! print*, name, ' grad_x', grad_x
-    ! print*, name, ' grad_y', grad_y
     select case(trim(name))
     case('rho')
       if(.not. allocated(self%grad_x_rho)) allocate(self%grad_x_rho, mold=grad_x)

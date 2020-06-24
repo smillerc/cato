@@ -113,9 +113,9 @@ contains
     class(finite_volume_scheme_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< timestep
 
-    call self%fluid%integrate(dt=dt, grid=self%grid)
     self%iteration = self%iteration + 1
     self%time = self%time + dt
+    call self%fluid%integrate(dt=dt, grid=self%grid)
   end subroutine integrate
 
 end module mod_finite_volume_schemes

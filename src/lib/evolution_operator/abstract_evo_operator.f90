@@ -48,9 +48,9 @@ module mod_abstract_evo_operator
     character(:), allocatable :: name  !< Name of the evolution operator
     real(rk) :: tau !< time increment to evolve
 
-    integer(ik) :: iteration
-    real(rk) :: time
-    real(rk) :: time_step
+    integer(ik) :: iteration = 0
+    real(rk) :: time = 0.0_rk
+    real(rk) :: time_step = 0.0_rk
   contains
     procedure(initialize), public, deferred :: initialize
     procedure(evolve_location), public, deferred :: evolve
@@ -81,7 +81,7 @@ module mod_abstract_evo_operator
       class(abstract_evo_operator_t), intent(inout) :: out_evo
     end subroutine
 
-    subroutine evolve_location(self, location, evolved_rho, evolved_u, evolved_v, evolved_p, lbounds, error_code)
+    subroutine evolve_location(self, dt, location, evolved_rho, evolved_u, evolved_v, evolved_p, lbounds, error_code)
       import :: abstract_evo_operator_t
       import :: rk, ik
       class(abstract_evo_operator_t), intent(inout) :: self
@@ -89,6 +89,7 @@ module mod_abstract_evo_operator
       integer(ik), dimension(2), intent(in) :: lbounds
       character(len=*), intent(in) :: location !< Mach cone location ['corner', 'left/right midpoint', or 'down/up midpoint']
       integer(ik), intent(out) :: error_code
+      real(rk), intent(in) :: dt !< timestep
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(out), contiguous :: evolved_rho
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(out), contiguous :: evolved_u
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(out), contiguous :: evolved_v

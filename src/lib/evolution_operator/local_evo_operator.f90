@@ -86,7 +86,7 @@ contains
 
   end subroutine
 
-  subroutine evolve(self, location, evolved_rho, evolved_u, evolved_v, evolved_p, lbounds, error_code)
+  subroutine evolve(self, dt, location, evolved_rho, evolved_u, evolved_v, evolved_p, lbounds, error_code)
     !< Create Mach cones and evolve the state at all of the left/right midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the left and right.
 
@@ -94,6 +94,7 @@ contains
     integer(ik), dimension(2), intent(in) :: lbounds
     character(len=*), intent(in) :: location !< Mach cone location ['corner', 'left/right midpoint', or 'down/up midpoint']
     integer(ik), intent(out) :: error_code
+    real(rk), intent(in) :: dt !< time step
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_rho
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_u
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_v
@@ -118,7 +119,8 @@ contains
     !< (point 1:8, i, j); the reconstructed pressure of the corners/midpoints with respect to each cell
 
     error_code = 0
-    tau = self%time_step / 2.0_rk
+    self%time_step = dt
+    tau = dt / 2.0_rk
     ilo = lbound(evolved_rho, dim=1)
     ihi = ubound(evolved_rho, dim=1)
     jlo = lbound(evolved_rho, dim=2)

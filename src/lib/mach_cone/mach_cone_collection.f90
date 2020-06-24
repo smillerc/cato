@@ -179,7 +179,7 @@ contains
 
     self%ni = size(reconstructed_rho, dim=2)
     self%nj = size(reconstructed_rho, dim=3)
-    if(self%ni <= 1 .or. self%nj <= 1) then
+    if(self%ni <= 0 .or. self%nj <= 0) then
       error stop "Error in mach_cone_collection_t%initialize(), ni <= 1 .or. nj <= 1, e.g. not enough mach cones!"
     end if
 
@@ -659,6 +659,12 @@ contains
     ! real(rk) :: density_p_prime
     real(rk), dimension(self%n_neighbor_cells) :: pressure_p_prime !< temp variable for finding p(P') when multiple cells claim that P' is in it
     real(rk), dimension(self%n_neighbor_cells) :: density_p_prime  !< temp variable for finding rho(P') when multiple cells claim that P' is in it
+
+    i = 0
+    j = 0
+    c = 0
+    pp_i = 0 !< P' i
+    pp_j = 0 !< P' j
 
     !$omp parallel default(none) &
     !$omp reduction(max:density_p_prime, pressure_p_prime) &

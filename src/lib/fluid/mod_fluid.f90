@@ -65,7 +65,6 @@ module mod_fluid
     procedure :: initialize_from_ini
     procedure :: initialize_from_hdf5
     procedure :: residual_smoother
-    procedure :: write_residual_history
     procedure :: calculate_derived_quantities
     procedure :: sanity_check
     procedure :: ssp_rk2
@@ -366,35 +365,6 @@ contains
     ! if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine finalize
 
-  subroutine write_residual_history(self)
-    !< This writes out the change in residual to a file for convergence history monitoring. This
-    !< should not be called on a single instance of fluid_t. It should be called something like the following:
-    !<
-    !< dU_dt = U%t(fv, stage=1)          ! 1st stage
-    !< dU1_dt = U_1%t(fv, stage=2)       ! 2nd stage
-    !< R = dU1_dt - dU_dt                ! Difference in the stages, eg residuals
-    !< call R%write_residual_history(fv) ! Now write out the difference
-    !<
-
-    class(fluid_t), intent(inout) :: self
-
-    real(rk) :: rho_diff   !< difference in the rho residual
-    real(rk) :: rho_u_diff !< difference in the rhou residual
-    real(rk) :: rho_v_diff !< difference in the rhov residual
-    real(rk) :: rho_E_diff !< difference in the rhoE residual
-    integer(ik) :: io
-
-    rho_diff = maxval(abs(self%rho))
-    rho_u_diff = maxval(abs(self%rho_u))
-    rho_v_diff = maxval(abs(self%rho_v))
-    rho_E_diff = maxval(abs(self%rho_E))
-
-    open(newunit=io, file=trim(self%residual_hist_file), status='old', position="append")
-    write(io, '(i0, ",", 5(es16.6, ","))') self%iteration, self%time * t_0, rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
-    close(io)
-
-  end subroutine write_residual_history
-
   subroutine integrate(self, dt, grid)
     !< Integrate in time
     class(fluid_t), intent(inout) :: self
@@ -403,6 +373,7 @@ contains
     type(fluid_t), allocatable :: d_dt !< dU/dt
 
     self%time = self%time + dt
+    self%dt = dt
 
     select case(trim(self%time_integration_scheme))
     case('ssp_rk2')
@@ -426,9 +397,11 @@ contains
     ! Locals
     integer(ik), dimension(2) :: lbounds
 
+    call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
+
     lbounds = lbound(self%rho)
     allocate(d_dt, source=self)
-    call self%solver%solve(time=self%time, &
+    call self%solver%solve(dt=self%dt, &
                            grid=grid, lbounds=lbounds, &
                            rho=self%rho, u=self%u, v=self%v, p=self%p, &
                            d_rho_dt=d_dt%rho, &
@@ -445,6 +418,7 @@ contains
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
 
+    call debug_print('Running fluid_t%calculate_derived_quantities()', __FILE__, __LINE__)
     ilo = lbound(self%rho, dim=1)
     ihi = ubound(self%rho, dim=1)
     jlo = lbound(self%rho, dim=2)
@@ -530,8 +504,6 @@ contains
     call subtract_fields(a=lhs%rho_v, b=rhs%rho_v, c=difference%rho_v) ! c=a+b
     call subtract_fields(a=lhs%rho_E, b=rhs%rho_E, c=difference%rho_E) ! c=a+b
     difference%prim_vars_updated = .false.
-
-    ! call difference%set_temp(calling_function='subtract_fluid (difference)', line=__LINE__)
   end function subtract_fluid
 
   function add_fluid(lhs, rhs) result(sum)
@@ -740,8 +712,9 @@ contains
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
     class(fluid_t), intent(inout) :: lhs
     type(fluid_t), intent(in) :: rhs
+    integer(ik) :: error_code
 
-    call debug_print('Running fluid_t%assign_fluid', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
 
     ! call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
 
@@ -751,6 +724,17 @@ contains
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
+    lhs%solver = rhs%solver
+    lhs%time_integration_scheme = rhs%time_integration_scheme
+    lhs%time = rhs%time
+    lhs%dt = rhs%dt
+    lhs%iteration = rhs%iteration
+    lhs%prim_vars_updated = rhs%prim_vars_updated
+    lhs%smooth_residuals = rhs%smooth_residuals
+    lhs%residual_hist_file = rhs%residual_hist_file
+    lhs%residual_hist_header_written = rhs%residual_hist_header_written
+
+    call lhs%sanity_check(error_code)
     call lhs%calculate_derived_quantities()
 
     ! call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
@@ -762,6 +746,8 @@ contains
     integer(ik) :: i, j, ilo, jlo, ihi, jhi
     logical :: invalid_numbers, negative_numbers
     integer(ik), intent(out) :: error_code
+
+    call debug_print('Running fluid_t%sanity_check()', __FILE__, __LINE__)
 
     error_code = 0
 
@@ -877,8 +863,7 @@ contains
       call U%residual_smoother()
 
       ! Convergence history
-      R = U - U_1
-      call R%write_residual_history()
+      call write_residual_history(first_stage=U_1, last_stage=U)
     end associate
 
     deallocate(R)
@@ -900,19 +885,18 @@ contains
 
     ! 1st stage
     associate(dt=>U%dt)
-      call debug_print('Running ssp_rk2_t 1st stage', __FILE__, __LINE__)
+      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
       U_1 = U + U%t(grid, stage=1) * dt
       call U_1%residual_smoother()
 
       ! Final stage
-      call debug_print('Running ssp_rk2_t 2nd stage', __FILE__, __LINE__)
+      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
       U = 0.5_rk * U + 0.5_rk * U_1 + &
           (0.5_rk * dt) * U_1%t(grid, stage=2)
       call U%residual_smoother()
 
-      ! Convergence history
-      R = U - U_1
-      call R%write_residual_history()
+      ! ! Convergence history
+      call write_residual_history(first_stage=U_1, last_stage=U)
     end associate
 
     deallocate(R)
@@ -920,4 +904,33 @@ contains
 
   end subroutine ssp_rk2
 
+  subroutine write_residual_history(first_stage, last_stage)
+    !< This writes out the change in residual to a file for convergence history monitoring. This
+    !< should not be called on a single instance of fluid_t. It should be called something like the following:
+    !<
+    !< dU_dt = U%t(fv, stage=1)          ! 1st stage
+    !< dU1_dt = U_1%t(fv, stage=2)       ! 2nd stage
+    !< R = dU1_dt - dU_dt                ! Difference in the stages, eg residuals
+    !< call R%write_residual_history(fv) ! Now write out the difference
+    !<
+
+    class(fluid_t), intent(in) :: first_stage
+    class(fluid_t), intent(in) :: last_stage
+
+    real(rk) :: rho_diff   !< difference in the rho residual
+    real(rk) :: rho_u_diff !< difference in the rhou residual
+    real(rk) :: rho_v_diff !< difference in the rhov residual
+    real(rk) :: rho_E_diff !< difference in the rhoE residual
+    integer(ik) :: io
+
+    rho_diff = maxval(abs(last_stage%rho - first_stage%rho))
+    rho_u_diff = maxval(abs(last_stage%rho_u - first_stage%rho_u))
+    rho_v_diff = maxval(abs(last_stage%rho_v - first_stage%rho_v))
+    rho_E_diff = maxval(abs(last_stage%rho_E - first_stage%rho_E))
+
+    open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
+  write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
+    close(io)
+
+  end subroutine write_residual_history
 end module mod_fluid
