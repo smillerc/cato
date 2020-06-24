@@ -19,11 +19,8 @@ module mod_flux_solver
   public :: flux_solver_t
 
   type, abstract :: flux_solver_t
-    class(abstract_reconstruction_t), allocatable :: reconstructor
-    class(boundary_condition_t), allocatable :: bc_plus_x
-    class(boundary_condition_t), allocatable :: bc_plus_y
-    class(boundary_condition_t), allocatable :: bc_minus_x
-    class(boundary_condition_t), allocatable :: bc_minus_y
+    type(input_t) :: input
+    character(len=32) :: name = ''
     integer(ik) :: iteration = 0
     real(rk) :: time = 0.0_rk
     real(rk) :: dt = 0.0_rk
@@ -79,11 +76,15 @@ module mod_flux_solver
 
 contains
 
-  subroutine init_boundary_conditions(self, input, grid)
+  subroutine init_boundary_conditions(self, grid, bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
     class(flux_solver_t), intent(inout) :: self
-    class(input_t), intent(in) :: input
     class(grid_t), intent(in) :: grid
     class(boundary_condition_t), pointer :: bc => null()
+
+    class(boundary_condition_t), allocatable, intent(out):: bc_plus_x
+    class(boundary_condition_t), allocatable, intent(out):: bc_plus_y
+    class(boundary_condition_t), allocatable, intent(out):: bc_minus_x
+    class(boundary_condition_t), allocatable, intent(out):: bc_minus_y
 
     ! Locals
     integer(ik) :: alloc_status
@@ -98,33 +99,33 @@ contains
     ghost_layers(4, :) = [grid%jhi_cell + 1, grid%jhi_bc_cell] ! jhi
 
     ! Set boundary conditions
-    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, ghost_layers=ghost_layers)
-    allocate(self%bc_plus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate flux_solver_t%bc_plus_x"
+    bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, ghost_layers=ghost_layers)
+    allocate(bc_plus_x, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, ghost_layers=ghost_layers)
-    allocate(self%bc_plus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate flux_solver_t%bc_plus_y"
+    bc => bc_factory(bc_type=self%input%plus_y_bc, location='+y', input=self%input, ghost_layers=ghost_layers)
+    allocate(bc_plus_y, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, ghost_layers=ghost_layers)
-    allocate(self%bc_minus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate flux_solver_t%bc_minus_x"
+    bc => bc_factory(bc_type=self%input%minus_x_bc, location='-x', input=self%input, ghost_layers=ghost_layers)
+    allocate(bc_minus_x, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, ghost_layers=ghost_layers)
-    allocate(self%bc_minus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate flux_solver_t%bc_minus_y"
+    bc => bc_factory(bc_type=self%input%minus_y_bc, location='-y', input=self%input, ghost_layers=ghost_layers)
+    allocate(bc_minus_y, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
     deallocate(bc)
 
-    write(*, '(a)') "Boundary Conditions"
-    write(*, '(a)') "==================="
-    write(*, '(3(a),i0,a)') "+x: ", trim(self%bc_plus_x%name), ' (priority = ', self%bc_plus_x%priority, ')'
-    write(*, '(3(a),i0,a)') "-x: ", trim(self%bc_minus_x%name), ' (priority = ', self%bc_minus_x%priority, ')'
-    write(*, '(3(a),i0,a)') "+y: ", trim(self%bc_plus_y%name), ' (priority = ', self%bc_plus_y%priority, ')'
-    write(*, '(3(a),i0,a)') "-y: ", trim(self%bc_minus_y%name), ' (priority = ', self%bc_minus_y%priority, ')'
-    write(*, *)
+    ! write(*, '(a)') "Boundary Conditions"
+    ! write(*, '(a)') "==================="
+    ! write(*, '(3(a),i0,a)') "+x: ", trim(bc_plus_x%name), ' (priority = ', bc_plus_x%priority, ')'
+    ! write(*, '(3(a),i0,a)') "-x: ", trim(bc_minus_x%name), ' (priority = ', bc_minus_x%priority, ')'
+    ! write(*, '(3(a),i0,a)') "+y: ", trim(bc_plus_y%name), ' (priority = ', bc_plus_y%priority, ')'
+    ! write(*, '(3(a),i0,a)') "-y: ", trim(bc_minus_y%name), ' (priority = ', bc_minus_y%priority, ')'
+    ! write(*, *)
 
   end subroutine
 

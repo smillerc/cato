@@ -9,6 +9,7 @@ module mod_ausm_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
+  use mod_boundary_conditions, only: boundary_condition_t
   use mod_flux_solver, only: flux_solver_t
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -51,10 +52,10 @@ contains
 
     call debug_print('Running ausm_solver_t%copy()', __FILE__, __LINE__)
 
-    allocate(lhs%bc_plus_x, source=rhs%bc_plus_x)
-    allocate(lhs%bc_plus_y, source=rhs%bc_plus_y)
-    allocate(lhs%bc_minus_x, source=rhs%bc_minus_x)
-    allocate(lhs%bc_minus_y, source=rhs%bc_minus_y)
+    ! allocate(lhs%bc_plus_x, source=rhs%bc_plus_x)
+    ! allocate(lhs%bc_plus_y, source=rhs%bc_plus_y)
+    ! allocate(lhs%bc_minus_x, source=rhs%bc_minus_x)
+    ! allocate(lhs%bc_minus_y, source=rhs%bc_minus_y)
 
     lhs%iteration = rhs%iteration
     lhs%time = rhs%time
@@ -89,38 +90,43 @@ contains
   subroutine flux_edges()
   end subroutine flux_edges
 
-  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p)
+  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p, &
+                                bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
     class(ausm_solver_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    class(boundary_condition_t), intent(inout):: bc_plus_x
+    class(boundary_condition_t), intent(inout):: bc_plus_y
+    class(boundary_condition_t), intent(inout):: bc_minus_x
+    class(boundary_condition_t), intent(inout):: bc_minus_y
 
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
 
-    call debug_print('Running ausm_solver_t%apply_primitive_var_bc()', __FILE__, __LINE__)
+    call debug_print('Running fvleg_solver_t%apply_primitive_var_bc()', __FILE__, __LINE__)
 
-    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
-                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
+                          bc_minus_x%priority, bc_minus_y%priority)
 
     do priority = max_priority_bc, 0, -1
 
-      if(self%bc_plus_x%priority == priority) then
-        call self%bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      if(bc_plus_x%priority == priority) then
+        call bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
-      if(self%bc_plus_y%priority == priority) then
-        call self%bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      if(bc_plus_y%priority == priority) then
+        call bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
-      if(self%bc_minus_x%priority == priority) then
-        call self%bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      if(bc_minus_x%priority == priority) then
+        call bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
-      if(self%bc_minus_y%priority == priority) then
-        call self%bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      if(bc_minus_y%priority == priority) then
+        call bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
     end do
@@ -132,10 +138,10 @@ contains
     type(ausm_solver_t), intent(inout) :: self
 
     call debug_print('Running ausm_solver_t%finalize()', __FILE__, __LINE__)
-    if(allocated(self%reconstructor)) deallocate(self%reconstructor)
-    if(allocated(self%bc_plus_x)) deallocate(self%bc_plus_x)
-    if(allocated(self%bc_plus_y)) deallocate(self%bc_plus_y)
-    if(allocated(self%bc_minus_x)) deallocate(self%bc_minus_x)
-    if(allocated(self%bc_minus_y)) deallocate(self%bc_minus_y)
+    ! if(allocated(self%reconstructor)) deallocate(self%reconstructor)
+    ! if(allocated(self%bc_plus_x)) deallocate(self%bc_plus_x)
+    ! if(allocated(self%bc_plus_y)) deallocate(self%bc_plus_y)
+    ! if(allocated(self%bc_minus_x)) deallocate(self%bc_minus_x)
+    ! if(allocated(self%bc_minus_y)) deallocate(self%bc_minus_y)
   end subroutine finalize
 end module mod_ausm_solver

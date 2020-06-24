@@ -10,7 +10,7 @@ module mod_fvleg_solver
   use mod_globals, only: debug_print
   use mod_flux_solver, only: flux_solver_t
   use mod_floating_point_utils, only: neumaier_sum_4
-  use mod_abstract_evo_operator, only: abstract_evo_operator_t
+  use mod_boundary_conditions, only: boundary_condition_t
   use mod_local_evo_operator, only: local_evo_operator_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
@@ -26,7 +26,7 @@ module mod_fvleg_solver
   type, extends(flux_solver_t) :: fvleg_solver_t
     !< Solver class that uses the FVLEG method to reconstruct, evolve, and flux quantities
     !< at the cell edge midpoints and corners
-    class(abstract_evo_operator_t), allocatable :: evolution_operator !< E0 in the paper
+    ! class(abstract_evo_operator_t), allocatable :: evolution_operator !< E0 in the paper
 
     logical :: reconstruct_p_prime = .false.
     !< for the Mach cones, reconstruct the solution at P' or just use P0 from the cell that contains P'
@@ -57,21 +57,14 @@ contains
     class(input_t), intent(in) :: input
 
     ! Locals
-    class(abstract_reconstruction_t), pointer :: r_omega => null()
+
     integer(ik) :: alloc_status
     alloc_status = 0
 
     call debug_print('Running fvleg_solver_t%initialize_fvleg()', __FILE__, __LINE__)
 
-    call self%init_boundary_conditions(input, grid)
-
-    r_omega => reconstruction_factory(input=input, grid_target=grid)
-    allocate(self%reconstructor, source=r_omega, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%reconstructor"
-    deallocate(r_omega)
-
-    allocate(local_evo_operator_t :: self%evolution_operator)
-    call self%evolution_operator%initialize(input=input, grid_target=grid, recon_operator_target=self%reconstructor)
+    self%name = 'fvleg'
+    self%input = input
 
   end subroutine initialize_fvleg
 
@@ -82,13 +75,6 @@ contains
 
     call debug_print('Running fvleg_solver_t%copy()', __FILE__, __LINE__)
 
-    allocate(lhs%bc_plus_x, source=rhs%bc_plus_x)
-    allocate(lhs%bc_plus_y, source=rhs%bc_plus_y)
-    allocate(lhs%bc_minus_x, source=rhs%bc_minus_x)
-    allocate(lhs%bc_minus_y, source=rhs%bc_minus_y)
-    allocate(lhs%evolution_operator, source=rhs%evolution_operator)
-    allocate(lhs%reconstructor, source=rhs%reconstructor)
-
     lhs%iteration = rhs%iteration
     lhs%time = rhs%time
     lhs%dt = rhs%dt
@@ -96,7 +82,8 @@ contains
 
   end subroutine copy_fvleg
 
-  subroutine solve_fvleg(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine solve_fvleg(self, dt, grid, lbounds, rho, u, v, p, &
+                         d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(fvleg_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
@@ -116,10 +103,12 @@ contains
     real(rk), dimension(:, :), allocatable :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
     real(rk), dimension(:, :), allocatable :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
     real(rk), dimension(:, :), allocatable :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
+
     real(rk), dimension(:, :), allocatable :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
     real(rk), dimension(:, :), allocatable :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
     real(rk), dimension(:, :), allocatable :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
     real(rk), dimension(:, :), allocatable :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
+
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
     real(rk), dimension(:, :), allocatable :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
@@ -135,9 +124,17 @@ contains
     !< ((corner1:midpoint4), i, j); reconstructed pressure, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
     integer(ik), dimension(2) :: evo_bounds
-    integer(ik) :: error_code, alloc_status
+    integer(ik) :: error_code
     integer(ik) :: stage = 0
     character(len=50) :: stage_name = ''
+
+    class(abstract_reconstruction_t), pointer :: reconstructor => null()
+    type(local_evo_operator_t) :: E0 !< Local Evolution Operator, E0
+
+    class(boundary_condition_t), allocatable:: bc_plus_x
+    class(boundary_condition_t), allocatable:: bc_plus_y
+    class(boundary_condition_t), allocatable:: bc_minus_x
+    class(boundary_condition_t), allocatable:: bc_minus_y
 
     error_code = 0
     evo_bounds = 0
@@ -146,12 +143,15 @@ contains
     self%time = self%time + dt
     self%dt = dt
     self%iteration = self%iteration + 1
-    self%evolution_operator%time = self%evolution_operator%time + dt
-    self%evolution_operator%time_step = dt
 
-    call self%reconstructor%set_grid_pointer(grid)
-    call self%evolution_operator%set_grid_pointer(grid_target=grid)
-    call self%evolution_operator%set_reconstruction_operator_pointer(operator_target=self%reconstructor)
+    reconstructor => reconstruction_factory(input=self%input, grid_target=grid)
+    call reconstructor%set_grid_pointer(grid)
+
+    call E0%initialize(grid_target=grid, dt=dt, recon_operator_target=reconstructor)
+
+    call self%init_boundary_conditions(grid, &
+                                       bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                       bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
     call debug_print('Running fvleg_t%solve_fvleg()', __FILE__, __LINE__)
 
@@ -188,74 +188,76 @@ contains
 
     write(stage_name, '(2(a, i0))') 'iter_', self%iteration, 'stage_', stage
 
-    call self%reconstructor%set_cell_average_pointers(rho=rho, p=p, lbounds=lbounds)
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+    call reconstructor%set_cell_average_pointers(rho=rho, p=p, lbounds=lbounds)
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
+                                 bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                 bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
     ! Now we can reconstruct the entire domain
     call debug_print('Reconstructing density', __FILE__, __LINE__)
-    call self%reconstructor%reconstruct(primitive_var=rho, lbounds=lbounds, &
-                                        reconstructed_var=rho_recon_state, name='rho', stage_name=stage_name)
+    call reconstructor%reconstruct(primitive_var=rho, lbounds=lbounds, &
+                                   reconstructed_var=rho_recon_state, name='rho', stage_name=stage_name)
 
     call debug_print('Reconstructing x-velocity', __FILE__, __LINE__)
-    call self%reconstructor%reconstruct(primitive_var=u, lbounds=lbounds, &
-                                        reconstructed_var=u_recon_state, name='u', stage_name=stage_name)
+    call reconstructor%reconstruct(primitive_var=u, lbounds=lbounds, &
+                                   reconstructed_var=u_recon_state, name='u', stage_name=stage_name)
 
     call debug_print('Reconstructing y-velocity', __FILE__, __LINE__)
-    call self%reconstructor%reconstruct(primitive_var=v, lbounds=lbounds, &
-                                        reconstructed_var=v_recon_state, name='v', stage_name=stage_name)
+    call reconstructor%reconstruct(primitive_var=v, lbounds=lbounds, &
+                                   reconstructed_var=v_recon_state, name='v', stage_name=stage_name)
 
     call debug_print('Reconstructing pressure', __FILE__, __LINE__)
-    call self%reconstructor%reconstruct(primitive_var=p, lbounds=lbounds, &
-                                        reconstructed_var=p_recon_state, name='p', stage_name=stage_name)
+    call reconstructor%reconstruct(primitive_var=p, lbounds=lbounds, &
+                                   reconstructed_var=p_recon_state, name='p', stage_name=stage_name)
 
     ! The gradients have to be applied to the boundaries as well, since reconstructing
     ! at P'(x,y) requires the cell gradient
-    call self%apply_gradient_bc()
+    call self%apply_gradient_bc(reconstructor, &
+                                bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
     ! Apply the reconstructed state to the ghost layers
     call self%apply_reconstructed_bc(recon_rho=rho_recon_state, recon_u=u_recon_state, &
-                                     recon_v=v_recon_state, recon_p=p_recon_state, lbounds=lbounds)
+                                     recon_v=v_recon_state, recon_p=p_recon_state, lbounds=lbounds, &
+                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    call self%evolution_operator%set_reconstructed_state_pointers(rho=rho_recon_state, &
-                                                                  u=u_recon_state, &
-                                                                  v=v_recon_state, &
-                                                                  p=p_recon_state, &
-                                                                  lbounds=lbounds)
+    E0%reconstructed_rho => rho_recon_state
+    E0%reconstructed_u => u_recon_state
+    E0%reconstructed_v => v_recon_state
+    E0%reconstructed_p => p_recon_state
+    ! call E0%set_reconstructed_state_pointers(rho=rho_recon_state, &
+    !                                                               u=u_recon_state, &
+    !                                                               v=v_recon_state, &
+    !                                                               p=p_recon_state, &
+    !                                                               lbounds=lbounds)
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of down/up edge vectors
     call debug_print('Evolving down/up midpoints', __FILE__, __LINE__)
     evo_bounds = lbound(evolved_du_mid_rho)
-    call self%evolution_operator%evolve(dt=dt, evolved_rho=evolved_du_mid_rho, evolved_u=evolved_du_mid_u, &
-                                        evolved_v=evolved_du_mid_v, evolved_p=evolved_du_mid_p, &
-                                        location='down/up midpoint', &
-                                        lbounds=evo_bounds, &
-                                        error_code=error_code)
+    call E0%evolve(dt=dt, evolved_rho=evolved_du_mid_rho, evolved_u=evolved_du_mid_u, &
+                   evolved_v=evolved_du_mid_v, evolved_p=evolved_du_mid_p, &
+                   location='down/up midpoint', &
+                   lbounds=evo_bounds, &
+                   error_code=error_code)
 
     ! Evolve, i.e. E0(R_omega), at all midpoint nodes that are composed of left/right edge vectors
     call debug_print('Evolving left/right midpoints', __FILE__, __LINE__)
     evo_bounds = lbound(evolved_lr_mid_rho)
-    call self%evolution_operator%evolve(dt=dt, evolved_rho=evolved_lr_mid_rho, evolved_u=evolved_lr_mid_u, &
-                                        evolved_v=evolved_lr_mid_v, evolved_p=evolved_lr_mid_p, &
-                                        location='left/right midpoint', &
-                                        lbounds=evo_bounds, &
-                                        error_code=error_code)
+    call E0%evolve(dt=dt, evolved_rho=evolved_lr_mid_rho, evolved_u=evolved_lr_mid_u, &
+                   evolved_v=evolved_lr_mid_v, evolved_p=evolved_lr_mid_p, &
+                   location='left/right midpoint', &
+                   lbounds=evo_bounds, &
+                   error_code=error_code)
 
     ! Evolve, i.e. E0(R_omega), at all corner nodes
     call debug_print('Evolving corner nodes', __FILE__, __LINE__)
     evo_bounds = lbound(evolved_corner_rho)
-    call self%evolution_operator%evolve(dt=dt, evolved_rho=evolved_corner_rho, evolved_u=evolved_corner_u, &
-                                        evolved_v=evolved_corner_v, evolved_p=evolved_corner_p, &
-                                        location='corner', &
-                                        lbounds=evo_bounds, &
-                                        error_code=error_code)
-
-    ! nullify(self%evolution_operator%reconstructed_rho)
-    ! nullify(self%evolution_operator%reconstructed_u)
-    ! nullify(self%evolution_operator%reconstructed_v)
-    ! nullify(self%evolution_operator%reconstructed_p)
-
-    ! nullify(self%reconstructor%rho)
-    ! nullify(self%reconstructor%p)
+    call E0%evolve(dt=dt, evolved_rho=evolved_corner_rho, evolved_u=evolved_corner_u, &
+                   evolved_v=evolved_corner_v, evolved_p=evolved_corner_p, &
+                   location='corner', &
+                   lbounds=evo_bounds, &
+                   error_code=error_code)
 
     call self%flux_edges(grid=grid, &
                          evolved_corner_rho=evolved_corner_rho, &
@@ -276,6 +278,14 @@ contains
                          d_rhoE_dt=d_rho_E_dt)
 
     ! Now deallocate everything
+
+    deallocate(bc_plus_x)
+    deallocate(bc_plus_y)
+    deallocate(bc_minus_x)
+    deallocate(bc_minus_y)
+
+    deallocate(reconstructor)
+
     deallocate(evolved_corner_rho)
     deallocate(evolved_corner_u)
     deallocate(evolved_corner_v)
@@ -298,142 +308,159 @@ contains
 
   end subroutine solve_fvleg
 
-  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p)
+  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p, &
+                                bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
     class(fvleg_solver_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    class(boundary_condition_t), intent(inout):: bc_plus_x
+    class(boundary_condition_t), intent(inout):: bc_plus_y
+    class(boundary_condition_t), intent(inout):: bc_minus_x
+    class(boundary_condition_t), intent(inout):: bc_minus_y
 
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
 
     call debug_print('Running fvleg_solver_t%apply_primitive_var_bc()', __FILE__, __LINE__)
 
-    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
-                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
+                          bc_minus_x%priority, bc_minus_y%priority)
 
     do priority = max_priority_bc, 0, -1
 
-      if(self%bc_plus_x%priority == priority) then
-        call self%bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      if(bc_plus_x%priority == priority) then
+        call bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
-      if(self%bc_plus_y%priority == priority) then
-        call self%bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      if(bc_plus_y%priority == priority) then
+        call bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
-      if(self%bc_minus_x%priority == priority) then
-        call self%bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      if(bc_minus_x%priority == priority) then
+        call bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
-      if(self%bc_minus_y%priority == priority) then
-        call self%bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      if(bc_minus_y%priority == priority) then
+        call bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
       end if
 
     end do
 
   end subroutine apply_primitive_bc
 
-  subroutine apply_reconstructed_bc(self, lbounds, recon_rho, recon_u, recon_v, recon_p)
+  subroutine apply_reconstructed_bc(self, lbounds, recon_rho, recon_u, recon_v, recon_p, &
+                                    bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
     class(fvleg_solver_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
     real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
+    class(boundary_condition_t), intent(inout):: bc_plus_x
+    class(boundary_condition_t), intent(inout):: bc_plus_y
+    class(boundary_condition_t), intent(inout):: bc_minus_x
+    class(boundary_condition_t), intent(inout):: bc_minus_y
+
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
 
     call debug_print('Running fvleg_solver_t%apply_reconstructed_state_bc()', __FILE__, __LINE__)
 
-    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
-                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
+                          bc_minus_x%priority, bc_minus_y%priority)
 
     do priority = max_priority_bc, 0, -1
 
-      if(self%bc_plus_x%priority == priority) then
-        call self%bc_plus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
-                                                         recon_u=recon_u, &
-                                                         recon_v=recon_v, &
-                                                         recon_p=recon_p, lbounds=lbounds)
+      if(bc_plus_x%priority == priority) then
+        call bc_plus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                    recon_u=recon_u, &
+                                                    recon_v=recon_v, &
+                                                    recon_p=recon_p, lbounds=lbounds)
       end if
 
-      if(self%bc_plus_y%priority == priority) then
-        call self%bc_plus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
-                                                         recon_u=recon_u, &
-                                                         recon_v=recon_v, &
-                                                         recon_p=recon_p, lbounds=lbounds)
+      if(bc_plus_y%priority == priority) then
+        call bc_plus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                    recon_u=recon_u, &
+                                                    recon_v=recon_v, &
+                                                    recon_p=recon_p, lbounds=lbounds)
       end if
 
-      if(self%bc_minus_x%priority == priority) then
-        call self%bc_minus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
-                                                          recon_u=recon_u, &
-                                                          recon_v=recon_v, &
-                                                          recon_p=recon_p, lbounds=lbounds)
+      if(bc_minus_x%priority == priority) then
+        call bc_minus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                     recon_u=recon_u, &
+                                                     recon_v=recon_v, &
+                                                     recon_p=recon_p, lbounds=lbounds)
       end if
 
-      if(self%bc_minus_y%priority == priority) then
-        call self%bc_minus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
-                                                          recon_u=recon_u, &
-                                                          recon_v=recon_v, &
-                                                          recon_p=recon_p, lbounds=lbounds)
+      if(bc_minus_y%priority == priority) then
+        call bc_minus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                     recon_u=recon_u, &
+                                                     recon_v=recon_v, &
+                                                     recon_p=recon_p, lbounds=lbounds)
       end if
 
     end do
 
   end subroutine apply_reconstructed_bc
 
-  subroutine apply_gradient_bc(self)
+  subroutine apply_gradient_bc(self, reconstructor, bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
 
     class(fvleg_solver_t), intent(inout) :: self
+    class(abstract_reconstruction_t), intent(inout) :: reconstructor
+    class(boundary_condition_t), intent(inout):: bc_plus_x
+    class(boundary_condition_t), intent(inout):: bc_plus_y
+    class(boundary_condition_t), intent(inout):: bc_minus_x
+    class(boundary_condition_t), intent(inout):: bc_minus_y
+
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
     integer(ik), dimension(2) :: lbounds
 
     call debug_print('Running fvleg_solver_t%apply_gradient_bc()', __FILE__, __LINE__)
 
-    lbounds = lbound(self%reconstructor%grad_x_rho)
-    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
-                          self%bc_minus_x%priority, self%bc_minus_y%priority)
+    lbounds = lbound(reconstructor%grad_x_rho)
+    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
+                          bc_minus_x%priority, bc_minus_y%priority)
 
     do priority = max_priority_bc, 0, -1
 
-      if(self%bc_plus_x%priority == priority) then
-        call self%bc_plus_x%apply_gradient_bc(grad_x=self%reconstructor%grad_x_rho, &
-                                              grad_y=self%reconstructor%grad_y_rho, &
-                                              lbounds=lbounds)
-        call self%bc_plus_x%apply_gradient_bc(grad_x=self%reconstructor%grad_x_p, &
-                                              grad_y=self%reconstructor%grad_y_p, &
-                                              lbounds=lbounds)
+      if(bc_plus_x%priority == priority) then
+        call bc_plus_x%apply_gradient_bc(grad_x=reconstructor%grad_x_rho, &
+                                         grad_y=reconstructor%grad_y_rho, &
+                                         lbounds=lbounds)
+        call bc_plus_x%apply_gradient_bc(grad_x=reconstructor%grad_x_p, &
+                                         grad_y=reconstructor%grad_y_p, &
+                                         lbounds=lbounds)
       end if
 
-      if(self%bc_plus_y%priority == priority) then
-        call self%bc_plus_y%apply_gradient_bc(grad_x=self%reconstructor%grad_x_rho, &
-                                              grad_y=self%reconstructor%grad_y_rho, &
-                                              lbounds=lbounds)
-        call self%bc_plus_y%apply_gradient_bc(grad_x=self%reconstructor%grad_x_p, &
-                                              grad_y=self%reconstructor%grad_y_p, &
-                                              lbounds=lbounds)
+      if(bc_plus_y%priority == priority) then
+        call bc_plus_y%apply_gradient_bc(grad_x=reconstructor%grad_x_rho, &
+                                         grad_y=reconstructor%grad_y_rho, &
+                                         lbounds=lbounds)
+        call bc_plus_y%apply_gradient_bc(grad_x=reconstructor%grad_x_p, &
+                                         grad_y=reconstructor%grad_y_p, &
+                                         lbounds=lbounds)
       end if
 
-      if(self%bc_minus_x%priority == priority) then
-        call self%bc_minus_x%apply_gradient_bc(grad_x=self%reconstructor%grad_x_rho, &
-                                               grad_y=self%reconstructor%grad_y_rho, &
-                                               lbounds=lbounds)
-        call self%bc_minus_x%apply_gradient_bc(grad_x=self%reconstructor%grad_x_p, &
-                                               grad_y=self%reconstructor%grad_y_p, &
-                                               lbounds=lbounds)
+      if(bc_minus_x%priority == priority) then
+        call bc_minus_x%apply_gradient_bc(grad_x=reconstructor%grad_x_rho, &
+                                          grad_y=reconstructor%grad_y_rho, &
+                                          lbounds=lbounds)
+        call bc_minus_x%apply_gradient_bc(grad_x=reconstructor%grad_x_p, &
+                                          grad_y=reconstructor%grad_y_p, &
+                                          lbounds=lbounds)
       end if
 
-      if(self%bc_minus_y%priority == priority) then
-        call self%bc_minus_y%apply_gradient_bc(grad_x=self%reconstructor%grad_x_rho, &
-                                               grad_y=self%reconstructor%grad_y_rho, &
-                                               lbounds=lbounds)
-        call self%bc_minus_y%apply_gradient_bc(grad_x=self%reconstructor%grad_x_p, &
-                                               grad_y=self%reconstructor%grad_y_p, &
-                                               lbounds=lbounds)
+      if(bc_minus_y%priority == priority) then
+        call bc_minus_y%apply_gradient_bc(grad_x=reconstructor%grad_x_rho, &
+                                          grad_y=reconstructor%grad_y_rho, &
+                                          lbounds=lbounds)
+        call bc_minus_y%apply_gradient_bc(grad_x=reconstructor%grad_x_p, &
+                                          grad_y=reconstructor%grad_y_p, &
+                                          lbounds=lbounds)
       end if
 
     end do
@@ -476,7 +503,6 @@ contains
     type(flux_array_t) :: leftright_mid_fluxes
 
     real(rk) :: f_sum, g_sum
-    real(rk) :: diff
 
     real(rk), dimension(4) :: bottom_flux
     real(rk), dimension(4) :: right_flux
@@ -489,7 +515,6 @@ contains
     real(rk) :: rhoE_flux, ave_rhoE_flux
     real(rk) :: threshold
 
-    real(rk), parameter :: FLUX_EPS = 1e-13_rk !epsilon(1.0_rk)
     real(rk), parameter :: REL_THRESHOLD = 1e-5_rk
 
     call debug_print('Running fvleg_solver_t%flux_edges()', __FILE__, __LINE__)
@@ -519,7 +544,7 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j, k, delta_l, n_hat) &
     !$omp private(bottom_flux, right_flux, left_flux, top_flux) &
-    !$omp private(f_sum, g_sum, diff) &
+    !$omp private(f_sum, g_sum) &
     !$omp shared(grid, corner_fluxes, leftright_mid_fluxes, downup_mid_fluxes) &
     !$omp shared(d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt) &
     !$omp private(rho_flux, ave_rho_flux, rhou_flux, ave_rhou_flux, rhov_flux, ave_rhov_flux, rhoE_flux, ave_rhoE_flux, threshold)
@@ -658,12 +683,5 @@ contains
     type(fvleg_solver_t), intent(inout) :: self
 
     call debug_print('Running fvleg_solver_t%finalize()', __FILE__, __LINE__)
-
-    if(allocated(self%reconstructor)) deallocate(self%reconstructor)
-    if(allocated(self%evolution_operator)) deallocate(self%evolution_operator)
-    if(allocated(self%bc_plus_x)) deallocate(self%bc_plus_x)
-    if(allocated(self%bc_plus_y)) deallocate(self%bc_plus_y)
-    if(allocated(self%bc_minus_x)) deallocate(self%bc_minus_x)
-    if(allocated(self%bc_minus_y)) deallocate(self%bc_minus_y)
   end subroutine finalize
 end module mod_fvleg_solver
