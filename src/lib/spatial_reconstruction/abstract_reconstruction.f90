@@ -17,7 +17,7 @@ module mod_abstract_reconstruction
     !< Base class for reconstruction operators
 
     class(grid_t), pointer :: grid => null()
-    !< Pointer to the grid object, which should be managed by the finite_volume_scheme_t puppeteer class
+    !< Pointer to the grid object, which should be managed by the master_puppeteer_t puppeteer class
 
     real(rk), dimension(:, :), pointer :: rho !< cell average density (used to find rho(P') at any (x,y))
     real(rk), dimension(:, :), pointer :: p   !< cell average pressure (used to find p(P') at any (x,y))

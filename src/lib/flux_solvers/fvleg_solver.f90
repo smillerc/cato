@@ -67,7 +67,7 @@ contains
 
     r_omega => reconstruction_factory(input=input, grid_target=grid)
     allocate(self%reconstructor, source=r_omega, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%reconstructor"
+    if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%reconstructor"
     deallocate(r_omega)
 
     allocate(local_evo_operator_t :: self%evolution_operator)

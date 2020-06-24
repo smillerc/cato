@@ -215,8 +215,8 @@ contains
     inquire(file=filename, exist=file_exists)
 
     if(.not. file_exists) then
-      write(*, '(a)') 'Error in finite_volume_scheme_t%initialize_from_hdf5(); file not found: "'//filename//'"'
-      error stop 'Error in finite_volume_scheme_t%initialize_from_hdf5(); file not found, exiting...'
+      write(*, '(a)') 'Error in fluid_t%initialize_from_hdf5(); file not found: "'//filename//'"'
+      error stop 'Error in fluid_t%initialize_from_hdf5(); file not found, exiting...'
     end if
 
     call h5%initialize(filename=filename, status='old', action='r')

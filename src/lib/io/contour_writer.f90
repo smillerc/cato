@@ -1,7 +1,7 @@
 module mod_contour_writer
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, real32
-  use mod_finite_volume_schemes, only: finite_volume_scheme_t
+  use mod_master_puppeteer, only: master_puppeteer_t
   use mod_fluid, only: fluid_t
   use mod_units
   use mod_nondimensionalization, only: rho_0, v_0, p_0, t_0, l_0, e_0
@@ -106,9 +106,9 @@ contains
     if(allocated(self%xdmf_filename)) deallocate(self%xdmf_filename)
   end subroutine
 
-  subroutine write_contour(self, fv_scheme, time, iteration)
+  subroutine write_contour(self, master, time, iteration)
     class(contour_writer_t), intent(inout) :: self
-    class(finite_volume_scheme_t), intent(in) :: fv_scheme
+    class(master_puppeteer_t), intent(in) :: master
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     character(50) :: char_buff
@@ -117,23 +117,23 @@ contains
     self%hdf5_filename = trim(char_buff)//'.h5'
     self%xdmf_filename = trim(char_buff)//'.xdmf'
 
-    self%ilo_cell = fv_scheme%grid%ilo_bc_cell
-    self%ihi_cell = fv_scheme%grid%ihi_bc_cell
-    self%jlo_cell = fv_scheme%grid%jlo_bc_cell
-    self%jhi_cell = fv_scheme%grid%jhi_bc_cell
+    self%ilo_cell = master%grid%ilo_bc_cell
+    self%ihi_cell = master%grid%ihi_bc_cell
+    self%jlo_cell = master%grid%jlo_bc_cell
+    self%jhi_cell = master%grid%jhi_bc_cell
 
-    self%ilo_node = fv_scheme%grid%ilo_bc_node
-    self%ihi_node = fv_scheme%grid%ihi_bc_node
-    self%jlo_node = fv_scheme%grid%jlo_bc_node
-    self%jhi_node = fv_scheme%grid%jhi_bc_node
+    self%ilo_node = master%grid%ilo_bc_node
+    self%ihi_node = master%grid%ihi_bc_node
+    self%jlo_node = master%grid%jlo_bc_node
+    self%jhi_node = master%grid%jhi_bc_node
 
     write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
     case('xdmf')
-      call self%write_hdf5(fv_scheme, time, iteration)
-      call self%write_xdmf(fv_scheme, time, iteration)
+      call self%write_hdf5(master, time, iteration)
+      call self%write_xdmf(master, time, iteration)
     case('hdf5', 'h5')
-      call self%write_hdf5(fv_scheme, time, iteration)
+      call self%write_hdf5(master, time, iteration)
     case default
       print *, 'Contour format:', self%format
       error stop "Unsupported I/O contour format"
@@ -141,9 +141,9 @@ contains
 
   end subroutine write_contour
 
-  subroutine write_hdf5(self, fv_scheme, time, iteration)
+  subroutine write_hdf5(self, master, time, iteration)
     class(contour_writer_t), intent(inout) :: self
-    class(finite_volume_scheme_t), intent(in) :: fv_scheme
+    class(master_puppeteer_t), intent(in) :: master
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     character(32) :: dataset_name
@@ -154,13 +154,13 @@ contains
     integer(ik), dimension(:, :), allocatable :: int_data_buffer
 
     time_w_dims = time * io_time_units * t_0
-    delta_t_w_dims = fv_scheme%dt * t_0
+    delta_t_w_dims = master%dt * t_0
 
     call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
                                    status='new', action='w', comp_lvl=6)
 
     ! Header info
-    call self%hdf5_file%add('/title', fv_scheme%title)
+    call self%hdf5_file%add('/title', master%title)
     call self%hdf5_file%add('/iteration', iteration)
     call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
     call self%hdf5_file%writeattr('/iteration', 'units', 'dimensionless')
@@ -195,14 +195,14 @@ contains
     allocate(io_data_buffer(ilo:ihi, jlo:jhi))
 
     dataset_name = '/x'
-    io_data_buffer = fv_scheme%grid%node_x(ilo:ihi, jlo:jhi) * l_0
+    io_data_buffer = master%grid%node_x(ilo:ihi, jlo:jhi) * l_0
     io_data_buffer = io_data_buffer * io_length_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'X Coordinate')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
     dataset_name = '/y'
-    io_data_buffer = fv_scheme%grid%node_y(ilo:ihi, jlo:jhi) * l_0
+    io_data_buffer = master%grid%node_y(ilo:ihi, jlo:jhi) * l_0
     io_data_buffer = io_data_buffer * io_length_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Y Coordinate')
@@ -221,10 +221,10 @@ contains
     ! Write a simple flag to tag ghost cells
     dataset_name = '/ghost_cell'
     int_data_buffer = 1
-    associate(ilo_r=>fv_scheme%grid%ilo_cell, &
-              ihi_r=>fv_scheme%grid%ihi_cell, &
-              jlo_r=>fv_scheme%grid%jlo_cell, &
-              jhi_r=>fv_scheme%grid%jhi_cell)
+    associate(ilo_r=>master%grid%ilo_cell, &
+              ihi_r=>master%grid%ihi_cell, &
+              jlo_r=>master%grid%jlo_cell, &
+              jhi_r=>master%grid%jhi_cell)
       int_data_buffer(ilo_r:ihi_r, jlo_r:jhi_r) = 0
     end associate
     call self%hdf5_file%add(trim(dataset_name), int_data_buffer)
@@ -257,36 +257,36 @@ contains
 
     ! Primitive Variables
     dataset_name = '/density'
-    io_data_buffer = fv_scheme%fluid%rho * rho_0
+    io_data_buffer = master%fluid%rho * rho_0
     io_data_buffer = io_data_buffer * io_density_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    io_data_buffer = fv_scheme%fluid%u * v_0
+    io_data_buffer = master%fluid%u * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    io_data_buffer = fv_scheme%fluid%v * v_0
+    io_data_buffer = master%fluid%v * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    io_data_buffer = fv_scheme%fluid%p * p_0
+    io_data_buffer = master%fluid%p * p_0
     io_data_buffer = io_data_buffer * io_pressure_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
     ! dataset_name = '/total_energy'
-    ! associate(rhoE=>fv_scheme%fluid%rho_E, &
-    !           rho=>fv_scheme%fluid%rho)
+    ! associate(rhoE=>master%fluid%rho_E, &
+    !           rho=>master%fluid%rho)
     !   io_data_buffer = (rhoE / rho) * e_0
     ! end associate
     ! io_data_buffer = io_data_buffer * io_pressure_units
@@ -295,14 +295,14 @@ contains
     ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_energy_label))
 
     dataset_name = '/sound_speed'
-    io_data_buffer = fv_scheme%fluid%cs * v_0 * io_velocity_units
+    io_data_buffer = master%fluid%cs * v_0 * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/temperature'
-    associate(p=>fv_scheme%fluid%p, &
-              rho=>fv_scheme%fluid%rho)
+    associate(p=>master%fluid%p, &
+              rho=>master%fluid%rho)
       call eos%temperature(p=p, rho=rho, t=io_data_buffer)
     end associate
     io_data_buffer = io_data_buffer * io_temperature_units
@@ -312,7 +312,7 @@ contains
 
     ! Volume
     dataset_name = '/volume'
-    io_data_buffer = fv_scheme%grid%cell_volume(:, :) * l_0**2
+    io_data_buffer = master%grid%cell_volume(:, :) * l_0**2
     io_data_buffer = io_data_buffer * io_volume_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')
@@ -323,9 +323,9 @@ contains
     call self%hdf5_file%finalize()
   end subroutine write_hdf5
 
-  subroutine write_xdmf(self, fv_scheme, time, iteration)
+  subroutine write_xdmf(self, master, time, iteration)
     class(contour_writer_t), intent(inout) :: self
-    class(finite_volume_scheme_t), intent(in) :: fv_scheme
+    class(master_puppeteer_t), intent(in) :: master
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     integer(ik) :: xdmf_unit
@@ -336,11 +336,11 @@ contains
     open(newunit=xdmf_unit, file=self%results_folder//'/'//self%xdmf_filename, status='replace')
 
     write(char_buff, '(2(i0,1x))') .reverse. &
-      shape(fv_scheme%fluid%rho(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+      shape(master%fluid%rho(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     cell_shape = trim(char_buff)
 
     write(char_buff, '(2(i0,1x))') .reverse. &
-      shape(fv_scheme%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node))
+      shape(master%grid%node_x(self%ilo_node:self%ihi_node, self%jlo_node:self%jhi_node))
     node_shape = trim(char_buff)
 
     write(xdmf_unit, '(a)') '<?xml version="1.0" ?>'

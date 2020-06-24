@@ -1,4 +1,4 @@
-module mod_finite_volume_schemes
+module mod_master_puppeteer
   !< Summary: Provide the master puppeteer class that directs each separate physics package. In this case,
   !<          it's just the fluid package for now
   !< Date: 06/23/2020
@@ -18,9 +18,9 @@ module mod_finite_volume_schemes
 
   implicit none
   private
-  public :: finite_volume_scheme_t, make_fv_scheme
+  public :: master_puppeteer_t, make_master
 
-  type :: finite_volume_scheme_t
+  type :: master_puppeteer_t
     !< This is a puppeteer class that manages the grid, fluid solver, and any other future physics packages
 
     character(len=32) :: title = ''
@@ -37,36 +37,36 @@ module mod_finite_volume_schemes
     final :: finalize
   end type
 
-  interface make_fv_scheme
+  interface make_master
     module procedure :: constructor
   end interface
 
 contains
 
-  function constructor(input) result(fv)
+  function constructor(input) result(master)
     class(input_t), intent(in) :: input
-    type(finite_volume_scheme_t), pointer :: fv
+    type(master_puppeteer_t), pointer :: master
 
-    allocate(fv)
-    call fv%initialize(input)
+    allocate(master)
+    call master%initialize(input)
 
   end function constructor
 
   subroutine initialize(self, input)
-    !< Construct the finite volume local evolution Galerkin (fvleg) scheme
-    class(finite_volume_scheme_t), intent(inout) :: self
+    !< Construct the puppeteer class
+    class(master_puppeteer_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
     ! Locals
     class(grid_t), pointer :: grid => null()
+    class(fluid_t), pointer :: fluid => null()
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
-    integer(ik), dimension(:, :), allocatable :: ghost_layers
     character(32) :: str_buff
 
     alloc_status = 0
 
-    call debug_print('Initializing finite_volume_scheme_t', __FILE__, __LINE__)
+    call debug_print('Initializing master_puppeteer_t', __FILE__, __LINE__)
 
     if(input%restart_from_file) then
       call h5%initialize(filename=trim(input%restart_file), status='old', action='r')
@@ -89,7 +89,7 @@ contains
 
     grid => grid_factory(input)
     allocate(self%grid, source=grid, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%grid"
+    if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%grid"
     deallocate(grid)
 
     ! Now that the grid is set, we can finish setting up the scale factors
@@ -98,20 +98,23 @@ contains
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
 
-    self%fluid = new_fluid(input, self%grid)
+    fluid => new_fluid(input, self%grid)
+    allocate(self%fluid, source=fluid, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%fluid"
+    deallocate(fluid)
   end subroutine initialize
 
   subroutine finalize(self)
     !< Implementation of the class cleanup
-    type(finite_volume_scheme_t), intent(inout) :: self
-    call debug_print('Running finite_volume_scheme_t%finalize()', __FILE__, __LINE__)
+    type(master_puppeteer_t), intent(inout) :: self
+    call debug_print('Running master_puppeteer_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%grid)) deallocate(self%grid)
     if(allocated(self%fluid)) deallocate(self%fluid)
   end subroutine finalize
 
   subroutine integrate(self, dt)
     !< Advance the simulation forward in time
-    class(finite_volume_scheme_t), intent(inout) :: self
+    class(master_puppeteer_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< timestep
 
     self%iteration = self%iteration + 1
@@ -121,7 +124,7 @@ contains
 
   subroutine set_time(self, time, dt, iteration)
     !< Set the time statistics
-    class(finite_volume_scheme_t), intent(inout) :: self
+    class(master_puppeteer_t), intent(inout) :: self
     real(rk), intent(in) :: time          !< simulation time
     real(rk), intent(in) :: dt            !< time-step
     integer(ik), intent(in) :: iteration  !< iteration
@@ -133,4 +136,4 @@ contains
     call self%fluid%set_time(time, dt, iteration)
   end subroutine set_time
 
-end module mod_finite_volume_schemes
+end module mod_master_puppeteer

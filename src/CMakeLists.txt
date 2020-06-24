@@ -77,7 +77,7 @@ add_library(
   lib/spatial_reconstruction/mlp_3rd_order.f90
   lib/spatial_reconstruction/mlp_5th_order.f90
   lib/spatial_reconstruction/reconstruction_factory.f90
-  lib/finite_volume_scheme/fv_scheme.f90)
+  lib/master_puppeteer/master_puppeteer.f90)
 
 # target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(
@@ -113,7 +113,7 @@ target_link_libraries(
 # lib/evolution_operator/abstract_evo_operator.f90 lib/evolution_operator/local_evo_operator.f90
 # lib/reconstruction/abstract_reconstruction.f90 lib/reconstruction/first_order_reconstruction.f90
 # lib/reconstruction/second_order_reconstruction.f90 lib/reconstruction/reconstruction_factory.f90
-# lib/finite_volume_scheme/fv_scheme.f90 lib/finite_volume_scheme/cato.f90 lib/integrand.f90
+# lib/master_puppeteer/master.f90 lib/master_puppeteer/cato.f90 lib/integrand.f90
 # lib/integrators/strategy.f90 lib/integrators/surrogate.f90
 # lib/integrators/time_integrator_factory.f90 lib/integrators/runge_kutta_2nd_order.f90)
 

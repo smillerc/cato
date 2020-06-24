@@ -100,22 +100,22 @@ contains
     ! Set boundary conditions
     bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, ghost_layers=ghost_layers)
     allocate(self%bc_plus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_x"
+    if(alloc_status /= 0) error stop "Unable to allocate flux_solver_t%bc_plus_x"
     deallocate(bc)
 
     bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, ghost_layers=ghost_layers)
     allocate(self%bc_plus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_plus_y"
+    if(alloc_status /= 0) error stop "Unable to allocate flux_solver_t%bc_plus_y"
     deallocate(bc)
 
     bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, ghost_layers=ghost_layers)
     allocate(self%bc_minus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_x"
+    if(alloc_status /= 0) error stop "Unable to allocate flux_solver_t%bc_minus_x"
     deallocate(bc)
 
     bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, ghost_layers=ghost_layers)
     allocate(self%bc_minus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate finite_volume_scheme_t%bc_minus_y"
+    if(alloc_status /= 0) error stop "Unable to allocate flux_solver_t%bc_minus_y"
     deallocate(bc)
 
     write(*, '(a)') "Boundary Conditions"

@@ -2,7 +2,7 @@ module mod_timing
   !< Define the type used for timing
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64, std_out => output_unit
-  use mod_finite_volume_schemes, only: finite_volume_scheme_t
+  use mod_master_puppeteer, only: master_puppeteer_t
   use mod_nondimensionalization, only: t_0
   use mod_fluid, only: fluid_t
 
@@ -103,22 +103,22 @@ contains
     close(io)
   end subroutine
 
-  real(rk) function get_timestep(cfl, fv) result(delta_t)
+  real(rk) function get_timestep(cfl, master) result(delta_t)
     real(rk), intent(in) :: cfl
-    class(finite_volume_scheme_t), intent(in) :: fv
+    class(master_puppeteer_t), intent(in) :: master
 
     integer(ik) :: ilo, ihi, jlo, jhi
 
-    ilo = fv%grid%ilo_cell
-    ihi = fv%grid%ihi_cell
-    jlo = fv%grid%jlo_cell
-    jhi = fv%grid%jhi_cell
+    ilo = master%grid%ilo_cell
+    ihi = master%grid%ihi_cell
+    jlo = master%grid%jlo_cell
+    jhi = master%grid%jhi_cell
 
-    if(.not. fv%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
-    associate(dx=>fv%grid%cell_dx, dy=>fv%grid%cell_dy)
+    if(.not. master%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
+    associate(dx=>master%grid%cell_dx, dy=>master%grid%cell_dy)
 
-      delta_t = minval(cfl / (((abs(fv%fluid%u(ilo:ihi, jlo:jhi)) + fv%fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
-                              ((abs(fv%fluid%v(ilo:ihi, jlo:jhi)) + fv%fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
+    delta_t = minval(cfl / (((abs(master%fluid%u(ilo:ihi, jlo:jhi)) + master%fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
+                              ((abs(master%fluid%v(ilo:ihi, jlo:jhi)) + master%fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
     end associate
     ! !$omp end workshare
 
