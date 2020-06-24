@@ -3,7 +3,7 @@ module test_reconstruction
   use mod_input, only: input_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
-  use mod_edge_interp, only: edge_iterpolator_t
+  use mod_edge_interpolator, only: edge_iterpolator_t
   use mod_tvd_2nd_order, only: tvd_2nd_order_t
   use mod_tvd_3rd_order, only: tvd_3rd_order_t
   use mod_tvd_5th_order, only: tvd_5th_order_t
