@@ -25,7 +25,7 @@ module mod_finite_volume_schemes
 
     character(len=32) :: title = ''
     integer(ik) :: iteration = 0 !< iteration coount
-    real(rk) :: delta_t = 0.0_rk !< time step
+    real(rk) :: dt = 0.0_rk      !< time step
     real(rk) :: time = 0.0_rk    !< simulation time
     class(grid_t), allocatable :: grid   !< grid topology
     class(fluid_t), allocatable :: fluid !< fluid physics
@@ -33,6 +33,7 @@ module mod_finite_volume_schemes
   contains
     procedure, public :: initialize
     procedure, public :: integrate
+    procedure, public :: set_time
     final :: finalize
   end type
 
@@ -117,5 +118,19 @@ contains
     self%time = self%time + dt
     call self%fluid%integrate(dt=dt, grid=self%grid)
   end subroutine integrate
+
+  subroutine set_time(self, time, dt, iteration)
+    !< Set the time statistics
+    class(finite_volume_scheme_t), intent(inout) :: self
+    real(rk), intent(in) :: time          !< simulation time
+    real(rk), intent(in) :: dt            !< time-step
+    integer(ik), intent(in) :: iteration  !< iteration
+
+    self%time = time
+    self%iteration = iteration
+    self%dt = dt
+
+    call self%fluid%set_time(time, dt, iteration)
+  end subroutine set_time
 
 end module mod_finite_volume_schemes

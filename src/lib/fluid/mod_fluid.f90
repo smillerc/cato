@@ -82,6 +82,7 @@ module mod_fluid
 
     ! Public methods
     procedure, public :: initialize
+    procedure, public :: set_time
     procedure, public :: integrate
     procedure, public :: t => time_derivative
     procedure, public :: force_finalization
@@ -364,6 +365,18 @@ contains
     if(allocated(self%mach_v)) deallocate(self%mach_v)
     ! if(allocated(self%time_integrator)) deallocate(self%time_integrator)
   end subroutine finalize
+
+  subroutine set_time(self, time, dt, iteration)
+    !< Set the time statistics
+    class(fluid_t), intent(inout) :: self
+    real(rk), intent(in) :: time          !< simulation time
+    real(rk), intent(in) :: dt            !< time-step
+    integer(ik), intent(in) :: iteration  !< iteration
+
+    self%time = time
+    self%iteration = iteration
+    self%dt = dt
+  end subroutine set_time
 
   subroutine integrate(self, dt, grid)
     !< Integrate in time
@@ -905,14 +918,7 @@ contains
   end subroutine ssp_rk2
 
   subroutine write_residual_history(first_stage, last_stage)
-    !< This writes out the change in residual to a file for convergence history monitoring. This
-    !< should not be called on a single instance of fluid_t. It should be called something like the following:
-    !<
-    !< dU_dt = U%t(fv, stage=1)          ! 1st stage
-    !< dU1_dt = U_1%t(fv, stage=2)       ! 2nd stage
-    !< R = dU1_dt - dU_dt                ! Difference in the stages, eg residuals
-    !< call R%write_residual_history(fv) ! Now write out the difference
-    !<
+    !< This writes out the change in residual to a file for convergence history monitoring.
 
     class(fluid_t), intent(in) :: first_stage
     class(fluid_t), intent(in) :: last_stage
@@ -929,7 +935,8 @@ contains
     rho_E_diff = maxval(abs(last_stage%rho_E - first_stage%rho_E))
 
     open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
-  write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
+    write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &
+      rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
     close(io)
 
   end subroutine write_residual_history

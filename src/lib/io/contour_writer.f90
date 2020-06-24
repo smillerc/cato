@@ -106,9 +106,8 @@ contains
     if(allocated(self%xdmf_filename)) deallocate(self%xdmf_filename)
   end subroutine
 
-  subroutine write_contour(self, fluid, fv_scheme, time, iteration)
+  subroutine write_contour(self, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
-    class(fluid_t), intent(in) :: fluid
     class(finite_volume_scheme_t), intent(in) :: fv_scheme
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
@@ -131,21 +130,20 @@ contains
     write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
     case('xdmf')
-      call self%write_hdf5(fluid, fv_scheme, time, iteration)
-      call self%write_xdmf(fluid, fv_scheme, time, iteration)
+      call self%write_hdf5(fv_scheme, time, iteration)
+      call self%write_xdmf(fv_scheme, time, iteration)
     case('hdf5', 'h5')
-      call self%write_hdf5(fluid, fv_scheme, time, iteration)
+      call self%write_hdf5(fv_scheme, time, iteration)
     case default
       print *, 'Contour format:', self%format
       error stop "Unsupported I/O contour format"
     end select
 
-  end subroutine
+  end subroutine write_contour
 
-  subroutine write_hdf5(self, fluid, fv_scheme, time, iteration)
+  subroutine write_hdf5(self, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
     class(finite_volume_scheme_t), intent(in) :: fv_scheme
-    class(fluid_t), intent(in) :: fluid
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     character(32) :: dataset_name
@@ -156,7 +154,7 @@ contains
     integer(ik), dimension(:, :), allocatable :: int_data_buffer
 
     time_w_dims = time * io_time_units * t_0
-    delta_t_w_dims = fv_scheme%delta_t * t_0
+    delta_t_w_dims = fv_scheme%dt * t_0
 
     call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
                                    status='new', action='w', comp_lvl=6)
@@ -259,36 +257,36 @@ contains
 
     ! Primitive Variables
     dataset_name = '/density'
-    io_data_buffer = fluid%rho * rho_0
+    io_data_buffer = fv_scheme%fluid%rho * rho_0
     io_data_buffer = io_data_buffer * io_density_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    io_data_buffer = fluid%u * v_0
+    io_data_buffer = fv_scheme%fluid%u * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    io_data_buffer = fluid%v * v_0
+    io_data_buffer = fv_scheme%fluid%v * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    io_data_buffer = fluid%p * p_0
+    io_data_buffer = fv_scheme%fluid%p * p_0
     io_data_buffer = io_data_buffer * io_pressure_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
     ! dataset_name = '/total_energy'
-    ! associate(rhoE=>fluid%rho_E, &
-    !           rho=>fluid%rho)
+    ! associate(rhoE=>fv_scheme%fluid%rho_E, &
+    !           rho=>fv_scheme%fluid%rho)
     !   io_data_buffer = (rhoE / rho) * e_0
     ! end associate
     ! io_data_buffer = io_data_buffer * io_pressure_units
@@ -297,14 +295,14 @@ contains
     ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_energy_label))
 
     dataset_name = '/sound_speed'
-    io_data_buffer = fluid%cs * v_0 * io_velocity_units
+    io_data_buffer = fv_scheme%fluid%cs * v_0 * io_velocity_units
     call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
     call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
     call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/temperature'
-    associate(p=>fluid%p, &
-              rho=>fluid%rho)
+    associate(p=>fv_scheme%fluid%p, &
+              rho=>fv_scheme%fluid%rho)
       call eos%temperature(p=p, rho=rho, t=io_data_buffer)
     end associate
     io_data_buffer = io_data_buffer * io_temperature_units
@@ -323,12 +321,11 @@ contains
     if(allocated(int_data_buffer)) deallocate(int_data_buffer)
     if(allocated(io_data_buffer)) deallocate(io_data_buffer)
     call self%hdf5_file%finalize()
-  end subroutine
+  end subroutine write_hdf5
 
-  subroutine write_xdmf(self, fluid, fv_scheme, time, iteration)
+  subroutine write_xdmf(self, fv_scheme, time, iteration)
     class(contour_writer_t), intent(inout) :: self
     class(finite_volume_scheme_t), intent(in) :: fv_scheme
-    class(fluid_t), intent(in) :: fluid
     integer(ik), intent(in) :: iteration
     real(rk), intent(in) :: time
     integer(ik) :: xdmf_unit
@@ -339,7 +336,7 @@ contains
     open(newunit=xdmf_unit, file=self%results_folder//'/'//self%xdmf_filename, status='replace')
 
     write(char_buff, '(2(i0,1x))') .reverse. &
-      shape(fluid%rho(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
+      shape(fv_scheme%fluid%rho(self%ilo_cell:self%ihi_cell, self%jlo_cell:self%jhi_cell))
     cell_shape = trim(char_buff)
 
     write(char_buff, '(2(i0,1x))') .reverse. &
@@ -448,5 +445,5 @@ contains
 
     deallocate(cell_shape)
     deallocate(node_shape)
-  end subroutine
+  end subroutine write_xdmf
 end module mod_contour_writer

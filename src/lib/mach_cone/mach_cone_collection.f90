@@ -18,6 +18,7 @@ module mod_mach_cone_collection
   public :: mach_cone_collection_t
 
   logical, parameter :: filter_small_dist = .true.
+  logical, parameter :: reconstruct_p_prime = .false.
   real(rk), parameter :: TINY_DIST_RATIO = 1.0e-8_rk
 
   type :: mach_cone_collection_t
@@ -350,27 +351,27 @@ contains
     do j = self%jlo, self%jhi
       do i = self%ilo, self%ihi
 
-        ! if(self%cone_is_transonic(i, j)) then
-        !   call self%get_transonic_cone_extents(i, j, transonic_origin, transonic_radius)
-        !   self%p_prime_x(i, j) = transonic_origin(1)
-        !   self%p_prime_y(i, j) = transonic_origin(2)
-        !   self%radius(i, j) = transonic_radius
-        ! else
-        self%radius(i, j) = self%tau * self%reference_sound_speed(i, j)
-
-        if(abs(self%p0_x(i, j) - self%tau * self%reference_u(i, j)) < epsilon(1.0_rk)) then
-          self%p_prime_x(i, j) = self%p0_x(i, j)
+        if(self%cone_is_transonic(i, j)) then
+          call self%get_transonic_cone_extents(i, j, transonic_origin, transonic_radius)
+          self%p_prime_x(i, j) = transonic_origin(1)
+          self%p_prime_y(i, j) = transonic_origin(2)
+          self%radius(i, j) = transonic_radius
         else
-          self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
-        end if
+          self%radius(i, j) = self%tau * self%reference_sound_speed(i, j)
 
-        if(abs(self%p0_y(i, j) - self%tau * self%reference_v(i, j)) < epsilon(1.0_rk)) then
-          self%p_prime_y(i, j) = self%p0_y(i, j)
-        else
-          self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
-        end if
+          if(abs(self%p0_x(i, j) - self%tau * self%reference_u(i, j)) < epsilon(1.0_rk)) then
+            self%p_prime_x(i, j) = self%p0_x(i, j)
+          else
+            self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
+          end if
 
-        ! end if
+          if(abs(self%p0_y(i, j) - self%tau * self%reference_v(i, j)) < epsilon(1.0_rk)) then
+            self%p_prime_y(i, j) = self%p0_y(i, j)
+          else
+            self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
+          end if
+
+        end if
       end do
     end do
     !$omp end do
@@ -655,10 +656,6 @@ contains
     integer(ik) :: pp_i !< P' i
     integer(ik) :: pp_j !< P' j
     integer(ik) :: n_p_prime_cells !< how many neighbor cells claim that P' is contained in it?
-    ! real(rk) :: pressure_p_prime
-    ! real(rk) :: density_p_prime
-    real(rk), dimension(self%n_neighbor_cells) :: pressure_p_prime !< temp variable for finding p(P') when multiple cells claim that P' is in it
-    real(rk), dimension(self%n_neighbor_cells) :: density_p_prime  !< temp variable for finding rho(P') when multiple cells claim that P' is in it
 
     i = 0
     j = 0
@@ -666,98 +663,104 @@ contains
     pp_i = 0 !< P' i
     pp_j = 0 !< P' j
 
-    !$omp parallel default(none) &
-    !$omp reduction(max:density_p_prime, pressure_p_prime) &
-    !$omp private(n_p_prime_cells) &
-    !$omp shared(self, recon_operator) &
-    !$omp private(i,j,c, pp_i, pp_j)
-    !$omp do
-    do j = self%jlo, self%jhi
-      do i = self%ilo, self%ihi
+    if(reconstruct_p_prime) then
+      recon_p_prime: block
+        real(rk), dimension(self%n_neighbor_cells) :: pressure_p_prime !< temp variable for finding p(P') when multiple cells claim that P' is in it
+        real(rk), dimension(self%n_neighbor_cells) :: density_p_prime  !< temp variable for finding rho(P') when multiple cells claim that P' is in it
+        !$omp parallel default(none) &
+        !$omp reduction(max:density_p_prime, pressure_p_prime) &
+        !$omp private(n_p_prime_cells) &
+        !$omp shared(self, recon_operator) &
+        !$omp private(i,j,c, pp_i, pp_j)
+        !$omp do
+        do j = self%jlo, self%jhi
+          do i = self%ilo, self%ihi
 
-        n_p_prime_cells = count(self%p_prime_in_cell(:, i, j))
+            n_p_prime_cells = count(self%p_prime_in_cell(:, i, j))
 
-        ! Find rho(P') based on the cells that report that they contain the
-        ! point P'(x,y). Sometimes P' is on an edge, so more than one cell reports
-        ! that P' is contained in it. If so, then take an average of the P' cells
-        if(n_p_prime_cells == self%n_neighbor_cells) then
+            ! Find rho(P') based on the cells that report that they contain the
+            ! point P'(x,y). Sometimes P' is on an edge, so more than one cell reports
+            ! that P' is contained in it. If so, then take an average of the P' cells
+            if(n_p_prime_cells == self%n_neighbor_cells) then
 
-          ! If all say P', then P' is colocated with P0; P' is then just the reference value, which
-          ! is just an average
-          self%density_p_prime(i, j) = self%reference_density(i, j)
-          self%pressure_p_prime(i, j) = self%reference_pressure(i, j)
+              ! If all say P', then P' is colocated with P0; P' is then just the reference value, which
+              ! is just an average
+              self%density_p_prime(i, j) = self%reference_density(i, j)
+              self%pressure_p_prime(i, j) = self%reference_pressure(i, j)
 
-        else if(n_p_prime_cells > 1 .and. n_p_prime_cells < self%n_neighbor_cells) then
-          ! Take an average of all the P' cells
-          density_p_prime = 0.0_rk
-          pressure_p_prime = 0.0_rk
-          do c = 1, self%n_neighbor_cells
-            if(self%p_prime_in_cell(c, i, j)) then
-              pp_i = self%cell_indices(1, c, i, j)
-              pp_j = self%cell_indices(2, c, i, j)
-              density_p_prime(c) = recon_operator%reconstruct_at_point(i=pp_i, j=pp_j, &
-                                                                       x=self%p_prime_x(i, j), &
-                                                                       y=self%p_prime_y(i, j), &
-                                                                       var='rho')
-              pressure_p_prime(c) = recon_operator%reconstruct_at_point(i=pp_i, j=pp_j, &
-                                                                        x=self%p_prime_x(i, j), &
-                                                                        y=self%p_prime_y(i, j), &
-                                                                        var='p')
-            end if
-          end do
-
-          ! Set P' to take the state of cell with the highest pressure
-          self%pressure_p_prime(i, j) = sum(pressure_p_prime) / real(n_p_prime_cells, rk)
-          self%density_p_prime(i, j) = sum(density_p_prime) / real(n_p_prime_cells, rk)
-
-          ! write(*,'(a, 4(es16.6))') "  p(P'): ", pressure_p_prime
-          ! write(*,'(a, 4(es16.6))') "rho(P'): ", density_p_prime
-          ! write(*, '(a, 2(es16.6))') " actuals rho, p -> ", self%density_p_prime(i, j), self%pressure_p_prime(i, j)
-          ! print*
-        else ! only 1 cell reports that P' is in it, so just reconstruct at that single point
-          pp_i = self%p_prime_ij(1, i, j)
-          pp_j = self%p_prime_ij(2, i, j)
-          self%density_p_prime(i, j) = recon_operator%reconstruct_at_point(i=pp_i, j=pp_j, &
+            else if(n_p_prime_cells > 1 .and. n_p_prime_cells < self%n_neighbor_cells) then
+              ! Take an average of all the P' cells
+              density_p_prime = 0.0_rk
+              pressure_p_prime = 0.0_rk
+              do c = 1, self%n_neighbor_cells
+                if(self%p_prime_in_cell(c, i, j)) then
+                  pp_i = self%cell_indices(1, c, i, j)
+                  pp_j = self%cell_indices(2, c, i, j)
+                  density_p_prime(c) = recon_operator%reconstruct_at_point(i=pp_i, j=pp_j, &
                                                                            x=self%p_prime_x(i, j), &
                                                                            y=self%p_prime_y(i, j), &
                                                                            var='rho')
-          self%pressure_p_prime(i, j) = recon_operator%reconstruct_at_point(i=pp_i, j=pp_j, &
+                  pressure_p_prime(c) = recon_operator%reconstruct_at_point(i=pp_i, j=pp_j, &
                                                                             x=self%p_prime_x(i, j), &
                                                                             y=self%p_prime_y(i, j), &
                                                                             var='p')
-        end if
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
+                end if
+              end do
 
-    ! !$omp parallel default(none) &
-    ! !$omp reduction(+:density_p_prime, pressure_p_prime) &
-    ! !$omp private(n_p_prime_cells) &
-    ! !$omp shared(self) &
-    ! !$omp private(i,j,c)
-    ! !$omp do
-    ! do j = self%jlo, self%jhi
-    !   do i = self%ilo, self%ihi
-    !     n_p_prime_cells = count(self%p_prime_in_cell(:, i, j))
-    !     if(n_p_prime_cells > 1) then
-    !       pressure_p_prime = sum(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
-    !       density_p_prime = sum(self%recon_rho(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
-    !       self%pressure_p_prime(i, j) = pressure_p_prime
-    !       self%density_p_prime(i, j) = density_p_prime
-    !     else
-    !       do c = 1, self%n_neighbor_cells
-    !         if(self%p_prime_in_cell(c, i, j)) then
-    !           self%density_p_prime(i, j) = self%recon_rho(c, i, j)
-    !           self%pressure_p_prime(i, j) = self%recon_p(c, i, j)
-    !         end if
-    !       end do
-    !     end if
+              ! Set P' to take the state of cell with the highest pressure
+              self%pressure_p_prime(i, j) = sum(pressure_p_prime) / real(n_p_prime_cells, rk)
+              self%density_p_prime(i, j) = sum(density_p_prime) / real(n_p_prime_cells, rk)
 
-    !   end do
-    ! end do
-    ! !$omp end do
-    ! !$omp end parallel
+            else ! only 1 cell reports that P' is in it, so just reconstruct at that single point
+              pp_i = self%p_prime_ij(1, i, j)
+              pp_j = self%p_prime_ij(2, i, j)
+              self%density_p_prime(i, j) = recon_operator%reconstruct_at_point(i=pp_i, j=pp_j, &
+                                                                               x=self%p_prime_x(i, j), &
+                                                                               y=self%p_prime_y(i, j), &
+                                                                               var='rho')
+              self%pressure_p_prime(i, j) = recon_operator%reconstruct_at_point(i=pp_i, j=pp_j, &
+                                                                                x=self%p_prime_x(i, j), &
+                                                                                y=self%p_prime_y(i, j), &
+                                                                                var='p')
+            end if
+          end do
+        end do
+        !$omp end do
+        !$omp end parallel
+      end block recon_p_prime
+    else
+      no_recon_p_prime: block
+        real(rk) :: pressure_p_prime
+        real(rk) :: density_p_prime
+        !$omp parallel default(none) &
+        !$omp reduction(+:density_p_prime, pressure_p_prime) &
+        !$omp private(n_p_prime_cells) &
+        !$omp shared(self) &
+        !$omp private(i,j,c)
+        !$omp do
+        do j = self%jlo, self%jhi
+          do i = self%ilo, self%ihi
+            n_p_prime_cells = count(self%p_prime_in_cell(:, i, j))
+            if(n_p_prime_cells > 1) then
+              pressure_p_prime = sum(self%recon_p(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
+              density_p_prime = sum(self%recon_rho(:, i, j), mask=self%p_prime_in_cell(:, i, j)) / real(n_p_prime_cells, rk)
+              self%pressure_p_prime(i, j) = pressure_p_prime
+              self%density_p_prime(i, j) = density_p_prime
+            else
+              do c = 1, self%n_neighbor_cells
+                if(self%p_prime_in_cell(c, i, j)) then
+                  self%density_p_prime(i, j) = self%recon_rho(c, i, j)
+                  self%pressure_p_prime(i, j) = self%recon_p(c, i, j)
+                end if
+              end do
+            end if
+
+          end do
+        end do
+        !$omp end do
+        !$omp end parallel
+      end block no_recon_p_prime
+    end if
   end subroutine get_p_prime_quantities
 
   subroutine compute_trig_angles(self)

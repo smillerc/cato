@@ -79,7 +79,7 @@ program cato
     iteration = fv%iteration
   else
     next_output_time = next_output_time + contour_interval_dt
-    ! call contour_writer%write_contour(U, fv, time, iteration)
+    call contour_writer%write_contour(fv, time, iteration)
   end if
 
   print *
@@ -100,7 +100,7 @@ program cato
     endif
   end if
 
-  ! call fv%set_time(time, delta_t, iteration)
+  call fv%set_time(time, delta_t, iteration)
 
   if(input%restart_from_file) then
     write(std_out, '(a, es10.3)') "Starting time:", time
@@ -120,23 +120,23 @@ program cato
     if(error_code /= 0) then
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
-      ! call contour_writer%write_contour(U, fv, time, iteration)
+      call contour_writer%write_contour(fv, time, iteration)
       error stop
     end if
 
     time = time + delta_t
     iteration = iteration + 1
-    ! call fv%set_time(time, delta_t, iteration)
+    call fv%set_time(time, delta_t, iteration)
     call timer%log_time(iteration, delta_t)
 
     ! I/O
-    ! if(time >= next_output_time) then
-    !   next_output_time = next_output_time + contour_interval_dt
-    !   write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
-    !     next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
-    !   call contour_writer%write_contour(U, fv, time, iteration)
-    !   last_io_iteration = iteration
-    ! end if
+    if(time >= next_output_time) then
+      next_output_time = next_output_time + contour_interval_dt
+      write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
+        next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
+      call contour_writer%write_contour(fv, time, iteration)
+      last_io_iteration = iteration
+    end if
 
     if(.not. input%use_constant_delta_t) delta_t = get_timestep(cfl=input%cfl, fv=fv)
   end do
@@ -144,7 +144,7 @@ program cato
   call timer%stop()
 
   ! One final contour output (if necessary)
-  ! if(iteration > last_io_iteration) call contour_writer%write_contour(U, fv, time, iteration)
+  if(iteration > last_io_iteration) call contour_writer%write_contour(fv, time, iteration)
 
   deallocate(fv)
 
