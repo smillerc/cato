@@ -13,17 +13,16 @@ module mod_tvd_5th_order
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
   use mod_flux_limiter, only: flux_limiter_t
-  use mod_slope_limiter, only: slope_limiter_t
-  use mod_edge_interp, only: edge_iterpolator_t
+  use mod_edge_interpolator, only: edge_iterpolator_t
   use mod_globals, only: n_ghost_layers, debug_print
 
   implicit none
   private
-  public :: tvd_5th_order_t
+  public :: tvd_5th_order_t, new_tvd_5th_order_t
 
   type, extends(edge_iterpolator_t) :: tvd_5th_order_t
     !< 5th order edge interpolation with TVD filtering
-    type(slope_limiter_t) :: limiter
+    type(flux_limiter_t) :: limiter
   contains
     procedure, public :: initialize
     ! procedure, nopass, public :: get_beta => beta_5th_order
@@ -31,12 +30,23 @@ module mod_tvd_5th_order
   end type tvd_5th_order_t
 
 contains
+
+  function new_tvd_5th_order_t(limiter) result(interpolator)
+    type(tvd_5th_order_t), pointer :: interpolator
+    character(len=*), intent(in) :: limiter
+
+    allocate(interpolator)
+    interpolator%limiter_name = trim(limiter)
+    interpolator%order = 5
+    interpolator%limiter = flux_limiter_t(trim(limiter))
+  end function
+
   subroutine initialize(self, limiter)
     class(tvd_5th_order_t), intent(inout) :: self
     character(len=*), intent(in) :: limiter
     self%limiter_name = trim(limiter)
     self%order = 2
-    self%limiter = slope_limiter_t(trim(limiter))
+    self%limiter = flux_limiter_t(trim(limiter))
   end subroutine initialize
 
   subroutine interpolate_edge_values(self, q, lbounds, edge_values)

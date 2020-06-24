@@ -9,12 +9,8 @@ module mod_piecewise_linear_reconstruction
   use mod_eos, only: eos
   use mod_floating_point_utils, only: equal
   use mod_gradients, only: green_gauss_gradient
-  use mod_edge_interp, only: edge_iterpolator_t
-  use mod_tvd_2nd_order, only: tvd_2nd_order_t
-  use mod_tvd_3rd_order, only: tvd_3rd_order_t
-  use mod_tvd_5th_order, only: tvd_5th_order_t
-  use mod_mlp_3rd_order, only: mlp_3rd_order_t
-  use mod_mlp_5th_order, only: mlp_5th_order_t
+  use mod_edge_interpolator, only: edge_iterpolator_t
+  use mod_edge_interpolator_factory, only: edge_interpolator_factory
 
   implicit none
 
@@ -39,36 +35,18 @@ contains
     class(piecewise_linear_reconstruction_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in), target :: grid_target
+
+    class(edge_iterpolator_t), pointer :: edge_interpolator => null()
+
     call debug_print('Initializing piecewise_linear_reconstruction_t', __FILE__, __LINE__)
 
     self%order = 2
     self%name = 'piecewise_linear'
     self%grid => grid_target
-    ! call self%set_slope_limiter(name=input%limiter)
+    edge_interpolator => edge_interpolator_factory(input)
+    allocate(self%edge_interpolator, source=edge_interpolator)
+    deallocate(edge_interpolator)
 
-    ! Set up the edge interpolation scheme
-    select case(trim(input%edge_interpolation_scheme))
-    case('TVD2')
-      ! write(*, '(a)') "Using 2nd order TVD for edge interpolation"
-      allocate(tvd_2nd_order_t :: self%edge_interpolator)
-    case('TVD3')
-      ! write(*, '(a)') "Using 3rd order TVD for edge interpolation"
-      allocate(tvd_3rd_order_t :: self%edge_interpolator)
-    case('TVD5')
-      ! write(*, '(a)') "Using 5th order TVD for edge interpolation"
-      allocate(tvd_5th_order_t :: self%edge_interpolator)
-    case('MLP3')
-      ! write(*, '(a)') "Using MLP3 for edge interpolation"
-      allocate(mlp_3rd_order_t :: self%edge_interpolator)
-    case('MLP5')
-      ! write(*, '(a)') "Using MLP5 for edge interpolation"
-      allocate(mlp_5th_order_t :: self%edge_interpolator)
-    case default
-      error stop "Unknown edge interpolation scheme, must be one of the following: "// &
-        "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
-    end select
-
-    call self%edge_interpolator%initialize(limiter=input%limiter)
   end subroutine initialize
 
   subroutine finalize(self)

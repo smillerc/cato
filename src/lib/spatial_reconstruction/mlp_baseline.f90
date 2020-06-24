@@ -14,7 +14,7 @@ module mod_mlp_baseline
   use, intrinsic :: ieee_arithmetic
   use mod_flux_limiter, only: flux_limiter_t
   use mod_slope_limiter, only: slope_limiter_t
-  use mod_edge_interp, only: edge_iterpolator_t
+  use mod_edge_interpolator, only: edge_iterpolator_t
   use mod_globals, only: n_ghost_layers
 
   implicit none

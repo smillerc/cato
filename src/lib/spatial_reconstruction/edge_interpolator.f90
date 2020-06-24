@@ -1,4 +1,4 @@
-module mod_edge_interp
+module mod_edge_interpolator
   !< Summary: Provide baseline class for edge interpolation schemes
   !< Date: 06/08/2020
   !< Author: Sam Miller
@@ -107,4 +107,4 @@ contains
       r_inv = 1.0_rk / r
     end if
   end subroutine get_smoothness
-end module mod_edge_interp
+end module mod_edge_interpolator

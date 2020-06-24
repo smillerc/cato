@@ -10,6 +10,8 @@ module mod_ausm_solver
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
   use mod_boundary_conditions, only: boundary_condition_t
+  use mod_edge_interpolator_factory, only: edge_interpolator_factory
+  use mod_edge_interpolator, only: edge_iterpolator_t
   use mod_flux_solver, only: flux_solver_t
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -78,6 +80,8 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
+    class(edge_iterpolator_t), pointer :: edge_interpolator => null()
+
     call debug_print('Running ausm_solver_t%solve_ausm()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) error stop "Error in ausm_solver_t%solve_ausm(), the timestep dt is < tiny(1.0_rk)"
@@ -85,6 +89,9 @@ contains
     self%dt = dt
     self%iteration = self%iteration + 1
 
+    edge_interpolator => edge_interpolator_factory(self%input)
+
+    deallocate(edge_interpolator)
   end subroutine solve_ausm
 
   subroutine flux_edges()

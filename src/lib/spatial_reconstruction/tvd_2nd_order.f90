@@ -13,12 +13,12 @@ module mod_tvd_2nd_order
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
   use mod_flux_limiter, only: flux_limiter_t
-  use mod_edge_interp, only: edge_iterpolator_t
+  use mod_edge_interpolator, only: edge_iterpolator_t
   use mod_globals, only: n_ghost_layers, debug_print
 
   implicit none
   private
-  public :: tvd_2nd_order_t
+  public :: tvd_2nd_order_t, new_tvd_2nd_order_t
 
   type, extends(edge_iterpolator_t) :: tvd_2nd_order_t
     !< 2nd order edge interpolation with TVD filtering
@@ -29,6 +29,17 @@ module mod_tvd_2nd_order
   end type tvd_2nd_order_t
 
 contains
+
+  function new_tvd_2nd_order_t(limiter) result(interpolator)
+    type(tvd_2nd_order_t), pointer :: interpolator
+    character(len=*), intent(in) :: limiter
+
+    allocate(interpolator)
+    interpolator%limiter_name = trim(limiter)
+    interpolator%order = 2
+    interpolator%limiter = flux_limiter_t(trim(limiter))
+  end function
+
   subroutine initialize(self, limiter)
     class(tvd_2nd_order_t), intent(inout) :: self
     character(len=*), intent(in) :: limiter

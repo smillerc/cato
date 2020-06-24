@@ -46,9 +46,7 @@ add_library(
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
-  # lib/boundary_conditions/vacuum_bc.f90
   lib/boundary_conditions/inlet_outlet.f90
-  # lib/boundary_conditions/farfield.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/symmetry_bc.f90
@@ -62,14 +60,13 @@ add_library(
   lib/flux_solvers/flux_solver.f90
   lib/flux_solvers/fvleg_solver.f90
   lib/flux_solvers/ausm_solver.f90
-  # lib/evolution_operator/abstract_evo_operator.f90
   lib/evolution_operator/local_evo_operator.f90
-  # lib/evolution_operator/evo_operator_factory.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
   lib/spatial_reconstruction/gradients.f90
   lib/spatial_reconstruction/piecewise_constant.f90
   lib/spatial_reconstruction/piecewise_linear.f90
   lib/spatial_reconstruction/edge_interpolator.f90
+  lib/spatial_reconstruction/edge_interpolator_factory.f90
   lib/spatial_reconstruction/tvd_2nd_order.f90
   lib/spatial_reconstruction/tvd_3rd_order.f90
   lib/spatial_reconstruction/tvd_5th_order.f90
