@@ -252,7 +252,7 @@ contains
     @assertEqual([2, 1], mach_cone%p_prime_ij(:, i, j))
     @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
 
-    if (reconstruct_p_prime) then
+    if(reconstruct_p_prime) then
       @assertEqual(2.54_rk, mach_cone%density_p_prime(i, j))
       @assertEqual(1.0_rk, mach_cone%pressure_p_prime(i, j))
     end if

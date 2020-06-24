@@ -5,7 +5,7 @@ module mod_mach_cone_collection
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: ieee_arithmetic
   use math_constants, only: pi, rad2deg
-  use mod_globals, only: grid_is_orthogonal
+  use mod_globals, only: grid_is_orthogonal, debug_print
   use mod_floating_point_utils, only: near_zero, equal, neumaier_sum
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_eos, only: eos
@@ -177,6 +177,8 @@ contains
     real(rk) :: recon_u, recon_v, recon_p
     real(rk), dimension(2) :: transonic_origin !< (x,y); origin for the transonic cone
     real(rk) :: transonic_radius               !< radius for the transonic cone
+
+    call debug_print('Calling mach_cone_collection_t%initialize()', __FILE__, __LINE__)
 
     self%ni = size(reconstructed_rho, dim=2)
     self%nj = size(reconstructed_rho, dim=3)
@@ -414,6 +416,7 @@ contains
     ! Cleanup all the allocated arrays upon destruction of the mach_cone_collection_t object
     type(mach_cone_collection_t), intent(inout) :: self
 
+    call debug_print('Running mach_cone_collection_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%recon_rho)) deallocate(self%recon_rho)
     if(allocated(self%recon_u)) deallocate(self%recon_u)
     if(allocated(self%recon_v)) deallocate(self%recon_v)
