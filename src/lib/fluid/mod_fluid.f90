@@ -113,11 +113,12 @@ contains
     class(fluid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in) :: grid
+    class(flux_solver_t), pointer :: solver => null()
 
     integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi, io
 
     alloc_status = 0
-    call debug_print('Initializing fluid_t', __FILE__, __LINE__)
+    call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
 
     if(.not. scale_factors_set) then
       error stop "Error in fluid_t%initialize(), global non-dimensional "// &
@@ -147,12 +148,15 @@ contains
 
     select case(trim(input%flux_solver))
     case('fvleg')
-      allocate(fvleg_solver_t :: self%solver)
+      allocate(fvleg_solver_t :: solver)
     case('ausm')
-      allocate(ausm_solver_t :: self%solver)
+      allocate(ausm_solver_t :: solver)
     end select
 
-    call self%solver%initialize(grid, input)
+    call solver%initialize(grid, input)
+    allocate(self%solver, source=solver)
+    deallocate(solver)
+
     open(newunit=io, file=trim(self%residual_hist_file), status='replace')
     write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
     close(io)
@@ -363,7 +367,7 @@ contains
     if(allocated(self%cs)) deallocate(self%cs)
     if(allocated(self%mach_u)) deallocate(self%mach_u)
     if(allocated(self%mach_v)) deallocate(self%mach_v)
-    ! if(allocated(self%time_integrator)) deallocate(self%time_integrator)
+    if(allocated(self%solver)) deallocate(self%solver)
   end subroutine finalize
 
   subroutine set_time(self, time, dt, iteration)
@@ -383,7 +387,6 @@ contains
     class(fluid_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< time step
     class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
-    type(fluid_t), allocatable :: d_dt !< dU/dt
 
     self%time = self%time + dt
     self%dt = dt
@@ -737,7 +740,8 @@ contains
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
-    lhs%solver = rhs%solver
+    if(allocated(lhs%solver)) deallocate(lhs%solver)
+    allocate(lhs%solver, source=rhs%solver)
     lhs%time_integration_scheme = rhs%time_integration_scheme
     lhs%time = rhs%time
     lhs%dt = rhs%dt
@@ -749,8 +753,6 @@ contains
 
     call lhs%sanity_check(error_code)
     call lhs%calculate_derived_quantities()
-
-    ! call rhs%clean_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
   end subroutine assign_fluid
 
   subroutine sanity_check(self, error_code)
