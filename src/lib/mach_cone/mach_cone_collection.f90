@@ -15,7 +15,7 @@ module mod_mach_cone_collection
   implicit none
 
   private
-  public :: mach_cone_collection_t
+  public :: mach_cone_collection_t, reconstruct_p_prime
 
   logical, parameter :: filter_small_dist = .true.
   logical, parameter :: reconstruct_p_prime = .false.

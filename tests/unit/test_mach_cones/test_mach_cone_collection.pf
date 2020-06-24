@@ -1,6 +1,6 @@
 module test_mach_cone_collection
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_mach_cone_collection
+  use mod_mach_cone_collection, only: mach_cone_collection_t, reconstruct_p_prime
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use math_constants, only: pi, rad2deg
@@ -251,8 +251,11 @@ contains
     @assertEqual([0.5_rk, -0.04_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
     @assertEqual([2, 1], mach_cone%p_prime_ij(:, i, j))
     @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
-    @assertEqual(2.54_rk, mach_cone%density_p_prime(i, j))
-    @assertEqual(1.0_rk, mach_cone%pressure_p_prime(i, j))
+
+    if (reconstruct_p_prime) then
+      @assertEqual(2.54_rk, mach_cone%density_p_prime(i, j))
+      @assertEqual(1.0_rk, mach_cone%pressure_p_prime(i, j))
+    end if
 
     !print*, mach_cone
     dtheta = 0.0_rk
