@@ -1,6 +1,7 @@
 module mod_input
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, output_unit
+  use mod_globals, only: debug_print
   use cfgio_mod, only: cfg_t, parse_cfg
 
   implicit none
@@ -101,6 +102,7 @@ module mod_input
     procedure, public :: initialize
     procedure, public :: read_from_ini
     procedure, public :: display_config
+    final :: finalize
   end type input_t
 
 contains
@@ -125,6 +127,21 @@ contains
     self%minus_y_bc = 'periodic'
 
   end subroutine initialize
+
+  subroutine finalize(self)
+    type(input_t), intent(inout) :: self
+
+    call debug_print('Running input_t%finalize()', __FILE__, __LINE__)
+    if(allocated(self%limiter)) deallocate(self%limiter)
+    if(allocated(self%time_integration_strategy)) deallocate(self%time_integration_strategy)
+    if(allocated(self%contour_io_format)) deallocate(self%contour_io_format)
+    if(allocated(self%source_file)) deallocate(self%source_file)
+    if(allocated(self%bc_pressure_input_file)) deallocate(self%bc_pressure_input_file)
+    if(allocated(self%restart_file)) deallocate(self%restart_file)
+    if(allocated(self%initial_condition_file)) deallocate(self%initial_condition_file)
+    if(allocated(self%title)) deallocate(self%title)
+    if(allocated(self%unit_system)) deallocate(self%unit_system)
+  end subroutine
 
   subroutine read_from_ini(self, filename)
 

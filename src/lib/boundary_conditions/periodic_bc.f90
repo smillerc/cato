@@ -395,4 +395,13 @@ contains
 
   end subroutine apply_gradient_bc
 
+  subroutine finalize(self)
+    type(periodic_bc_t), intent(inout) :: self
+    call debug_print('Running periodic_bc_t%finalize()', __FILE__, __LINE__)
+    if(allocated(self%ilo_ghost)) deallocate(self%ilo_ghost)
+    if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
+    if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)
+    if(allocated(self%jhi_ghost)) deallocate(self%jhi_ghost)
+  end subroutine
+
 end module mod_periodic_bc

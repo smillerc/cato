@@ -34,6 +34,7 @@ module mod_pressure_input_bc
     procedure, public :: apply_primitive_var_bc => apply_pressure_input_primitive_var_bc
     procedure, public :: apply_reconstructed_state_bc => apply_pressure_input_reconstructed_state_bc
     procedure, public :: apply_gradient_bc
+    final :: finalize
   end type
 contains
 
@@ -373,4 +374,13 @@ contains
     end associate
 
   end subroutine apply_gradient_bc
+
+  subroutine finalize(self)
+    type(pressure_input_bc_t), intent(inout) :: self
+    call debug_print('Running pressure_input_bc_t%finalize()', __FILE__, __LINE__)
+    if(allocated(self%ilo_ghost)) deallocate(self%ilo_ghost)
+    if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
+    if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)
+    if(allocated(self%jhi_ghost)) deallocate(self%jhi_ghost)
+  end subroutine
 end module mod_pressure_input_bc
