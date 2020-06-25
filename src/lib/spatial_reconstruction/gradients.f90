@@ -84,12 +84,6 @@ contains
 
         d_dx = sum(edge_vars(:, i, j) * n_x * edge_lengths)
         d_dy = sum(edge_vars(:, i, j) * n_y * edge_lengths)
-        ! print*, 'edge n_x', n_x
-        ! print*, 'edge n_y', n_y
-        ! print*, 'edge_lengths', edge_lengths
-        ! print*, 'edge vars', edge_vars(:,i,j)
-        ! print*, 'd_dx', d_dx
-        ! print*
 
         if(filter_small_values) then
           if(abs(d_dx) < EPS) then

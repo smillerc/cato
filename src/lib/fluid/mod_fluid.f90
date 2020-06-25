@@ -19,7 +19,7 @@ module mod_fluid
   use hdf5_interface, only: hdf5_file
   use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use mod_flux_solver, only: flux_solver_t
-  use mod_ausm_solver, only: ausm_solver_t
+  use mod_ausm_plus_up_solver, only: ausm_plus_up_solver_t
   use mod_fvleg_solver, only: fvleg_solver_t
 
   implicit none
@@ -149,8 +149,8 @@ contains
     select case(trim(input%flux_solver))
     case('fvleg')
       allocate(fvleg_solver_t :: solver)
-    case('ausm')
-      allocate(ausm_solver_t :: solver)
+    case('ausm_plus_up')
+      allocate(ausm_plus_up_solver_t :: solver)
     end select
 
     call solver%initialize(grid, input)

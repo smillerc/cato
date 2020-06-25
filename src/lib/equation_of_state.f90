@@ -33,17 +33,20 @@ module mod_eos
     procedure, public :: get_cp
     procedure, public :: get_cv
     procedure, private :: total_energy_2d
+    procedure, private :: total_enthalpy_2d
     procedure, private :: sound_speed_2d
     procedure, private :: temperature_2d
     procedure, private :: conserved_to_primitive_2d
     procedure, private :: primitive_to_conserved_2d
     procedure, private :: total_energy_0d
+    procedure, private :: total_enthalpy_0d
     procedure, private :: sound_speed_0d
     procedure, private :: temperature_0d
     procedure, private :: conserved_to_primitive_0d
     procedure, private :: primitive_to_conserved_0d
 
     generic, public :: total_energy => total_energy_2d, total_energy_0d
+    generic, public :: total_enthalpy => total_enthalpy_2d, total_enthalpy_0d
     generic, public :: sound_speed => sound_speed_0d, sound_speed_2d
     generic, public :: temperature => temperature_0d, temperature_2d
     generic, public :: conserved_to_primitive => conserved_to_primitive_0d, conserved_to_primitive_2d
@@ -123,12 +126,44 @@ contains
     !$omp end parallel
   end subroutine total_energy_2d
 
+  impure subroutine total_enthalpy_2d(self, rho, u, v, p, H)
+    !< Calculate total enthalpy
+    class(eos_t), intent(in) :: self
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho  !< density
+    real(rk), dimension(:, :), contiguous, intent(in) :: u    !< x-velocity
+    real(rk), dimension(:, :), contiguous, intent(in) :: v    !< y-velocity
+    real(rk), dimension(:, :), contiguous, intent(in) :: p    !< pressure
+    real(rk), dimension(:, :), contiguous, intent(inout) :: H !< total enthalpy
+
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: gamma
+
+    gamma = self%gamma
+    ilo = lbound(rho, dim=1)
+    ihi = ubound(rho, dim=1)
+    jlo = lbound(rho, dim=2)
+    jhi = ubound(rho, dim=2)
+
+    !$omp parallel default(none) &
+    !$omp shared(rho, u, v, p, H) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j, gamma)
+    !$omp do simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        H(i, j) = (p(i, j) / rho(i, j)) * (gamma / (gamma - 1.0_rk)) + ((u(i, j)**2 + v(i, j)**2) / 2.0_rk)
+      end do
+    end do
+    !$omp end do simd
+    !$omp end parallel
+  end subroutine total_enthalpy_2d
+
   impure subroutine sound_speed_2d(self, p, rho, cs)
     !< Calculate sound speed
-
     class(eos_t), intent(in) :: self
-    real(rk), dimension(:, :), contiguous, intent(in) :: p   !< pressure
-    real(rk), dimension(:, :), contiguous, intent(in) :: rho !< density
+    real(rk), dimension(:, :), contiguous, intent(in) :: p     !< pressure
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho   !< density
     real(rk), dimension(:, :), contiguous, intent(inout) :: cs !< sound speed
 
     ! Locals
@@ -196,9 +231,9 @@ contains
     real(rk), dimension(:, :), contiguous, intent(in) :: rho_u !< density * x-velocity
     real(rk), dimension(:, :), contiguous, intent(in) :: rho_v !< density * y-velocity
     real(rk), dimension(:, :), contiguous, intent(in) :: rho_E !< density * total energy
-    real(rk), dimension(:, :), contiguous, intent(inout) :: u    !< x-velocity
-    real(rk), dimension(:, :), contiguous, intent(inout) :: v    !< y-velocity
-    real(rk), dimension(:, :), contiguous, intent(inout) :: p    !< pressure
+    real(rk), dimension(:, :), contiguous, intent(inout) :: u  !< x-velocity
+    real(rk), dimension(:, :), contiguous, intent(inout) :: v  !< y-velocity
+    real(rk), dimension(:, :), contiguous, intent(inout) :: p  !< pressure
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -234,13 +269,13 @@ contains
     !< is in the EOS class due to requirement of converting energy into pressure
 
     class(eos_t), intent(in) :: self
-    real(rk), dimension(:, :), contiguous, intent(in) :: rho
-    real(rk), dimension(:, :), contiguous, intent(in) :: u
-    real(rk), dimension(:, :), contiguous, intent(in) :: v
-    real(rk), dimension(:, :), contiguous, intent(in) :: p
-    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_u
-    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_v
-    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_E
+    real(rk), dimension(:, :), contiguous, intent(in) :: rho      !< density
+    real(rk), dimension(:, :), contiguous, intent(in) :: u        !< x-velocity
+    real(rk), dimension(:, :), contiguous, intent(in) :: v        !< v-velocity
+    real(rk), dimension(:, :), contiguous, intent(in) :: p        !< pressure
+    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_u !< density * x-velocity
+    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_v !< density * y-velocity
+    real(rk), dimension(:, :), contiguous, intent(inout) :: rho_E !< density * total energy
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -288,6 +323,19 @@ contains
     E = (p / (rho * gamma_m_one)) + ((u**2 + v**2) / 2.0_rk)
 
   end subroutine total_energy_0d
+
+  pure subroutine total_enthalpy_0d(self, rho, u, v, p, H)
+    !< Calculate total enthalpy
+    class(eos_t), intent(in) :: self
+    real(rk), intent(in) :: rho  !< density
+    real(rk), intent(in) :: u    !< x-velocity
+    real(rk), intent(in) :: v    !< y-velocity
+    real(rk), intent(in) :: p    !< pressure
+    real(rk), intent(inout) :: H !< total enthalpy
+
+    H = (p / rho) * (self%gamma / (self%gamma - 1.0_rk)) + ((u**2 + v**2) / 2.0_rk)
+
+  end subroutine total_enthalpy_0d
 
   pure subroutine sound_speed_0d(self, p, rho, cs)
     !< Calculate sound speed
