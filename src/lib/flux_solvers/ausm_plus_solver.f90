@@ -1,5 +1,5 @@
-module mod_ausm_plus_up_solver
-  !< Summary: Provide a base ausm_plus_up solver class structure
+module mod_ausm_plus_solver
+  !< Summary: Provide a solver based on the AUSM+ family of schemes
   !< Date: 06/22/2020
   !< Author: Sam Miller
   !< Notes:
@@ -7,7 +7,7 @@ module mod_ausm_plus_up_solver
   !<     [1] M. S. Liou "A sequel to AUSM, Part II AUSM+-up for all speeds",
   !<         Journal of Computational Physics 214 (2006) 137–170, https://doi.org/10.1016/j.jcp.2005.09.020
 
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_globals, only: debug_print
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_edge_interpolator_factory, only: edge_interpolator_factory
@@ -20,12 +20,13 @@ module mod_ausm_plus_up_solver
   implicit none
 
   private
-  public :: ausm_plus_up_solver_t
+  public :: ausm_plus_solver_t
 
-  type, extends(flux_solver_t) :: ausm_plus_up_solver_t
+  type, extends(flux_solver_t) :: ausm_plus_solver_t
     !< Implementation of the AUSM+-up scheme
     private
     real(rk) :: mach_split_beta = 1.0_rk / 8.0_rk        !< beta parameter in Eq. 20 in Ref [1]
+    real(rk) :: pressure_split_alpha = 3.0_rk / 16.0_rk        !< beta parameter in Eq. 20 in Ref [1]
     real(rk) :: pressure_diffusion_coeff = 0.25_rk       !< K_p; pressure diffusion coefficient in Eq 21 in Ref [1]
     real(rk) :: pressure_flux_coeff = 0.75_rk            !< K_u; pressure flux coefficient in Eq 26 in Ref [1]
     real(rk) :: sigma = 1.0_rk                           !< sigma; another pressure diffusion coefficient in Eq 21 in Ref [1]
@@ -33,6 +34,12 @@ module mod_ausm_plus_up_solver
 
     real(rk), dimension(:, :, :), allocatable :: i_edge_flux !< ((1:4), i, j) edge flux of the i-direction edges
     real(rk), dimension(:, :, :), allocatable :: j_edge_flux !< ((1:4), i, j) edge flux of the j-direction edges
+
+    ! Variants of the AUSM+ family
+    logical :: ausm_plus_u = .false.            !< Enable the AUSM+-u scheme
+    logical :: ausm_plus_up_basic = .false.     !< Enable the AUSM+-up basic scheme
+    logical :: ausm_plus_up_all_speed = .false. !< Enable the AUSM+-up all-speed scheme
+
   contains
     ! Public methods
     procedure, public :: initialize => initialize_ausm_plus_up
@@ -52,22 +59,39 @@ module mod_ausm_plus_up_solver
 
     ! Operators
     generic :: assignment(=) => copy
-  end type ausm_plus_up_solver_t
+  end type ausm_plus_solver_t
 
 contains
 
   subroutine initialize_ausm_plus_up(self, input)
-    class(ausm_plus_up_solver_t), intent(inout) :: self
+    class(ausm_plus_solver_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
-    call debug_print('Running ausm_plus_up_solver_t%initialize_ausm_plus_up()', __FILE__, __LINE__)
+    call debug_print('Running ausm_plus_solver_t%initialize_ausm_plus_up()', __FILE__, __LINE__)
 
-    self%name = 'AUSM+-up'
     self%input = input
     self%M_inf_sq = input%reference_mach**2
 
+    select case(trim(input%flux_solver))
+    case('AUSM+-u')
+      self%name = 'AUSM+-u'
+      self%ausm_plus_u = .true.
+    case('AUSM+-up', 'AUSM+-up_basic')
+      self%name = 'AUSM+-up'
+      self%ausm_plus_up_basic = .true.
+    case('AUSM+-up_all_speed')
+      self%name = 'AUSM+-up all-speed'
+      self%ausm_plus_up_all_speed = .true.
+    case default
+      write(std_err, '(a)') "Unknown variant of the AUSM+ family, must be one of the following"// &
+        "['AUSM+-u','AUSM+-up', 'AUSM+-up_all_speed'], input was '"//trim(input%flux_solver)//"'"
+
+      error stop "Unknown variant of the AUSM+ family, must be one of the following"// &
+        "['AUSM+-u', 'AUSM+-up','AUSM+-up_all_speed']"
+    end select
+
     if(input%ausm_beta < (-1.0_rk / 16.0_rk) .or. input%ausm_beta > 0.5_rk) then
-      error stop "Invalid value of input%ausm_beta in ausm_plus_up_solver_t%initialize_ausm_plus_up(); "// &
+      error stop "Invalid value of input%ausm_beta in ausm_plus_solver_t%initialize_ausm_plus_up(); "// &
         "beta must be in the interval -1/16 <= beta <= 1/2"
     else
       self%mach_split_beta = input%ausm_beta
@@ -75,7 +99,7 @@ contains
 
     if(input%ausm_pressure_diffusion_coeff < 0.0_rk .or. input%ausm_pressure_diffusion_coeff > 1.0_rk) then
       error stop "Invalid value of the input%ausm_pressure_diffusion_coeff (K_p) "// &
-        "in ausm_plus_up_solver_t%initialize_ausm_plus_up(); "// &
+        "in ausm_plus_solver_t%initialize_ausm_plus_up(); "// &
         "K_p must be in the interval 0 <= K_p <= 1"
     else
       self%pressure_diffusion_coeff = input%ausm_pressure_diffusion_coeff
@@ -83,7 +107,7 @@ contains
 
     if(input%ausm_sonic_point_sigma < 0.25_rk .or. input%ausm_sonic_point_sigma > 1.0_rk) then
       error stop "Invalid value of the sonic point resolution parameter input%ausm_sonic_point_sigma in "// &
-        "ausm_plus_up_solver_t%initialize_ausm_plus_up(); sigma must be in "// &
+        "ausm_plus_solver_t%initialize_ausm_plus_up(); sigma must be in "// &
         "the interval  0.25 <= sigma < 1"
     else
       self%sigma = input%ausm_sonic_point_sigma
@@ -92,10 +116,10 @@ contains
 
   subroutine copy_ausm_plus_up(lhs, rhs)
     !< Implement LHS = RHS
-    class(ausm_plus_up_solver_t), intent(inout) :: lhs
-    type(ausm_plus_up_solver_t), intent(in) :: rhs
+    class(ausm_plus_solver_t), intent(inout) :: lhs
+    type(ausm_plus_solver_t), intent(in) :: rhs
 
-    call debug_print('Running ausm_plus_up_solver_t%copy()', __FILE__, __LINE__)
+    call debug_print('Running ausm_plus_solver_t%copy()', __FILE__, __LINE__)
 
     ! allocate(lhs%bc_plus_x, source=rhs%bc_plus_x)
     ! allocate(lhs%bc_plus_y, source=rhs%bc_plus_y)
@@ -110,7 +134,7 @@ contains
 
   subroutine solve_ausm_plus_up(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
-    class(ausm_plus_up_solver_t), intent(inout) :: self
+    class(ausm_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
@@ -147,9 +171,10 @@ contains
     real(rk) :: p_R   !< pressure of the right side
     real(rk), dimension(2) :: H !< (L,R); Total enthalpy
 
-    real(rk) :: M_half   !< Final interface Mach number
-    real(rk) :: p_half   !< Final interface pressure
-    real(rk) :: a_half   !< Final interface sound speed
+    real(rk) :: M_half    !< Final interface Mach number
+    real(rk) :: p_half    !< Final interface pressure
+    real(rk) :: a_half    !< Final interface sound speed
+    real(rk) :: mass_flux !< Final mass flux across the interface
 
     integer(ik), parameter :: bottom = 1 !< edge index for the bottom edge of the current cell
     integer(ik), parameter :: right = 2 !< edge index for the right edge of the current cell
@@ -175,9 +200,9 @@ contains
     ! with (L/R) = [L  if M_(i+1/2) >= 0]
     !              [R  otherwise        ]
 
-    call debug_print('Running ausm_plus_up_solver_t%solve_ausm_plus_up()', __FILE__, __LINE__)
+    call debug_print('Running ausm_plus_solver_t%solve_ausm_plus_up()', __FILE__, __LINE__)
 
-    if(dt < tiny(1.0_rk)) error stop "Error in ausm_plus_up_solver_t%solve_ausm_plus_up(), the timestep dt is < tiny(1.0_rk)"
+    if(dt < tiny(1.0_rk)) error stop "Error in ausm_plus_solver_t%solve_ausm_plus_up(), the timestep dt is < tiny(1.0_rk)"
     self%time = self%time + dt
     self%dt = dt
     self%iteration = self%iteration + 1
@@ -232,7 +257,7 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi), &
     !$omp shared(self, grid), &
     !$omp shared(rho_interface_values, u_interface_values, v_interface_values, p_interface_values), &
-    !$omp private(i, j, n_x, n_y), &
+    !$omp private(i, j, n_x, n_y, mass_flux), &
     !$omp private(rho_L, u_L, v_L, p_L), &
     !$omp private(rho_R, u_R, v_R, p_R), &
     !$omp private(a_half, p_half, M_half, H)
@@ -267,15 +292,17 @@ contains
 
         ! Edge flux values, via upwinding
         if(M_half > 0.0_rk) then
-          self%i_edge_flux(1, i, j) = M_half * a_half * rho_L
-          self%i_edge_flux(2, i, j) = M_half * a_half * rho_L * u_L + n_x * p_half
-          self%i_edge_flux(3, i, j) = M_half * a_half * rho_L * v_L + n_y * p_half
-          self%i_edge_flux(4, i, j) = M_half * a_half * rho_L * H(1)
+          mass_flux = M_half * a_half * rho_L
+          self%i_edge_flux(1, i, j) = mass_flux
+          self%i_edge_flux(2, i, j) = mass_flux * u_L + (grid%cell_edge_norm_vectors(1, right, i, j) * p_half)
+          self%i_edge_flux(3, i, j) = mass_flux * v_L + (grid%cell_edge_norm_vectors(2, right, i, j) * p_half)
+          self%i_edge_flux(4, i, j) = mass_flux * H(1)
         else
-          self%i_edge_flux(1, i, j) = M_half * a_half * rho_R
-          self%i_edge_flux(2, i, j) = M_half * a_half * rho_R * u_R + n_x * p_half
-          self%i_edge_flux(3, i, j) = M_half * a_half * rho_R * v_R + n_y * p_half
-          self%i_edge_flux(4, i, j) = M_half * a_half * rho_R * H(2)
+          mass_flux = M_half * a_half * rho_R
+          self%i_edge_flux(1, i, j) = mass_flux
+          self%i_edge_flux(2, i, j) = mass_flux * u_R + (grid%cell_edge_norm_vectors(1, right, i, j) * p_half)
+          self%i_edge_flux(3, i, j) = mass_flux * v_R + (grid%cell_edge_norm_vectors(2, right, i, j) * p_half)
+          self%i_edge_flux(4, i, j) = mass_flux * H(2)
         end if
       end do
     end do
@@ -309,15 +336,17 @@ contains
 
         ! Edge flux values, via upwinding
         if(M_half > 0.0_rk) then
-          self%j_edge_flux(1, i, j) = M_half * a_half * rho_L
-          self%j_edge_flux(2, i, j) = M_half * a_half * rho_L * u_L + n_x * p_half
-          self%j_edge_flux(3, i, j) = M_half * a_half * rho_L * v_L + n_y * p_half
-          self%j_edge_flux(4, i, j) = M_half * a_half * rho_L * H(1)
+          mass_flux = M_half * a_half * rho_L
+          self%j_edge_flux(1, i, j) = mass_flux
+          self%j_edge_flux(2, i, j) = mass_flux * u_L + (grid%cell_edge_norm_vectors(1, top, i, j) * p_half)
+          self%j_edge_flux(3, i, j) = mass_flux * v_L + (grid%cell_edge_norm_vectors(2, top, i, j) * p_half)
+          self%j_edge_flux(4, i, j) = mass_flux * H(1)
         else
-          self%j_edge_flux(1, i, j) = M_half * a_half * rho_R
-          self%j_edge_flux(2, i, j) = M_half * a_half * rho_R * u_R + n_x * p_half
-          self%j_edge_flux(3, i, j) = M_half * a_half * rho_R * v_R + n_y * p_half
-          self%j_edge_flux(4, i, j) = M_half * a_half * rho_R * H(2)
+          mass_flux = M_half * a_half * rho_R
+          self%j_edge_flux(1, i, j) = mass_flux
+          self%j_edge_flux(2, i, j) = mass_flux * u_R + (grid%cell_edge_norm_vectors(1, top, i, j) * p_half)
+          self%j_edge_flux(3, i, j) = mass_flux * v_R + (grid%cell_edge_norm_vectors(2, top, i, j) * p_half)
+          self%j_edge_flux(4, i, j) = mass_flux * H(2)
         end if
       end do
     end do
@@ -343,7 +372,7 @@ contains
 
   subroutine flux_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
-    class(ausm_plus_up_solver_t), intent(in) :: self
+    class(ausm_plus_solver_t), intent(in) :: self
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
@@ -416,89 +445,99 @@ contains
   end subroutine flux_edges
 
   pure function split_mach_deg_1(M, plus_or_minus) result(M_split)
-    !< Implementation of the M +- of degree 1. See Eq. 18 in Ref [1]
+    !< Implementation of the 1st order polynomial split Mach function M±(1). See Eq. 18 in Ref [1]
     real(rk), intent(in) :: M         !< Mach number
     character(len=1), intent(in) :: plus_or_minus !< which split? '+' or '-'
     real(rk) :: M_split !< Split Mach number
 
     if(plus_or_minus == '+') then
-      M_split = 0.5_rk * (M + abs(M))
+      M_split = 0.5_rk * (M + abs(M)) ! M+(1)
     else
-      M_split = 0.5_rk * (M - abs(M))
+      M_split = 0.5_rk * (M - abs(M)) ! M-(1)
     end if
   end function split_mach_deg_1
 
   pure function split_mach_deg_2(M, plus_or_minus) result(M_split)
-    !< Implementation of the M +- of degree 2. See Eq. 19 in Ref [1]
-    real(rk), intent(in) :: M         !< Mach number
+    !< Implementation of the 2nd order polynomial split Mach function  M±(2). See Eq. 19 in Ref [1]
+    real(rk), intent(in) :: M                     !< Mach number
     character(len=1), intent(in) :: plus_or_minus !< which split? '+' or '-'
-    real(rk) :: M_split !< Split Mach number
+    real(rk) :: M_split                           !< Split Mach number, M±(2)
 
     if(plus_or_minus == '+') then
-      M_split = 0.25_rk * (M + 1.0_rk)**2
+      M_split = 0.25_rk * (M + 1.0_rk)**2  ! M+(2)
     else
-      M_split = 0.25_rk * (M - 1.0_rk)**2
+      M_split = -0.25_rk * (M - 1.0_rk)**2 ! M-(2)
     end if
 
   end function split_mach_deg_2
 
   pure function split_mach_deg_4(self, M, plus_or_minus) result(M_split)
-    !< Implementation of the M +- of degree 4. See Eq. 20 in Ref [1]
+    !< Implementation of the 4th order polynomial split Mach function M±(4).
+    !< See Eq. 20 in Ref [1]
 
-    class(ausm_plus_up_solver_t), intent(in) :: self
+    class(ausm_plus_solver_t), intent(in) :: self
     real(rk), intent(in) :: M         !< Mach number
     character(len=1), intent(in) :: plus_or_minus !< which split? '+' or '-'
     real(rk) :: M_split !< Split Mach number
 
     ! Locals
-    real(rk) :: M_split_deg_2 !< Split Mach number using a 2nd deg polynomial
+    real(rk) :: M_2_plus  !< 2nd order split Mach polynomial M+(2)
+    real(rk) :: M_2_minus !< 2nd order split Mach polynomial M-(2)
+
+    M_2_plus = self%split_mach_deg_2(M, '+')  ! M+(2)
+    M_2_minus = self%split_mach_deg_2(M, '-') ! M-(2)
 
     if(plus_or_minus == '+') then
       if(abs(M) >= 1.0_rk) then
-        M_split = self%split_mach_deg_1(M, '+')
+        M_split = self%split_mach_deg_1(M, '+') ! M+(1)
       else
-        M_split_deg_2 = self%split_mach_deg_2(M, '+')
         associate(beta=>self%mach_split_beta)
-          M_split = M_split_deg_2 * (1.0_rk + 16.0_rk * beta * M_split_deg_2)
+          ! M+(4)
+          M_split = M_2_plus * (1.0_rk - 16.0_rk * beta * M_2_minus)
         end associate
       end if
     else ! '-'
       if(abs(M) >= 1.0_rk) then
         M_split = self%split_mach_deg_1(M, '-')
       else
-        M_split_deg_2 = self%split_mach_deg_2(M, '-')
         associate(beta=>self%mach_split_beta)
-          M_split = M_split_deg_2 * (1.0_rk - 16.0_rk * beta * M_split_deg_2)
+          ! M-(4)
+          M_split = M_2_minus * (1.0_rk + 16.0_rk * beta * M_2_plus)
         end associate
       end if
     end if
   end function split_mach_deg_4
 
   pure function split_pressure_deg_5(self, M, plus_or_minus, alpha) result(P_split)
-    !< Implementation of the pressure P +- split factor of degree 5. See Eq. 24 in Ref [1]
+    !< Implementation of the 5th order polynomial split pressure function P±(5).
+    !< See Eq. 24 in Ref [1]
 
-    class(ausm_plus_up_solver_t), intent(in) :: self
+    class(ausm_plus_solver_t), intent(in) :: self
     real(rk), intent(in) :: M                     !< Mach number
     real(rk), intent(in) :: alpha
     character(len=1), intent(in) :: plus_or_minus !< Which split? '+' or '-'
     real(rk) :: P_split                           !< Split pressure factor
 
     ! Locals
-    real(rk) :: M_split_deg_2 !< Split Mach number using a 2nd deg polynomial
+    real(rk) :: M_2_plus  !< 2nd order split Mach polynomial M+(2)
+    real(rk) :: M_2_minus !< 2nd order split Mach polynomial M-(2)
+
+    M_2_plus = self%split_mach_deg_2(M, '+')  ! M+(2)
+    M_2_minus = self%split_mach_deg_2(M, '-') ! M-(2)
 
     if(plus_or_minus == '+') then
+      ! P+(5)
       if(abs(M) >= 1.0_rk) then
         P_split = self%split_mach_deg_1(M, '+') / M
       else
-        M_split_deg_2 = self%split_mach_deg_2(M, '+')
-        P_split = M_split_deg_2 * ((2.0_rk - M) + 16.0_rk * alpha * M * M_split_deg_2)
+        P_split = M_2_plus * ((2.0_rk - M) - 16.0_rk * alpha * M * M_2_minus)
       end if
-    else ! '-'
+    else
+      ! P-(5)
       if(abs(M) >= 1.0_rk) then
         P_split = self%split_mach_deg_1(M, '-') / M
       else
-        M_split_deg_2 = self%split_mach_deg_2(M, '-')
-        P_split = M_split_deg_2 * ((-2.0_rk - M) - 16.0_rk * alpha * M * M_split_deg_2)
+        P_split = M_2_minus * ((-2.0_rk - M) + 16.0_rk * alpha * M * M_2_plus)
       end if
     end if
   end function split_pressure_deg_5
@@ -515,9 +554,9 @@ contains
     alpha = (3.0_rk / 16.0_rk) * (-4.0_rk + 5.0_rk * f_a**2)
   end function alpha
 
-  pure subroutine interface_state(self, n, rho, u, v, p, M_half, p_half, a_half, H)
+  subroutine interface_state(self, n, rho, u, v, p, M_half, p_half, a_half, H)
     !< Interface Mach number, e.g. M_(1/2)
-    class(ausm_plus_up_solver_t), intent(in) :: self
+    class(ausm_plus_solver_t), intent(in) :: self
     real(rk), dimension(2), intent(in) :: n   !< (x,y); edge normal vector
     real(rk), dimension(2), intent(in) :: rho !< (L,R); density
     real(rk), dimension(2), intent(in) :: u   !< (L,R); x-velocity
@@ -555,6 +594,7 @@ contains
     ! Precompute a few re-used scalars
     gamma = eos%get_gamma()
     gamma_factor = ((2.0_rk * (gamma - 1.0_rk)) / (gamma + 1.0_rk))
+    f_a = 0.0_rk
 
     associate(n_x=>n(1), n_y=>n(2), &
               rho_L=>rho(1), rho_R=>rho(2), &
@@ -571,13 +611,13 @@ contains
       call eos%total_enthalpy(rho=rho_R, u=u_R, v=v_R, p=p_R, H=H_R)
 
       ! Critical sound speed, Eq. 29
-      a_crit_L = gamma_factor * H_L
-      a_crit_R = gamma_factor * H_R
+      a_crit_L = sqrt(gamma_factor * abs(H_L)) ! a*_L
+      a_crit_R = sqrt(gamma_factor * abs(H_R)) ! a*_R
     end associate
 
-    ! Eq. 28
-    a_circumflex_L = a_crit_L**2 / max(a_crit_L, abs(vel_L))
-    a_circumflex_R = a_crit_R**2 / max(a_crit_R, abs(vel_R))
+    ! Eq. 30
+    a_circumflex_L = a_crit_L**2 / max(a_crit_L, vel_L)  ! â_L
+    a_circumflex_R = a_crit_R**2 / max(a_crit_R, -vel_R) ! â_R
 
     ! Interface sound speed, Eq. 28
     a_half = min(a_circumflex_L, a_circumflex_R)
@@ -586,15 +626,20 @@ contains
     M_L = vel_L / a_half
     M_R = vel_R / a_half
 
-    ! Mean Mach Eq. 70
-    M_bar_sq = (vel_L**2 + vel_R**2) / (2.0_rk * a_half**2)
+    if(self%ausm_plus_up_all_speed) then! AUSM+-up all-speed scheme
+      ! Mean local Mach, Eq. 70
+      M_bar_sq = (vel_L**2 + vel_R**2) / (2.0_rk * a_half**2)
 
-    ! Reference Mach number, see Eq. 71
-    M_0_sq = min(1.0_rk, max(M_bar_sq, self%M_inf_sq))
-    M_0 = sqrt(M_0_sq)
-
-    f_a = self%scaling_factor(M_0) ! Scaling function, Eq. 72
-    alpha_param = self%alpha(f_a) ! alpha parameter, Eq. 76
+      ! Reference Mach number, see Eq. 71
+      M_0_sq = min(1.0_rk, max(M_bar_sq, self%M_inf_sq))
+      M_0 = sqrt(M_0_sq)
+      f_a = self%scaling_factor(M_0) ! Scaling function, Eq. 72
+      alpha_param = self%alpha(f_a) ! alpha parameter, Eq. 76
+    else
+      ! Mean local Mach, Eq. 13
+      M_bar_sq = 0.5_rk * (M_L + M_R)
+      alpha_param = self%pressure_split_alpha ! alpha parameter, Eq. 76
+    end if
 
     ! Interface Mach number, Eq. 73
     M_plus = self%split_mach_deg_4(M=M_L, plus_or_minus='+')
@@ -603,10 +648,17 @@ contains
     ! Interface density
     rho_half = 0.5_rk * (rho(2) + rho(1))
 
-    !< The pressure diffusion term, Mp, as defined in Eq. 21 in Ref [1]
+    ! The pressure diffusion term, Mp, as defined in Eq. 21 in Ref [1]
+    ! This is the "p" in AUSM+-up
     associate(K_p=>self%pressure_diffusion_coeff, sigma=>self%sigma, &
               p_L=>p(1), p_R=>p(2))
-      M_p = -(K_p / f_a) * max(1.0_rk - sigma * M_bar_sq, 0.0_rk) * ((p_R - p_L) / (rho_half * a_half**2))
+      if(self%ausm_plus_up_basic) then ! AUSM+-up basic scheme
+        M_p = -K_p * max(1.0_rk - sigma * M_bar_sq, 0.0_rk) * ((p_R - p_L) / (rho_half * a_half**2))
+      else if(self%ausm_plus_up_all_speed) then! AUSM+-up all-speed scheme
+        M_p = -(K_p / f_a) * max(1.0_rk - sigma * M_bar_sq, 0.0_rk) * ((p_R - p_L) / (rho_half * a_half**2))
+      else
+        M_p = 0.0_rk
+      end if
     end associate
 
     ! Interface Mach number
@@ -617,22 +669,30 @@ contains
     P_minus = self%split_pressure_deg_5(M=M_R, plus_or_minus='-', alpha=alpha_param)
 
     ! Velocity difference (diffusion) term p_u, NOT, Eq. 26, but rather the last term in Eq 75
+    ! This is the "u" in the AUSM+-u and AUSM+-up schemes
     associate(K_u=>self%pressure_flux_coeff, rho_L=>rho(1), rho_R=>rho(2))
-      p_u = -K_u * P_plus * P_minus * (rho_L + rho_R) * (f_a * a_half) * (vel_R - vel_L)
+      if(self%ausm_plus_up_basic) then ! AUSM+-up basic scheme
+        p_u = -K_u * P_plus * P_minus * (rho_L + rho_R) * a_half * (vel_R - vel_L)
+      else if(self%ausm_plus_up_all_speed) then! AUSM+-up all-speed scheme
+        p_u = -K_u * P_plus * P_minus * (rho_L + rho_R) * (f_a * a_half) * (vel_R - vel_L)
+      else
+        p_u = 0.0_rk
+      end if
     end associate
 
     ! Interface pressure, Eq. 75
     associate(p_L=>p(1), p_R=>p(2))
-      p_half = (P_plus * p_L) + (P_minus * p_R) + p_u
+      p_half = P_plus * p_L + P_minus * p_R + p_u
     end associate
 
+    ! write(*, '(a, 2(f8.4, 1x), 3(a, f8.4))') 'rho: ', rho(1), rho(2), ' M_half: ', M_half, ' p_half: ', p_half, ' p_u: ', p_u
   end subroutine interface_state
 
   subroutine finalize(self)
     !< Class finalizer
-    type(ausm_plus_up_solver_t), intent(inout) :: self
+    type(ausm_plus_solver_t), intent(inout) :: self
 
-    call debug_print('Running ausm_plus_up_solver_t%finalize()', __FILE__, __LINE__)
+    call debug_print('Running ausm_plus_solver_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%i_edge_flux)) deallocate(self%i_edge_flux) ! these should already be deallocated
     if(allocated(self%j_edge_flux)) deallocate(self%j_edge_flux) ! these should already be deallocated
 
@@ -642,4 +702,4 @@ contains
     ! if(allocated(self%bc_minus_x)) deallocate(self%bc_minus_x)
     ! if(allocated(self%bc_minus_y)) deallocate(self%bc_minus_y)
   end subroutine finalize
-end module mod_ausm_plus_up_solver
+end module mod_ausm_plus_solver

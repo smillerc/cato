@@ -19,7 +19,7 @@ module mod_fluid
   use hdf5_interface, only: hdf5_file
   use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use mod_flux_solver, only: flux_solver_t
-  use mod_ausm_plus_up_solver, only: ausm_plus_up_solver_t
+  use mod_ausm_plus_solver, only: ausm_plus_solver_t
   use mod_fvleg_solver, only: fvleg_solver_t
 
   implicit none
@@ -149,14 +149,14 @@ contains
     select case(trim(input%flux_solver))
     case('FVLEG')
       allocate(fvleg_solver_t :: solver)
-    case('AUSM+-up')
-      allocate(ausm_plus_up_solver_t :: solver)
+    case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
+      allocate(ausm_plus_solver_t :: solver)
     case default
       write(std_err, '(a)') "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
-        "['FVLEG', 'AUSM+-up'], the input was: '"//trim(input%flux_solver)//"'"
+        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed'], the input was: '"//trim(input%flux_solver)//"'"
 
       error stop "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
-        "['FVLEG', 'AUSM+-up']"
+        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed']"
     end select
 
     call solver%initialize(input)
@@ -757,7 +757,7 @@ contains
     lhs%residual_hist_file = rhs%residual_hist_file
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
 
-    call lhs%sanity_check(error_code)
+    ! call lhs%sanity_check(error_code)
     call lhs%calculate_derived_quantities()
   end subroutine assign_fluid
 
@@ -861,6 +861,7 @@ contains
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
     type(fluid_t), allocatable :: R !< hist
+    integer(ik) :: error_code
 
     allocate(U_1, source=U)
     allocate(U_2, source=U)
@@ -882,7 +883,7 @@ contains
           + (2.0_rk / 3.0_rk) * U_2 &
           + (2.0_rk / 3.0_rk) * dt * U_2%t(grid, stage=3)
       call U%residual_smoother()
-
+      call U%sanity_check(error_code)
       ! Convergence history
       call write_residual_history(first_stage=U_1, last_stage=U)
     end associate
@@ -900,6 +901,7 @@ contains
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: R !< hist
+    integer(ik) :: error_code
 
     allocate(U_1, source=U)
     allocate(R, source=U)
@@ -915,6 +917,7 @@ contains
       U = 0.5_rk * U + 0.5_rk * U_1 + &
           (0.5_rk * dt) * U_1%t(grid, stage=2)
       call U%residual_smoother()
+      call U%sanity_check(error_code)
 
       ! ! Convergence history
       call write_residual_history(first_stage=U_1, last_stage=U)

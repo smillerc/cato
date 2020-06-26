@@ -59,7 +59,7 @@ add_library(
   lib/fluid/mod_fluid.f90
   lib/flux_solvers/flux_solver.f90
   lib/flux_solvers/fvleg_solver.f90
-  lib/flux_solvers/ausm_plus_up_solver.f90
+  lib/flux_solvers/ausm_plus_solver.f90
   lib/evolution_operator/local_evo_operator.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
   lib/spatial_reconstruction/gradients.f90
