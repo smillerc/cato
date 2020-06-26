@@ -49,23 +49,16 @@ module mod_fvleg_solver
   end type fvleg_solver_t
 
 contains
-  subroutine initialize_fvleg(self, grid, input)
+  subroutine initialize_fvleg(self, input)
     !< Construct the FVLEG solver
 
     class(fvleg_solver_t), intent(inout) :: self
-    class(grid_t), intent(in), target :: grid
     class(input_t), intent(in) :: input
-
-    ! Locals
-
-    integer(ik) :: alloc_status
-    alloc_status = 0
 
     call debug_print('Running fvleg_solver_t%initialize_fvleg()', __FILE__, __LINE__)
 
-    self%name = 'fvleg'
+    self%name = 'FVLEG'
     self%input = input
-
   end subroutine initialize_fvleg
 
   subroutine copy_fvleg(lhs, rhs)

@@ -57,12 +57,10 @@ module mod_flux_solver
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
     end subroutine
 
-    subroutine initialize(self, grid, input)
+    subroutine initialize(self, input)
       import :: flux_solver_t
-      import :: grid_t
       import :: input_t
       class(flux_solver_t), intent(inout) :: self
-      class(grid_t), intent(in), target :: grid
       class(input_t), intent(in) :: input
     end subroutine
 

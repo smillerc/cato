@@ -17,6 +17,7 @@ module mod_input
     ! reference state
     real(rk) :: reference_pressure = 1.0_rk
     real(rk) :: reference_density = 1.0_rk
+    real(rk) :: reference_mach = 1.0_rk
 
     ! grid
     character(len=32) :: grid_type = '2d_regular'  !< Structure/layout of the grid, e.g. '2d_regular'
@@ -86,10 +87,17 @@ module mod_input
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
     ! finite volume scheme specifics
-    character(len=32) :: flux_solver = 'fvleg'        !< How are the cells being reconstructed
+    character(len=32) :: flux_solver = 'FVLEG'                    !< flux solver, one of ('FVLEG', 'AUSM+-up')
     character(len=32) :: cell_reconstruction = 'piecewise_linear' !< How are the cells being reconstructed
     character(len=32) :: gradient_scheme = 'green_gauss'          !< How is the gradient estimated?
     character(len=32) :: edge_interpolation_scheme = 'TVD2'       !< How are the edge values interpolated?
+
+    ! AUSM solver specifics, see the AUSM solver packages for more details.
+    ! These are only read in if the flux solver is from the AUSM family
+    real(rk) :: ausm_beta = 1.0_rk / 8.0_rk             !< beta parameter
+    real(rk) :: ausm_pressure_diffusion_coeff = 0.25_rk !< K_p; pressure diffusion coefficient
+    real(rk) :: ausm_pressure_flux_coeff = 0.75_rk      !< K_u; pressure flux coefficient
+    real(rk) :: ausm_sonic_point_sigma = 1.0_rk         !< sigma; another pressure diffusion coefficient
 
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
     character(:), allocatable :: limiter
@@ -174,6 +182,7 @@ contains
     ! Reference state
     call cfg%get("reference_state", "reference_pressure", self%reference_pressure)
     call cfg%get("reference_state", "reference_density", self%reference_density)
+    call cfg%get("reference_state", "reference_mach", self%reference_mach, 1.0_rk)
 
     ! Time
     call cfg%get("time", "max_time", self%max_time)
@@ -188,6 +197,15 @@ contains
     call cfg%get("physics", "polytropic_index", self%polytropic_index)
 
     ! Scheme
+    call cfg%get("scheme", "flux_solver", self%flux_solver)
+
+    if(trim(self%flux_solver) == 'AUSM+-up') then
+      call cfg%get("ausm", "beta", self%ausm_beta, 1.0_rk / 8.0_rk)
+      call cfg%get("ausm", "pressure_diffusion_coeff", self%ausm_pressure_diffusion_coeff, 0.25_rk)
+      call cfg%get("ausm", "pressure_flux_coeff", self%ausm_pressure_flux_coeff, 0.75_rk)
+      call cfg%get("ausm", "sonic_point_sigma", self%ausm_sonic_point_sigma, 1.0_rk)
+    end if
+
     call cfg%get("scheme", "smooth_residuals", self%smooth_residuals, .true.)
     call cfg%get("scheme", "cell_reconstruction", char_buffer, 'piecewise_linear')
     self%cell_reconstruction = trim(char_buffer)

@@ -147,13 +147,19 @@ contains
     self%time_integration_scheme = trim(input%time_integration_strategy)
 
     select case(trim(input%flux_solver))
-    case('fvleg')
+    case('FVLEG')
       allocate(fvleg_solver_t :: solver)
-    case('ausm_plus_up')
+    case('AUSM+-up')
       allocate(ausm_plus_up_solver_t :: solver)
+    case default
+      write(std_err, '(a)') "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
+        "['FVLEG', 'AUSM+-up'], the input was: '"//trim(input%flux_solver)//"'"
+
+      error stop "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
+        "['FVLEG', 'AUSM+-up']"
     end select
 
-    call solver%initialize(grid, input)
+    call solver%initialize(input)
     allocate(self%solver, source=solver)
     deallocate(solver)
 
