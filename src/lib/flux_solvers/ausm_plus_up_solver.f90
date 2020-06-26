@@ -41,7 +41,6 @@ module mod_ausm_plus_up_solver
 
     ! Private methods
     procedure, private :: flux_edges
-    procedure, private :: apply_primitive_bc
     procedure, private, nopass :: split_mach_deg_1
     procedure, private, nopass :: split_mach_deg_2
     procedure, private, nopass :: scaling_factor
@@ -115,10 +114,10 @@ contains
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: rho !< density
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: u   !< x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: v   !< y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: p   !< pressure
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho !< density
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u   !< x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v   !< y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p   !< pressure
 
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
@@ -196,6 +195,12 @@ contains
     call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
     call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
     call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
+
+    call self%apply_reconstructed_bc(recon_rho=rho_interface_values, recon_u=u_interface_values, &
+                                     recon_v=v_interface_values, recon_p=p_interface_values, &
+                                     lbounds=lbounds, &
+                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
     ! The interfaces where the flux occurs is shared by 2 cells. The indexing for the
     ! edges is staggered so that when reading/writing data to those arrays, we avoid using i-1
@@ -377,31 +382,31 @@ contains
         volume = grid%cell_volume(i, j)
 
         d_rho_dt(i, j) = -sum([ &
-                              self%j_edge_flux(1, i - 1, j) * delta_l(1), &
                               self%i_edge_flux(1, i, j) * delta_l(2), &
-                              self%j_edge_flux(1, i, j) * delta_l(3), &
-                              self%i_edge_flux(1, i - 1, j) * delta_l(4) &
+                              self%i_edge_flux(1, i - 1, j) * delta_l(4), &
+                              self%j_edge_flux(1, i, j - 1) * delta_l(1), &
+                              self%j_edge_flux(1, i, j) * delta_l(3) &
                               ]) / volume
 
         d_rho_u_dt(i, j) = -sum([ &
-                                self%j_edge_flux(2, i - 1, j) * delta_l(1), &
                                 self%i_edge_flux(2, i, j) * delta_l(2), &
-                                self%j_edge_flux(2, i, j) * delta_l(3), &
-                                self%i_edge_flux(2, i - 1, j) * delta_l(4) &
+                                self%i_edge_flux(2, i - 1, j) * delta_l(4), &
+                                self%j_edge_flux(2, i, j - 1) * delta_l(1), &
+                                self%j_edge_flux(2, i, j) * delta_l(3) &
                                 ]) / volume
 
         d_rho_v_dt(i, j) = -sum([ &
-                                self%j_edge_flux(3, i - 1, j) * delta_l(1), &
                                 self%i_edge_flux(3, i, j) * delta_l(2), &
-                                self%j_edge_flux(3, i, j) * delta_l(3), &
-                                self%i_edge_flux(3, i - 1, j) * delta_l(4) &
+                                self%i_edge_flux(3, i - 1, j) * delta_l(4), &
+                                self%j_edge_flux(3, i, j - 1) * delta_l(1), &
+                                self%j_edge_flux(3, i, j) * delta_l(3) &
                                 ]) / volume
 
         d_rho_E_dt(i, j) = -sum([ &
-                                self%j_edge_flux(4, i - 1, j) * delta_l(1), &
                                 self%i_edge_flux(4, i, j) * delta_l(2), &
-                                self%j_edge_flux(4, i, j) * delta_l(3), &
-                                self%i_edge_flux(4, i - 1, j) * delta_l(4) &
+                                self%i_edge_flux(4, i - 1, j) * delta_l(4), &
+                                self%j_edge_flux(4, i, j - 1) * delta_l(1), &
+                                self%j_edge_flux(4, i, j) * delta_l(3) &
                                 ]) / volume
       end do
     end do
@@ -622,49 +627,6 @@ contains
     end associate
 
   end subroutine interface_state
-
-  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p, &
-                                bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
-    class(ausm_plus_up_solver_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
-    class(boundary_condition_t), intent(inout):: bc_plus_x
-    class(boundary_condition_t), intent(inout):: bc_plus_y
-    class(boundary_condition_t), intent(inout):: bc_minus_x
-    class(boundary_condition_t), intent(inout):: bc_minus_y
-
-    integer(ik) :: priority
-    integer(ik) :: max_priority_bc !< highest goes first
-
-    call debug_print('Running fvleg_solver_t%apply_primitive_var_bc()', __FILE__, __LINE__)
-
-    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
-                          bc_minus_x%priority, bc_minus_y%priority)
-
-    do priority = max_priority_bc, 0, -1
-
-      if(bc_plus_x%priority == priority) then
-        call bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
-
-      if(bc_plus_y%priority == priority) then
-        call bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
-
-      if(bc_minus_x%priority == priority) then
-        call bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
-
-      if(bc_minus_y%priority == priority) then
-        call bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
-
-    end do
-
-  end subroutine apply_primitive_bc
 
   subroutine finalize(self)
     !< Class finalizer

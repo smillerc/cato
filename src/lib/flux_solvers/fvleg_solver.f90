@@ -39,9 +39,7 @@ module mod_fvleg_solver
 
     ! Private methods
     procedure, private, nopass :: flux_edges
-    procedure, private :: apply_primitive_bc
     procedure, private :: apply_gradient_bc
-    procedure, private :: apply_reconstructed_bc
     final :: finalize
 
     ! Operators
@@ -82,10 +80,10 @@ contains
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: rho !< density
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: u   !< x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: v   !< y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: p   !< pressure
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho !< density
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u   !< x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v   !< y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p   !< pressure
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
@@ -300,104 +298,6 @@ contains
     deallocate(p_recon_state)
 
   end subroutine solve_fvleg
-
-  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p, &
-                                bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
-    class(fvleg_solver_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
-    class(boundary_condition_t), intent(inout):: bc_plus_x
-    class(boundary_condition_t), intent(inout):: bc_plus_y
-    class(boundary_condition_t), intent(inout):: bc_minus_x
-    class(boundary_condition_t), intent(inout):: bc_minus_y
-
-    integer(ik) :: priority
-    integer(ik) :: max_priority_bc !< highest goes first
-
-    call debug_print('Running fvleg_solver_t%apply_primitive_var_bc()', __FILE__, __LINE__)
-
-    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
-                          bc_minus_x%priority, bc_minus_y%priority)
-
-    do priority = max_priority_bc, 0, -1
-
-      if(bc_plus_x%priority == priority) then
-        call bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
-
-      if(bc_plus_y%priority == priority) then
-        call bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
-
-      if(bc_minus_x%priority == priority) then
-        call bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
-
-      if(bc_minus_y%priority == priority) then
-        call bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
-
-    end do
-
-  end subroutine apply_primitive_bc
-
-  subroutine apply_reconstructed_bc(self, lbounds, recon_rho, recon_u, recon_v, recon_p, &
-                                    bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
-    class(fvleg_solver_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
-    class(boundary_condition_t), intent(inout):: bc_plus_x
-    class(boundary_condition_t), intent(inout):: bc_plus_y
-    class(boundary_condition_t), intent(inout):: bc_minus_x
-    class(boundary_condition_t), intent(inout):: bc_minus_y
-
-    integer(ik) :: priority
-    integer(ik) :: max_priority_bc !< highest goes first
-
-    call debug_print('Running fvleg_solver_t%apply_reconstructed_state_bc()', __FILE__, __LINE__)
-
-    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
-                          bc_minus_x%priority, bc_minus_y%priority)
-
-    do priority = max_priority_bc, 0, -1
-
-      if(bc_plus_x%priority == priority) then
-        call bc_plus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
-                                                    recon_u=recon_u, &
-                                                    recon_v=recon_v, &
-                                                    recon_p=recon_p, lbounds=lbounds)
-      end if
-
-      if(bc_plus_y%priority == priority) then
-        call bc_plus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
-                                                    recon_u=recon_u, &
-                                                    recon_v=recon_v, &
-                                                    recon_p=recon_p, lbounds=lbounds)
-      end if
-
-      if(bc_minus_x%priority == priority) then
-        call bc_minus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
-                                                     recon_u=recon_u, &
-                                                     recon_v=recon_v, &
-                                                     recon_p=recon_p, lbounds=lbounds)
-      end if
-
-      if(bc_minus_y%priority == priority) then
-        call bc_minus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
-                                                     recon_u=recon_u, &
-                                                     recon_v=recon_v, &
-                                                     recon_p=recon_p, lbounds=lbounds)
-      end if
-
-    end do
-
-  end subroutine apply_reconstructed_bc
 
   subroutine apply_gradient_bc(self, reconstructor, bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
 

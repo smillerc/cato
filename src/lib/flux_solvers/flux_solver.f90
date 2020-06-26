@@ -7,6 +7,7 @@ module mod_flux_solver
   !      [1]
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_globals, only: debug_print
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -27,14 +28,13 @@ module mod_flux_solver
   contains
     ! Public methods
     procedure, public :: init_boundary_conditions
+    procedure, public :: apply_primitive_bc
+    procedure, public :: apply_reconstructed_bc
 
     ! Deferred methods
     procedure(initialize), deferred, public :: initialize
     procedure(solve), deferred, public :: solve
-    ! procedure(copy), deferred, public, pass(lhs) :: copy
 
-    ! Operators
-    ! generic :: assignment(=) => copy
   end type flux_solver_t
 
   abstract interface
@@ -47,10 +47,10 @@ module mod_flux_solver
       class(grid_t), intent(in) :: grid
       integer(ik), dimension(2), intent(in) :: lbounds
       real(rk), intent(in) :: dt
-      real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: rho !< density
-      real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: u   !< x-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: v   !< y-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), target, intent(inout) :: p   !< pressure
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho !< density
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u   !< x-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v   !< y-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p   !< pressure
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
@@ -125,6 +125,103 @@ contains
     ! write(*, '(3(a),i0,a)') "-y: ", trim(bc_minus_y%name), ' (priority = ', bc_minus_y%priority, ')'
     ! write(*, *)
 
-  end subroutine
+  end subroutine init_boundary_conditions
 
+  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p, &
+                                bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
+    class(flux_solver_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    class(boundary_condition_t), intent(inout):: bc_plus_x
+    class(boundary_condition_t), intent(inout):: bc_plus_y
+    class(boundary_condition_t), intent(inout):: bc_minus_x
+    class(boundary_condition_t), intent(inout):: bc_minus_y
+
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
+
+    call debug_print('Running flux_solver_t%apply_primitive_var_bc()', __FILE__, __LINE__)
+
+    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
+                          bc_minus_x%priority, bc_minus_y%priority)
+
+    do priority = max_priority_bc, 0, -1
+
+      if(bc_plus_x%priority == priority) then
+        call bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(bc_plus_y%priority == priority) then
+        call bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(bc_minus_x%priority == priority) then
+        call bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(bc_minus_y%priority == priority) then
+        call bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+    end do
+
+  end subroutine apply_primitive_bc
+
+  subroutine apply_reconstructed_bc(self, lbounds, recon_rho, recon_u, recon_v, recon_p, &
+                                    bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
+    class(flux_solver_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
+    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
+    class(boundary_condition_t), intent(inout):: bc_plus_x
+    class(boundary_condition_t), intent(inout):: bc_plus_y
+    class(boundary_condition_t), intent(inout):: bc_minus_x
+    class(boundary_condition_t), intent(inout):: bc_minus_y
+
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
+
+    call debug_print('Running flux_solver_t%apply_reconstructed_state_bc()', __FILE__, __LINE__)
+
+    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
+                          bc_minus_x%priority, bc_minus_y%priority)
+
+    do priority = max_priority_bc, 0, -1
+
+      if(bc_plus_x%priority == priority) then
+        call bc_plus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                    recon_u=recon_u, &
+                                                    recon_v=recon_v, &
+                                                    recon_p=recon_p, lbounds=lbounds)
+      end if
+
+      if(bc_plus_y%priority == priority) then
+        call bc_plus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                    recon_u=recon_u, &
+                                                    recon_v=recon_v, &
+                                                    recon_p=recon_p, lbounds=lbounds)
+      end if
+
+      if(bc_minus_x%priority == priority) then
+        call bc_minus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                     recon_u=recon_u, &
+                                                     recon_v=recon_v, &
+                                                     recon_p=recon_p, lbounds=lbounds)
+      end if
+
+      if(bc_minus_y%priority == priority) then
+        call bc_minus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, &
+                                                     recon_u=recon_u, &
+                                                     recon_v=recon_v, &
+                                                     recon_p=recon_p, lbounds=lbounds)
+      end if
+
+    end do
+
+  end subroutine apply_reconstructed_bc
 end module mod_flux_solver
