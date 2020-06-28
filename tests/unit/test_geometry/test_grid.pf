@@ -151,6 +151,7 @@ contains
     write(ini, *) "plus_y = 'periodic'"
     write(ini, *) "minus_y = 'periodic'"
     write(ini, *) "[scheme]"
+    write(ini, *) "flux_solver = 'FVLEG'"
     write(ini, *) "gradient_scheme = 'green_gauss'"
     write(ini, *) "cell_reconstruction = 'piecewise_linear'"
     write(ini, *) "edge_interpolation_scheme = 'TVD2'"

@@ -300,7 +300,7 @@ contains
         call debug_print('Running pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc() +x', __FILE__, __LINE__)
 
         do i = 1, self%n_ghost_layers
-          do p = 1, 8
+          do p = lbound(recon_rho, dim=1), ubound(recon_rho, dim=1)
             recon_rho(p, right_ghost(i), :) = self%edge_rho
             recon_u(p, right_ghost(i), :) = self%edge_u
             recon_v(p, right_ghost(i), :) = self%edge_v

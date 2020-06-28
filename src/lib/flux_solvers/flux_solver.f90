@@ -148,6 +148,11 @@ contains
     max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
                           bc_minus_x%priority, bc_minus_y%priority)
 
+    call bc_plus_x%set_time(time=self%time)
+    call bc_minus_x%set_time(time=self%time)
+    call bc_plus_y%set_time(time=self%time)
+    call bc_minus_y%set_time(time=self%time)
+
     do priority = max_priority_bc, 0, -1
 
       if(bc_plus_x%priority == priority) then

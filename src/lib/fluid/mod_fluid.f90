@@ -862,31 +862,31 @@ contains
     type(fluid_t), allocatable :: U_2 !< second stage
     type(fluid_t), allocatable :: R !< hist
     integer(ik) :: error_code
+    real(rk) :: dt
 
+    dt = U%dt
     allocate(U_1, source=U)
     allocate(U_2, source=U)
     allocate(R, source=U)
 
-    associate(dt=>U%dt)
-      ! 1st stage
-      U_1 = U + dt * U%t(grid, stage=1)
-      call U_1%residual_smoother()
+    ! 1st stage
+    U_1 = U + U%t(grid, stage=1) * dt
+    call U_1%residual_smoother()
 
-      ! 2nd stage
-      U_2 = (3.0_rk / 4.0_rk) * U &
-            + (1.0_rk / 4.0_rk) * U_1 &
-            + (1.0_rk / 4.0_rk) * dt * U_1%t(grid, stage=2)
-      call U_2%residual_smoother()
+    ! 2nd stage
+    U_2 = U * (3.0_rk / 4.0_rk) &
+          + U_1 * (1.0_rk / 4.0_rk) &
+          + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
+    call U_2%residual_smoother()
 
-      ! Final stage
-      U = (1.0_rk / 3.0_rk) * U &
-          + (2.0_rk / 3.0_rk) * U_2 &
-          + (2.0_rk / 3.0_rk) * dt * U_2%t(grid, stage=3)
-      call U%residual_smoother()
-      call U%sanity_check(error_code)
-      ! Convergence history
-      call write_residual_history(first_stage=U_1, last_stage=U)
-    end associate
+    ! Final stage
+    U = U * (1.0_rk / 3.0_rk) &
+        + U_2 * (2.0_rk / 3.0_rk) &
+        + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
+    call U%residual_smoother()
+    call U%sanity_check(error_code)
+    ! Convergence history
+    call write_residual_history(first_stage=U_1, last_stage=U)
 
     deallocate(R)
     deallocate(U_1)
@@ -914,8 +914,8 @@ contains
 
       ! Final stage
       call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
-      U = 0.5_rk * U + 0.5_rk * U_1 + &
-          (0.5_rk * dt) * U_1%t(grid, stage=2)
+      U = U * 0.5_rk + U_1 * 0.5_rk + &
+          U_1%t(grid, stage=2) * (0.5_rk * dt)
       call U%residual_smoother()
       call U%sanity_check(error_code)
 

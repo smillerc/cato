@@ -294,14 +294,14 @@ contains
         if(M_half > 0.0_rk) then
           mass_flux = M_half * a_half * rho_L
           self%i_edge_flux(1, i, j) = mass_flux
-          self%i_edge_flux(2, i, j) = mass_flux * u_L + (grid%cell_edge_norm_vectors(1, right, i, j) * p_half)
-          self%i_edge_flux(3, i, j) = mass_flux * v_L + (grid%cell_edge_norm_vectors(2, right, i, j) * p_half)
+          self%i_edge_flux(2, i, j) = mass_flux * u_L + (n_x * p_half)
+          self%i_edge_flux(3, i, j) = mass_flux * v_L + (n_y * p_half)
           self%i_edge_flux(4, i, j) = mass_flux * H(1)
         else
           mass_flux = M_half * a_half * rho_R
           self%i_edge_flux(1, i, j) = mass_flux
-          self%i_edge_flux(2, i, j) = mass_flux * u_R + (grid%cell_edge_norm_vectors(1, right, i, j) * p_half)
-          self%i_edge_flux(3, i, j) = mass_flux * v_R + (grid%cell_edge_norm_vectors(2, right, i, j) * p_half)
+          self%i_edge_flux(2, i, j) = mass_flux * u_R + (n_x * p_half)
+          self%i_edge_flux(3, i, j) = mass_flux * v_R + (n_y * p_half)
           self%i_edge_flux(4, i, j) = mass_flux * H(2)
         end if
       end do
@@ -338,14 +338,14 @@ contains
         if(M_half > 0.0_rk) then
           mass_flux = M_half * a_half * rho_L
           self%j_edge_flux(1, i, j) = mass_flux
-          self%j_edge_flux(2, i, j) = mass_flux * u_L + (grid%cell_edge_norm_vectors(1, top, i, j) * p_half)
-          self%j_edge_flux(3, i, j) = mass_flux * v_L + (grid%cell_edge_norm_vectors(2, top, i, j) * p_half)
+          self%j_edge_flux(2, i, j) = mass_flux * u_L + (n_x * p_half)
+          self%j_edge_flux(3, i, j) = mass_flux * v_L + (n_y * p_half)
           self%j_edge_flux(4, i, j) = mass_flux * H(1)
         else
           mass_flux = M_half * a_half * rho_R
           self%j_edge_flux(1, i, j) = mass_flux
-          self%j_edge_flux(2, i, j) = mass_flux * u_R + (grid%cell_edge_norm_vectors(1, top, i, j) * p_half)
-          self%j_edge_flux(3, i, j) = mass_flux * v_R + (grid%cell_edge_norm_vectors(2, top, i, j) * p_half)
+          self%j_edge_flux(2, i, j) = mass_flux * u_R + (n_x * p_half)
+          self%j_edge_flux(3, i, j) = mass_flux * v_R + (n_y * p_half)
           self%j_edge_flux(4, i, j) = mass_flux * H(2)
         end if
       end do
@@ -412,29 +412,29 @@ contains
 
         d_rho_dt(i, j) = -sum([ &
                               self%i_edge_flux(1, i, j) * delta_l(2), &
-                              self%i_edge_flux(1, i - 1, j) * delta_l(4), &
-                              self%j_edge_flux(1, i, j - 1) * delta_l(1), &
+                              -self%i_edge_flux(1, i - 1, j) * delta_l(4), &
+                              -self%j_edge_flux(1, i, j - 1) * delta_l(1), &
                               self%j_edge_flux(1, i, j) * delta_l(3) &
                               ]) / volume
 
         d_rho_u_dt(i, j) = -sum([ &
                                 self%i_edge_flux(2, i, j) * delta_l(2), &
-                                self%i_edge_flux(2, i - 1, j) * delta_l(4), &
-                                self%j_edge_flux(2, i, j - 1) * delta_l(1), &
+                                -self%i_edge_flux(2, i - 1, j) * delta_l(4), &
+                                -self%j_edge_flux(2, i, j - 1) * delta_l(1), &
                                 self%j_edge_flux(2, i, j) * delta_l(3) &
                                 ]) / volume
 
         d_rho_v_dt(i, j) = -sum([ &
                                 self%i_edge_flux(3, i, j) * delta_l(2), &
-                                self%i_edge_flux(3, i - 1, j) * delta_l(4), &
-                                self%j_edge_flux(3, i, j - 1) * delta_l(1), &
+                                -self%i_edge_flux(3, i - 1, j) * delta_l(4), &
+                                -self%j_edge_flux(3, i, j - 1) * delta_l(1), &
                                 self%j_edge_flux(3, i, j) * delta_l(3) &
                                 ]) / volume
 
         d_rho_E_dt(i, j) = -sum([ &
                                 self%i_edge_flux(4, i, j) * delta_l(2), &
-                                self%i_edge_flux(4, i - 1, j) * delta_l(4), &
-                                self%j_edge_flux(4, i, j - 1) * delta_l(1), &
+                                -self%i_edge_flux(4, i - 1, j) * delta_l(4), &
+                                -self%j_edge_flux(4, i, j - 1) * delta_l(1), &
                                 self%j_edge_flux(4, i, j) * delta_l(3) &
                                 ]) / volume
       end do
