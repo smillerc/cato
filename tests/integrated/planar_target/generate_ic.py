@@ -92,7 +92,7 @@ else:
     perturbation[perturbation > 1e-3] = 0.0
 
 perturbation = 1.0 - perturbation
-domain["rho"] = perturbation * domain["rho"]
+# domain["rho"] = perturbation * domain["rho"]
 
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
