@@ -237,7 +237,7 @@ contains
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
-    real(rk) :: gamma_m_one, vel, x_vel, y_vel
+    real(rk) :: gamma_m_one, vel
 
     gamma_m_one = self%gamma - 1.0_rk
 
@@ -249,7 +249,7 @@ contains
     !$omp parallel default(none) &
     !$omp shared(rho, u, v, p, rho_u, rho_v, rho_E) &
     !$omp firstprivate(ilo, ihi, jlo, jhi, gamma_m_one) &
-    !$omp private(i, j)
+    !$omp private(i, j, vel)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
