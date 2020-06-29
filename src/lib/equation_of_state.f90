@@ -237,7 +237,7 @@ contains
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
-    real(rk) :: gamma_m_one
+    real(rk) :: gamma_m_one, vel, x_vel, y_vel
 
     gamma_m_one = self%gamma - 1.0_rk
 
@@ -250,16 +250,22 @@ contains
     !$omp shared(rho, u, v, p, rho_u, rho_v, rho_E) &
     !$omp firstprivate(ilo, ihi, jlo, jhi, gamma_m_one) &
     !$omp private(i, j)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         u(i, j) = rho_u(i, j) / rho(i, j)
+        if(abs(u(i, j)) < 1e-30_rk) u(i, j) = 0.0_rk
+
         v(i, j) = rho_v(i, j) / rho(i, j)
-        p(i, j) = rho(i, j) * gamma_m_one * ((rho_E(i, j) / rho(i, j)) - &
-                                             ((u(i, j)**2 + v(i, j)**2) / 2.0_rk))
+        if(abs(v(i, j)) < 1e-30_rk) v(i, j) = 0.0_rk
+
+        vel = 0.5_rk * (u(i, j)**2 + v(i, j)**2)
+        if(vel < epsilon(1.0_rk)) vel = 0.0_rk
+
+        p(i, j) = rho(i, j) * gamma_m_one * ((rho_E(i, j) / rho(i, j)) - vel)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
 
   end subroutine conserved_to_primitive_2d
