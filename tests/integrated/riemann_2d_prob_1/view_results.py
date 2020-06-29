@@ -79,7 +79,7 @@ resid_ax.set_ylim(1e-16, 0.1)
 
 t = ds.t[-1].data
 contour_ax.set_title(
-    f"2D Reimann Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+    f"2D Riemann Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
 )
 
 contour_ax.axis("equal")
@@ -87,7 +87,7 @@ contour_ax.axis("equal")
 # contour_ax.set_xlim(-r, r)
 # contour_ax.set_ylim(-r, r)
 plt.tight_layout()
-plt.savefig("reimann_2d_results.png")
+plt.savefig("riemann_2d_results.png")
 
 try:
     plt.show()

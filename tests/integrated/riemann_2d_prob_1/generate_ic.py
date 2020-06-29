@@ -1,15 +1,34 @@
 # -*- coding: utf-8 -*-
-"""Make a 2d reimann test problem"""
-import matplotlib.pyplot as plt
+"""Make a 2d riemann test problem"""
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
+
+from configparser import ConfigParser
 import numpy as np
 import sys
 import os
 
 sys.path.append(os.path.abspath("../../.."))
-from pycato import make_uniform_grid, write_initial_hdf5, ureg
+from pycato import *
+
+# Read the input file and make sure the spatial order is consistent
+config = ConfigParser()
+config.read("input.ini")
+config.sections()
+edge_interp = config["scheme"]["edge_interpolation_scheme"]
+edge_interp = edge_interp.strip("'").strip('"')
+
+if edge_interp in ["TVD3", "TVD5", "MLP3", "MLP5"]:
+    n_ghost_layers = 2
+else:
+    n_ghost_layers = 1
 
 # Make the empty grid
-domain = make_uniform_grid(n_cells=(200, 200), xrange=(-1, 1), yrange=(-1, 1))
+domain = make_uniform_grid(
+    n_cells=(200, 200), xrange=(-1, 1), yrange=(-1, 1), n_ghost_layers=n_ghost_layers
+)
 
 x = domain["xc"].m
 y = domain["yc"].m
@@ -25,25 +44,25 @@ domain["v"] = domain["v"] * 0.0
 for i in range(y.shape[0]):
     for j in range(y.shape[1]):
         if x[i, j] >= 0 and y[i, j] >= 0:
-            rho[i, j] = 0.5213
+            rho[i, j] = 1.1
             u[i, j] = 0.0
             v[i, j] = 0.0
-            p[i, j] = 0.4
+            p[i, j] = 1.1
         elif x[i, j] >= 0 and y[i, j] <= 0:
-            rho[i, j] = 1.0
+            rho[i, j] = 0.5065
             u[i, j] = 0.0
-            v[i, j] = 0.7276
-            p[i, j] = 1.0
+            v[i, j] = 0.8939
+            p[i, j] = 0.35
         elif x[i, j] <= 0 and y[i, j] >= 0:
-            rho[i, j] = 1.0
-            u[i, j] = 0.7276
+            rho[i, j] = 0.5065
+            u[i, j] = 0.8939
             v[i, j] = 0.0
-            p[i, j] = 1.0
+            p[i, j] = 0.35
         elif x[i, j] <= 0 and y[i, j] <= 0:
-            rho[i, j] = 0.8
-            u[i, j] = 0.0
-            v[i, j] = 0.0
-            p[i, j] = 1.0
+            rho[i, j] = 1.1
+            u[i, j] = 0.8939
+            v[i, j] = 0.8939
+            p[i, j] = 1.1
 
 domain["rho"] = rho * ureg("g/cc")
 domain["u"] = u * ureg("cm/s")
