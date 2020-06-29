@@ -6,7 +6,7 @@ module mod_fluid
   use omp_lib
 #endif /* USE_OPENMP */
 
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data
+  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
   use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
@@ -775,10 +775,10 @@ contains
     negative_numbers = .false.
     invalid_numbers = .false.
 
-    ilo = lbound(self%rho, dim=1)
-    ihi = ubound(self%rho, dim=1)
-    jlo = lbound(self%rho, dim=2)
-    jhi = ubound(self%rho, dim=2)
+    ilo = lbound(self%rho, dim=1) + n_ghost_layers
+    ihi = ubound(self%rho, dim=1) - n_ghost_layers
+    jlo = lbound(self%rho, dim=2) + n_ghost_layers
+    jhi = ubound(self%rho, dim=2) - n_ghost_layers
 
     !$omp parallel default(none) &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -939,11 +939,17 @@ contains
     real(rk) :: rho_v_diff !< difference in the rhov residual
     real(rk) :: rho_E_diff !< difference in the rhoE residual
     integer(ik) :: io
+    integer(ik) :: i, j, ilo, jlo, ihi, jhi
 
-    rho_diff = maxval(abs(last_stage%rho - first_stage%rho))
-    rho_u_diff = maxval(abs(last_stage%rho_u - first_stage%rho_u))
-    rho_v_diff = maxval(abs(last_stage%rho_v - first_stage%rho_v))
-    rho_E_diff = maxval(abs(last_stage%rho_E - first_stage%rho_E))
+    ilo = lbound(last_stage%rho, dim=1) + n_ghost_layers
+    ihi = ubound(last_stage%rho, dim=1) - n_ghost_layers
+    jlo = lbound(last_stage%rho, dim=2) + n_ghost_layers
+    jhi = ubound(last_stage%rho, dim=2) - n_ghost_layers
+
+    rho_diff = maxval(abs(last_stage%rho(ilo:ihi, jlo:jhi) - first_stage%rho(ilo:ihi, jlo:jhi)))
+    rho_u_diff = maxval(abs(last_stage%rho_u(ilo:ihi, jlo:jhi) - first_stage%rho_u(ilo:ihi, jlo:jhi)))
+    rho_v_diff = maxval(abs(last_stage%rho_v(ilo:ihi, jlo:jhi) - first_stage%rho_v(ilo:ihi, jlo:jhi)))
+    rho_E_diff = maxval(abs(last_stage%rho_E(ilo:ihi, jlo:jhi) - first_stage%rho_E(ilo:ihi, jlo:jhi)))
 
     open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
     write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &

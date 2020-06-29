@@ -8,6 +8,7 @@ module mod_regular_2d_grid
   use mod_globals, only: debug_print
   use mod_floating_point_utils, only: equal
   use mod_nondimensionalization, only: set_length_scale, l_0
+  use mod_functional, only: arange
 
   implicit none
 
@@ -451,39 +452,15 @@ contains
     self%max_dy = self%min_dy ! placeholder for now
     if(self%min_dy <= 0) error stop "grid%dy <= 0"
 
-    ! Set the x spacing
-    do i = self%ilo_node, self%ihi_node
-      self%node_x(i, :) = self%xmin + (i - 1) * self%min_dx
+    do j = self%jlo_bc_node, self%jhi_bc_node
+      self%node_x(:, j) = arange(start=self%xmin - self%n_ghost_layers * self%min_dx, &
+                                 end=self%xmax + self%n_ghost_layers * self%min_dx, increment=self%min_dx)
     end do
 
-    ! Set the low i boundary location
-    associate(x_0=>self%node_x(self%ilo_node, :), &
-              x_1=>self%node_x(self%ilo_node + 1, :))
-      self%node_x(self%ilo_bc_node, :) = x_0 - (x_1 - x_0)
-    end associate
-
-    ! Set the high i boundary
-    associate(x_n=>self%node_x(self%ihi_node, :), &
-              x_n_minus_1=>self%node_x(self%ihi_node - 1, :))
-      self%node_x(self%ihi_bc_node, :) = x_n + (x_n - x_n_minus_1)
-    end associate
-
-    ! Set the y spacing
-    do j = self%jlo_node, self%jhi_node
-      self%node_y(:, j) = self%ymin + (j - 1) * self%min_dy
+    do i = self%ilo_bc_node, self%ihi_bc_node
+      self%node_y(i, :) = arange(start=self%ymin - self%n_ghost_layers * self%min_dy, &
+                                 end=self%ymax + self%n_ghost_layers * self%min_dy, increment=self%min_dy)
     end do
-
-    ! Set the low j boundary location
-    associate(y_0=>self%node_y(:, self%jlo_node), &
-              y_1=>self%node_y(:, self%jlo_node + 1))
-      self%node_y(:, self%jlo_bc_node) = y_0 - (y_1 - y_0)
-    end associate
-
-    ! Set the high j boundary
-    associate(y_n=>self%node_y(:, self%jhi_node), &
-              y_n_minus_1=>self%node_y(:, self%jhi_node - 1))
-      self%node_y(:, self%jhi_bc_node) = y_n + (y_n - y_n_minus_1)
-    end associate
 
   end subroutine initialize_from_ini
 

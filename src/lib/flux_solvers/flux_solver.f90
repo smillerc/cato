@@ -86,33 +86,33 @@ contains
 
     ! Locals
     integer(ik) :: alloc_status
-    integer(ik), dimension(4, 2) :: ghost_layers
+    ! integer(ik), dimension(4, 2) :: ghost_layers
 
-    ! The ghost_layers array just tells the boundary condition which cell indices
-    ! are tagged as boundaries. See boundary_condition_t%set_indices() for details
-    ghost_layers(1, :) = [grid%ilo_bc_cell, grid%ilo_cell - 1] ! ilo
-    ghost_layers(3, :) = [grid%jlo_bc_cell, grid%jlo_cell - 1] ! jlo
+    ! ! The ghost_layers array just tells the boundary condition which cell indices
+    ! ! are tagged as boundaries. See boundary_condition_t%set_indices() for details
+    ! ghost_layers(1, :) = [grid%ilo_bc_cell, grid%ilo_cell - 1] ! ilo
+    ! ghost_layers(3, :) = [grid%jlo_bc_cell, grid%jlo_cell - 1] ! jlo
 
-    ghost_layers(2, :) = [grid%ihi_cell + 1, grid%ihi_bc_cell] ! ihi
-    ghost_layers(4, :) = [grid%jhi_cell + 1, grid%jhi_bc_cell] ! jhi
+    ! ghost_layers(2, :) = [grid%ihi_cell + 1, grid%ihi_bc_cell] ! ihi
+    ! ghost_layers(4, :) = [grid%jhi_cell + 1, grid%jhi_bc_cell] ! jhi
 
     ! Set boundary conditions
-    bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, ghost_layers=ghost_layers)
+    bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, grid=grid)
     allocate(bc_plus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=self%input%plus_y_bc, location='+y', input=self%input, ghost_layers=ghost_layers)
+    bc => bc_factory(bc_type=self%input%plus_y_bc, location='+y', input=self%input, grid=grid)
     allocate(bc_plus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=self%input%minus_x_bc, location='-x', input=self%input, ghost_layers=ghost_layers)
+    bc => bc_factory(bc_type=self%input%minus_x_bc, location='-x', input=self%input, grid=grid)
     allocate(bc_minus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=self%input%minus_y_bc, location='-y', input=self%input, ghost_layers=ghost_layers)
+    bc => bc_factory(bc_type=self%input%minus_y_bc, location='-y', input=self%input, grid=grid)
     allocate(bc_minus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
     deallocate(bc)

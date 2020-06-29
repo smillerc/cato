@@ -1,6 +1,7 @@
 module mod_pressure_input_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
+  use mod_grid, only: grid_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_nondimensionalization, only: p_0, rho_0, t_0
   use mod_input, only: input_t
@@ -38,18 +39,16 @@ module mod_pressure_input_bc
   end type
 contains
 
-  function pressure_input_bc_constructor(location, input, ghost_layers) result(bc)
+  function pressure_input_bc_constructor(location, input, grid) result(bc)
     type(pressure_input_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
-    integer(ik), dimension(:, :), intent(in) :: ghost_layers
-    !< (ilo_layers(n), ihi_layers(n), jlo_layers(n), jhi_layers(n)); indices to the ghost layers.
-    !< The ilo_layers type var can be scalar or a vector, e.g. ilo_layers = [-1,0] or ilo_layers = 0
+    class(grid_t), intent(in) :: grid
 
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
-    call bc%set_indices(ghost_layers)
+    call bc%set_indices(grid)
 
     bc%density_input = input%bc_density / rho_0
     bc%constant_pressure = input%apply_constant_bc_pressure

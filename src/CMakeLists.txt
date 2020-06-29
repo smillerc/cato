@@ -36,7 +36,7 @@ add_library(
   lib/geometry/vector.f90
   lib/geometry/quad_cell.f90)
 
-target_link_libraries(geometry PUBLIC globals io eos)
+target_link_libraries(geometry PUBLIC globals io eos functional)
 
 add_library(
   cato

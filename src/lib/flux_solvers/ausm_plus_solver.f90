@@ -42,9 +42,9 @@ module mod_ausm_plus_solver
 
   contains
     ! Public methods
-    procedure, public :: initialize => initialize_ausm_plus_up
-    procedure, public :: solve => solve_ausm_plus_up
-    procedure, public, pass(lhs) :: copy => copy_ausm_plus_up
+    procedure, public :: initialize => initialize_ausm_plus
+    procedure, public :: solve => solve_ausm_plus
+    procedure, public, pass(lhs) :: copy => copy_ausm_plus
 
     ! Private methods
     procedure, private :: flux_edges
@@ -63,11 +63,11 @@ module mod_ausm_plus_solver
 
 contains
 
-  subroutine initialize_ausm_plus_up(self, input)
+  subroutine initialize_ausm_plus(self, input)
     class(ausm_plus_solver_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
-    call debug_print('Running ausm_plus_solver_t%initialize_ausm_plus_up()', __FILE__, __LINE__)
+    call debug_print('Running ausm_plus_solver_t%initialize_ausm_plus()', __FILE__, __LINE__)
 
     self%input = input
     self%M_inf_sq = input%reference_mach**2
@@ -91,7 +91,7 @@ contains
     end select
 
     if(input%ausm_beta < (-1.0_rk / 16.0_rk) .or. input%ausm_beta > 0.5_rk) then
-      error stop "Invalid value of input%ausm_beta in ausm_plus_solver_t%initialize_ausm_plus_up(); "// &
+      error stop "Invalid value of input%ausm_beta in ausm_plus_solver_t%initialize_ausm_plus(); "// &
         "beta must be in the interval -1/16 <= beta <= 1/2"
     else
       self%mach_split_beta = input%ausm_beta
@@ -99,7 +99,7 @@ contains
 
     if(input%ausm_pressure_diffusion_coeff < 0.0_rk .or. input%ausm_pressure_diffusion_coeff > 1.0_rk) then
       error stop "Invalid value of the input%ausm_pressure_diffusion_coeff (K_p) "// &
-        "in ausm_plus_solver_t%initialize_ausm_plus_up(); "// &
+        "in ausm_plus_solver_t%initialize_ausm_plus(); "// &
         "K_p must be in the interval 0 <= K_p <= 1"
     else
       self%pressure_diffusion_coeff = input%ausm_pressure_diffusion_coeff
@@ -107,14 +107,14 @@ contains
 
     if(input%ausm_sonic_point_sigma < 0.25_rk .or. input%ausm_sonic_point_sigma > 1.0_rk) then
       error stop "Invalid value of the sonic point resolution parameter input%ausm_sonic_point_sigma in "// &
-        "ausm_plus_solver_t%initialize_ausm_plus_up(); sigma must be in "// &
+        "ausm_plus_solver_t%initialize_ausm_plus(); sigma must be in "// &
         "the interval  0.25 <= sigma < 1"
     else
       self%sigma = input%ausm_sonic_point_sigma
     end if
-  end subroutine initialize_ausm_plus_up
+  end subroutine initialize_ausm_plus
 
-  subroutine copy_ausm_plus_up(lhs, rhs)
+  subroutine copy_ausm_plus(lhs, rhs)
     !< Implement LHS = RHS
     class(ausm_plus_solver_t), intent(inout) :: lhs
     type(ausm_plus_solver_t), intent(in) :: rhs
@@ -130,9 +130,9 @@ contains
     lhs%time = rhs%time
     lhs%dt = rhs%dt
 
-  end subroutine copy_ausm_plus_up
+  end subroutine copy_ausm_plus
 
-  subroutine solve_ausm_plus_up(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine solve_ausm_plus(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(ausm_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
@@ -200,9 +200,9 @@ contains
     ! with (L/R) = [L  if M_(i+1/2) >= 0]
     !              [R  otherwise        ]
 
-    call debug_print('Running ausm_plus_solver_t%solve_ausm_plus_up()', __FILE__, __LINE__)
+    call debug_print('Running ausm_plus_solver_t%solve_ausm_plus()', __FILE__, __LINE__)
 
-    if(dt < tiny(1.0_rk)) error stop "Error in ausm_plus_solver_t%solve_ausm_plus_up(), the timestep dt is < tiny(1.0_rk)"
+    if(dt < tiny(1.0_rk)) error stop "Error in ausm_plus_solver_t%solve_ausm_plus(), the timestep dt is < tiny(1.0_rk)"
     self%time = self%time + dt
     self%dt = dt
     self%iteration = self%iteration + 1
@@ -368,7 +368,7 @@ contains
 
     if(allocated(self%i_edge_flux)) deallocate(self%i_edge_flux)
     if(allocated(self%j_edge_flux)) deallocate(self%j_edge_flux)
-  end subroutine solve_ausm_plus_up
+  end subroutine solve_ausm_plus
 
   subroutine flux_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U

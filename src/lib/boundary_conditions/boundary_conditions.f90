@@ -2,7 +2,9 @@ module mod_boundary_conditions
   !< Define the based boundary condition class
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_functional, only: operator(.reverse.)
   use mod_input, only: input_t
+  use mod_grid, only: grid_t
 
   implicit none
 
@@ -80,37 +82,58 @@ contains
     time = self%time
   end function
 
-  subroutine set_indices(self, ghost_layers)
+  subroutine set_indices(self, grid)
     !< Save the indices for the cells that are tagged as ghost cells. These indices will be used
     !< by the other procedures that apply the boundary conditions
 
     class(boundary_condition_t), intent(inout) :: self
-
-    integer(ik), dimension(:, :), intent(in) :: ghost_layers
+    class(grid_t), intent(in) :: grid
+    integer(ik) :: i
+    ! integer(ik), dimension(:, :), intent(in) :: ghost_layers
     !< (ilo_layers(n), ihi_layers(n), jlo_layers(n), jhi_layers(n)); indices to the ghost layers.
     !< The ilo_layers type var can be scalar or a vector, e.g. ilo_layers = [-1,0] or ilo_layers = 0
 
     ! Example:
     ! the cells are numbered as follows: [-1 0 | 1 2 3 4 | 5 6]
     ! the real cells are [1,2,3,4] and the ghost cells are [-1 0] and [5 6]
-    self%n_ghost_layers = size(ghost_layers(1, :))
+    ! or
+    ! the cells are numbered as follows: [ 0 | 1 2 3 4 | 5 ]
+    ! the real cells are [1,2,3,4] and the ghost cells are [0] and [5]
+
+    self%n_ghost_layers = grid%ilo_cell - grid%ilo_bc_cell
 
     allocate(self%ilo_ghost(self%n_ghost_layers))
-    self%ilo_ghost = ghost_layers(1, :)
-
     allocate(self%ihi_ghost(self%n_ghost_layers))
-    self%ihi_ghost = ghost_layers(2, :)
-
     allocate(self%jlo_ghost(self%n_ghost_layers))
-    self%jlo_ghost = ghost_layers(3, :)
-
     allocate(self%jhi_ghost(self%n_ghost_layers))
-    self%jhi_ghost = ghost_layers(4, :)
 
-    self%ilo = maxval(self%ilo_ghost) + 1
-    self%ihi = minval(self%ihi_ghost) - 1
+    if(self%n_ghost_layers == 1) then
+      self%ilo_ghost = grid%ilo_bc_cell
+      self%ihi_ghost = grid%ihi_bc_cell
+      self%jlo_ghost = grid%jlo_bc_cell
+      self%jhi_ghost = grid%jhi_bc_cell
+      self%ilo = grid%ilo_cell
+      self%ihi = grid%ihi_cell
+      self%jlo = grid%jlo_cell
+      self%jhi = grid%jhi_cell
+    else if(self%n_ghost_layers > 1) then
+      do i = 1, self%n_ghost_layers
+        self%ilo_ghost(i) = grid%ilo_bc_cell + i - 1
+        self%ihi_ghost(i) = grid%ihi_bc_cell - i + 1
 
-    self%jlo = maxval(self%jlo_ghost) + 1
-    self%jhi = minval(self%jhi_ghost) - 1
+        self%jlo_ghost(i) = grid%jlo_bc_cell + i - 1
+        self%jhi_ghost(i) = grid%jhi_bc_cell - i + 1
+      end do
+      self%ihi_ghost = .reverse.self%ihi_ghost
+      self%jhi_ghost = .reverse.self%jhi_ghost
+
+      self%ilo = grid%ilo_cell
+      self%ihi = grid%ihi_cell
+      self%jlo = grid%jlo_cell
+      self%jhi = grid%jhi_cell
+    else
+      error stop "Error in boundary_condition_t%set_indicies(), n_ghost_layers <= 0"
+    end if
+
   end subroutine set_indices
 end module mod_boundary_conditions
