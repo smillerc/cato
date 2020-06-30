@@ -214,7 +214,15 @@ contains
     class(boundary_condition_t), pointer :: bc_plus_y
     class(boundary_condition_t), pointer :: bc_minus_x
     class(boundary_condition_t), pointer :: bc_minus_y
+    integer(ik) :: top_ghost, left_ghost, right_ghost, bottom_ghost
     integer(ik), dimension(2) :: lbounds
+
+
+    bottom_ghost = grid%jlo_bc_cell
+    top_ghost = grid%jhi_bc_cell
+
+    left_ghost = grid%ilo_bc_cell
+    right_ghost = grid%ihi_bc_cell
 
     ! These are normally handled by the master puppeteer, but for now we make them ourselves
     associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
@@ -236,8 +244,8 @@ contains
 
     lbounds = lbound(rho)
     bc_plus_x => bc_factory(bc_type='symmetry', location='+x', input=input, grid=grid)
-    bc_minus_x => bc_factory(bc_type='symmetry', location='-x', input=input, grid=grid)
     bc_plus_y => bc_factory(bc_type='symmetry', location='+y', input=input, grid=grid)
+    bc_minus_x => bc_factory(bc_type='symmetry', location='-x', input=input, grid=grid)
     bc_minus_y => bc_factory(bc_type='symmetry', location='-y', input=input, grid=grid)
 
     @assertEqual('+x', bc_plus_x%location)
@@ -285,7 +293,7 @@ contains
     ! Top BC of the domain (+y)
     recon_rho(top_edge, 2:3, 4) = 3.0_rk
     rho(2:3, 4) = 2.0_rk
-    recon_rho(bottom_edge, 2:3, 4) = 2.0_rk
+    recon_rho(bottom_edge, 2:3, 4) = 1.0_rk
 
     ! Left BC of the domain (-x)
     recon_rho(left_edge, 1, 2:3) = 2.0_rk
@@ -329,29 +337,49 @@ contains
 
     ! bottom ghost layer primitive
     ! everything should be the same except for v, which is a mirror opposite due to symmetry
-    @assertEqual([5.0_rk, 5.0_rk], rho(2:3, 0))
-    @assertEqual([5.0_rk, 5.0_rk], u(2:3, 0))
-    @assertEqual([5.0_rk, 5.0_rk], p(2:3, 0))
-    @assertEqual([-5.0_rk, -5.0_rk], v(2:3, 0))
+    @assertEqual([5.0_rk, 5.0_rk], rho(2:3, bottom_ghost))
+    @assertEqual([5.0_rk, 5.0_rk],   u(2:3, bottom_ghost))
+    @assertEqual([5.0_rk, 5.0_rk],   p(2:3, bottom_ghost))
+    @assertEqual([-5.0_rk, -5.0_rk], v(2:3, bottom_ghost))
 
-    @assertEqual([4.0_rk, 0.0_rk, 6.0_rk, 0.0_rk], recon_rho(:, 2, 0))
-    @assertEqual([4.0_rk, 0.0_rk, 6.0_rk, 0.0_rk], recon_u(:, 2, 0))
-    @assertEqual([4.0_rk, 0.0_rk, 6.0_rk, 0.0_rk], recon_p(:, 2, 0))
-    @assertEqual([-4.0_rk, 0.0_rk, -6.0_rk, 0.0_rk], recon_v(:, 2, 0))
+    @assertEqual([ 4.0_rk, 0.0_rk,  6.0_rk, 0.0_rk], recon_rho(:, 2, bottom_ghost))
+    @assertEqual([ 4.0_rk, 0.0_rk,  6.0_rk, 0.0_rk], recon_u(:, 2,   bottom_ghost))
+    @assertEqual([-4.0_rk, 0.0_rk, -6.0_rk, 0.0_rk], recon_v(:, 2,   bottom_ghost))
+    @assertEqual([ 4.0_rk, 0.0_rk,  6.0_rk, 0.0_rk], recon_p(:, 2,   bottom_ghost))
 
-    ! ! @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], recon_rho(1, 1, 1, :, bottom_ghost))
+    ! top ghost layer
+    @assertEqual([ 2.0_rk,  2.0_rk], rho(2:3, top_ghost))
+    @assertEqual([ 2.0_rk,  2.0_rk],   u(2:3, top_ghost))
+    @assertEqual([ 2.0_rk,  2.0_rk],   p(2:3, top_ghost))
+    @assertEqual([-2.0_rk, -2.0_rk],   v(2:3, top_ghost))
 
-    ! ! top ghost layer
-    ! @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], rho(:, top_ghost))
-    ! ! @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], recon_rho(1, 1, 1, :, top_ghost))
+    @assertEqual([ 3.0_rk, 0.0_rk,  1.0_rk, 0.0_rk], recon_rho(:, 2, top_ghost))
+    @assertEqual([ 3.0_rk, 0.0_rk,  1.0_rk, 0.0_rk],   recon_u(:, 2, top_ghost))
+    @assertEqual([-3.0_rk, 0.0_rk, -1.0_rk, 0.0_rk],   recon_v(:, 2, top_ghost))
+    @assertEqual([ 3.0_rk, 0.0_rk,  1.0_rk, 0.0_rk],   recon_p(:, 2, top_ghost))
 
-    ! ! left ghost layer
-    ! @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], rho(left_ghost, :))
-    ! ! @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], recon_rho(1, 1, 1, left_ghost, :))
+    ! right ghost layer primitive
+    ! everything should be the same except for u, which is a mirror opposite due to symmetry
+    @assertEqual([ 3.0_rk,  3.0_rk], rho(right_ghost, 2:3))
+    @assertEqual([-3.0_rk, -3.0_rk],   u(right_ghost, 2:3))
+    @assertEqual([ 3.0_rk,  3.0_rk],   p(right_ghost, 2:3))
+    @assertEqual([ 3.0_rk,  3.0_rk],   v(right_ghost, 2:3))
 
-    ! ! right ghost layer
-    ! @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], rho(right_ghost, :))
-    ! ! @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], recon_rho(1, 1, 1, right_ghost, :))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 4.0_rk], recon_rho(:, right_ghost, 2))
+    @assertEqual([ 0.0_rk,-2.0_rk, 0.0_rk,-4.0_rk],   recon_u(:, right_ghost, 2))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 4.0_rk],   recon_v(:, right_ghost, 2))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 4.0_rk],   recon_p(:, right_ghost, 2))
+
+    ! left ghost layer
+    @assertEqual([ 1.0_rk,  1.0_rk], rho(left_ghost, 2:3))
+    @assertEqual([-1.0_rk, -1.0_rk],   u(left_ghost, 2:3))
+    @assertEqual([ 1.0_rk,  1.0_rk],   p(left_ghost, 2:3))
+    @assertEqual([ 1.0_rk,  1.0_rk],   v(left_ghost, 2:3))
+
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 0.0_rk], recon_rho(:, left_ghost, 2))
+    @assertEqual([ 0.0_rk,-2.0_rk, 0.0_rk, 0.0_rk],   recon_u(:, left_ghost, 2))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 0.0_rk],   recon_v(:, left_ghost, 2))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 0.0_rk],   recon_p(:, left_ghost, 2))
 
     deallocate(bc_plus_x)
     deallocate(bc_plus_y)
