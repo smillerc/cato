@@ -5,13 +5,12 @@
 	"image": "smillerc/gfortran-dev:latest",
 	"settings": {
 		"terminal.integrated.shell.linux": "/bin/bash",
-		"fortran-ls.executablePath": "/miniconda/bin/fortls"
+		"fortran-ls.executablePath": "/usr/local/bin/fortls"
 	},
-	"postAttachCommand": "pip install fortran-language-server jsonrpc2 --user",
 	"extensions": [
 		"ms-vscode.cmake-tools",
 		"twxs.cmake",
-		"krvajalm.fortran",
+		"krvajalm.linter-gfortran",
 		"hansec.fortran-ls",
 		"eamodio.gitlens",
 	]
