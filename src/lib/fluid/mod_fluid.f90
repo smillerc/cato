@@ -575,10 +575,7 @@ contains
         c(i, j) = a(i, j) + b(i, j)
         diff = abs(c(i, j) - a(i, j))
         threshold = abs(a(i, j) + b(i, j)) * 1e-9_rk
-        if(diff < threshold) then
-          ! if (diff > 0.0_rk) write(*,'(8(es16.6))') diff, threshold, c(i,j), a(i,j), b(i,j)
-          c(i, j) = a(i, j)
-        end if
+        if(diff < threshold) c(i, j) = a(i, j)
       end do
     end do
     !$omp end do simd

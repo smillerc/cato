@@ -9,6 +9,7 @@ module mod_ausm_plus_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_globals, only: debug_print
+  use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_edge_interpolator_factory, only: edge_interpolator_factory
   use mod_edge_interpolator, only: edge_iterpolator_t
@@ -348,6 +349,7 @@ contains
           self%j_edge_flux(3, i, j) = mass_flux * v_R + (n_y * p_half)
           self%j_edge_flux(4, i, j) = mass_flux * H(2)
         end if
+
       end do
     end do
     !$omp end do
@@ -384,6 +386,17 @@ contains
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     real(rk), dimension(4) :: delta_l !< edge length
     real(rk) :: volume !< cell volume
+    real(rk), parameter :: FLUX_EPS = 5e-13_rk
+    real(rk), parameter :: REL_THRESHOLD = 1e-5_rk !< relative error threshold
+
+    real(rk), dimension(4) :: rho_edge_fluxes
+    real(rk), dimension(4) :: rhou_edge_fluxes
+    real(rk), dimension(4) :: rhov_edge_fluxes
+    real(rk), dimension(4) :: rhoE_edge_fluxes
+    real(rk) :: ave_rho_edge_flux, rho_flux, rho_flux_threshold
+    real(rk) :: ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold
+    real(rk) :: ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold
+    real(rk) :: ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold
 
     ilo = grid%ilo_cell
     ihi = grid%ihi_cell
@@ -402,7 +415,12 @@ contains
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi), &
     !$omp shared(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt), &
-    !$omp private(i, j, delta_l, volume)
+    !$omp private(i, j, delta_l, volume) &
+    !$omp private(ave_rho_edge_flux, rho_flux, rho_flux_threshold) &
+    !$omp private(ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold) &
+    !$omp private(ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold) &
+    !$omp private(ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold) &
+    !$omp private(rho_edge_fluxes, rhou_edge_fluxes, rhov_edge_fluxes, rhoE_edge_fluxes)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
@@ -410,33 +428,50 @@ contains
         delta_l = grid%cell_edge_lengths(:, i, j)
         volume = grid%cell_volume(i, j)
 
-        d_rho_dt(i, j) = -sum([ &
-                              self%i_edge_flux(1, i, j) * delta_l(2), &
-                              -self%i_edge_flux(1, i - 1, j) * delta_l(4), &
-                              -self%j_edge_flux(1, i, j - 1) * delta_l(1), &
-                              self%j_edge_flux(1, i, j) * delta_l(3) &
-                              ]) / volume
+        ! rho
+        rho_edge_fluxes = [self%i_edge_flux(1, i, j) * delta_l(2), -self%i_edge_flux(1, i - 1, j) * delta_l(4), &
+                           -self%j_edge_flux(1, i, j - 1) * delta_l(1), self%j_edge_flux(1, i, j) * delta_l(3)]
+        ave_rho_edge_flux = 0.25_rk * sum(abs(rho_edge_fluxes))
+        rho_flux = -neumaier_sum_4(rho_edge_fluxes)
+        rho_flux_threshold = abs(ave_rho_edge_flux) * REL_THRESHOLD
+        if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
+          rho_flux = 0.0_rk
+        end if
+        d_rho_dt(i, j) = rho_flux / volume
 
-        d_rho_u_dt(i, j) = -sum([ &
-                                self%i_edge_flux(2, i, j) * delta_l(2), &
-                                -self%i_edge_flux(2, i - 1, j) * delta_l(4), &
-                                -self%j_edge_flux(2, i, j - 1) * delta_l(1), &
-                                self%j_edge_flux(2, i, j) * delta_l(3) &
-                                ]) / volume
+        ! rho u
+        rhou_edge_fluxes = [self%i_edge_flux(2, i, j) * delta_l(2), -self%i_edge_flux(2, i - 1, j) * delta_l(4), &
+                            -self%j_edge_flux(2, i, j - 1) * delta_l(1), self%j_edge_flux(2, i, j) * delta_l(3)]
+        ave_rhou_edge_flux = 0.25_rk * sum(abs(rhou_edge_fluxes))
+        rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
+        rhou_flux_threshold = abs(ave_rhou_edge_flux) * REL_THRESHOLD
+        if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
+          rhou_flux = 0.0_rk
+        end if
+        d_rho_u_dt(i, j) = rhou_flux / volume
 
-        d_rho_v_dt(i, j) = -sum([ &
-                                self%i_edge_flux(3, i, j) * delta_l(2), &
-                                -self%i_edge_flux(3, i - 1, j) * delta_l(4), &
-                                -self%j_edge_flux(3, i, j - 1) * delta_l(1), &
-                                self%j_edge_flux(3, i, j) * delta_l(3) &
-                                ]) / volume
+        ! rho v
+        rhov_edge_fluxes = [self%i_edge_flux(3, i, j) * delta_l(2), -self%i_edge_flux(3, i - 1, j) * delta_l(4), &
+                            -self%j_edge_flux(3, i, j - 1) * delta_l(1), self%j_edge_flux(3, i, j) * delta_l(3)]
+        ave_rhov_edge_flux = 0.25_rk * sum(abs(rhov_edge_fluxes))
+        rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
+        rhov_flux_threshold = abs(ave_rhov_edge_flux) * REL_THRESHOLD
+        if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
+          rhov_flux = 0.0_rk
+        end if
+        d_rho_v_dt(i, j) = rhov_flux / volume
 
-        d_rho_E_dt(i, j) = -sum([ &
-                                self%i_edge_flux(4, i, j) * delta_l(2), &
-                                -self%i_edge_flux(4, i - 1, j) * delta_l(4), &
-                                -self%j_edge_flux(4, i, j - 1) * delta_l(1), &
-                                self%j_edge_flux(4, i, j) * delta_l(3) &
-                                ]) / volume
+        ! rho E
+        rhoE_edge_fluxes = [self%i_edge_flux(4, i, j) * delta_l(2), -self%i_edge_flux(4, i - 1, j) * delta_l(4), &
+                            -self%j_edge_flux(4, i, j - 1) * delta_l(1), self%j_edge_flux(4, i, j) * delta_l(3)]
+        ave_rhoE_edge_flux = 0.25_rk * sum(abs(rhoE_edge_fluxes))
+        rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
+        rhoE_flux_threshold = abs(ave_rhoE_edge_flux) * REL_THRESHOLD
+        if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
+          rhoE_flux = 0.0_rk
+        end if
+        d_rho_E_dt(i, j) = rhoE_flux / volume
+
       end do
     end do
     !$omp end do
@@ -554,7 +589,7 @@ contains
     alpha = (3.0_rk / 16.0_rk) * (-4.0_rk + 5.0_rk * f_a**2)
   end function alpha
 
-  subroutine interface_state(self, n, rho, u, v, p, M_half, p_half, a_half, H)
+  pure subroutine interface_state(self, n, rho, u, v, p, M_half, p_half, a_half, H)
     !< Interface Mach number, e.g. M_(1/2)
     class(ausm_plus_solver_t), intent(in) :: self
     real(rk), dimension(2), intent(in) :: n   !< (x,y); edge normal vector
@@ -573,6 +608,7 @@ contains
     real(rk) :: M_p            !< Pressure diffusion term
     real(rk) :: M_plus         !< Split Mach term M+, see Eq. 73
     real(rk) :: M_minus        !< Split Mach term M-, see Eq. 73
+    real(rk) :: M_sum          !< M_plus + M_minus; used for round-off machine epsilon checks
     real(rk) :: M_bar_sq       !< Mean Mach number ^2
     real(rk) :: M_0            !< Reference Mach
     real(rk) :: M_0_sq         !< Reference Mach squared
@@ -584,6 +620,7 @@ contains
     real(rk) :: p_u            !< Velocity difference (diffusion) term
     real(rk) :: P_plus         !< Split pressure term P+, see Eq. 75
     real(rk) :: P_minus        !< Split pressure term P-, see Eq. 75
+    real(rk) :: P_sum          !< P_plus + P_minus; used for round-off machine epsilon checks
     real(rk) :: a_circumflex_L !< â_L; used to find the left interface sound speed see Eq 28 in Ref [1]
     real(rk) :: a_circumflex_R !< â_R; used to find the rgight interface sound speed see Eq 28 in Ref [1]
     real(rk) :: a_crit_L       !< a*; critical sound speed of the left side
@@ -652,7 +689,10 @@ contains
     ! This is the "p" in AUSM+-up
     associate(K_p=>self%pressure_diffusion_coeff, sigma=>self%sigma, &
               p_L=>p(1), p_R=>p(2))
-      if(self%ausm_plus_up_basic) then ! AUSM+-up basic scheme
+
+      if(abs(p_R - p_L) < epsilon(1.0_rk)) then
+        M_p = 0.0_rk
+      else if(self%ausm_plus_up_basic) then ! AUSM+-up basic scheme
         M_p = -K_p * max(1.0_rk - sigma * M_bar_sq, 0.0_rk) * ((p_R - p_L) / (rho_half * a_half**2))
       else if(self%ausm_plus_up_all_speed) then! AUSM+-up all-speed scheme
         M_p = -(K_p / f_a) * max(1.0_rk - sigma * M_bar_sq, 0.0_rk) * ((p_R - p_L) / (rho_half * a_half**2))
@@ -662,7 +702,11 @@ contains
     end associate
 
     ! Interface Mach number
-    M_half = M_plus + M_minus + M_p
+    M_sum = M_plus + M_minus
+    if(abs(M_sum) < 1e-13_rk) M_sum = 0.0_rk
+
+    M_half = M_sum + M_p
+    if(abs(M_half) < 1e-13_rk) M_half = 0.0_rk
 
     ! Pressure splitting functions in Eq. 75
     P_plus = self%split_pressure_deg_5(M=M_L, plus_or_minus='+', alpha=alpha_param)
@@ -671,7 +715,10 @@ contains
     ! Velocity difference (diffusion) term p_u, NOT, Eq. 26, but rather the last term in Eq 75
     ! This is the "u" in the AUSM+-u and AUSM+-up schemes
     associate(K_u=>self%pressure_flux_coeff, rho_L=>rho(1), rho_R=>rho(2))
-      if(self%ausm_plus_up_basic) then ! AUSM+-up basic scheme
+
+      if(abs(vel_R - vel_L) < epsilon(1.0_rk)) then
+        p_u = 0.0_rk
+      else if(self%ausm_plus_up_basic) then ! AUSM+-up basic scheme
         p_u = -K_u * P_plus * P_minus * (rho_L + rho_R) * a_half * (vel_R - vel_L)
       else if(self%ausm_plus_up_all_speed) then! AUSM+-up all-speed scheme
         p_u = -K_u * P_plus * P_minus * (rho_L + rho_R) * (f_a * a_half) * (vel_R - vel_L)
@@ -685,7 +732,7 @@ contains
       p_half = P_plus * p_L + P_minus * p_R + p_u
     end associate
 
-    ! write(*, '(a, 2(f8.4, 1x), 3(a, f8.4))') 'rho: ', rho(1), rho(2), ' M_half: ', M_half, ' p_half: ', p_half, ' p_u: ', p_u
+    ! write(*, '(10(es16.6))') M_half, p_half, a_half, H
   end subroutine interface_state
 
   subroutine finalize(self)
