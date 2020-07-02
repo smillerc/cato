@@ -17,7 +17,10 @@ module mod_flux_limiter
   implicit none
 
   private
-  public :: flux_limiter_t
+  public :: flux_limiter_t, smoothness, delta
+
+  real(rk), parameter :: EPS = 1e-30_rk !< small number epsilon, mainly used in the smoothness function
+  real(rk), parameter :: PHI_EPS = 1e-5_rk !< small number epsilon, mainly used in the smoothness function
 
   type :: flux_limiter_t
     character(:), allocatable :: name
@@ -80,6 +83,47 @@ contains
     if(allocated(self%name)) deallocate(self%name)
   end subroutine finalize
 
+  pure real(rk) function smoothness(plus, current, minus) result(r)
+    real(rk), intent(in) :: plus, current, minus
+    real(rk) :: delta_plus, delta_minus
+    delta_plus = plus - current
+    if(abs(delta_plus) < EPS) delta_plus = EPS
+
+    delta_minus = current - minus
+    if(abs(delta_minus) < EPS) delta_minus = EPS
+
+    r = (delta_minus + EPS) / (delta_plus + EPS)
+  end function smoothness
+
+  elemental real(rk) function delta(a, b)
+    !< Find the delta in the solution, e.g. delta = a - b. This checks for numbers
+    !< near 0 and when a and b are very similar in magnitude. The aim is to avoid
+    !< catastrophic cancellation and very small numbers that are essentially 0 for this scenario
+
+    real(rk), intent(in) :: a, b
+    real(rk), parameter :: rel_tol = 1e-12_rk     !< relative error tolerance
+    real(rk), parameter :: abs_tol = tiny(1.0_rk) !< absolute error tolerance
+    real(rk) :: abs_err !< absolute error
+
+    delta = a - b
+    abs_err = abs_tol + rel_tol * max(abs(a), abs(b))
+
+    if(abs(delta) < epsilon(1.0_rk)) then
+      delta = 0.0_rk
+      return
+    end if
+
+    if(abs(a) < tiny(1.0_rk) .and. abs(b) < tiny(1.0_rk)) then
+      delta = 0.0_rk
+      return
+    end if
+
+    if(abs(delta) < abs_err) then
+      delta = 0.0_rk
+      return
+    end if
+  end function delta
+
   pure real(rk) function none(R) result(psi_lim)
     !< Unlimited slope
     real(rk), intent(in) :: R !< smoothness indicator
@@ -91,7 +135,7 @@ contains
     !< Min-mod flux limiter. See Eq. 8 in [2]
     real(rk), intent(in) :: R !< smoothness indicator
 
-    if(R < 0.0_rk .or. abs(R) < tiny(1.0_rk)) then
+    if(R < 0.0_rk .or. abs(R) < PHI_EPS) then
       psi_lim = 0.0_rk
     else if(R > 1.0_rk) then
       psi_lim = 1.0_rk
@@ -104,7 +148,7 @@ contains
     !< van Leer flux limiter. See Eq. 9 in [2]
     real(rk), intent(in) :: R !< smoothness indicator
 
-    if(R < 0.0_rk .or. abs(R) < tiny(1.0_rk)) then
+    if(R < 0.0_rk .or. abs(R) < PHI_EPS) then
       psi_lim = 0.0_rk
     else
       psi_lim = (R + abs(R)) / (1.0_rk + abs(R))
@@ -115,7 +159,7 @@ contains
     !< Superbee flux limiter. See Eq. 3 in [1]
     real(rk), intent(in) :: R !< smoothness indicator
 
-    if(R < 0.0_rk .or. abs(R) < tiny(1.0_rk)) then
+    if(R < 0.0_rk .or. abs(R) < PHI_EPS) then
       psi_lim = 0.0_rk
     else if(R > 2.0_rk) then
       psi_lim = 2.0_rk

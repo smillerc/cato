@@ -12,8 +12,7 @@ module mod_mlp_baseline
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
-  use mod_flux_limiter, only: flux_limiter_t
-  use mod_slope_limiter, only: slope_limiter_t
+  use mod_flux_limiter, only: flux_limiter_t, smoothness, delta
   use mod_edge_interpolator, only: edge_iterpolator_t
   use mod_globals, only: n_ghost_layers
 
@@ -73,8 +72,8 @@ contains
     do j = jlo + 1, jhi - 1
       do i = ilo + 1, ihi - 1
 
-        numerator = self%get_delta(q(i, j + 1), q(i, j - 1))
-        denominator = self%get_delta(q(i + 1, j), q(i - 1, j))
+        numerator = delta(q(i, j + 1), q(i, j - 1))
+        denominator = delta(q(i + 1, j), q(i - 1, j))
 
         if(abs(numerator - denominator) < epsilon(1.0_rk) .or. & ! deltas are the same
            (abs(numerator) < tiny(1.0_rk) .and. abs(denominator) < tiny(1.0_rk))) then ! both are 0

@@ -12,7 +12,7 @@ module mod_tvd_2nd_order
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
-  use mod_flux_limiter, only: flux_limiter_t
+  use mod_flux_limiter, only: flux_limiter_t, smoothness, delta
   use mod_edge_interpolator, only: edge_iterpolator_t
   use mod_globals, only: n_ghost_layers, debug_print
 
@@ -125,33 +125,24 @@ contains
       do i = ilo, ihi
         ! (i+1/2, j), cell "right" edge -> corresponds to the "L" side of the interface, thus the "L" terms
         phi_right = self%limiter%limit(r_L_i(i, j))
-        delta_i_minus = self%get_delta(q(i, j), q(i - 1, j)) ! q(i,j) - q(i-1,j)
+        delta_i_minus = delta(q(i, j), q(i - 1, j)) ! q(i,j) - q(i-1,j)
         edge_values(2, i, j) = q(i, j) + 0.5_rk * phi_right * delta_i_minus
 
         ! (i-1/2, j), cell "left" edge -> corresponds to the "R" side of the interface, thus the "R" terms
         phi_left = self%limiter%limit(r_R_i(i, j))
-        delta_i_plus = self%get_delta(q(i + 1, j), q(i, j)) ! q(i+1,j) - q(i,j)
+        delta_i_plus = delta(q(i + 1, j), q(i, j)) ! q(i+1,j) - q(i,j)
         edge_values(4, i, j) = q(i, j) - 0.5_rk * phi_left * delta_i_plus
 
         ! (i, j+1/2), cell "top" edge -> corresponds to the "L" side of the interface, thus the "L" terms
         phi_top = self%limiter%limit(r_L_j(i, j))
-        delta_j_minus = self%get_delta(q(i, j), q(i, j - 1)) ! q(i,j) - q(i,j-1)
+        delta_j_minus = delta(q(i, j), q(i, j - 1)) ! q(i,j) - q(i,j-1)
         edge_values(3, i, j) = q(i, j) + 0.5_rk * phi_top * delta_j_minus
 
         ! (i, j-1/2), cell "bottom" edge -> corresponds to the "R" side of the interface, thus the "R" terms
         phi_bottom = self%limiter%limit(r_R_j(i, j))
-        delta_j_plus = self%get_delta(q(i, j + 1), q(i, j)) ! q(i,j+1) - q(i,j)
+        delta_j_plus = delta(q(i, j + 1), q(i, j)) ! q(i,j+1) - q(i,j)
         edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_bottom * delta_j_plus
 
-        ! if (i == 480 .and. j == 8) then
-        !   write(*,'(a16, 8(es16.6))') 'i', q(i-1, j), q(i, j), q(i+1, j), q(i+1,j) - q(i,j), q(i,j) - q(i,j-1)
-        !   write(*,'(a16, 8(es16.6))') 'j', q(i, j-1), q(i, j), q(i, j+1)
-        !   write(*,'(16x, 8(es16.6))')           r_R_i(i, j),          r_L_i(i, j),          r_R_j(i, j),          r_L_j(i, j)
-        !   write(*,'(16x, 8(es16.6))')           phi_left,             phi_right,            phi_bottom,           phi_top
-        !   write(*,'(16x, 8(es16.6))')           delta_i_plus,         delta_i_minus,        delta_j_plus,         delta_j_minus
-        !   write(*,'(16x, 8(es16.6))')           edge_values(4, i, j), edge_values(2, i, j), edge_values(1, i, j), edge_values(3, i, j)
-        !   print*
-        ! end if
       end do
     end do
     !$omp end do
@@ -164,16 +155,4 @@ contains
 
   end subroutine interpolate_edge_values
 
-  pure real(rk) function smoothness(plus, current, minus) result(r)
-    real(rk), intent(in) :: plus, current, minus
-    real(rk) :: delta_plus, delta_minus
-    real(rk), parameter :: eps = 1e-30
-    delta_plus = plus - current
-    if(abs(delta_plus) < eps) delta_plus = eps
-
-    delta_minus = current - minus
-    if(abs(delta_minus) < eps) delta_minus = eps
-
-    r = (delta_minus + eps) / (delta_plus + eps)
-  end function
 end module mod_tvd_2nd_order

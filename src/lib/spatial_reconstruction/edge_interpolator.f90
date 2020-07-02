@@ -13,7 +13,6 @@ module mod_edge_interpolator
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
   use mod_flux_limiter, only: flux_limiter_t
-  use mod_slope_limiter, only: slope_limiter_t
 
   implicit none
 
@@ -23,8 +22,6 @@ module mod_edge_interpolator
     character(len=32), public :: name = ''
     character(len=32), public :: limiter_name = ''
   contains
-    procedure, non_overridable, nopass :: get_delta
-    procedure, non_overridable, nopass :: get_smoothness
     procedure(init), deferred, public ::  initialize
     procedure(basic_interface), deferred, public :: interpolate_edge_values
   end type edge_iterpolator_t
@@ -37,7 +34,7 @@ module mod_edge_interpolator
     end subroutine init
 
     subroutine basic_interface(self, q, lbounds, edge_values)
-      import :: edge_iterpolator_t, ik, rk, slope_limiter_t
+      import :: edge_iterpolator_t, ik, rk
       class(edge_iterpolator_t), intent(in) :: self
       integer(ik), dimension(2), intent(in) :: lbounds
       real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
@@ -48,63 +45,5 @@ module mod_edge_interpolator
   end interface
 
 contains
-  elemental real(rk) function get_delta(a, b) result(delta)
-    !< Find the delta in the solution, e.g. delta = a - b. This checks for numbers
-    !< near 0 and when a and b are very similar in magnitude. The aim is to avoid
-    !< catastrophic cancellation and very small numbers that are essentially 0 for this scenario
 
-    real(rk), intent(in) :: a, b
-    real(rk), parameter :: rel_tol = 1e-12_rk     !< relative error tolerance
-    real(rk), parameter :: abs_tol = tiny(1.0_rk) !< absolute error tolerance
-    real(rk) :: abs_err !< absolute error
-
-    delta = a - b
-    abs_err = abs_tol + rel_tol * max(abs(a), abs(b))
-
-    if(abs(delta) < epsilon(1.0_rk)) then
-      delta = 0.0_rk
-      return
-    end if
-
-    if(abs(a) < tiny(1.0_rk) .and. abs(b) < tiny(1.0_rk)) then
-      delta = 0.0_rk
-      return
-    end if
-
-    if(abs(delta) < abs_err) then
-      delta = 0.0_rk
-      return
-    end if
-  end function get_delta
-
-  elemental subroutine get_smoothness(minus, current, plus, r, r_inv)
-    !< Calculate r = q(i+1) - q(i) / q(i) - q(i-1)
-    real(rk), intent(in) :: minus   !< q(i-1)
-    real(rk), intent(in) :: current !< q(i)
-    real(rk), intent(in) :: plus    !< q(i+1)
-    real(rk), intent(out) :: r      !< r
-    real(rk), intent(out) :: r_inv  !< 1/r
-
-    real(rk) :: delta_plus, delta_minus
-    real(rk), parameter :: infinity = 1e20_rk
-
-    delta_plus = get_delta(plus, current)   ! q(i+1) - q(i)
-    delta_minus = get_delta(current, minus) ! q(i) - q(i-1)
-
-    if((abs(delta_plus - delta_minus)) < epsilon(1.0_rk) .or. & ! deltas are the same
-       (abs(delta_plus) < tiny(1.0_rk) .and. abs(delta_minus) < tiny(1.0_rk)) & ! both are 0
-       ) then
-      r = 1.0_rk
-      r_inv = 1.0_rk
-    else if(abs(delta_minus) < tiny(1.0_rk)) then ! delta- is 0
-      r = infinity
-      r_inv = 0.0_rk
-    else if(abs(delta_plus) < tiny(1.0_rk)) then ! delta+ is 0
-      r = 0.0_rk
-      r_inv = infinity
-    else
-      r = delta_plus / delta_minus
-      r_inv = 1.0_rk / r
-    end if
-  end subroutine get_smoothness
 end module mod_edge_interpolator

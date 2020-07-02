@@ -12,8 +12,7 @@ module mod_mlp_3rd_order
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
-  use mod_flux_limiter, only: flux_limiter_t
-  use mod_slope_limiter, only: slope_limiter_t
+  use mod_flux_limiter, only: flux_limiter_t, smoothness, delta
   use mod_mlp_baseline, only: mlp_baseline_t
   use mod_globals, only: n_ghost_layers, debug_print
 
@@ -23,7 +22,7 @@ module mod_mlp_3rd_order
 
   type, extends(mlp_baseline_t) :: mlp_3rd_order_t
     !< 3rd order edge interpolation with the MLP limiter
-    type(slope_limiter_t) :: limiter
+    type(flux_limiter_t) :: limiter
   contains
     procedure, public :: initialize
     procedure, public :: interpolate_edge_values
@@ -198,22 +197,22 @@ contains
       do i = ilo, ihi
         ! (i, j-1/2), bottom edge -> corresponds to the "R" side of the interface, thus the "R" terms
         phi_bottom = max(0.0_rk, min(alpha_R_eta(i, j) * r_R_j(i, j), alpha_R_eta(i, j), beta_R_j(i, j)))
-        delta_j_plus = self%get_delta(q(i, j + 1), q(i, j)) ! q(i,j+1) - q(i,j)
+        delta_j_plus = delta(q(i, j + 1), q(i, j)) ! q(i,j+1) - q(i,j)
         edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_bottom * delta_j_plus
 
         ! (i+1/2, j), right edge -> corresponds to the "L" side of the interface, thus the "L" terms
         phi_right = max(0.0_rk, min(alpha_L_xi(i, j) * r_L_i(i, j), alpha_L_xi(i, j), beta_L_i(i, j)))
-        delta_i_minus = self%get_delta(q(i, j), q(i - 1, j)) ! q(i,j) - q(i-1,j)
+        delta_i_minus = delta(q(i, j), q(i - 1, j)) ! q(i,j) - q(i-1,j)
         edge_values(2, i, j) = q(i, j) + 0.5_rk * phi_right * delta_i_minus
 
         ! (i, j+1/2), top edge -> corresponds to the "L" side of the interface, thus the "L" terms
         phi_top = max(0.0_rk, min(alpha_L_eta(i, j) * r_L_j(i, j), alpha_L_eta(i, j), beta_L_j(i, j)))
-        delta_j_minus = self%get_delta(q(i, j), q(i, j - 1)) ! q(i,j) - q(i,j-1)
+        delta_j_minus = delta(q(i, j), q(i, j - 1)) ! q(i,j) - q(i,j-1)
         edge_values(3, i, j) = q(i, j) + 0.5_rk * phi_top * delta_j_minus
 
         ! (i-1/2, j), left edge -> corresponds to the "R" side of the interface, thus the "R" terms
         phi_left = max(0.0_rk, min(alpha_R_xi(i, j) * r_R_i(i, j), alpha_R_xi(i, j), beta_R_i(i, j)))
-        delta_i_plus = self%get_delta(q(i + 1, j), q(i, j)) ! q(i+1,j) - q(i,j)
+        delta_i_plus = delta(q(i + 1, j), q(i, j)) ! q(i+1,j) - q(i,j)
         edge_values(4, i, j) = q(i, j) - 0.5_rk * phi_left * delta_i_plus
       end do
     end do
@@ -239,18 +238,5 @@ contains
     deallocate(tan_theta_j)
 
   end subroutine interpolate_edge_values
-
-  pure real(rk) function smoothness(plus, current, minus) result(r)
-    real(rk), intent(in) :: plus, current, minus
-    real(rk) :: delta_plus, delta_minus
-    real(rk), parameter :: eps = 1e-30
-    delta_plus = plus - current
-    if(abs(delta_plus) < eps) delta_plus = eps
-
-    delta_minus = current - minus
-    if(abs(delta_minus) < eps) delta_minus = eps
-
-    r = (delta_minus + eps) / (delta_plus + eps)
-  end function
 
 end module mod_mlp_3rd_order
