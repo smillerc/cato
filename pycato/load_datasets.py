@@ -128,7 +128,7 @@ def load_dataset(folder, use_dask=False, drop_ghost=True):
         for v in var_list:
             data_vars[f"{v}"] = xr.Variable(
                 space_dims,
-                np.array([h5[f"/{v}"][()] for h5 in h5_files], dtype=np.float32),
+                np.array([h5[f"/{v}"][()].T for h5 in h5_files], dtype=np.float32),
                 attrs={"units": h5_files[0][f"/{v}"].attrs["units"].decode("utf-8")},
             )
 
