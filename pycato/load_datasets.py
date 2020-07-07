@@ -64,7 +64,7 @@ def read_ini(filename):
     return flatten_dict(as_dict(config))
 
 
-def load_dataset(folder, use_dask=False):
+def load_dataset(folder, use_dask=False, drop_ghost=True):
     """Read the dataset info
 
     Parameters
@@ -89,21 +89,22 @@ def load_dataset(folder, use_dask=False):
     h5_files
 
     var_list = [
+        # "ghost_cell",
         "density",
         "pressure",
         "sound_speed",
-        "temperature",
+        # "temperature",
         "x_velocity",
         "y_velocity",
     ]
 
     data_vars = {}
-    space_dims = ("t", "i", "j")
+    space_dims = ("t", "x", "y")
 
     # The ghost cell array is a special case
     data_vars[f"ghost_cell"] = xr.Variable(
-        ("i", "j"),
-        np.array(h5_files[0]["/ghost_cell"][()], dtype=np.int8),
+        ("x", "y"),
+        np.array(h5_files[0]["/ghost_cell"][()].T, dtype=np.int8),
         attrs={"units": h5_files[0]["/ghost_cell"].attrs["units"].decode("utf-8")},
     )
 
@@ -131,22 +132,22 @@ def load_dataset(folder, use_dask=False):
                 attrs={"units": h5_files[0][f"/{v}"].attrs["units"].decode("utf-8")},
             )
 
-    x = np.array(h5_files[0][f"/x"][()], dtype=np.float32)
+    x = np.array(h5_files[0][f"/x"][()].T, dtype=np.float32)
     x_units = h5_files[0][f"/x"].attrs["units"].decode("utf-8")
-    y = np.array(h5_files[0][f"/y"][()], dtype=np.float32)
+    y = np.array(h5_files[0][f"/y"][()].T, dtype=np.float32)
 
     # Get the cell centers
     dy = (np.diff(x[0, :]) / 2.0)[0]
     dx = (np.diff(y[:, 0]) / 2.0)[0]
 
     # cell center locations
-    xc = x[:-1, :-1] + dx
-    yc = y[:-1, :-1] + dy
+    xc = x[:-1, 0] + dx
+    yc = y[0, :-1] + dy
 
     coords = {
         "t": np.array([h5[f"/time"][()] for h5 in h5_files], dtype=np.float32),
-        "x": (["i", "j"], xc),
-        "y": (["i", "j"], yc),
+        "x": xc,
+        "y": yc,
     }
     time_units = h5_files[0][f"/time"].attrs["units"].decode("utf-8")
 
@@ -180,10 +181,13 @@ def load_dataset(folder, use_dask=False):
     ds["mach_x"] = ds.x_velocity / ds.sound_speed
     ds["mach_y"] = ds.y_velocity / ds.sound_speed
 
-    return ds
+    if drop_ghost:
+        return ds.where(ds["ghost_cell"] == 0, drop=True)
+    else:
+        return ds
 
 
-def serialize_dataset(dataset, name="dataset"):
+def serialize_dataset(dataset):
     """Serialize the xarray dataset to file
 
     Parameters
@@ -192,13 +196,6 @@ def serialize_dataset(dataset, name="dataset"):
     """
     comp = dict(zlib=True, complevel=9)
     encoding = {var: comp for var in dataset.data_vars}
-
-    if not name:
-        filename = "dataset.nc"
-    else:
-        if not name.endswith(".nc"):
-            filename = name + ".nc"
-        else:
-            filename = name
+    filename = "dataset.nc"
     print(f"Saving dataset to: {os.path.abspath(filename)}")
     dataset.to_netcdf(filename, engine="h5netcdf", encoding=encoding)

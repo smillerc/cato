@@ -42,6 +42,7 @@ module mod_contour_writer
     procedure, public :: write_contour
     procedure, private :: write_xdmf
     procedure, private :: write_hdf5
+    procedure, private :: write_2d_real_data
     final :: finalize
   end type
 
@@ -95,11 +96,11 @@ contains
     write(*, '(a)') "Contour Writer Info"
     write(*, '(a)') "==================="
     write(*, '(a, a)') 'Output folder: ', writer%results_folder
+    write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
     ! write(*, '(a, l1)') 'plot_reconstruction_states: ', writer%plot_reconstruction_states
     ! write(*, '(a, l1)') 'plot_reference_states: ', writer%plot_reference_states
     ! write(*, '(a, l1)') 'plot_evolved_states: ', writer%plot_evolved_states
     ! write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
-    ! write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
     write(*, *)
 
   end function
@@ -202,16 +203,18 @@ contains
     dataset_name = '/x'
     io_data_buffer = master%grid%node_x(ilo:ihi, jlo:jhi) * l_0
     io_data_buffer = io_data_buffer * io_length_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'X Coordinate')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
+    call self%write_2d_real_data(data=io_data_buffer, name='/x', description='X Coordinate', units=trim(io_length_label))
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'X Coordinate')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
     dataset_name = '/y'
     io_data_buffer = master%grid%node_y(ilo:ihi, jlo:jhi) * l_0
     io_data_buffer = io_data_buffer * io_length_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Y Coordinate')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
+    call self%write_2d_real_data(data=io_data_buffer, name='/y', description='Y Coordinate', units=trim(io_length_label))
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Y Coordinate')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
     deallocate(io_data_buffer)
 
@@ -264,30 +267,34 @@ contains
     dataset_name = '/density'
     io_data_buffer = master%fluid%rho * rho_0
     io_data_buffer = io_data_buffer * io_density_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
+    call self%write_2d_real_data(data=io_data_buffer, name='/density', description='Cell Density', units=trim(io_density_label))
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Density')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_density_label))
 
     dataset_name = '/x_velocity'
     io_data_buffer = master%fluid%u * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
+ call self%write_2d_real_data(data=io_data_buffer, name='/x_velocity', description='Cell X Velocity', units=trim(io_velocity_label))
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell X Velocity')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
     io_data_buffer = master%fluid%v * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
+ call self%write_2d_real_data(data=io_data_buffer, name='/y_velocity', description='Cell Y Velocity', units=trim(io_velocity_label))
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Y Velocity')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     dataset_name = '/pressure'
     io_data_buffer = master%fluid%p * p_0
     io_data_buffer = io_data_buffer * io_pressure_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
+    call self%write_2d_real_data(data=io_data_buffer, name='/pressure', description='Cell Pressure', units=trim(io_pressure_label))
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Pressure')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_pressure_label))
 
     ! dataset_name = '/total_energy'
     ! associate(rhoE=>master%fluid%rho_E, &
@@ -301,27 +308,29 @@ contains
 
     dataset_name = '/sound_speed'
     io_data_buffer = master%fluid%cs * v_0 * io_velocity_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
+    call self%write_2d_real_data(data=io_data_buffer, name='/sound_speed', description='Cell Sound Speed', units=trim(io_velocity_label))
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Sound Speed')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
-    dataset_name = '/temperature'
-    associate(p=>master%fluid%p, &
-              rho=>master%fluid%rho)
-      call eos%temperature(p=p, rho=rho, t=io_data_buffer)
-    end associate
-    io_data_buffer = io_data_buffer * io_temperature_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Temperature')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_temperature_label))
+    ! dataset_name = '/temperature'
+    ! associate(p=>master%fluid%p, &
+    !           rho=>master%fluid%rho)
+    !   call eos%temperature(p=p, rho=rho, t=io_data_buffer)
+    ! end associate
+    ! io_data_buffer = io_data_buffer * io_temperature_units
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Temperature')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_temperature_label))
 
     ! Volume
     dataset_name = '/volume'
     io_data_buffer = master%grid%cell_volume(:, :) * l_0**2
     io_data_buffer = io_data_buffer * io_volume_units
-    call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')
-    call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
+    call self%write_2d_real_data(data=io_data_buffer, name='/volume', description='Cell Volume', units=trim(io_volume_label))
+    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Cell Volume')
+    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_velocity_label))
 
     if(allocated(int_data_buffer)) deallocate(int_data_buffer)
     if(allocated(io_data_buffer)) deallocate(io_data_buffer)
@@ -451,4 +460,22 @@ contains
     deallocate(cell_shape)
     deallocate(node_shape)
   end subroutine write_xdmf
+
+  subroutine write_2d_real_data(self, data, name, description, units)
+    !< Helper subroutine to write data to the hdf5 file.
+    class(contour_writer_t), intent(inout) :: self
+    real(rk), dimension(:, :), intent(in) :: data
+    character(len=*), intent(in) :: name         !< dataset name, e.g. '/density'
+    character(len=*), intent(in) :: description  !< dataset description
+    character(len=*), intent(in) :: units        !< dataset units (if any)
+
+    if(self%plot_64bit) then
+      call self%hdf5_file%add(name, data)
+    else
+      call self%hdf5_file%add(name, real(data, real32))
+    end if
+
+    call self%hdf5_file%writeattr(name, 'description', trim(description))
+    call self%hdf5_file%writeattr(name, 'units', trim(units))
+  end subroutine write_2d_real_data
 end module mod_contour_writer
