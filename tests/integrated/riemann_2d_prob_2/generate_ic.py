@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Make a 2d reimann test problem"""
+"""Make a 2d riemann test problem"""
 import matplotlib.pyplot as plt
 import numpy as np
 import sys

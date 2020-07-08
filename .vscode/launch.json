@@ -1,23 +1,19 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Fortran Launch (GDB)",
+            "name": "(gdb) Launcher",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/cato.x",
             "args": [
                 "input.ini"
             ],
-            "miDebuggerPath": "/usr/bin/gdb",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/tests/integrated/double_shear",
+            "cwd": "${workspaceFolder}/tests/integrated/sod_1d",
             "environment": [],
-            "externalConsole": true,
-            // "preLaunchTask": "/usr/local/bin/gfortran-9"
-        },
+            "externalConsole": false,
+            "MIMode": "gdb",
+        }
     ]
 }

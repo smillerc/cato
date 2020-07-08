@@ -20,7 +20,7 @@ debug:
     - cd debug
     - cmake .. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=YES -DUSE_OPENMP=YES
     - make -j
-    - ctest
+    - ctest --output-on-failure
 
 release:
   stage: build
@@ -30,7 +30,7 @@ release:
     - pwd
     - cmake .. -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTING=YES -DUSE_OPENMP=YES
     - make -j
-    - ctest
+    - ctest --output-on-failure
 
 sod_1d:
   stage: test

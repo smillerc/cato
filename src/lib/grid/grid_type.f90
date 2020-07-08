@@ -1,3 +1,23 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_grid
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
@@ -21,6 +41,7 @@ module mod_grid
   type, abstract :: grid_t
 
     logical :: grid_is_uniform = .false. !< are all the cells the same size?
+    integer(ik) :: n_ghost_layers = 2 !< Number of ghost layers included in the grid
 
     ! Node indicies
     integer(ik) :: ilo_bc_node = 0 !< low i boundary condition node index
@@ -36,6 +57,16 @@ module mod_grid
     integer(ik) :: nj_node = 0 !< Number of j nodes (not including boundary nodes)
 
     ! Cell indices (this may seem a bit redundant, but the main idea is to improved code readibility)
+    ! integer(ik), dimension(:), allocatable :: ilo_ghost_cell_layers !< ilo ghost boundary cell layers
+    ! integer(ik), dimension(:), allocatable :: ihi_ghost_cell_layers !< ihi ghost boundary cell layers
+    ! integer(ik), dimension(:), allocatable :: jlo_ghost_cell_layers !< jlo ghost boundary cell layers
+    ! integer(ik), dimension(:), allocatable :: jhi_ghost_cell_layers !< jhi ghost boundary cell layers
+
+    ! integer(ik), dimension(:), allocatable :: ilo_ghost_node_layers !< ilo ghost boundary nodes
+    ! integer(ik), dimension(:), allocatable :: ihi_ghost_node_layers !< ihi ghost boundary nodes
+    ! integer(ik), dimension(:), allocatable :: jlo_ghost_node_layers !< jlo ghost boundary nodes
+    ! integer(ik), dimension(:), allocatable :: jhi_ghost_node_layers !< jhi ghost boundary nodes
+
     integer(ik) :: ilo_bc_cell = 0 !< low i boundary condition cell index
     integer(ik) :: jlo_bc_cell = 0 !< low j boundary condition cell index
     integer(ik) :: ihi_bc_cell = 0 !< high i boundary condition cell index

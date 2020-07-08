@@ -1,5 +1,25 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_regular_2d_grid
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit, std_error => error_unit
   use mod_grid, only: grid_t, C1, M1, C2, M2, C3, M3, C4, M4
   use mod_units
   use mod_quad_cell, only: quad_cell_t
@@ -8,6 +28,7 @@ module mod_regular_2d_grid
   use mod_globals, only: debug_print
   use mod_floating_point_utils, only: equal
   use mod_nondimensionalization, only: set_length_scale, l_0
+  use mod_functional, only: arange
 
   implicit none
 
@@ -86,15 +107,11 @@ contains
     self%ilo_cell = 1
     self%jlo_cell = 1
 
-    ! Low i/j boundary condition indices
-    self%ilo_bc_node = 0
-    self%jlo_bc_node = 0
-    self%ilo_bc_cell = 0
-    self%jlo_bc_cell = 0
-
     if(input%read_init_cond_from_file .or. input%restart_from_file) then
+      write(*, '(a)') 'Initializing the grid via .hdf5'
       call self%initialize_from_hdf5(input)
     else
+      write(*, '(a)') 'Initializing the grid via .ini'
       call self%initialize_from_ini(input)
     end if
 
@@ -247,6 +264,7 @@ contains
     print *
     write(*, '(a)') "Grid stats:"
     write(*, '(a)') "========================="
+    write(*, '(a, i6)') "n_ghost_layers: ", self%n_ghost_layers
     write(*, '(a, i6, a, i6)') "i nodes: ", self%ilo_node, ' -> ', self%ihi_node
     write(*, '(a, i6, a, i6)') "j nodes: ", self%jlo_node, ' -> ', self%jhi_node
     write(*, '(a, i6, a, i6)') "i cells: ", self%ilo_cell, ' -> ', self%ihi_cell
@@ -265,13 +283,19 @@ contains
     write(*, '(a, i0)') "nj_nodes: ", self%nj_node
     write(*, '(a, i0)') "ni_cells: ", self%ni_cell
     write(*, '(a, i0)') "nj_cells: ", self%nj_cell
+    write(*, '(a, i0)') "total cells: ", self%nj_cell * self%ni_node
+
     write(*, *)
     write(*, '(a)') "Extents"
     write(*, '(a)') "-------"
-    write(*, '(2(a, es10.3))') "x range [non-dim] (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_x(self%ihi_node, self%jhi_node)
-    write(*, '(2(a, es10.3))') "y range [non-dim] (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_y(self%ihi_node, self%jhi_node)
-    write(*, '(2(a, es10.3))') "x range [dim]     (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_x(self%ihi_node, self%jhi_node) * l_0
-    write(*, '(2(a, es10.3))') "y range [dim]     (w/o ghost)", self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_y(self%ihi_node, self%jhi_node) * l_0
+    write(*, '(2(a, es10.3))') "x range [non-dim] (w/o ghost)", &
+      self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_x(self%ihi_node, self%jhi_node)
+    write(*, '(2(a, es10.3))') "y range [non-dim] (w/o ghost)", &
+      self%node_x(self%ilo_node, self%jlo_node), '  -> ', self%node_y(self%ihi_node, self%jhi_node)
+    write(*, '(2(a, es10.3))') "x range [dim]     (w/o ghost)", &
+      self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_x(self%ihi_node, self%jhi_node) * l_0
+    write(*, '(2(a, es10.3))') "y range [dim]     (w/o ghost)", &
+      self%node_x(self%ilo_node, self%jlo_node) * l_0, '  -> ', self%node_y(self%ihi_node, self%jhi_node) * l_0
     write(*, '(a)') "========================="
     write(*, *)
 
@@ -308,6 +332,17 @@ contains
     end if
 
     call h5%initialize(filename=filename, status='old', action='r')
+
+    ! Low i/j boundary condition indices
+    call h5%get('/n_ghost_layers', self%n_ghost_layers)
+
+    if(self%n_ghost_layers /= input%n_ghost_layers) then
+      write(std_error, '(2(a, i0))') "regular_2d_grid_t%n_ghost_layers: ", &
+        self%n_ghost_layers, ", input%n_ghost_layers: ", input%n_ghost_layers
+      error stop "The number of ghost layers in the .hdf5 file does not match the"// &
+        " input requirement set by the edge interpolation scheme"
+    end if
+
     call h5%get('/x', x)
     call h5%get('/y', y)
 
@@ -326,20 +361,34 @@ contains
 
     call h5%finalize()
 
-    ! High node/cell indices
-    self%ihi_node = ubound(x, dim=1) - 2
-    self%jhi_node = ubound(y, dim=2) - 2
+    ! Node
+    self%ilo_node = 1
+    self%jlo_node = 1
+    self%ilo_bc_node = 1 - self%n_ghost_layers
+    self%jlo_bc_node = 1 - self%n_ghost_layers
+    self%ihi_bc_node = ubound(x, dim=1) - self%n_ghost_layers
+    self%jhi_bc_node = ubound(x, dim=2) - self%n_ghost_layers
+    self%ihi_node = self%ihi_bc_node - self%n_ghost_layers
+    self%jhi_node = self%jhi_bc_node - self%n_ghost_layers
+
+    ! Cell
+    self%ilo_cell = 1
+    self%jlo_cell = 1
+    self%ilo_bc_cell = self%ilo_bc_node
+    self%jlo_bc_cell = self%jlo_bc_node
+
     self%ihi_cell = self%ihi_node - 1
     self%jhi_cell = self%jhi_node - 1
+    self%ihi_bc_cell = self%ihi_bc_node - 1
+    self%jhi_bc_cell = self%jhi_bc_node - 1
 
-    ! High i/j boundary condition indices
-    self%ihi_bc_node = self%ihi_node + 1
-    self%jhi_bc_node = self%jhi_node + 1
-    self%ihi_bc_cell = self%ihi_cell + 1
-    self%jhi_bc_cell = self%jhi_cell + 1
+    write(*, '(a, 2(i5))') "cell jlo: ", self%jlo_cell, self%jlo_bc_cell
+    write(*, '(a, 2(i5))') "cell jhi: ", self%jhi_cell, self%jhi_bc_cell
+    write(*, '(a, 2(i5))') "node jlo: ", self%jlo_node, self%jlo_bc_node
+    write(*, '(a, 2(i5))') "node jhi: ", self%jhi_node, self%jhi_bc_node
 
-    self%ni_node = size(x, dim=1) - 2
-    self%nj_node = size(y, dim=2) - 2
+    self%ni_node = size(x, dim=1) - (2 * self%n_ghost_layers)
+    self%nj_node = size(y, dim=2) - (2 * self%n_ghost_layers)
     self%ni_cell = self%ni_node - 1
     self%nj_cell = self%nj_node - 1
 
@@ -369,6 +418,13 @@ contains
     integer(ik) :: alloc_status
     integer(ik) :: i, j
 
+    self%n_ghost_layers = input%n_ghost_layers
+
+    self%ilo_bc_node = 1 - self%n_ghost_layers
+    self%jlo_bc_node = 1 - self%n_ghost_layers
+    self%ilo_bc_cell = 1 - self%n_ghost_layers
+    self%jlo_bc_cell = 1 - self%n_ghost_layers
+
     ! High node/cell indices
     self%ihi_node = input%ni_nodes
     self%jhi_node = input%nj_nodes
@@ -376,10 +432,10 @@ contains
     self%jhi_cell = self%jhi_node - 1
 
     ! High i/j boundary condition indices
-    self%ihi_bc_node = self%ihi_node + 1
-    self%jhi_bc_node = self%jhi_node + 1
-    self%ihi_bc_cell = self%ihi_cell + 1
-    self%jhi_bc_cell = self%jhi_cell + 1
+    self%ihi_bc_node = self%ihi_node + self%n_ghost_layers
+    self%jhi_bc_node = self%jhi_node + self%n_ghost_layers
+    self%ihi_bc_cell = self%ihi_cell + self%n_ghost_layers
+    self%jhi_bc_cell = self%jhi_cell + self%n_ghost_layers
 
     self%ni_node = input%ni_nodes
     self%nj_node = input%nj_nodes
@@ -416,39 +472,15 @@ contains
     self%max_dy = self%min_dy ! placeholder for now
     if(self%min_dy <= 0) error stop "grid%dy <= 0"
 
-    ! Set the x spacing
-    do i = self%ilo_node, self%ihi_node
-      self%node_x(i, :) = self%xmin + (i - 1) * self%min_dx
+    do j = self%jlo_bc_node, self%jhi_bc_node
+      self%node_x(:, j) = arange(start=self%xmin - self%n_ghost_layers * self%min_dx, &
+                                 end=self%xmax + self%n_ghost_layers * self%min_dx, increment=self%min_dx)
     end do
 
-    ! Set the low i boundary location
-    associate(x_0=>self%node_x(self%ilo_node, :), &
-              x_1=>self%node_x(self%ilo_node + 1, :))
-      self%node_x(self%ilo_bc_node, :) = x_0 - (x_1 - x_0)
-    end associate
-
-    ! Set the high i boundary
-    associate(x_n=>self%node_x(self%ihi_node, :), &
-              x_n_minus_1=>self%node_x(self%ihi_node - 1, :))
-      self%node_x(self%ihi_bc_node, :) = x_n + (x_n - x_n_minus_1)
-    end associate
-
-    ! Set the y spacing
-    do j = self%jlo_node, self%jhi_node
-      self%node_y(:, j) = self%ymin + (j - 1) * self%min_dy
+    do i = self%ilo_bc_node, self%ihi_bc_node
+      self%node_y(i, :) = arange(start=self%ymin - self%n_ghost_layers * self%min_dy, &
+                                 end=self%ymax + self%n_ghost_layers * self%min_dy, increment=self%min_dy)
     end do
-
-    ! Set the low j boundary location
-    associate(y_0=>self%node_y(:, self%jlo_node), &
-              y_1=>self%node_y(:, self%jlo_node + 1))
-      self%node_y(:, self%jlo_bc_node) = y_0 - (y_1 - y_0)
-    end associate
-
-    ! Set the high j boundary
-    associate(y_n=>self%node_y(:, self%jhi_node), &
-              y_n_minus_1=>self%node_y(:, self%jhi_node - 1))
-      self%node_y(:, self%jhi_bc_node) = y_n + (y_n - y_n_minus_1)
-    end associate
 
   end subroutine initialize_from_ini
 
@@ -574,7 +606,6 @@ contains
 
   subroutine finalize(self)
     class(regular_2d_grid_t), intent(inout) :: self
-    integer(ik) :: alloc_status
 
     call debug_print('Running regular_2d_grid_t%finalize()', __FILE__, __LINE__)
 

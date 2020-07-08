@@ -11,7 +11,7 @@ export OMP_NUM_THREADS=2
 
 cato_dir=../../../build
 run_dir=`pwd`
-rm -rf results
+rm -rf results output
 python generate_ic.py
 
 if [ -f "cato.x" ]; then rm cato.x; fi
@@ -21,7 +21,7 @@ rm -rf step*
 cd ${cato_dir} && make -j && \
     cd ${run_dir} && \
     cp ${cato_dir}/bin/cato.x . &&\
-    ./cato.x input.ini
+    ./cato.x input.ini 2>&1 | tee -a output
 
 if [ -f "cato.error" ]; then
     echo

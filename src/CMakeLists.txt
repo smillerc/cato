@@ -30,25 +30,23 @@ add_library(
   lib/grid/grid_type.f90
   lib/grid/regular_2d_grid.f90
   lib/grid/grid_factory.f90
-  lib/mach_cone/mach_cone_utilities.f90
-  lib/mach_cone/mach_cone_collection.f90
   lib/geometry/geometry.f90
   lib/geometry/intersections.f90
   lib/geometry/vector_2d.f90
   lib/geometry/vector.f90
   lib/geometry/quad_cell.f90)
 
-target_link_libraries(geometry PUBLIC globals io eos)
+target_link_libraries(geometry PUBLIC globals io eos functional)
 
 add_library(
   cato
+  lib/mach_cone/mach_cone_utilities.f90
+  lib/mach_cone/mach_cone_collection.f90
   lib/mod_timing.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
-  # lib/boundary_conditions/vacuum_bc.f90
   lib/boundary_conditions/inlet_outlet.f90
-  # lib/boundary_conditions/farfield.f90
   lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/symmetry_bc.f90
@@ -59,23 +57,24 @@ add_library(
   lib/fluid/fluxes.f90
   lib/fluid/flux_array.f90
   lib/fluid/mod_fluid.f90
-  lib/evolution_operator/abstract_evo_operator.f90
+  lib/flux_solvers/flux_solver.f90
+  lib/flux_solvers/fvleg_solver.f90
+  lib/flux_solvers/ausm_plus_solver.f90
   lib/evolution_operator/local_evo_operator.f90
-  lib/evolution_operator/evo_operator_factory.f90
-  lib/spatial_reconstruction/gradients.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
-  lib/spatial_reconstruction/edge_interpolation.f90
+  lib/spatial_reconstruction/gradients.f90
   lib/spatial_reconstruction/piecewise_constant.f90
   lib/spatial_reconstruction/piecewise_linear.f90
+  lib/spatial_reconstruction/edge_interpolator.f90
+  lib/spatial_reconstruction/edge_interpolator_factory.f90
+  lib/spatial_reconstruction/tvd_2nd_order.f90
+  lib/spatial_reconstruction/tvd_3rd_order.f90
+  lib/spatial_reconstruction/tvd_5th_order.f90
+  lib/spatial_reconstruction/mlp_baseline.f90
+  lib/spatial_reconstruction/mlp_3rd_order.f90
+  lib/spatial_reconstruction/mlp_5th_order.f90
   lib/spatial_reconstruction/reconstruction_factory.f90
-  lib/finite_volume_scheme/fv_scheme.f90
-  lib/integrand.f90
-  lib/time_integrators/strategy.f90
-  lib/time_integrators/surrogate.f90
-  lib/time_integrators/time_integrator_factory.f90
-  lib/time_integrators/heun_2nd_order.f90
-  lib/time_integrators/ssp_runge_kutta_3rd_order.f90
-  lib/time_integrators/ralston_2nd_order.f90)
+  lib/master_puppeteer/master_puppeteer.f90)
 
 # target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(
@@ -111,7 +110,7 @@ target_link_libraries(
 # lib/evolution_operator/abstract_evo_operator.f90 lib/evolution_operator/local_evo_operator.f90
 # lib/reconstruction/abstract_reconstruction.f90 lib/reconstruction/first_order_reconstruction.f90
 # lib/reconstruction/second_order_reconstruction.f90 lib/reconstruction/reconstruction_factory.f90
-# lib/finite_volume_scheme/fv_scheme.f90 lib/finite_volume_scheme/cato.f90 lib/integrand.f90
+# lib/master_puppeteer/master.f90 lib/master_puppeteer/cato.f90 lib/integrand.f90
 # lib/integrators/strategy.f90 lib/integrators/surrogate.f90
 # lib/integrators/time_integrator_factory.f90 lib/integrators/runge_kutta_2nd_order.f90)
 

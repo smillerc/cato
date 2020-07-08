@@ -90,7 +90,7 @@ plt.title(
 )
 plt.ylabel("")
 plt.xlabel("X")
-
+plt.ylim((-0.1, 1.2))
 plt.legend()
 plt.tight_layout()
 plt.savefig("sod_1d_results.png")

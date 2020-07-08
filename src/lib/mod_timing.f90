@@ -1,8 +1,29 @@
-module mod_timing
-  !< Define the type used for timing
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
 
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64
-  use mod_finite_volume_schemes, only: finite_volume_scheme_t
+module mod_timing
+  !> Summary: Provide implementations for timing and calculating the timestep
+  !> Author: Sam Miller
+
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64, std_out => output_unit
+  use mod_master_puppeteer, only: master_puppeteer_t
   use mod_nondimensionalization, only: t_0
   use mod_fluid, only: fluid_t
 
@@ -83,31 +104,43 @@ contains
 
   subroutine output_stats(self)
     class(timer_t), intent(in) :: self
-    write(*, '(a, es10.3)') "Total elapsed wall time [s]:", self%elapsed_walltime
-    write(*, '(a, es10.3)') "Total elapsed wall time [m]:", self%elapsed_walltime / 60.0_rk
-    write(*, '(a, es10.3)') "Total elapsed wall time [hr]:", self%elapsed_walltime / 3600.0_rk
-    write(*, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
-    write(*, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
-    write(*, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
+
+    integer(ik) :: io
+    integer(ik) :: i, unit
+    integer(ik), dimension(2) :: units
+
+    open(newunit=io, file='timing_summary.yaml', status='replace')
+    units = [io, std_out]
+
+    do i = 1, size(units)
+      unit = units(i)
+      write(unit, '(a, es10.3)') "Total elapsed wall time [s]:", self%elapsed_walltime
+      write(unit, '(a, es10.3)') "Total elapsed wall time [m]:", self%elapsed_walltime / 60.0_rk
+      write(unit, '(a, es10.3)') "Total elapsed wall time [hr]:", self%elapsed_walltime / 3600.0_rk
+      write(unit, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
+      write(unit, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
+      write(unit, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
+    end do
+    close(io)
   end subroutine
 
-  real(rk) function get_timestep(cfl, fv, fluid) result(delta_t)
+  real(rk) function get_timestep(cfl, master) result(delta_t)
     real(rk), intent(in) :: cfl
-    class(finite_volume_scheme_t), intent(in) :: fv
-    class(fluid_t), intent(in) :: fluid
+    class(master_puppeteer_t), intent(in) :: master
 
     integer(ik) :: ilo, ihi, jlo, jhi
 
-    ilo = fv%grid%ilo_cell
-    ihi = fv%grid%ihi_cell
-    jlo = fv%grid%jlo_cell
-    jhi = fv%grid%jhi_cell
+    ilo = master%grid%ilo_cell
+    ihi = master%grid%ihi_cell
+    jlo = master%grid%jlo_cell
+    jhi = master%grid%jhi_cell
 
-    if(.not. fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
-    associate(dx=>fv%grid%cell_dx, dy=>fv%grid%cell_dy)
+    if(.not. master%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
+    associate(dx=>master%grid%cell_dx, dy=>master%grid%cell_dy)
 
-      delta_t = minval(cfl / (((abs(fluid%u(ilo:ihi, jlo:jhi)) + fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
-                              ((abs(fluid%v(ilo:ihi, jlo:jhi)) + fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
+      delta_t = minval(cfl / &
+                       (((abs(master%fluid%u(ilo:ihi, jlo:jhi)) + master%fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
+                        ((abs(master%fluid%v(ilo:ihi, jlo:jhi)) + master%fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
     end associate
     ! !$omp end workshare
 

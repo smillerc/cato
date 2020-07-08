@@ -1,14 +1,34 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_edge_reconstruction
-  !> Summary: Provide procedures to reconstruct the cell interface values
-  !> Date: 05/08/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
-  !>   [1] M. Berger, M. Aftosmis, S. Muman, "Analysis of Slope Limiters on Irregular Grids",
-  !>       43rd AIAA Aerospace Sciences Meeting and Exhibit (2005), https://doi.org/10.2514/6.2005-490
-  !>
-  !>   [2] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
-  !>       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
+  !< Summary: Provide procedures to reconstruct the cell interface values
+  !< Date: 05/08/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
+  !<   [1] M. Berger, M. Aftosmis, S. Muman, "Analysis of Slope Limiters on Irregular Grids",
+  !<       43rd AIAA Aerospace Sciences Meeting and Exhibit (2005), https://doi.org/10.2514/6.2005-490
+  !<
+  !<   [2] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
+  !<       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
@@ -23,7 +43,7 @@ module mod_edge_reconstruction
   real(rk), parameter :: SMALL_DIFF = 1e-9_rk
 
   private
-  public :: reconstruct_edge_values
+  public :: interpolate_edge_values
 
 contains
 
@@ -90,7 +110,7 @@ contains
 
   end subroutine get_smoothness
 
-  subroutine reconstruct_edge_values(q, lbounds, limiter, edge_values)
+  subroutine interpolate_edge_values(q, lbounds, limiter, edge_values)
     !< Reconstruct the cell interface values, e.g. q_i-1/2, q_i+1/2. This assumes a cartesian
     !< structured square grid
 
@@ -116,7 +136,7 @@ contains
     real(rk) :: phi_left   !< limiter for the left edge
     real(rk) :: phi_right  !< limiter for the right edge
 
-    call debug_print('Running reconstruct_edge_values()', __FILE__, __LINE__)
+    call debug_print('Running interpolate_edge_values()', __FILE__, __LINE__)
 
     ilo_bc = lbound(q, dim=1)
     ihi_bc = ubound(q, dim=1)
@@ -128,7 +148,7 @@ contains
     jlo = jlo_bc + n_ghost_layers
     jhi = jhi_bc - n_ghost_layers
 
-    allocate(edge_values(4, ilo:ihi, jlo:jhi))
+    allocate(edge_values(4, ilo_bc:ihi_bc, jlo_bc:jhi_bc))
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -169,9 +189,9 @@ contains
     end do
     !$omp end do
     !$omp end parallel
-  end subroutine reconstruct_edge_values
+  end subroutine interpolate_edge_values
 
-  ! subroutine reconstruct_edge_values(q, lbounds, limiter, edge_values)
+  ! subroutine interpolate_edge_values(q, lbounds, limiter, edge_values)
   !   !< Reconstruct the cell interface values, e.g. q_i-1/2, q_i+1/2. This assumes a cartesian
   !   !< structured square grid
 
@@ -199,7 +219,7 @@ contains
   !   real(rk) :: phi_left   !< limiter for the left edge
   !   real(rk) :: phi_right  !< limiter for the right edge
 
-  !   call debug_print('Running reconstruct_edge_values()', __FILE__, __LINE__)
+  !   call debug_print('Running interpolate_edge_values()', __FILE__, __LINE__)
 
   !   ilo_bc = lbound(q, dim=1)
   !   ihi_bc = ubound(q, dim=1)
@@ -211,7 +231,7 @@ contains
   !   jlo = jlo_bc + n_ghost_layers
   !   jhi = jhi_bc - n_ghost_layers
 
-  !   allocate(edge_values(4, ilo:ihi, jlo:jhi))
+  !   allocate(edge_values(4, ilo_bc:ihi_bc, jlo_bc:jhi_bc))
 
   !   !$omp parallel default(none), &
   !   !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -275,6 +295,6 @@ contains
   !   end do
   !   !$omp end do
   !   !$omp end parallel
-  ! end subroutine reconstruct_edge_values
+  ! end subroutine interpolate_edge_values
 
 end module mod_edge_reconstruction

@@ -15,45 +15,72 @@ module test_bc
   integer(ik), parameter :: nj_cells = nj_nodes - 1
   integer(ik) :: alloc_status
 
+  type(input_t) :: input
+  class(grid_t), pointer :: grid
+  real(rk), dimension(:, :), allocatable :: rho
+  real(rk), dimension(:, :), allocatable :: u
+  real(rk), dimension(:, :), allocatable :: v
+  real(rk), dimension(:, :), allocatable :: p
+  real(rk), dimension(:, :, :), allocatable :: recon_rho
+  real(rk), dimension(:, :, :), allocatable :: recon_u
+  real(rk), dimension(:, :, :), allocatable :: recon_v
+  real(rk), dimension(:, :, :), allocatable :: recon_p
+  integer(ik), parameter :: bottom_edge = 1 !< cell bottom edge index
+  integer(ik), parameter :: right_edge = 2  !< cell right edge index
+  integer(ik), parameter :: top_edge = 3    !< cell top edge index
+  integer(ik), parameter :: left_edge = 4   !< cell left edge index
 contains
 
-  @test
-  subroutine test_bc_factory()
-    class(boundary_condition_t), pointer :: bc_plus_x
-    class(boundary_condition_t), pointer :: bc_plus_y
-    class(boundary_condition_t), pointer :: bc_minus_x
-    class(boundary_condition_t), pointer :: bc_minus_y
-
-    type(input_t) :: input
-    class(grid_t), pointer :: grid
-    real(rk), dimension(:, :, :), allocatable :: U
-    real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
-
-    input = input_t(reconstruction_type='piecewise_linear', &
+  @before
+  subroutine startup()
+    input = input_t(cell_reconstruction='piecewise_linear', &
+                    edge_interpolation_scheme='TVD2', &
+                    flux_solver='AUSM+-up', &
+                    n_ghost_layers=1, &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
     grid => grid_factory(input)
+  end subroutine startup
 
-    ! These are normally handled by the fvleg puppeteer, but for now we make them ourselves
+  @after
+  subroutine cleanup()
+    deallocate(grid)
+  end subroutine cleanup
+
+  @test
+  subroutine test_periodic()
+    !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_plus_x
+    class(boundary_condition_t), pointer :: bc_plus_y
+    class(boundary_condition_t), pointer :: bc_minus_x
+    class(boundary_condition_t), pointer :: bc_minus_y
+    integer(ik), dimension(2) :: lbounds
+
+    ! These are normally handled by the master puppeteer, but for now we make them ourselves
     associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
               bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
 
-      allocate(U(4, left:right, bottom:top), stat=alloc_status)
-      ! ((rho, u, v, p), i, j) Conserved variables for each cell
-      if(alloc_status /= 0) error stop "Unable to allocate U"
+      allocate(rho(left:right, bottom:top), stat=alloc_status)
+      allocate(u(left:right, bottom:top), stat=alloc_status)
+      allocate(v(left:right, bottom:top), stat=alloc_status)
+      allocate(p(left:right, bottom:top), stat=alloc_status)
 
-      allocate(reconstructed_domain(4, 4, 2, left:right, bottom:top), stat=alloc_status)
+      allocate(recon_rho(8, left:right, bottom:top), stat=alloc_status)
+      allocate(recon_u(8, left:right, bottom:top), stat=alloc_status)
+      allocate(recon_v(8, left:right, bottom:top), stat=alloc_status)
+      allocate(recon_p(8, left:right, bottom:top), stat=alloc_status)
 
       ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so right=ni-1, etc
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
     end associate
 
-    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input)
-    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input)
-    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input)
-    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input)
+    lbounds = lbound(rho)
+    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid)
+    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid)
+    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid)
+    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input, grid=grid)
 
     @assertEqual('+x', bc_plus_x%location)
     @assertEqual('+y', bc_plus_y%location)
@@ -61,8 +88,15 @@ contains
     @assertEqual('-y', bc_minus_y%location)
 
     ! Test the conserved var state
-    U = 0.0_rk
-    reconstructed_domain = 0.0_rk
+    rho = 0.0_rk
+    u = 0.0_rk
+    v = 0.0_rk
+    p = 0.0_rk
+
+    recon_rho = 0.0_rk
+    recon_u = 0.0_rk
+    recon_v = 0.0_rk
+    recon_p = 0.0_rk
 
     ! the boundary routines
 
@@ -95,34 +129,45 @@ contains
     associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
               bottom=>grid%jlo_cell, top=>grid%jhi_cell)
 
-      U(:, left:right, bottom) = 5.0_rk ! "5" cells in cartoon
-      U(:, left:right, top) = 7.0_rk    ! "7" cells in cartoon
-      U(:, left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
-      U(:, right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
-      U(:, left, bottom) = 1.0_rk       ! "1" cells in cartoon
-      U(:, left, top) = 4.0_rk          ! "4" cells in cartoon
-      U(:, right, bottom) = 2.0_rk      ! "2" cells in cartoon
-      U(:, right, top) = 3.0_rk         ! "3" cells in cartoon
+      rho(left:right, bottom) = 5.0_rk ! "5" cells in cartoon
+      rho(left:right, top) = 7.0_rk    ! "7" cells in cartoon
+      rho(left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
+      rho(right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
+      rho(left, bottom) = 1.0_rk       ! "1" cells in cartoon
+      rho(left, top) = 4.0_rk          ! "4" cells in cartoon
+      rho(right, bottom) = 2.0_rk      ! "2" cells in cartoon
+      rho(right, top) = 3.0_rk         ! "3" cells in cartoon
 
-      reconstructed_domain(:, :, :, left:right, bottom) = 5.0_rk ! "5" cells in cartoon
-      reconstructed_domain(:, :, :, left:right, top) = 7.0_rk    ! "7" cells in cartoon
-      reconstructed_domain(:, :, :, right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
-      reconstructed_domain(:, :, :, left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
-      reconstructed_domain(:, :, :, left, bottom) = 1.0_rk       ! "1" cells in cartoon
-      reconstructed_domain(:, :, :, left, top) = 4.0_rk          ! "4" cells in cartoon
-      reconstructed_domain(:, :, :, right, bottom) = 2.0_rk      ! "2" cells in cartoon
-      reconstructed_domain(:, :, :, right, top) = 3.0_rk         ! "3" cells in cartoon
+      ! recon_rho(:, left:right, bottom) = 5.0_rk ! "5" cells in cartoon
+      ! recon_rho(:, left:right, top) = 7.0_rk    ! "7" cells in cartoon
+      ! recon_rho(:, right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
+      ! recon_rho(:, left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
+      ! recon_rho(:, left, bottom) = 1.0_rk       ! "1" cells in cartoon
+      ! recon_rho(:, left, top) = 4.0_rk          ! "4" cells in cartoon
+      ! recon_rho(:, right, bottom) = 2.0_rk      ! "2" cells in cartoon
+      ! recon_rho(:, right, top) = 3.0_rk         ! "3" cells in cartoon
     end associate
 
-    call bc_plus_x%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
-    call bc_plus_y%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
-    call bc_minus_x%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
-    call bc_minus_y%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
+    call bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
 
-    call bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
-    call bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
-    call bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
-    call bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
+    call bc_plus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, recon_u=recon_u, &
+                                                recon_v=recon_v, recon_p=recon_p, &
+                                                lbounds=lbounds)
+
+    call bc_plus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, recon_u=recon_u, &
+                                                recon_v=recon_v, recon_p=recon_p, &
+                                                lbounds=lbounds)
+
+    call bc_minus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, recon_u=recon_u, &
+                                                 recon_v=recon_v, recon_p=recon_p, &
+                                                 lbounds=lbounds)
+
+    call bc_minus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, recon_u=recon_u, &
+                                                 recon_v=recon_v, recon_p=recon_p, &
+                                                 lbounds=lbounds)
 
     associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
               bottom=>grid%jlo_cell, top=>grid%jhi_cell, &
@@ -130,29 +175,225 @@ contains
               bottom_ghost=>grid%jlo_bc_cell, top_ghost=>grid%jhi_bc_cell)
 
       ! bottom ghost layer
-      @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], U(1, :, bottom_ghost))
-      @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], reconstructed_domain(1, 1, 1, :, bottom_ghost))
+      @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], rho(:, bottom_ghost))
+      ! @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], recon_rho(1, 1, 1, :, bottom_ghost))
 
       ! top ghost layer
-      @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], U(1, :, top_ghost))
-      @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], reconstructed_domain(1, 1, 1, :, top_ghost))
+      @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], rho(:, top_ghost))
+      ! @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], recon_rho(1, 1, 1, :, top_ghost))
 
       ! left ghost layer
-      @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], U(1, left_ghost, :))
-      @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], reconstructed_domain(1, 1, 1, left_ghost, :))
+      @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], rho(left_ghost, :))
+      ! @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], recon_rho(1, 1, 1, left_ghost, :))
 
       ! right ghost layer
-      @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], U(1, right_ghost, :))
-      @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], reconstructed_domain(1, 1, 1, right_ghost, :))
+      @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], rho(right_ghost, :))
+      ! @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], recon_rho(1, 1, 1, right_ghost, :))
     end associate
 
     deallocate(bc_plus_x)
     deallocate(bc_plus_y)
     deallocate(bc_minus_x)
     deallocate(bc_minus_y)
-    deallocate(grid)
-    deallocate(U)
-    deallocate(reconstructed_domain)
-  end subroutine
 
+    deallocate(rho)
+    deallocate(u)
+    deallocate(v)
+    deallocate(p)
+    deallocate(recon_rho)
+    deallocate(recon_u)
+    deallocate(recon_v)
+    deallocate(recon_p)
+
+  end subroutine test_periodic
+
+  @test
+  subroutine test_symmetry_with_recon()
+    !< Test the symmetry boundary condition
+    class(boundary_condition_t), pointer :: bc_plus_x
+    class(boundary_condition_t), pointer :: bc_plus_y
+    class(boundary_condition_t), pointer :: bc_minus_x
+    class(boundary_condition_t), pointer :: bc_minus_y
+    integer(ik) :: top_ghost, left_ghost, right_ghost, bottom_ghost
+    integer(ik), dimension(2) :: lbounds
+
+
+    bottom_ghost = grid%jlo_bc_cell
+    top_ghost = grid%jhi_bc_cell
+
+    left_ghost = grid%ilo_bc_cell
+    right_ghost = grid%ihi_bc_cell
+
+    ! These are normally handled by the master puppeteer, but for now we make them ourselves
+    associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
+              bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
+
+      allocate(rho(left:right, bottom:top), stat=alloc_status)
+      allocate(u(left:right, bottom:top), stat=alloc_status)
+      allocate(v(left:right, bottom:top), stat=alloc_status)
+      allocate(p(left:right, bottom:top), stat=alloc_status)
+
+      allocate(recon_rho(4, left:right, bottom:top), stat=alloc_status)
+      allocate(recon_u(4, left:right, bottom:top), stat=alloc_status)
+      allocate(recon_v(4, left:right, bottom:top), stat=alloc_status)
+      allocate(recon_p(4, left:right, bottom:top), stat=alloc_status)
+
+      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so right=ni-1, etc
+      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+    end associate
+
+    lbounds = lbound(rho)
+    bc_plus_x => bc_factory(bc_type='symmetry', location='+x', input=input, grid=grid)
+    bc_plus_y => bc_factory(bc_type='symmetry', location='+y', input=input, grid=grid)
+    bc_minus_x => bc_factory(bc_type='symmetry', location='-x', input=input, grid=grid)
+    bc_minus_y => bc_factory(bc_type='symmetry', location='-y', input=input, grid=grid)
+
+    @assertEqual('+x', bc_plus_x%location)
+    @assertEqual('+y', bc_plus_y%location)
+    @assertEqual('-x', bc_minus_x%location)
+    @assertEqual('-y', bc_minus_y%location)
+
+    !   Domain cartoon layout
+    !   |---||---|---|---|---||---|
+    !   | 0 || 0 | -2| -2| 0 || 0 | <- j3; aka top_ghost (grid%jhi_bc_cell)
+    !   |===||===|===|===|===||===|
+    !   | 0 || 0 | 2 | 2 | 0 || 0 | <- j2; aka top (grid%jhi_cell)
+    !   |---||---|---|---|---||---|
+    !   | -1|| 1 | 0 | 0 | 3 || -3|
+    !   |---||---|---|---|---||---|
+    !   | -1|| 1 | 0 | 0 | 3 || -3|
+    !   |---||---|---|---|---||---|
+    !   | 0 || 0 | 5 | 5 | 0 || 0 | <- j1; aka bottom (grid%jlo_cell)
+    !   |===||===|===|===|===||===|
+    !   | 0 || 0 | -5| -5| 0 || 0 | <- j0; aka bottom_ghost (grid%jlo_bc_cell)
+    !   |---||---|---|---|---||---|
+    !    i0   i1  i2  i3  i4   i5
+
+    ! i0; aka left_ghost, grid%ilo_bc_cell
+    ! i1; aka left, grid%ilo_cell
+    ! i4; aka right, grid%ihi_cell
+    ! i5; aka right_ghost grid%ihi_bc_cell
+
+    ! Set unique values along the (real) edges so I can test the bc routines
+    ! Recon cells are psuedo edge values that we would
+    ! normally get from the TVD edge interpolation values. The values
+    ! will be in order of [bottom, right, top, left]. These are important
+    ! to get flipped for a symmetry boundary. The value given in the cartoon represents
+    ! the cell average value, and the edge on the boundary will be +1 and the edge away
+    ! from it will be -1 of the average.
+
+    rho = 0.0_rk
+    recon_rho = 0.0_rk
+
+    ! Bottom BC of the domain (-y)
+    recon_rho(top_edge, 2:3, 1) = 4.0_rk
+    rho(2:3, 1) = 5.0_rk
+    recon_rho(bottom_edge, 2:3, 1) = 6.0_rk
+
+    ! Top BC of the domain (+y)
+    recon_rho(top_edge, 2:3, 4) = 3.0_rk
+    rho(2:3, 4) = 2.0_rk
+    recon_rho(bottom_edge, 2:3, 4) = 1.0_rk
+
+    ! Left BC of the domain (-x)
+    recon_rho(left_edge, 1, 2:3) = 2.0_rk
+    rho(1, 2:3) = 1.0_rk
+    recon_rho(right_edge, 1, 2:3) = 0.0_rk
+
+    ! Right BC of the domain (+x)
+    recon_rho(right_edge, 4, 2:3) = 4.0_rk
+    rho(4, 2:3) = 3.0_rk
+    recon_rho(left_edge, 4, 2:3) = 2.0_rk
+
+    ! Copy to the other arrays
+    u = rho
+    v = rho
+    p = rho
+
+    recon_u = recon_rho
+    recon_v = recon_rho
+    recon_p = recon_rho
+
+    call bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_minus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_minus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+
+    call bc_plus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, recon_u=recon_u, &
+                                                recon_v=recon_v, recon_p=recon_p, &
+                                                lbounds=lbounds)
+
+    call bc_plus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, recon_u=recon_u, &
+                                                recon_v=recon_v, recon_p=recon_p, &
+                                                lbounds=lbounds)
+
+    call bc_minus_x%apply_reconstructed_state_bc(recon_rho=recon_rho, recon_u=recon_u, &
+                                                 recon_v=recon_v, recon_p=recon_p, &
+                                                 lbounds=lbounds)
+
+    call bc_minus_y%apply_reconstructed_state_bc(recon_rho=recon_rho, recon_u=recon_u, &
+                                                 recon_v=recon_v, recon_p=recon_p, &
+                                                 lbounds=lbounds)
+
+    ! bottom ghost layer primitive
+    ! everything should be the same except for v, which is a mirror opposite due to symmetry
+    @assertEqual([5.0_rk, 5.0_rk], rho(2:3, bottom_ghost))
+    @assertEqual([5.0_rk, 5.0_rk],   u(2:3, bottom_ghost))
+    @assertEqual([5.0_rk, 5.0_rk],   p(2:3, bottom_ghost))
+    @assertEqual([-5.0_rk, -5.0_rk], v(2:3, bottom_ghost))
+
+    @assertEqual([ 4.0_rk, 0.0_rk,  6.0_rk, 0.0_rk], recon_rho(:, 2, bottom_ghost))
+    @assertEqual([ 4.0_rk, 0.0_rk,  6.0_rk, 0.0_rk], recon_u(:, 2,   bottom_ghost))
+    @assertEqual([-4.0_rk, 0.0_rk, -6.0_rk, 0.0_rk], recon_v(:, 2,   bottom_ghost))
+    @assertEqual([ 4.0_rk, 0.0_rk,  6.0_rk, 0.0_rk], recon_p(:, 2,   bottom_ghost))
+
+    ! top ghost layer
+    @assertEqual([ 2.0_rk,  2.0_rk], rho(2:3, top_ghost))
+    @assertEqual([ 2.0_rk,  2.0_rk],   u(2:3, top_ghost))
+    @assertEqual([ 2.0_rk,  2.0_rk],   p(2:3, top_ghost))
+    @assertEqual([-2.0_rk, -2.0_rk],   v(2:3, top_ghost))
+
+    @assertEqual([ 3.0_rk, 0.0_rk,  1.0_rk, 0.0_rk], recon_rho(:, 2, top_ghost))
+    @assertEqual([ 3.0_rk, 0.0_rk,  1.0_rk, 0.0_rk],   recon_u(:, 2, top_ghost))
+    @assertEqual([-3.0_rk, 0.0_rk, -1.0_rk, 0.0_rk],   recon_v(:, 2, top_ghost))
+    @assertEqual([ 3.0_rk, 0.0_rk,  1.0_rk, 0.0_rk],   recon_p(:, 2, top_ghost))
+
+    ! right ghost layer primitive
+    ! everything should be the same except for u, which is a mirror opposite due to symmetry
+    @assertEqual([ 3.0_rk,  3.0_rk], rho(right_ghost, 2:3))
+    @assertEqual([-3.0_rk, -3.0_rk],   u(right_ghost, 2:3))
+    @assertEqual([ 3.0_rk,  3.0_rk],   p(right_ghost, 2:3))
+    @assertEqual([ 3.0_rk,  3.0_rk],   v(right_ghost, 2:3))
+
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 4.0_rk], recon_rho(:, right_ghost, 2))
+    @assertEqual([ 0.0_rk,-2.0_rk, 0.0_rk,-4.0_rk],   recon_u(:, right_ghost, 2))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 4.0_rk],   recon_v(:, right_ghost, 2))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 4.0_rk],   recon_p(:, right_ghost, 2))
+
+    ! left ghost layer
+    @assertEqual([ 1.0_rk,  1.0_rk], rho(left_ghost, 2:3))
+    @assertEqual([-1.0_rk, -1.0_rk],   u(left_ghost, 2:3))
+    @assertEqual([ 1.0_rk,  1.0_rk],   p(left_ghost, 2:3))
+    @assertEqual([ 1.0_rk,  1.0_rk],   v(left_ghost, 2:3))
+
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 0.0_rk], recon_rho(:, left_ghost, 2))
+    @assertEqual([ 0.0_rk,-2.0_rk, 0.0_rk, 0.0_rk],   recon_u(:, left_ghost, 2))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 0.0_rk],   recon_v(:, left_ghost, 2))
+    @assertEqual([ 0.0_rk, 2.0_rk, 0.0_rk, 0.0_rk],   recon_p(:, left_ghost, 2))
+
+    deallocate(bc_plus_x)
+    deallocate(bc_plus_y)
+    deallocate(bc_minus_x)
+    deallocate(bc_minus_y)
+
+    deallocate(rho)
+    deallocate(u)
+    deallocate(v)
+    deallocate(p)
+    deallocate(recon_rho)
+    deallocate(recon_u)
+    deallocate(recon_v)
+    deallocate(recon_p)
+
+  end subroutine test_symmetry_with_recon
 end module test_bc

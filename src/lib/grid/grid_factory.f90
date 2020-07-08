@@ -1,3 +1,23 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_grid_factory
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
@@ -30,8 +50,8 @@ contains
     select case(trim(input%grid_type))
     case('2d_regular')
       grid => new_regular_2d_grid(input)
-      call set_domain_dimensionality(dimensionality='2D_XY', grid_orthogonality=.true.)
-      ! call grid%initialize(input)
+      call set_domain_dimensionality(dimensionality='2D_XY', &
+                                     grid_orthogonality=.true., num_ghost_layers=grid%n_ghost_layers)
 
     case default
       error stop 'Unsupported grid type in grid_factory'

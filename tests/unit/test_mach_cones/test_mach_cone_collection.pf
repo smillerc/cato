@@ -1,0 +1,1536 @@
+module test_mach_cone_collection
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_mach_cone_collection, only: mach_cone_collection_t, reconstruct_p_prime
+  use mod_abstract_reconstruction, only: abstract_reconstruction_t
+  use mod_reconstruction_factory, only: reconstruction_factory
+  use math_constants, only: pi, rad2deg
+  use mod_grid, only: grid_t
+  use mod_grid_factory, only: grid_factory
+  use mod_input, only: input_t
+
+  use funit
+
+  implicit none
+
+  class(abstract_reconstruction_t), allocatable :: reconstruction_operator !< Recon operator used to find P' values
+  class(grid_t), pointer :: grid
+  type(input_t) :: input
+
+  integer(ik), parameter :: ni_nodes = 5
+  integer(ik), parameter :: nj_nodes = 5
+  integer(ik), parameter :: ni_cells = ni_nodes - 1
+  integer(ik), parameter :: nj_cells = nj_nodes - 1
+  real(rk), parameter :: xmin = -2.0_rk
+  real(rk), parameter :: xmax = 2.0_rk
+  real(rk), parameter :: ymin = -2.0_rk
+  real(rk), parameter :: ymax = 2.0_rk
+  integer(ik) :: alloc_stat
+  integer(ik), parameter :: C1 = 1
+  integer(ik), parameter :: M1 = 2
+  integer(ik), parameter :: C2 = 3
+  integer(ik), parameter :: M2 = 4
+  integer(ik), parameter :: C3 = 5
+  integer(ik), parameter :: M3 = 6
+  integer(ik), parameter :: C4 = 7
+  integer(ik), parameter :: M4 = 8
+
+  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: rho
+  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: u
+  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: v
+  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: p
+
+  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_rho
+  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_u
+  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_v
+  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_p
+
+  integer(ik), allocatable, dimension(:, :, :, :) :: corner_neighbors
+  integer(ik), allocatable, dimension(:, :, :, :) :: leftright_midpoint_neighbors
+  integer(ik), allocatable, dimension(:, :, :, :) :: downup_midpoint_neighbors
+
+contains
+
+  ! Corner/midpoint index convention         Cell Indexing convention
+  ! --------------------------------         ------------------------
+  !
+  !   C----M----C----M----C
+  !   |         |         |                             E3
+  !   O    x    O    x    O                      N4-----M3----N3
+  !   |         |         |                      |            |
+  !   C----M----C----M----C                  E4  M4     C     M2  E2
+  !   |         |         |                      |            |
+  !   O    x    O    x    O                      N1----M1----N2
+  !   |         |         |                            E1
+  !   C----M----C----M----C
+  !
+  ! For left/right midpoints, the edge vectors go left then right.
+  ! The neighboring cells are above (i,j) and below (i,j-1)
+  ! For quad cells, N - corner, M - midpoint, E - edge
+
+  @before
+  subroutine before()
+
+    class(abstract_reconstruction_t), pointer :: r_omega => null()
+    integer(ik) :: i, j
+
+    print *, 'Creating reconstruction_operator in test_mach_cone_collection before()'
+    input = input_t(cell_reconstruction='piecewise_linear', &
+                    edge_interpolation_scheme='TVD2', &
+                    limiter='none', &
+                    gradient_scheme='green_gauss', &
+                    ni_nodes=ni_nodes - 2, nj_nodes=nj_nodes - 2, &
+                    read_init_cond_from_file=.false., &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+
+    grid => grid_factory(input)
+
+    r_omega => reconstruction_factory(input=input, grid_target=grid)
+    allocate(reconstruction_operator, source=r_omega)
+    deallocate(r_omega)
+
+    associate(imin_node=>grid%ilo_node, imax_node=>grid%ihi_node, &
+              jmin_node=>grid%jlo_node, jmax_node=>grid%jhi_node, &
+              imin_cell=>grid%ilo_cell, imax_cell=>grid%ihi_cell, &
+              jmin_cell=>grid%jlo_cell, jmax_cell=>grid%jhi_cell)
+
+      allocate(corner_neighbors(2, 4, imin_node:imax_node, jmin_node:jmax_node))
+      allocate(leftright_midpoint_neighbors(2, 2, imin_cell:imax_cell, jmin_node:jmax_node))
+      allocate(downup_midpoint_neighbors(2, 2, imin_node:imax_node, jmin_cell:jmax_cell))
+
+      corner_neighbors = 0
+      downup_midpoint_neighbors = 0
+      leftright_midpoint_neighbors = 0
+
+      do j = jmin_node, jmax_node
+        do i = imin_node, imax_node
+          corner_neighbors(:, 1, i, j) = [i - 1, j - 1] ! lower left
+          corner_neighbors(:, 2, i, j) = [i, j - 1]     ! lower right
+          corner_neighbors(:, 3, i, j) = [i, j]         ! upper right
+          corner_neighbors(:, 4, i, j) = [i - 1, j]     ! upper left
+        end do
+      end do
+
+      do j = jmin_node, jmax_node
+        do i = imin_cell, imax_cell
+          leftright_midpoint_neighbors(:, 1, i, j) = [i, j]     ! above
+          leftright_midpoint_neighbors(:, 2, i, j) = [i, j - 1] ! below
+        end do
+      end do
+
+      do j = jmin_cell, jmax_cell
+        do i = imin_node, imax_node
+          downup_midpoint_neighbors(:, 1, i, j) = [i - 1, j] ! left
+          downup_midpoint_neighbors(:, 2, i, j) = [i, j]     ! right
+        end do
+      end do
+    end associate
+
+  end subroutine
+
+  @after
+  subroutine after()
+    deallocate(corner_neighbors)
+    deallocate(leftright_midpoint_neighbors)
+    deallocate(downup_midpoint_neighbors)
+    deallocate(reconstruction_operator)
+    deallocate(grid)
+  end subroutine
+
+  @test
+  subroutine test_midpoint_lr_p_prime_below_no_int()
+    !< Test the Mach cone, where the apex is a midpoint and P' is below it
+
+    type(mach_cone_collection_t) :: mach_cone
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_rho
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_u
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_v
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_p
+
+    integer(ik) :: i, j
+    integer(ik) :: ilo, ihi, jlo, jhi
+    real(rk), dimension(4) :: dtheta !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+
+    print *, "Calling test_midpoint_lr_p_prime_below_no_int"
+
+    !  |          |
+    !  |  cell 1  |
+    !  |  (2,2)   |
+    !  C1----M----C2
+    !  |  (.) P'  |
+    !  |  (2,1)   |
+    !  |  cell 2  |
+
+    ! For cell (i = 2, j = 2), the midpoint index is also (2,2)
+
+    !           Domain                     -->     Primitive Variable (rho)
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   1   |   1   ||   1   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   3   ||   2      2   ||   3   |
+    ! |-------||-------|---M---||-------|  -->  |-------||-------|---M---||-------|
+    ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   3   ||   3   |   3   ||   3   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   4   ||   4   |   4   ||   4   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+
+    rho(:, 3) = 1.0_rk
+    rho(:, 2) = 2.0_rk
+    rho(:, 1) = 3.0_rk
+    rho(:, 0) = 4.0_rk
+
+    u = 0.0_rk
+    v = 4.0_rk
+    p = 1.0_rk
+
+    call reconstruction_operator%set_cell_average_pointers(rho=rho, p=p, lbounds=lbound(p))
+    call reconstruction_operator%reconstruct(primitive_var=rho, &
+                                             reconstructed_var=recon_rho, &
+                                             lbounds=lbound(rho), &
+                                             name='rho', stage_name='test_1')
+    call reconstruction_operator%reconstruct(primitive_var=p, &
+                                             reconstructed_var=recon_p, &
+                                             lbounds=lbound(p), &
+                                             name='p', stage_name='test_1')
+
+    ! Top BC
+    recon_rho(M4, :, 3) = 1.0_rk; recon_rho(M2, :, 3) = 1.0_rk
+    recon_rho(C3, :, 3) = 0.5_rk; recon_rho(C4, :, 3) = 0.5_rk; recon_rho(M3, :, 3) = 0.5_rk
+    recon_rho(C1, :, 3) = 1.5_rk; recon_rho(C2, :, 3) = 1.5_rk; recon_rho(M1, :, 3) = 1.5_rk
+
+    ! Bottom BC
+    recon_rho(M4, :, 0) = 4.0_rk; recon_rho(M2, :, 0) = 4.0_rk
+    recon_rho(C3, :, 0) = 3.5_rk; recon_rho(C4, :, 0) = 3.5_rk; recon_rho(M3, :, 0) = 3.5_rk
+    recon_rho(C1, :, 0) = 4.5_rk; recon_rho(C2, :, 0) = 4.5_rk; recon_rho(M1, :, 0) = 4.5_rk
+
+    ! Left/Right BC -> just put numbers in, it doesn't matter for this test
+    recon_rho(:, 0, 1:2) = 3.0_rk
+    recon_rho(:, 3, 1:2) = 3.0_rk
+
+    reconstruction_operator%grad_x_rho = 0.0_rk
+    reconstruction_operator%grad_y_rho = -1.0_rk
+
+    ilo = 1
+    ihi = 2
+    jlo = 1
+    jhi = 3
+
+    allocate(midpoint_reconstructed_rho(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_u(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_v(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_p(2, ilo:ihi, jlo:jhi))
+
+    midpoint_reconstructed_u = 0.0_rk
+    midpoint_reconstructed_v = 4.0_rk
+    midpoint_reconstructed_p = 1.0_rk
+
+    do j = jlo, jhi
+      do i = ilo, ihi
+        ! Cell 1 -> use M1 from the cell above
+        midpoint_reconstructed_rho(1, i, j) = recon_rho(M1, i, j)
+
+        ! Cell 2 -> use M3 from the cell below
+        midpoint_reconstructed_rho(2, i, j) = recon_rho(M3, i, j - 1)
+      end do
+    end do
+
+    i = 2; j = 2
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=grid%leftright_midpoint_edge_vectors, &
+                              reconstructed_rho=midpoint_reconstructed_rho, &
+                              reconstructed_u=midpoint_reconstructed_u, &
+                              reconstructed_v=midpoint_reconstructed_v, &
+                              reconstructed_p=midpoint_reconstructed_p, &
+                              cell_indices=leftright_midpoint_neighbors, &
+                              cone_location='left/right midpoint', &
+                              lbounds=[1, 1, 1], &
+                              reconstruction_operator=reconstruction_operator)
+    call mach_cone%print(i, j)
+
+    ! P' should be in the cell below the midpoint
+    @assertEqual([0.5_rk, 0.0_rk],[mach_cone%p0_x(i, j), mach_cone%p0_y(i, j)])
+    @assertEqual([0.5_rk, -0.04_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+    @assertEqual([2, 1], mach_cone%p_prime_ij(:, i, j))
+    @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
+
+    if(reconstruct_p_prime) then
+      @assertEqual(2.54_rk, mach_cone%density_p_prime(i, j))
+      @assertEqual(1.0_rk, mach_cone%pressure_p_prime(i, j))
+    end if
+
+    !print*, mach_cone
+    dtheta = 0.0_rk
+    dtheta(3) = 2.0_rk * pi ! the entire arc is in cell 2 arc 1, e.g. 2pi
+
+    @assertEqual(dtheta, mach_cone%dtheta(:, i, j))
+    @assertEqual(2 * pi, sum(mach_cone%dtheta(:, i, j)))
+    @assertEqual(0.0_rk, mach_cone%sin_dtheta)
+    @assertEqual(0.0_rk, mach_cone%cos_dtheta)
+    @assertEqual(0.0_rk, mach_cone%sin_d2theta)
+    @assertEqual(0.0_rk, mach_cone%cos_d2theta)
+
+    deallocate(midpoint_reconstructed_rho)
+    deallocate(midpoint_reconstructed_u)
+    deallocate(midpoint_reconstructed_v)
+    deallocate(midpoint_reconstructed_p)
+
+  end subroutine test_midpoint_lr_p_prime_below_no_int
+
+  !   ! Left BC
+  ! recon_rho(M1,0,:) = 1.0_rk; recon_rho(M3,0,:) = 1.0_rk
+  ! recon_rho(C1,0,:) = 0.5_rk; recon_rho(C4,0,:) = 0.5_rk; recon_rho(M4,0,:) = 0.5_rk
+  ! recon_rho(C2,0,:) = 1.5_rk; recon_rho(C3,0,:) = 1.5_rk; recon_rho(M2,0,:) = 1.5_rk
+
+  ! ! Right BC
+  ! recon_rho(M1,3,:) = 4.0_rk; recon_rho(M3,3,:) = 4.0_rk
+  ! recon_rho(C1,3,:) = 3.5_rk; recon_rho(C4,3,:) = 3.5_rk; recon_rho(M4,3,:) = 3.5_rk
+  ! recon_rho(C2,3,:) = 4.5_rk; recon_rho(C3,3,:) = 4.5_rk; recon_rho(M2,3,:) = 4.5_rk
+
+  ! ! Bottom BC
+  ! recon_rho(M1,1,0) = 2.0_rk; recon_rho(M3,1,0) = 2.0_rk
+  ! recon_rho(C1,1,0) = 1.5_rk; recon_rho(C4,1,0) = 1.5_rk; recon_rho(M4,1,0) = 1.5_rk
+  ! recon_rho(C2,1,0) = 2.5_rk; recon_rho(C3,1,0) = 2.5_rk; recon_rho(M2,1,0) = 2.5_rk
+
+  ! recon_rho(M1,2,0) = 3.0_rk; recon_rho(M3,2,0) = 3.0_rk
+  ! recon_rho(C1,2,0) = 2.5_rk; recon_rho(C4,2,0) = 2.5_rk; recon_rho(M4,2,0) = 2.5_rk
+  ! recon_rho(C2,2,0) = 3.5_rk; recon_rho(C3,2,0) = 3.5_rk; recon_rho(M2,2,0) = 3.5_rk
+
+  ! ! Top BC
+  ! recon_rho(M1,1,3) = 2.0_rk; recon_rho(M3,1,3) = 2.0_rk
+  ! recon_rho(C1,1,3) = 1.5_rk; recon_rho(C4,1,3) = 1.5_rk; recon_rho(M4,1,3) = 1.5_rk
+  ! recon_rho(C2,1,3) = 2.5_rk; recon_rho(C3,1,3) = 2.5_rk; recon_rho(M2,1,3) = 2.5_rk
+
+  ! recon_rho(M1,2,3) = 3.0_rk; recon_rho(M3,2,3) = 3.0_rk
+  ! recon_rho(C1,2,3) = 2.5_rk; recon_rho(C4,2,3) = 2.5_rk; recon_rho(M4,2,3) = 2.5_rk
+  ! recon_rho(C2,2,3) = 3.5_rk; recon_rho(C3,2,3) = 3.5_rk; recon_rho(M2,2,3) = 3.5_rk
+
+  ! @test
+  ! subroutine test_midpoint_lr_p_prime_below_with_int()
+  !   !< Test the Mach cone, where the apex is a midpoint and P' is below it
+
+  !   !  |          |
+  !   !  |  cell 1  |
+  !   !  |  (i,j)   |
+  !   !  C1---M----C2
+  !   !  |  (.) P'  |
+  !   !  |  cell 2  |
+  !   !  | (i,j-1)  |
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 2, 1, 1) :: midpoint_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(4) :: dtheta = 0.0_rk  !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+  !   real(rk), dimension(4) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(4) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(4) :: data_buffer = 0.0_rk
+
+  !   print *
+  !   print *, "Calling test_midpoint_lr_p_prime_below_with_int()"
+  !   print *
+  !   i = 1
+  !   j = 1
+  !   ! <----M---->  (left and right vectors)
+  !   edge_vectors(:, 1, i, j) = [-1.0_rk, 0.0_rk] ! left
+  !   edge_vectors(:, 2, i, j) = [1.0_rk, 0.0_rk] ! right
+  !   vector_scaling = 1.0_rk
+
+  !   ! cell ordering is 1) top, 2) bottom
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i, j] ! top
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! bottom
+
+  !   midpoint_state(:, 1, i, j) = [1.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
+  !   midpoint_state(:, 2, i, j) = [1.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=midpoint_state(1, :, :, :), &
+  !                             reconstructed_u=midpoint_state(2, :, :, :), &
+  !                             reconstructed_v=midpoint_state(3, :, :, :), &
+  !                             reconstructed_p=midpoint_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='left/right midpoint')
+  !   call mach_cone%print(i, j)
+  !   ! P' should be in the cell below the midpoint
+  !   @assertEqual([0.0_rk, -0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   ! These values are known a priori (this is a test after all)
+  !   theta_ib = [0.8860771238_rk, 0.0_rk, 2.2555155298_rk, 0.0_rk]
+  !   theta_ie = [2.2555155298_rk, 0.0_rk, 0.8860771238_rk + 2.0_rk * pi, 0.0_rk]
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   print *, data_buffer
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_midpoint_lr_p_prime_below_with_int
+
+  ! @test
+  ! subroutine test_midpoint_lr_p_prime_above()
+  !   !< Test the Mach cone, where the apex is a midpoint and P' is above it
+
+  !   !  |  cell 1  |
+  !   !  |  (i,j)   |
+  !   !  |  (.) P'  |
+  !   !  C1---M----C2
+  !   !  |  cell 2  |
+  !   !  | (i,j-1)  |
+  !   !  |          |
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 2, 1, 1) :: midpoint_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(4) :: dtheta = 0.0_rk  !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+  !   real(rk), dimension(4) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(4) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(4) :: data_buffer = 0.0_rk
+
+  !   print *
+  !   print *, "Calling test_midpoint_lr_p_prime_above"
+  !   print *
+
+  !   i = 1
+  !   j = 1
+  !   ! <----M---->  (left and right vectors)
+  !   edge_vectors(:, 1, i, j) = [-1.0_rk, 0.0_rk] ! left
+  !   edge_vectors(:, 2, i, j) = [1.0_rk, 0.0_rk] ! right
+  !   vector_scaling = 1.0_rk
+
+  !   ! cell ordering is 1) top, 2) bottom
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i, j] ! top
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! bottom
+
+  !   midpoint_state(:, 1, i, j) = [1.0_rk, 0.0_rk, -1.0_rk, 1.0_rk]
+  !   midpoint_state(:, 2, i, j) = [1.0_rk, 0.0_rk, -1.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=midpoint_state(1, :, :, :), &
+  !                             reconstructed_u=midpoint_state(2, :, :, :), &
+  !                             reconstructed_v=midpoint_state(3, :, :, :), &
+  !                             reconstructed_p=midpoint_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='left/right midpoint')
+
+  !   !print*, mach_cone
+
+  !   ! P' should be in the cell above the midpoint
+  !   @assertEqual([0.0_rk, 0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.true., .false.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   ! These values are known a priori (this is a test after all)
+  !   theta_ib = [-0.8860771238_rk, 0.0_rk, -2.2555155298_rk, 0.0_rk]
+  !   theta_ie = [-2.2555155298_rk + 2.0_rk * pi, 0.0_rk, -0.8860771238_rk, 0.0_rk]
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_midpoint_lr_p_prime_above
+
+  ! @test
+  ! subroutine test_midpoint_du_p_prime_right_no_int()
+  !   !< Test the Mach cone, where the apex is a midpoint and P' is to the right of it
+
+  !   !  |         C2         |
+  !   !  |  cell 1 |  cell 2  |
+  !   !  | (i-1,j) |  (i,j)   |
+  !   !  |         M          |
+  !   !  |         |   (.) P' |
+  !   !  |         |          |
+  !   !  |         C1         |
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 2, 1, 1) :: midpoint_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(4) :: dtheta = 0.0_rk  !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+  !   real(rk), dimension(4) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(4) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(4) :: data_buffer = 0.0_rk
+
+  !   print *
+  !   print *, "Calling test_midpoint_du_p_prime_right_no_int()"
+  !   print *
+  !   i = 1
+  !   j = 1
+
+  !   edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [0.0_rk, 1.0_rk] ! up
+  !   vector_scaling = 1.0_rk
+
+  !   ! cell ordering is 1) left, 2) right
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j] ! left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j]     ! right
+
+  !   midpoint_state(:, 1, i, j) = [1.0_rk, -4.0_rk, 0.0_rk, 1.0_rk]
+  !   midpoint_state(:, 2, i, j) = [1.0_rk, -4.0_rk, 0.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=midpoint_state(1, :, :, :), &
+  !                             reconstructed_u=midpoint_state(2, :, :, :), &
+  !                             reconstructed_v=midpoint_state(3, :, :, :), &
+  !                             reconstructed_p=midpoint_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='down/up midpoint')
+  !   ! P' should be in the cell below the midpoint
+  !   @assertEqual([0.04_rk, 0.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.false., .true.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   ! These values are known a priori (this is a test after all)
+  !   dtheta = 0.0_rk
+  !   dtheta(3) = 2.0_rk * pi ! the entire arc is in cell 2, e.g. 2pi
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_midpoint_du_p_prime_right_no_int
+
+  ! @test
+  ! subroutine test_midpoint_du_p_prime_left()
+  !   !< Test the Mach cone, where the apex is a midpoint and P' is to the left
+
+  !   !  |         C2         |
+  !   !  |  cell 1 |  cell 2  |
+  !   !  | (i-1,j) |    (i,j) |
+  !   !  |         M          |
+  !   !  |  (.) P' |          |
+  !   !  |         |          |
+  !   !  |         C1         |
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 2, 1, 1) :: midpoint_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(4) :: dtheta = 0.0_rk  !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+  !   real(rk), dimension(4) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(4) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(4) :: data_buffer = 0.0_rk
+
+  !   print *
+  !   print *, "Calling test_midpoint_du_p_prime_left()"
+  !   print *
+
+  !   i = 1
+  !   j = 1
+  !   edge_vectors(:, 0, i, j) = [-2.0_rk, -1.0_rk] ! origin
+  !   edge_vectors(:, 1, i, j) = [-2.0_rk, -2.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [-2.0_rk, 0.0_rk] ! up
+  !   vector_scaling = 1.0_rk
+
+  !   ! cell ordering is 1) left, 2) right
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j] ! left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j]     ! right
+
+  !   midpoint_state(:, 1, i, j) = [1.0_rk, 1.0_rk, 0.0_rk, 1.0_rk]
+  !   midpoint_state(:, 2, i, j) = [1.0_rk, 1.0_rk, 0.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=midpoint_state(1, :, :, :), &
+  !                             reconstructed_u=midpoint_state(2, :, :, :), &
+  !                             reconstructed_v=midpoint_state(3, :, :, :), &
+  !                             reconstructed_p=midpoint_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='down/up midpoint')
+  !   ! P' should be in the cell on the left
+  !   ! call mach_cone(1,1)
+  !   @assertEqual([-2.01_rk, -1.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.true., .false.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   ! These values are known a priori (this is a test after all)
+  !   theta_ib = [0.68471920300228284_rk, 0.0_rk, -0.68471920300228284_rk, 0.0_rk]
+  !   theta_ie = [-0.68471920300228284_rk + 2.0_rk * pi, 0.0_rk, 0.68471920300228284_rk, 0.0_rk]
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_midpoint_du_p_prime_left
+
+  ! @test
+  ! subroutine test_midpoint_du_collocated()
+  !   !< Test the Mach cone, where the apex is a midpoint and P' is above it
+
+  !   !  |         C2         |
+  !   !  |  cell 1 |  cell 2  |
+  !   !  | (i-1,j) |    (i,j) |
+  !   !  |         M          |
+  !   !  |  (.) P' |          |
+  !   !  |         |          |
+  !   !  |         C1         |
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 2, 1, 1) :: midpoint_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(4) :: dtheta = 0.0_rk  !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+  !   real(rk), dimension(4) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(4) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(4) :: data_buffer = 0.0_rk
+
+  !   print *
+  !   print *, "Calling test_midpoint_du_collocated()"
+  !   print *
+
+  !   i = 1
+  !   j = 1
+  !   edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [0.0_rk, 1.0_rk] ! up
+  !   vector_scaling = 1.0_rk
+
+  !   ! cell ordering is 1) left, 2) right
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j] ! left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j]     ! right
+
+  !   midpoint_state(:, 1, i, j) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
+  !   midpoint_state(:, 2, i, j) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=midpoint_state(1, :, :, :), &
+  !                             reconstructed_u=midpoint_state(2, :, :, :), &
+  !                             reconstructed_v=midpoint_state(3, :, :, :), &
+  !                             reconstructed_p=midpoint_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='down/up midpoint')
+  !   ! call mach_cone%print(i,j)
+  !   ! P' should be collocated with P0 at the midpoint
+  !   @assertEqual([0.0_rk, 0.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.true., .true.], mach_cone%p_prime_in_cell(:, i, j))
+  !   ! @assertEqual(.true., mach_cone%cone_is_centered(i, j))
+
+  !   ! These values are known a priori (this is a test after all)
+  !   theta_ib = [pi / 2.0_rk, 0.0_rk, -pi / 2.0_rk, 0.0_rk]
+  !   theta_ie = [1.5_rk * pi, 0.0_rk, pi / 2.0_rk, 0.0_rk]
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+  ! end subroutine test_midpoint_du_collocated
+
+  ! @test
+  ! subroutine test_midpoint_lr_collocated()
+  !   !< Test the left/right Mach cone, where P' is at P
+
+  !   !  |  cell 1  |
+  !   !  |  (i,j)   |
+  !   !  |          |
+  !   !  C1---P----C2
+  !   !  |  cell 2  |
+  !   !  | (i,j-1)  |
+  !   !  |          |
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:2, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 2, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 2, 1, 1) :: midpoint_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(4) :: dtheta = 0.0_rk  !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+  !   real(rk), dimension(4) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(4) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(4) :: data_buffer = 0.0_rk
+
+  !   print *
+  !   print *, "Calling test_midpoint_lr_collocated()"
+  !   print *
+  !   i = 1
+  !   j = 1
+  !   ! <----M---->  (left and right vectors)
+  !   edge_vectors(:, 1, i, j) = [-1.0_rk, 0.0_rk] ! left
+  !   edge_vectors(:, 2, i, j) = [1.0_rk, 0.0_rk] ! right
+  !   vector_scaling = 1.0_rk
+
+  !   ! cell ordering is 1) top, 2) bottom
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i, j] ! top
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! bottom
+
+  !   midpoint_state(:, 1, i, j) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
+  !   midpoint_state(:, 2, i, j) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=midpoint_state(1, :, :, :), &
+  !                             reconstructed_u=midpoint_state(2, :, :, :), &
+  !                             reconstructed_v=midpoint_state(3, :, :, :), &
+  !                             reconstructed_p=midpoint_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='left/right midpoint')
+  !   ! P' should be in the cell below the midpoint
+  !   @assertEqual([0.0_rk, 0.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.true., .true.], mach_cone%p_prime_in_cell(:, i, j))
+  !   ! @assertEqual(.true., mach_cone%cone_is_centered(i, j))
+
+  !   ! These values are known a priori (this is a test after all)
+  !   theta_ib = [0.0_rk, 0.0_rk, pi, 0.0_rk]
+  !   theta_ie = [pi, 0.0_rk, 2.0_rk * pi, 0.0_rk]
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_midpoint_lr_collocated
+
+  ! @test
+  ! subroutine test_corner_p_prime_at_corner()
+  !   !< Test at a corner node where P' is on the corner node itself
+
+  !   !           C3
+  !   !   cell 4  |   cell 3
+  !   ! ij: (1,2) |  ij: (2,2)
+  !   !           |
+  !   ! C4-------C0--------C2
+  !   !           |
+  !   ! ij: (1,1) |  ij: (2,1)
+  !   !   cell 1  |   cell 2
+  !   !          C1
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:4, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 4, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 4, 1, 1) :: corner_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(8) :: dtheta = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(8) :: data_buffer = 0.0_rk
+
+  !   print *
+  !   print *, "Calling test_corner_p_prime_at_corner()"
+  !   print *
+
+  !   i = 1
+  !   j = 1
+  !   ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+  !   edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [1.0_rk, 0.0_rk] ! right
+  !   edge_vectors(:, 3, i, j) = [0.0_rk, 1.0_rk] ! up
+  !   edge_vectors(:, 4, i, j) = [-1.0_rk, 0.0_rk] ! left
+  !   vector_scaling = 1.0_rk
+
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j - 1] ! lower left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! lower right
+  !   neighbor_cell_indices(:, 3, 1, 1) = [i, j]     ! upper right
+  !   neighbor_cell_indices(:, 4, 1, 1) = [i - 1, j]   ! upper left
+
+  !   corner_state(:, 1, i, j) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
+  !   corner_state(:, 2, i, j) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
+  !   corner_state(:, 3, i, j) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
+  !   corner_state(:, 4, i, j) = [1.0_rk, 0.0_rk, 0.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=corner_state(1, :, :, :), &
+  !                             reconstructed_u=corner_state(2, :, :, :), &
+  !                             reconstructed_v=corner_state(3, :, :, :), &
+  !                             reconstructed_p=corner_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='corner')
+  !   ! P' should be collocated with P0 at the corner
+  !   @assertEqual([0.0_rk, 0.0_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual(.true., mach_cone%p_prime_in_cell(:, i, j))
+  !   @assertEqual(1, mach_cone%n_arcs_per_cell(:, i, j))
+
+  !   ! These values are known a priori (this is a test after all)
+  !   theta_ib(1) = pi           ! cell 1
+  !   theta_ib(3) = -0.5_rk * pi ! cell 2
+  !   theta_ib(5) = 0.0_rk       ! cell 3
+  !   theta_ib(7) = 0.5_rk * pi  ! cell 4
+
+  !   theta_ie(1) = 1.5_rk * pi  ! cell 1
+  !   theta_ie(3) = 0.0_rk       ! cell 2
+  !   theta_ie(5) = 0.5_rk * pi  ! cell 3
+  !   theta_ie(7) = pi           ! cell 4
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_corner_p_prime_at_corner
+
+  ! @test
+  ! subroutine test_corner_p_prime_upper_right_2_arcs()
+  !   !< Test at a corner node where P' is in the upper right. The corner is situated
+  !   !< at the origin with each vector having a length of 1 in the cardinal directions.
+
+  !   !           C3
+  !   !   cell 4  |   cell 3
+  !   ! ij: (1,2) |  ij: (2,2)
+  !   !           |   (.) P'
+  !   ! C4-------C0--------C2
+  !   !           |
+  !   ! ij: (1,1) |  ij: (2,1)
+  !   !   cell 1  |   cell 2
+  !   !          C1
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:4, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 4, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 4, 1, 1) :: corner_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(8) :: dtheta = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(8) :: data_buffer = 0.0_rk
+  !   real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+  !   real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
+
+  !   print *
+  !   print *, "Calling test_corner_p_prime_upper_right_2_arcs()"
+  !   print *
+
+  !   i = 1
+  !   j = 1
+  !   ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+  !   edge_vectors(:, 0, i, j) = [1.0_rk, 3.0_rk] ! origin
+  !   edge_vectors(:, 1, i, j) = [1.0_rk, 2.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [2.0_rk, 3.0_rk] ! right
+  !   edge_vectors(:, 3, i, j) = [1.0_rk, 4.0_rk] ! up
+  !   edge_vectors(:, 4, i, j) = [0.0_rk, 3.0_rk] ! left
+  !   vector_scaling = 1.0_rk
+
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j - 1] ! lower left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! lower right
+  !   neighbor_cell_indices(:, 3, 1, 1) = [i, j]     ! upper right
+  !   neighbor_cell_indices(:, 4, 1, 1) = [i - 1, j]   ! upper left
+
+  !   corner_state(:, 1, i, j) = [1.0_rk, -1.0_rk, -1.0_rk, 1.0_rk]
+  !   corner_state(:, 2, i, j) = [1.0_rk, -1.0_rk, -1.0_rk, 1.0_rk]
+  !   corner_state(:, 3, i, j) = [1.0_rk, -1.0_rk, -1.0_rk, 1.0_rk]
+  !   corner_state(:, 4, i, j) = [1.0_rk, -1.0_rk, -1.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=corner_state(1, :, :, :), &
+  !                             reconstructed_u=corner_state(2, :, :, :), &
+  !                             reconstructed_v=corner_state(3, :, :, :), &
+  !                             reconstructed_p=corner_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='corner')
+  !   ! P' should be in the cell to the upper right
+  !   @assertEqual([0, 1, 2, 1], mach_cone%n_arcs_per_cell(:, i, j))
+  !   @assertEqual([1.01_rk, 3.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.false., .false., .true., .false.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   theta_11 = 0.0_rk           ! vector 1, intersection 1 (no intersection)
+  !   theta_12 = 0.0_rk           ! vector 1, intersection 2 (no intersection)
+  !   theta_21 = -2.2555155298_rk ! vector 2, intersection 1
+  !   theta_22 = -0.8860771238_rk ! vector 2, intersection 2
+  !   theta_31 = -2.4568734506_rk ! vector 3, intersection 1
+  !   theta_32 = 2.4568734506_rk  ! vector 3, intersection 2
+  !   theta_41 = 0.0_rk           ! vector 4, intersection 1 (no intersection)
+  !   theta_42 = 0.0_rk           ! vector 4, intersection 2 (no intersection)
+
+  !   theta_ib = 0.0_rk
+  !   theta_ib(1:2) = [0.0_rk, 0.0_rk]     ! no arcs w/in cell 1
+  !   theta_ib(3:4) = [theta_21, 0.0_rk]   ! 1 arc in cell 2
+  !   theta_ib(5:6) = [theta_31, theta_22] ! 2 arcs in cell 3
+  !   theta_ib(7:8) = [theta_32, 0.0_rk]   ! 1 arc in cell 4
+
+  !   theta_ie = 0.0_rk
+  !   theta_ie(1:2) = [0.0_rk, 0.0_rk]          ! no arcs w/in cell 1
+  !   theta_ie(3:4) = [theta_22, 0.0_rk]        ! 1 arc in cell 2
+  !   theta_ie(5:6) = [theta_21, theta_32]      ! 2 arcs in cell 3
+  !   theta_ie(7:8) = [theta_31 + 2 * pi, 0.0_rk] ! 1 arc in cell 4
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_corner_p_prime_upper_right_2_arcs
+
+  ! @test
+  ! subroutine test_corner_p_prime_lower_right_2_arcs()
+  !   !< Test at a corner node where P' is in the upper right. The corner is situated
+  !   !< at the origin with each vector having a length of 3 in the cardinal directions.
+
+  !   !           C3
+  !   !   cell 4  |   cell 3
+  !   ! ij: (1,2) |  ij: (2,2)
+  !   !           |
+  !   ! C4-------C0--------C2
+  !   !           |  (.) P'
+  !   ! ij: (1,1) |  ij: (2,1)
+  !   !   cell 1  |   cell 2
+  !   !          C1
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:4, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 4, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 4, 1, 1) :: corner_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(8) :: dtheta = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(8) :: data_buffer = 0.0_rk
+  !   real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+  !   real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
+
+  !   i = 1
+  !   j = 1
+  !   edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [1.0_rk, 0.0_rk] ! right
+  !   edge_vectors(:, 3, i, j) = [0.0_rk, 1.0_rk] ! up
+  !   edge_vectors(:, 4, i, j) = [-1.0_rk, 0.0_rk] ! left
+  !   vector_scaling = 1.0_rk
+
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j - 1] ! lower left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! lower right
+  !   neighbor_cell_indices(:, 3, 1, 1) = [i, j]     ! upper right
+  !   neighbor_cell_indices(:, 4, 1, 1) = [i - 1, j]   ! upper left
+
+  !   corner_state(:, 1, i, j) = [1.0_rk, -1.0_rk, 1.0_rk, 1.0_rk]
+  !   corner_state(:, 2, i, j) = [1.0_rk, -1.0_rk, 1.0_rk, 1.0_rk]
+  !   corner_state(:, 3, i, j) = [1.0_rk, -1.0_rk, 1.0_rk, 1.0_rk]
+  !   corner_state(:, 4, i, j) = [1.0_rk, -1.0_rk, 1.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=corner_state(1, :, :, :), &
+  !                             reconstructed_u=corner_state(2, :, :, :), &
+  !                             reconstructed_v=corner_state(3, :, :, :), &
+  !                             reconstructed_p=corner_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='corner')
+  !   ! P' should be in the lower right cell
+  !   @assertEqual([0.01_rk, -0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   theta_11 = 2.4568734506_rk  ! vector 1, intersection 1
+  !   theta_12 = -2.4568734506_rk ! vector 1, intersection 2
+  !   theta_21 = 2.2555155298_rk ! vector 2, intersection 1
+  !   theta_22 = 0.8860771238_rk ! vector 2, intersection 2
+  !   theta_31 = 0.0_rk           ! vector 3, intersection 1 (no intersection)
+  !   theta_32 = 0.0_rk           ! vector 3, intersection 2 (no intersection)
+  !   theta_41 = 0.0_rk           ! vector 4, intersection 1 (no intersection)
+  !   theta_42 = 0.0_rk           ! vector 4, intersection 2 (no intersection)
+
+  !   theta_ib = 0.0_rk
+  !   theta_ib(1:2) = [theta_11, 0.0_rk]   ! 1 arc in cell 1
+  !   theta_ib(3:4) = [theta_21, theta_12] ! 2 arcs in cell 2
+  !   theta_ib(5:6) = [theta_22, 0.0_rk]   ! 1 arc in cell 3
+  !   theta_ib(7:8) = [0.0_rk, 0.0_rk]     ! no arcs w/in cell 4
+
+  !   theta_ie = 0.0_rk
+  !   theta_ie(1:2) = [theta_12 + 2 * pi, 0.0_rk] ! 1 arc in cell 1
+  !   theta_ie(3:4) = [theta_11, theta_22]      ! 2 arcs in cell 2
+  !   theta_ie(5:6) = [theta_21, 0.0_rk]        ! 1 arc in cell 3
+  !   theta_ie(7:8) = [0.0_rk, 0.0_rk]          ! no arcs w/in cell 4
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_corner_p_prime_lower_right_2_arcs
+
+  ! @test
+  ! subroutine test_corner_p_prime_lower_right_1_arc_each()
+  !   !< Test at a corner node where P' is in the upper right. The corner is situated
+  !   !< at the origin with each vector having a length of 3 in the cardinal directions.
+
+  !   !           C3
+  !   !   cell 4  |   cell 3
+  !   ! ij: (1,2) |  ij: (2,2)
+  !   !           |
+  !   ! C4-------C0--------C2
+  !   !           |  (.) P'
+  !   ! ij: (1,1) |  ij: (2,1)
+  !   !   cell 1  |   cell 2
+  !   !          C1
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:4, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 4, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 4, 1, 1) :: corner_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(8) :: dtheta = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(8) :: data_buffer = 0.0_rk
+  !   real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+  !   real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
+
+  !   i = 1
+  !   j = 1
+  !   edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [1.0_rk, 0.0_rk] ! right
+  !   edge_vectors(:, 3, i, j) = [0.0_rk, 1.0_rk] ! up
+  !   edge_vectors(:, 4, i, j) = [-1.0_rk, 0.0_rk] ! left
+  !   vector_scaling = 1.0_rk
+
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j - 1] ! lower left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! lower right
+  !   neighbor_cell_indices(:, 3, 1, 1) = [i, j]     ! upper right
+  !   neighbor_cell_indices(:, 4, 1, 1) = [i - 1, j]   ! upper left
+
+  !   corner_state(:, 1, i, j) = [1.0_rk, -0.5_rk, 0.5_rk, 1.0_rk]
+  !   corner_state(:, 2, i, j) = [1.0_rk, -0.5_rk, 0.5_rk, 1.0_rk]
+  !   corner_state(:, 3, i, j) = [1.0_rk, -0.5_rk, 0.5_rk, 1.0_rk]
+  !   corner_state(:, 4, i, j) = [1.0_rk, -0.5_rk, 0.5_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=corner_state(1, :, :, :), &
+  !                             reconstructed_u=corner_state(2, :, :, :), &
+  !                             reconstructed_v=corner_state(3, :, :, :), &
+  !                             reconstructed_p=corner_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='corner')
+  !   ! P' should be in the cell below the midpoint
+  !   @assertEqual([0.005_rk, -0.005_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.false., .true., .false., .false.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   theta_11 = 1.9684957419_rk  ! vector 1, intersection 1 (not valid intersection)
+  !   theta_12 = -1.9684957419_rk ! vector 1, intersection 2
+  !   theta_21 = 2.7438932385_rk  ! vector 2, intersection 1 (not valid intersection)
+  !   theta_22 = 0.3976994151_rk  ! vector 2, intersection 2
+  !   theta_31 = -1.9684957419_rk ! vector 3, intersection 1 (not valid intersection)
+  !   theta_32 = 1.9684957419_rk  ! vector 3, intersection 2
+  !   theta_41 = 0.3976994151_rk  ! vector 4, intersection 1 (not valid intersection)
+  !   theta_42 = 2.7438932385_rk  ! vector 4, intersection 2
+
+  !   theta_ib = 0.0_rk
+  !   theta_ib(1:2) = [theta_42, 0.0_rk] ! 1 arc in cell 1
+  !   theta_ib(3:4) = [theta_12, 0.0_rk] ! 1 arc in cell 2
+  !   theta_ib(5:6) = [theta_22, 0.0_rk] ! 1 arc in cell 3
+  !   theta_ib(7:8) = [theta_32, 0.0_rk] ! 1 arc in cell 4
+
+  !   theta_ie = 0.0_rk
+  !   theta_ie(1:2) = [theta_12 + 2 * pi, 0.0_rk] ! 1 arc in cell 1
+  !   theta_ie(3:4) = [theta_22, 0.0_rk] ! 1 arc in cell 2
+  !   theta_ie(5:6) = [theta_32, 0.0_rk] ! 1 arc in cell 3
+  !   theta_ie(7:8) = [theta_42, 0.0_rk] ! 1 arc in cell 4
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_corner_p_prime_lower_right_1_arc_each
+
+  ! @test
+  ! subroutine test_corner_p_prime_lower_left_2_arcs()
+  !   !< Test at a corner node where P' is in the upper right. The corner is situated
+  !   !< at the origin with each vector having a length of 3 in the cardinal directions.
+
+  !   !           C3
+  !   !   cell 4  |   cell 3
+  !   !   (i-1,j) |   (i,j)
+  !   !           |
+  !   ! C4-------C0--------C2
+  !   !   (.) P'  |
+  !   ! (i-1,j-1) |   (i,j-1)
+  !   !   cell 1  |   cell 2
+  !   !          C1
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:4, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 4, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 4, 1, 1) :: corner_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(8) :: dtheta = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(8) :: data_buffer = 0.0_rk
+  !   real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+  !   real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
+
+  !   i = 1
+  !   j = 1
+  !   edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [1.0_rk, 0.0_rk] ! right
+  !   edge_vectors(:, 3, i, j) = [0.0_rk, 1.0_rk] ! up
+  !   edge_vectors(:, 4, i, j) = [-1.0_rk, 0.0_rk] ! left
+  !   vector_scaling = 1.0_rk
+
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j - 1] ! lower left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! lower right
+  !   neighbor_cell_indices(:, 3, 1, 1) = [i, j]     ! upper right
+  !   neighbor_cell_indices(:, 4, 1, 1) = [i - 1, j]   ! upper left
+
+  !   corner_state(:, 1, i, j) = [1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk]
+  !   corner_state(:, 2, i, j) = [1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk]
+  !   corner_state(:, 3, i, j) = [1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk]
+  !   corner_state(:, 4, i, j) = [1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=corner_state(1, :, :, :), &
+  !                             reconstructed_u=corner_state(2, :, :, :), &
+  !                             reconstructed_v=corner_state(3, :, :, :), &
+  !                             reconstructed_p=corner_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='corner')
+  !   ! P' should be in the cell below the midpoint
+  !   @assertEqual([-0.01_rk, -0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   theta_11 = 0.6847192030_rk  ! vector 1, intersection 1 (not valid intersection)
+  !   theta_12 = -0.6847192030_rk ! vector 1, intersection 2
+  !   theta_21 = 2.2555155298_rk  ! vector 2, intersection 1 (not valid intersection)
+  !   theta_22 = 0.8860771238_rk  ! vector 2, intersection 2
+  !   theta_31 = -0.6847192030_rk ! vector 3, intersection 1 (not valid intersection)
+  !   theta_32 = 0.6847192030_rk  ! vector 3, intersection 2
+  !   theta_41 = 0.8860771238_rk  ! vector 4, intersection 1 (not valid intersection)
+  !   theta_42 = 2.2555155298_rk  ! vector 4, intersection 2
+
+  !   theta_ib = 0.0_rk
+  !   theta_ib(1:2) = [theta_11, theta_42] ! 2 arcs in cell 1
+  !   theta_ib(3:4) = [theta_12, 0.0_rk] ! 1 arc in cell 2
+  !   theta_ib(5:6) = [0.0_rk, 0.0_rk] ! 0 arcs in cell 3
+  !   theta_ib(7:8) = [theta_41, 0.0_rk] ! 1 arc in cell 4
+
+  !   theta_ie = 0.0_rk
+  !   theta_ie(1:2) = [theta_41, theta_12 + 2 * pi] ! 2 arcs in cell 1
+  !   theta_ie(3:4) = [theta_11, 0.0_rk] ! 1 arc in cell 2
+  !   theta_ie(5:6) = [0.0_rk, 0.0_rk] ! 0 arcs in cell 3
+  !   theta_ie(7:8) = [theta_42, 0.0_rk] ! 1 arc in cell 4
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_corner_p_prime_lower_left_2_arcs
+
+  ! @test
+  ! subroutine test_corner_p_prime_upper_left_2_arcs()
+  !   !< Test at a corner node where P' is in the upper right. The corner is situated
+  !   !< at the origin with each vector having a length of 3 in the cardinal directions.
+
+  !   !           C3
+  !   !   cell 4  |   cell 3
+  !   ! ij: (1,2) |  ij: (2,2)
+  !   !   (.) P'  |
+  !   ! C4-------C0--------C2
+  !   !           |
+  !   ! ij: (1,1) |  ij: (2,1)
+  !   !   cell 1  |   cell 2
+  !   !          C1
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 0:4, 1, 1) :: edge_vectors = 0.0_rk
+  !   real(rk), dimension(1, 1) :: vector_scaling
+  !   integer(ik), dimension(2, 4, 1, 1) :: neighbor_cell_indices
+  !   real(rk), dimension(4, 4, 1, 1) :: corner_state
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(8) :: dtheta = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ie = 0.0_rk
+  !   real(rk), dimension(8) :: theta_ib = 0.0_rk
+  !   real(rk), dimension(8) :: data_buffer = 0.0_rk
+  !   real(rk) :: theta_11, theta_12, theta_21, theta_22 ! vector-circle intersection angles
+  !   real(rk) :: theta_31, theta_32, theta_41, theta_42 ! vector-circle intersection angles
+
+  !   i = 1
+  !   j = 1
+  !   edge_vectors(:, 1, i, j) = [0.0_rk, -1.0_rk] ! down
+  !   edge_vectors(:, 2, i, j) = [1.0_rk, 0.0_rk] ! right
+  !   edge_vectors(:, 3, i, j) = [0.0_rk, 1.0_rk] ! up
+  !   edge_vectors(:, 4, i, j) = [-1.0_rk, 0.0_rk] ! left
+  !   vector_scaling = 1.0_rk
+
+  !   neighbor_cell_indices(:, 1, 1, 1) = [i - 1, j - 1] ! lower left
+  !   neighbor_cell_indices(:, 2, 1, 1) = [i, j - 1] ! lower right
+  !   neighbor_cell_indices(:, 3, 1, 1) = [i, j]     ! upper right
+  !   neighbor_cell_indices(:, 4, 1, 1) = [i - 1, j]   ! upper left
+
+  !   corner_state(:, 1, i, j) = [1.0_rk, 1.0_rk, -1.0_rk, 1.0_rk]
+  !   corner_state(:, 2, i, j) = [1.0_rk, 1.0_rk, -1.0_rk, 1.0_rk]
+  !   corner_state(:, 3, i, j) = [1.0_rk, 1.0_rk, -1.0_rk, 1.0_rk]
+  !   corner_state(:, 4, i, j) = [1.0_rk, 1.0_rk, -1.0_rk, 1.0_rk]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                             edge_vectors=edge_vectors, &
+  !                             reconstructed_rho=corner_state(1, :, :, :), &
+  !                             reconstructed_u=corner_state(2, :, :, :), &
+  !                             reconstructed_v=corner_state(3, :, :, :), &
+  !                             reconstructed_p=corner_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='corner')
+  !   ! P' should be in the cell below the midpoint
+  !   @assertEqual([-0.01_rk, 0.01_rk],[mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)])
+  !   @assertEqual([.false., .false., .false., .true.], mach_cone%p_prime_in_cell(:, i, j))
+
+  !   theta_11 = 0.6847192030_rk  ! vector 1, intersection 1 (not valid intersection)
+  !   theta_12 = -0.6847192030_rk ! vector 1, intersection 2
+  !   theta_21 = -2.2555155298_rk ! vector 2, intersection 1 (not valid intersection)
+  !   theta_22 = -0.8860771238_rk ! vector 2, intersection 2
+  !   theta_31 = -0.6847192030_rk ! vector 3, intersection 1 (not valid intersection)
+  !   theta_32 = 0.6847192030_rk  ! vector 3, intersection 2
+  !   theta_41 = -0.8860771238_rk  ! vector 4, intersection 1 (not valid intersection)
+  !   theta_42 = -2.2555155298_rk  ! vector 4, intersection 2
+
+  !   theta_ib = 0.0_rk
+  !   theta_ib(1:2) = [theta_42, 0.0_rk]   ! 1 arc in cell 1
+  !   theta_ib(3:4) = [0.0_rk, 0.0_rk]     ! 0 arcs in cell 2
+  !   theta_ib(5:6) = [theta_31, 0.0_rk]   ! 1 arc in cell 3
+  !   theta_ib(7:8) = [theta_41, theta_32] ! 2 arc in cell 4
+
+  !   theta_ie = 0.0_rk
+  !   theta_ie(1:2) = [theta_41, 0.0_rk]   ! 1 arc in cell 1
+  !   theta_ie(3:4) = [0.0_rk, 0.0_rk]     ! 0 arcs in cell 2
+  !   theta_ie(5:6) = [theta_32, 0.0_rk]   ! 1 arc in cell 3
+  !   theta_ie(7:8) = [theta_31, theta_42 + 2 * pi] ! 1 arc in cell 4
+
+  !   dtheta = theta_ie - theta_ib
+  !   @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(theta_ie) - sin(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(theta_ie) - cos(theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+  !   data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+  !   @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  ! end subroutine test_corner_p_prime_upper_left_2_arcs
+
+  ! Transonic tests
+  @test
+  subroutine test_transonic_du_midpoint()
+    !< Test the Mach cone, when the cell set is transonic
+
+    type(mach_cone_collection_t) :: mach_cone
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_rho
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_u
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_v
+    real(rk), allocatable, dimension(:, :, :) :: midpoint_reconstructed_p
+
+    integer(ik) :: i, j
+    real(rk) :: sonic_pressure = 3.0_rk / 5.0_rk !< This odd value is to make the sound speed = 1, since gamma = 5/3
+    integer(ik) :: ilo, ihi, jlo, jhi
+    real(rk) :: theta_11 !< scratch values for arc angles
+    real(rk) :: theta_12 !< scratch values for arc angles
+    real(rk), dimension(4) :: dtheta = 0.0_rk !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+    real(rk), dimension(4) :: theta = 0.0_rk !< (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+    real(rk), dimension(4) :: theta_ie = 0.0_rk
+    real(rk), dimension(4) :: theta_ib = 0.0_rk
+    real(rk), dimension(4) :: data_buffer = 0.0_rk
+
+    print *, "Calling test_transonic_du_midpoint"
+
+    !  |         C2         |
+    !  |  cell 1 |  cell 2  |
+    !  | (i-1,j) |  (i,j)   |
+    !  |         M          |
+    !  |  (.) P' |          |
+    !  |         |          |
+    !  |         C1         |
+
+    ! For cell (i = 2, j = 2), the midpoint index is also (2,2)
+
+    !           Domain                     -->             Cell Mach number
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |  .9   ||  .9   |  .9   ||  .9   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,2) || (1,2) M (2,2) || (3,2) |  -->  |  .9   ||  .9   M   2   ||  .9   |
+    ! |-------||-------|---M---||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |  .9   ||  .9   |  .9   ||  .9   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |  .9   ||  .9   |  .9   ||  .9   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+
+    rho = 1.0_rk
+    u = 0.9_rk
+    v = 0.0_rk
+    p = 1.0_rk
+
+    call reconstruction_operator%set_cell_average_pointers(rho=rho, p=p, lbounds=lbound(p))
+    call reconstruction_operator%reconstruct(primitive_var=rho, &
+                                             reconstructed_var=recon_rho, &
+                                             lbounds=lbound(rho), &
+                                             name='rho', stage_name='test_1')
+    call reconstruction_operator%reconstruct(primitive_var=p, &
+                                             reconstructed_var=recon_p, &
+                                             lbounds=lbound(p), &
+                                             name='p', stage_name='test_1')
+
+    ! ! Left cell state (subsonic cell)
+    ! midpoint_state(:, 1, 1, 1) = [1.0_rk, 0.9_rk, 0.0_rk, pressure]
+
+    ! ! Right cell state (supersonic cell)
+    ! midpoint_state(:, 2, 1, 1) = [1.0_rk, 2.0_rk, 0.0_rk, pressure]
+
+    ilo = 1; ihi = 3
+    jlo = 1; jhi = 2
+
+    allocate(midpoint_reconstructed_rho(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_u(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_v(2, ilo:ihi, jlo:jhi))
+    allocate(midpoint_reconstructed_p(2, ilo:ihi, jlo:jhi))
+
+    midpoint_reconstructed_rho = 1.0_rk
+    midpoint_reconstructed_u = 0.9_rk
+    midpoint_reconstructed_u(1, 2, 2) = 2.0_rk
+    midpoint_reconstructed_v = 0.0_rk
+    midpoint_reconstructed_p = sonic_pressure
+
+    i = 2; j = 2
+    call mach_cone%initialize(tau=1.0e-2_rk, &
+                              edge_vectors=grid%downup_midpoint_edge_vectors, &
+                              reconstructed_rho=midpoint_reconstructed_rho, &
+                              reconstructed_u=midpoint_reconstructed_u, &
+                              reconstructed_v=midpoint_reconstructed_v, &
+                              reconstructed_p=midpoint_reconstructed_p, &
+                              cell_indices=downup_midpoint_neighbors, &
+                              cone_location='down/up midpoint', &
+                              lbounds=[1, 1, 1], &
+                              reconstruction_operator=reconstruction_operator)
+    call mach_cone%print(i, j)
+
+    ! P' should be in the left cell
+    @assertEqual(-1.45e-2_rk, mach_cone%p_prime_x(i, j), 1e-10_rk)
+    @assertEqual(0.5_rk, mach_cone%p_prime_y(i, j), 1e-10_rk)
+    @assertEqual(.true., mach_cone%cone_is_transonic(i, j))
+
+    ! The expanded transonic cone should now extend into both neighbor cells
+    @assertEqual(1, mach_cone%n_arcs_per_cell(:, i, j))
+
+    @assertEqual(1.55e-2_rk, mach_cone%radius(i, j))
+    @assertEqual([.true., .false.], mach_cone%p_prime_in_cell(:, i, j))
+    @assertEqual([1, 2], mach_cone%p_prime_ij(:, i, j))
+
+    ! arc begin angles
+    theta = 0.0_rk
+    theta_11 = 0.36117042838139601_rk
+    theta_12 = -0.36117042838139601_rk
+
+    ! These values are known a priori (this is a test after all)
+    ! indexing is (cell 1 arc 1, cell 1 arc 2, cell 2 arc 1, cell 2 arc 2)
+    theta_ib = [theta_11, 0.0_rk, theta_12, 0.0_rk]
+    theta_ie = [theta_12 + 2 * pi, 0.0_rk, theta_11, 0.0_rk]
+
+    dtheta = theta_ie - theta_ib
+    @assertEqual(dtheta, mach_cone%dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = sin(theta_ie) - sin(theta_ib)
+    @assertEqual(data_buffer, mach_cone%sin_dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = cos(theta_ie) - cos(theta_ib)
+    @assertEqual(data_buffer, mach_cone%cos_dtheta(:, i, j), 1e-10_rk)
+
+    data_buffer = sin(2.0_rk * theta_ie) - sin(2.0_rk * theta_ib)
+    @assertEqual(data_buffer, mach_cone%sin_d2theta(:, i, j), 1e-10_rk)
+
+    data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
+    @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
+
+  end subroutine test_transonic_du_midpoint
+
+  ! !@test
+  ! subroutine test_transonic_corner()
+  !   !< Test at a corner node where the neighboring cells are transonic.
+
+  !   !           C3
+  !   !   cell 4  |   cell 3
+  !   ! ij: (1,2) |  ij: (2,2)
+  !   !   (.) P'  |
+  !   ! C4-------C0--------C2
+  !   !           |
+  !   ! ij: (1,1) |  ij: (2,1)
+  !   !   cell 1  |   cell 2
+  !   !          C1
+
+  !   type(mach_cone_collection_t) :: mach_cone
+  !   real(rk), dimension(2, 2, 4) :: corner_edge_vectors
+  !   real(rk), dimension(4, 4) :: corner_state
+  !   integer(ik), dimension(2, 4) :: neighbor_cell_indices
+  !   integer(ik) :: i, j
+  !   real(rk), dimension(2, 4) :: theta
+  !   real(rk) :: pressure
+
+  !   i = 2
+  !   j = 2
+  !   print *, 'Testing transonic corner'
+
+  !   ! <----M---->  (left and right vectors) these have (x_tail, y_tail) and (x_head, y_head)
+  !   corner_edge_vectors = reshape([[0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 1
+  !                                  [0.0_rk, -1.0_rk], &  ! (x,y) head, vector 1
+  !                                  [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 2
+  !                                  [1.0_rk, 0.0_rk], &  ! (x,y) head, vector 2
+  !                                  [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 3
+  !                                  [0.0_rk, 1.0_rk], &  ! (x,y) head, vector 3
+  !                                  [0.0_rk, 0.0_rk], &  ! (x,y) tail, vector 4
+  !                                  [-1.0_rk, 0.0_rk] &  ! (x,y) head, vector 4
+  !                                  ], shape=[2, 2, 4])
+
+  !   ! cell ordering is 1) top, 2) bottom
+  !   neighbor_cell_indices = reshape([[i - 1, j - 1], &  ! lower left
+  !                                    [i, j - 1], &  ! lower right
+  !                                    [i, j], &  ! upper right
+  !                                    [i - 1, j] &  ! upper left
+  !                                    ], shape=[2, 4])
+
+  !   ! This odd value is to make the sound speed = 1, since gamma = 5/3
+  !   pressure = 3.0_rk / 5.0_rk
+  !   corner_state(:, 1) = [1.0_rk, 0.7_rk, -0.7_rk, pressure]
+  !   corner_state(:, 2) = [1.0_rk, -1.1_rk, -1.1_rk, pressure]
+  !   corner_state(:, 3) = [1.0_rk, -1.1_rk, 1.1_rk, pressure]
+  !   corner_state(:, 4) = [1.0_rk, 1.1_rk, 1.1_rk, pressure]
+
+  !   call mach_cone%initialize(tau=1.0e-2_rk, &
+  !                               edge_vectors=corner_edge_vectors, &
+  !                               reconstructed_rho=corner_state(1,:,:,:), &
+  !                               reconstructed_u = corner_state(2, :, :, :), &
+  !                               reconstructed_v = corner_state(3, :, :, :), &
+  !                               reconstructed_p = corner_state(4, :, :, :), &
+  !                             cell_indices=neighbor_cell_indices, &
+  !                             cone_location='corner')
+  !   print *, mach_cone
+  !   ! P' should be in the cell below the midpoint
+  !   @assertEqual([0.0_rk, 0.0_rk], [mach_cone%p_prime_x(i, j), mach_cone%p_prime_y(i, j)], 1e-10_rk)
+  !   @assertEqual([.true., .false., .false., .false.], mach_cone%p_prime_in_cell(:, i, j))
+  !   theta = 0.0_rk
+  !   theta(:, 1) = [pi, 0.0_rk]
+  !   theta(:, 2) = [-pi / 2.0_rk, 0.0_rk]
+  !   theta(:, 3) = [0.0_rk, 0.0_rk]
+  !   theta(:, 4) = [pi / 2.0_rk, 0.0_rk]
+  !   ! @assertEqual(theta, mach_cone%theta_ib, 1.0e-8_rk)
+  !   theta = 0.0_rk
+  !   theta(:, 1) = [1.5_rk * pi, 0.0_rk]
+  !   theta(:, 2) = [0.0_rk, 0.0_rk]
+  !   theta(:, 3) = [pi / 2.0_rk, 0.0_rk]
+  !   theta(:, 4) = [pi, 0.0_rk]
+  !   ! @assertEqual(theta, mach_cone%theta_ie, 1.0e-8_rk)
+  ! end subroutine test_transonic_corner
+end module test_mach_cone_collection

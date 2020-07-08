@@ -1,12 +1,32 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_intersections
-  !> Summary: Provide procedures to calculate the intersection of a line segment and a circle
-  !> Date: 05/20/2020
-  !> Author: Sam Miller
-  !> References:
-  !>      [1] https://cp-algorithms.com/geometry/circle-line-intersection.html
-  !> Notes: Reference [1] had some errors in it, but otherwise this is better than using
-  !>        the quadratic formula to find the intersects. Using the quadratic formula is by far
-  !>        the most common algorithim online.
+  !< Summary: Provide procedures to calculate the intersection of a line segment and a circle
+  !< Date: 05/20/2020
+  !< Author: Sam Miller
+  !< References:
+  !<      [1] https://cp-algorithms.com/geometry/circle-line-intersection.html
+  !< Notes: Reference [1] had some errors in it, but otherwise this is better than using
+  !<        the quadratic formula to find the intersects. Using the quadratic formula is by far
+  !<        the most common algorithim online.
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   implicit none
@@ -36,7 +56,6 @@ contains
     integer(ik) :: n_intersections
     !< number of intersections (not all may be valid yet, since it assumes the line is infinite at first)
 
-    real(rk), parameter :: r = 1.0_rk !< radius of the scaled circle
     real(rk), parameter :: r_sq = 1.0_rk !< r**2. This makes the code easier to read
     real(rk) :: x1, y1, x2, y2
     real(rk) :: ax, ay !< 1st intersection point
@@ -57,23 +76,35 @@ contains
 
     x1 = line_xy(1, 1) - circle_xy(1)
     threshold = abs(line_xy(1, 1) + circle_xy(1)) * EPS
-    if(abs(x1) < threshold) x1 = 0.0_rk
-    x1 = x1 / circle_radius
+    if(abs(x1) < threshold) then
+      x1 = 0.0_rk
+    else
+      x1 = x1 / circle_radius
+    end if
 
     y1 = line_xy(2, 1) - circle_xy(2)
     threshold = abs(line_xy(2, 1) + circle_xy(2)) * EPS
-    if(abs(y1) < threshold) y1 = 0.0_rk
-    y1 = y1 / circle_radius
+    if(abs(y1) < threshold) then
+      y1 = 0.0_rk
+    else
+      y1 = y1 / circle_radius
+    end if
 
     x2 = line_xy(1, 2) - circle_xy(1)
     threshold = abs(line_xy(1, 2) + circle_xy(1)) * EPS
-    if(abs(x2) < threshold) x2 = 0.0_rk
-    x2 = x2 / circle_radius
+    if(abs(x2) < threshold) then
+      x2 = 0.0_rk
+    else
+      x2 = x2 / circle_radius
+    end if
 
     y2 = line_xy(2, 2) - circle_xy(2)
     threshold = abs(line_xy(2, 2) + circle_xy(2)) * EPS
-    if(abs(y2) < threshold) y2 = 0.0_rk
-    y2 = y2 / circle_radius
+    if(abs(y2) < threshold) then
+      y2 = 0.0_rk
+    else
+      y2 = y2 / circle_radius
+    end if
 
     A = y2 - y1
     if(abs(A) < epsilon(1.0_rk)) A = 0.0_rk

@@ -1,3 +1,23 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 program cato
 #ifdef USE_OPENMP
   use omp_lib
@@ -10,9 +30,7 @@ program cato
   use mod_input, only: input_t
   use mod_nondimensionalization, only: set_scale_factors, t_0
   use mod_timing, only: timer_t, get_timestep
-  use mod_finite_volume_schemes, only: finite_volume_scheme_t, make_fv_scheme
-  use mod_fluid, only: fluid_t, new_fluid
-  use mod_integrand, only: integrand_t
+  use mod_master_puppeteer, only: master_puppeteer_t, make_master
   use mod_eos, only: set_equation_of_state
 
   implicit none
@@ -21,8 +39,7 @@ program cato
   character(50) :: input_filename
   integer(ik) :: error_code = 0
   type(input_t) :: input
-  class(finite_volume_scheme_t), pointer :: fv
-  class(fluid_t), pointer :: U
+  class(master_puppeteer_t), pointer :: master
 
   type(contour_writer_t) :: contour_writer
   type(timer_t) :: timer
@@ -53,9 +70,7 @@ program cato
 #endif /* USE_OPENMP */
 
   call open_debug_files()
-
   call print_version_stats()
-
   call get_command_argument(1, command_line_arg)
   input_filename = trim(command_line_arg)
 
@@ -71,8 +86,7 @@ program cato
   call set_equation_of_state(input)
   call set_output_unit_system(input%unit_system)
 
-  fv => make_fv_scheme(input)
-  U => new_fluid(input, fv)
+  master => make_master(input)
   contour_writer = contour_writer_t(input)
 
   ! Non-dimensionalize
@@ -80,12 +94,12 @@ program cato
   max_time = input%max_time / t_0
 
   if(input%restart_from_file) then
-    time = fv%time / t_0
+    time = master%time / t_0
     next_output_time = time + contour_interval_dt
-    iteration = fv%iteration
+    iteration = master%iteration
   else
     next_output_time = next_output_time + contour_interval_dt
-    call contour_writer%write_contour(U, fv, time, iteration)
+    call contour_writer%write_contour(master, time, iteration)
   end if
 
   print *
@@ -95,8 +109,18 @@ program cato
   print *
 
   call timer%start()
-  delta_t = 0.1_rk * get_timestep(cfl=input%cfl, fv=fv, fluid=U)
-  call fv%set_time(time, delta_t, iteration)
+  if(input%use_constant_delta_t) then
+    delta_t = input%initial_delta_t / t_0
+  else
+    if(input%initial_delta_t > 0.0_rk) then
+      delta_t = input%initial_delta_t / t_0
+      write(std_out, '(a, es10.3)') "Starting timestep (given via input, not calculated):", delta_t
+    else
+      delta_t = 0.1_rk * get_timestep(cfl=input%cfl, master=master)
+    endif
+  end if
+
+  call master%set_time(time, delta_t, iteration)
 
   if(input%restart_from_file) then
     write(std_out, '(a, es10.3)') "Starting time:", time
@@ -108,21 +132,21 @@ program cato
     write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
       ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
 
-    ! call fv%apply_source_terms(conserved_vars=U%conserved_vars, &
+    ! call master%apply_source_terms(conserved_vars=U%conserved_vars, &
     !                            lbounds=bounds)
     ! Integrate in time
-    call U%integrate(fv, delta_t, error_code)
+    call master%integrate(dt=delta_t)
 
     if(error_code /= 0) then
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
-      call contour_writer%write_contour(U, fv, time, iteration)
+      call contour_writer%write_contour(master, time, iteration)
       error stop
     end if
 
     time = time + delta_t
     iteration = iteration + 1
-    call fv%set_time(time, delta_t, iteration)
+    call master%set_time(time, delta_t, iteration)
     call timer%log_time(iteration, delta_t)
 
     ! I/O
@@ -130,20 +154,19 @@ program cato
       next_output_time = next_output_time + contour_interval_dt
       write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
         next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
-      call contour_writer%write_contour(U, fv, time, iteration)
+      call contour_writer%write_contour(master, time, iteration)
       last_io_iteration = iteration
     end if
 
-    delta_t = get_timestep(cfl=input%cfl, fv=fv, fluid=U)
+    if(.not. input%use_constant_delta_t) delta_t = get_timestep(cfl=input%cfl, master=master)
   end do
 
   call timer%stop()
 
   ! One final contour output (if necessary)
-  if(iteration > last_io_iteration) call contour_writer%write_contour(U, fv, time, iteration)
+  if(iteration > last_io_iteration) call contour_writer%write_contour(master, time, iteration)
 
-  deallocate(fv)
-  deallocate(U)
+  deallocate(master)
 
   call timer%output_stats()
   close(std_error)

@@ -1,3 +1,23 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_piecewise_constant_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use mod_globals, only: debug_print, n_ghost_layers
@@ -15,6 +35,7 @@ module mod_piecewise_constant_reconstruction
   contains
     procedure, public :: initialize => init_first_order
     procedure, public :: reconstruct
+    procedure, public :: reconstruct_at_point
     final :: finalize
   end type
 
@@ -46,14 +67,38 @@ contains
     call debug_print('Running piecewise_constant_reconstruction_t%finalize()', __FILE__, __LINE__)
 
     if(associated(self%grid)) nullify(self%grid)
-    ! if(associated(self%rho)) nullify(self%rho)
-    ! if(associated(self%u)) nullify(self%u)
-    ! if(associated(self%v)) nullify(self%v)
-    ! if(associated(self%p)) nullify(self%p)
+    if(associated(self%rho)) nullify(self%rho)
+    if(associated(self%p)) nullify(self%p)
 
-    ! if(allocated(self%cell_gradient)) deallocate(self%cell_gradient)
+    if(allocated(self%grad_x_rho)) deallocate(self%grad_x_rho)
+    if(allocated(self%grad_x_p)) deallocate(self%grad_x_p)
+    if(allocated(self%grad_y_rho)) deallocate(self%grad_y_rho)
+    if(allocated(self%grad_y_p)) deallocate(self%grad_y_p)
 
   end subroutine finalize
+
+  pure real(rk) function reconstruct_at_point(self, i, j, x, y, var) result(q)
+    class(piecewise_constant_reconstruction_t), intent(in) :: self
+    real(rk), intent(in) :: x, y  !< location within cell
+    integer(ik), intent(in) :: i, j !< cell indices
+    character(len=*), intent(in) :: var !< variable to reconstruct ('rho', or 'p')
+
+    select case(trim(var))
+    case('rho')
+      if(.not. associated(self%rho)) then
+        error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%rho isn't associated!"
+      end if
+      q = self%rho(i, j)
+
+    case('p')
+      if(.not. associated(self%p)) then
+        error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%p isn't associated!"
+      end if
+      q = self%p(i, j)
+    case default
+      error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), var must be 'p' or 'rho'"
+    end select
+  end function
 
   subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some

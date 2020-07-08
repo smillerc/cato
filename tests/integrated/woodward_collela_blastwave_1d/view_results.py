@@ -13,7 +13,7 @@ import os, sys
 import subprocess
 
 sys.path.append("../../..")
-from pycato import load_1d_dataset
+from pycato import *
 
 tz = pytz.timezone("America/New_York")
 now = datetime.now(tz)
@@ -47,26 +47,28 @@ try:
 except Exception:
     walltime_sec = "N/A"
 
-t = 0.038
-
 # Load cato results
-ds = load_1d_dataset("results")
+ds = load_dataset(".")
+
+# Remove the ghost layers (bc's)
+ds = ds.where(ds["ghost_cell"] == 0, drop=True)
+serialize_dataset(ds)
+
+t = 0.17
+actual_time = ds.density.sel(t=t, method="nearest").t.data
 
 plt.figure(figsize=(12, 6))
-
-ds.density.sel(time=t, method="nearest").plot(label="Density")
-# ds.velocity.sel(time=t, method="nearest").plot(label="CATO Velocity")
-# ds.pressure.sel(time=t, method="nearest").plot(label="CATO Pressure")
+ds.density.sel(t=t, method="nearest").plot(x="x")
 
 plt.title(
-    f"Woodward-Collela Blastwave 1D Test @ {now} \nsimulation t={t:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+    f"Shu-Osher 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
 )
-plt.ylabel("Density")
-plt.xlabel("X")
-
+plt.ylabel("Density [g/cc]")
+plt.xlabel("X [cm]")
 plt.legend()
+plt.ylim(0, 6)
 plt.tight_layout()
-plt.savefig("blastwave_1d_results.png")
+plt.savefig("shu_osher_1d_results.png")
 
 try:
     plt.show()

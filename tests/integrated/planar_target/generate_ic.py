@@ -1,20 +1,29 @@
 # -*- coding: utf-8 -*-
-import os
-import sys
+"""Make a simple planar layered target for ICF-like implosions"""
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
 
-import matplotlib.pyplot as plt
+from configparser import ConfigParser
 import numpy as np
-import pint
+import sys
+import os
 
 sys.path.append(os.path.abspath("../../.."))
-from pycato import (
-    make_1d_in_x_uniform_grid,
-    make_2d_layered_grid,
-    make_1d_layered_grid,
-    write_initial_hdf5,
-)
+from pycato import *
 
-ureg = pint.UnitRegistry()
+# Read the input file and make sure the spatial order is consistent
+config = ConfigParser()
+config.read("input.ini")
+config.sections()
+edge_interp = config["scheme"]["edge_interpolation_scheme"]
+edge_interp = edge_interp.strip("'").strip('"')
+
+if edge_interp in ["TVD3", "TVD5", "MLP3", "MLP5"]:
+    n_ghost_layers = 2
+else:
+    n_ghost_layers = 1
 
 # Physics
 gamma = 5.0 / 3.0
@@ -31,10 +40,10 @@ vacuum_feathering = 1.1
 y_thickness = 0.2 * ureg("um")
 dy = None  # will use smallest dx if None
 
-interface_loc = 2.0
+interface_loc = 20.0
 layer_thicknesses = [interface_loc, 10, 3] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [40, 40, 40] * ureg("1/um")
+layer_resolution = [20, 20, 20] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
@@ -56,7 +65,34 @@ domain = make_2d_layered_grid(
     dy=dy,
     layer_spacing=layer_spacing,
     spacing_scale_factor=vacuum_feathering,
+    n_ghost_layers=n_ghost_layers,
 )
+
+x = domain["xc"].to("cm").m
+y = domain["yc"].to("cm").m
+
+# Perturbation
+x0 = ((interface_loc) * ureg("um")).to("cm").m
+y0 = (y_thickness / 2.0).to("cm").m
+# y0 = 0
+fwhm = (1.5 * ureg("um")).to("cm").m
+gaussian_order = 1
+perturbation_frac = -0.5
+
+# 2D
+perturbation = (-perturbation_frac) * np.exp(
+    -(((((x - x0) ** 2) / fwhm ** 2) + (((y - y0) ** 2) / fwhm ** 2)) ** gaussian_order)
+).astype(np.float64)
+
+# Cutoff the perturbation below 1e-6 otherwise there
+# will be weird noise issues
+if perturbation_frac < 0:
+    perturbation[perturbation < 1e-3] = 0.0
+else:
+    perturbation[perturbation > 1e-3] = 0.0
+
+perturbation = 1.0 - perturbation
+# domain["rho"] = perturbation * domain["rho"]
 
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 

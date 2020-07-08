@@ -1,3 +1,23 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_local_evo_operator
 #ifdef USE_OPENMP
   use omp_lib
@@ -9,9 +29,7 @@ module mod_local_evo_operator
 
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: near_zero, equal, neumaier_sum
-  ! use mod_globals, only: TINY_MACH
   use math_constants, only: pi, rad2deg
-  use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_input, only: input_t
   use mod_mach_cone_collection, only: mach_cone_collection_t
 
@@ -24,31 +42,54 @@ module mod_local_evo_operator
   private
   public :: local_evo_operator_t
 
-  type, extends(abstract_evo_operator_t) :: local_evo_operator_t
+  type :: local_evo_operator_t
     !< Local Evolution Operator (E0)
+    !< This class provides the framework for any evolution operators. For example, the local evolution
+    !< operator will inherit from this class. Most of the attributes are the same, just that the
+    !< implementation varies between those who inherit this class
+
+    class(grid_t), pointer :: grid => null()
+    !< pointer to the grid object
+
+    real(rk), dimension(:, :, :), pointer :: reconstructed_rho => null()
+    !< (point 1:8, i, j); pointer to reconstructed density
+    real(rk), dimension(:, :, :), pointer :: reconstructed_u => null()
+    !< (point 1:8, i, j); pointer to reconstructed x-velocity
+    real(rk), dimension(:, :, :), pointer :: reconstructed_v => null()
+    !< (point 1:8, i, j); pointer to reconstructed y-velocity
+    real(rk), dimension(:, :, :), pointer :: reconstructed_p => null()
+    !< (point 1:8, i, j); pointer to reconstructed pressure
+
+    class(abstract_reconstruction_t), pointer :: reconstruction_operator => null()
+    !< pointer to the R_Omega operator used to provide values at the P' location
+
+    character(:), allocatable :: name  !< Name of the evolution operator
+    real(rk) :: tau !< time increment to evolve
+    integer(ik) :: iteration = 0
+    real(rk) :: time = 0.0_rk
+    real(rk) :: time_step = 0.0_rk
   contains
     procedure, public :: initialize
     procedure, public :: evolve
     procedure, public, nopass :: e0_operator
-    procedure, public :: copy
     final :: finalize
   end type local_evo_operator_t
 
 contains
 
-  subroutine initialize(self, input, grid_target, recon_operator_target)
+  subroutine initialize(self, dt, grid_target, recon_operator_target)
     !< Constructor for the FVLEG operator
     class(local_evo_operator_t), intent(inout) :: self
-    class(input_t), intent(in) :: input
-
     class(grid_t), intent(in), target :: grid_target
+    real(rk), intent(in) :: dt !< timestep
     class(abstract_reconstruction_t), intent(in), target :: recon_operator_target
 
     self%name = "FVLEG"
+    self%time_step = dt
     self%grid => grid_target
     self%reconstruction_operator => recon_operator_target
 
-  end subroutine
+  end subroutine initialize
 
   subroutine finalize(self)
     !< Cleanup the operator type
@@ -56,7 +97,6 @@ contains
 
     call debug_print('Running local_evo_operator_t%finalize()', __FILE__, __LINE__)
 
-    if(allocated(self%name)) deallocate(self%name)
     if(associated(self%grid)) nullify(self%grid)
 
     if(associated(self%reconstructed_rho)) nullify(self%reconstructed_rho)
@@ -64,37 +104,24 @@ contains
     if(associated(self%reconstructed_v)) nullify(self%reconstructed_v)
     if(associated(self%reconstructed_p)) nullify(self%reconstructed_p)
     if(associated(self%reconstruction_operator)) nullify(self%reconstruction_operator)
+
+    ! if (allocated(self%leftright_midpoint_neighbors)) deallocate(self%leftright_midpoint_neighbors)
+    ! if (allocated(self%downup_midpoint_neighbors)) deallocate(self%downup_midpoint_neighbors)
+    ! if (allocated(self%corner_neighbors)) deallocate(self%corner_neighbors)
+
+    if(allocated(self%name)) deallocate(self%name)
+
   end subroutine finalize
 
-  subroutine copy(out_evo, in_evo)
-    class(abstract_evo_operator_t), intent(in) :: in_evo
-    class(local_evo_operator_t), intent(inout) :: out_evo
-
-    ! call debug_print('Running local_evo_operator_t%copy()', __FILE__, __LINE__)
-
-    ! if(associated(out_evo%grid)) nullify(out_evo%grid)
-    ! out_evo%grid => in_evo%grid
-
-    ! if(associated(out_evo%reconstructed_state)) nullify(out_evo%reconstructed_state)
-    ! out_evo%reconstructed_state => in_evo%reconstructed_state
-
-    ! if(associated(out_evo%reconstruction_operator)) nullify(out_evo%reconstruction_operator)
-    ! out_evo%reconstruction_operator => in_evo%reconstruction_operator
-
-    ! if(allocated(out_evo%name)) deallocate(out_evo%name)
-    ! allocate(out_evo%name, source=in_evo%name)
-
-  end subroutine
-
-  subroutine evolve(self, location, evolved_rho, evolved_u, evolved_v, evolved_p, lbounds, error_code)
+  subroutine evolve(self, dt, location, evolved_rho, evolved_u, evolved_v, evolved_p, lbounds, error_code)
     !< Create Mach cones and evolve the state at all of the left/right midpoints in the domain. Left/right midpoints
     !< are the midpoints defined by vectors pointing to the left and right.
 
     class(local_evo_operator_t), intent(inout) :: self
-
     integer(ik), dimension(2), intent(in) :: lbounds
     character(len=*), intent(in) :: location !< Mach cone location ['corner', 'left/right midpoint', or 'down/up midpoint']
     integer(ik), intent(out) :: error_code
+    real(rk), intent(in) :: dt !< time step
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_rho
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_u
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: evolved_v
@@ -103,6 +130,19 @@ contains
     ! Locals
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
+
+    integer(ik), dimension(:, :, :, :), allocatable :: leftright_midpoint_neighbors
+    !< ((i,j), (cell 1:2), i, j); (i,j) indices of the cells on either side of the left/right vector midpoint
+
+    integer(ik), dimension(:, :, :, :), allocatable :: downup_midpoint_neighbors
+    !< ((i,j), (cell 1:2), i, j); (i,j) indices of the cells on either side of the down/up vector midpoint
+
+    integer(ik), dimension(:, :, :, :), allocatable :: corner_neighbors
+    !< ((i,j), (cell 1:4), i, j); (i,j) indices of the cells surrounding the corner vector set
+
+    type(mach_cone_collection_t) :: leftright_midpoint_mach_cones
+    type(mach_cone_collection_t) :: downup_midpoint_mach_cones
+    type(mach_cone_collection_t) :: corner_mach_cones
 
     real(rk) :: tau !< time increment
 
@@ -119,7 +159,8 @@ contains
     !< (point 1:8, i, j); the reconstructed pressure of the corners/midpoints with respect to each cell
 
     error_code = 0
-    tau = self%time_step / 2.0_rk
+    self%time_step = dt
+    tau = dt / 2.0_rk
     ilo = lbound(evolved_rho, dim=1)
     ihi = ubound(evolved_rho, dim=1)
     jlo = lbound(evolved_rho, dim=2)
@@ -148,14 +189,14 @@ contains
 
       ! For corners, the edge vectors go down (0-P1), right(O-P2), up(O-P3), right (O-P4)
       ! O is the corner point shared by the 4 cells
-      if(.not. allocated(self%corner_neighbors)) then
-        allocate(self%corner_neighbors(2, 4, ilo:ihi, jlo:jhi))
+      if(.not. allocated(corner_neighbors)) then
+        allocate(corner_neighbors(2, 4, ilo:ihi, jlo:jhi))
         do j = jlo, jhi
           do i = ilo, ihi
-            self%corner_neighbors(:, 1, i, j) = [i - 1, j - 1] ! lower left
-            self%corner_neighbors(:, 2, i, j) = [i, j - 1]     ! lower right
-            self%corner_neighbors(:, 3, i, j) = [i, j]         ! upper right
-            self%corner_neighbors(:, 4, i, j) = [i - 1, j]     ! upper left
+            corner_neighbors(:, 1, i, j) = [i - 1, j - 1] ! lower left
+            corner_neighbors(:, 2, i, j) = [i, j - 1]     ! lower right
+            corner_neighbors(:, 3, i, j) = [i, j]         ! upper right
+            corner_neighbors(:, 4, i, j) = [i - 1, j]     ! upper left
           end do
         end do
       end if
@@ -204,14 +245,16 @@ contains
       !$omp end do
       !$omp end parallel
 
-      call self%corner_mach_cones%initialize(tau=tau, edge_vectors=self%grid%corner_edge_vectors, &
-                                             reconstructed_rho=reconstructed_rho, &
-                                             reconstructed_u=reconstructed_u, &
-                                             reconstructed_v=reconstructed_v, &
-                                             reconstructed_p=reconstructed_p, &
-                                             cell_indices=self%corner_neighbors, &
-                                             cone_location=trim(location))
-      call self%e0_operator(cones=self%corner_mach_cones, &
+      call corner_mach_cones%initialize(tau=tau, edge_vectors=self%grid%corner_edge_vectors, &
+                                        reconstructed_rho=reconstructed_rho, &
+                                        reconstructed_u=reconstructed_u, &
+                                        reconstructed_v=reconstructed_v, &
+                                        reconstructed_p=reconstructed_p, &
+                                        cell_indices=corner_neighbors, &
+                                        cone_location=trim(location), &
+                                        lbounds=lbound(reconstructed_rho), &
+                                        reconstruction_operator=self%reconstruction_operator)
+      call self%e0_operator(cones=corner_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
 
     case('left/right midpoint')
@@ -237,12 +280,12 @@ contains
       ! For left/right midpoints, the edge vectors go left (O-P1) then right (O-P2).
       ! The neighboring cells are up (i, j+1) and down (i, j-1)
 
-      if(.not. allocated(self%leftright_midpoint_neighbors)) then
-        allocate(self%leftright_midpoint_neighbors(2, 2, ilo:ihi, jlo:jhi))
+      if(.not. allocated(leftright_midpoint_neighbors)) then
+        allocate(leftright_midpoint_neighbors(2, 2, ilo:ihi, jlo:jhi))
         do j = jlo, jhi
           do i = ilo, ihi
-            self%leftright_midpoint_neighbors(:, 1, i, j) = [i, j]     ! above
-            self%leftright_midpoint_neighbors(:, 2, i, j) = [i, j - 1] ! below
+            leftright_midpoint_neighbors(:, 1, i, j) = [i, j]     ! above
+            leftright_midpoint_neighbors(:, 2, i, j) = [i, j - 1] ! below
           end do
         end do
       end if
@@ -276,14 +319,16 @@ contains
       !$omp end do
       !$omp end parallel
 
-      call self%leftright_midpoint_mach_cones%initialize(tau=tau, edge_vectors=self%grid%leftright_midpoint_edge_vectors, &
-                                                         reconstructed_rho=reconstructed_rho, &
-                                                         reconstructed_u=reconstructed_u, &
-                                                         reconstructed_v=reconstructed_v, &
-                                                         reconstructed_p=reconstructed_p, &
-                                                         cell_indices=self%leftright_midpoint_neighbors, &
-                                                         cone_location=trim(location))
-      call self%e0_operator(cones=self%leftright_midpoint_mach_cones, &
+      call leftright_midpoint_mach_cones%initialize(tau=tau, edge_vectors=self%grid%leftright_midpoint_edge_vectors, &
+                                                    reconstructed_rho=reconstructed_rho, &
+                                                    reconstructed_u=reconstructed_u, &
+                                                    reconstructed_v=reconstructed_v, &
+                                                    reconstructed_p=reconstructed_p, &
+                                                    cell_indices=leftright_midpoint_neighbors, &
+                                                    cone_location=trim(location), &
+                                                    lbounds=lbound(reconstructed_rho), &
+                                                    reconstruction_operator=self%reconstruction_operator)
+      call self%e0_operator(cones=leftright_midpoint_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
 
     case('down/up midpoint')
@@ -298,12 +343,12 @@ contains
       !
       ! For down/up midpoints, the edge vectors go down (O-P1) then up (O-P2).
       ! The neighboring cells are left (i, j) and right (i-1, j)
-      if(.not. allocated(self%downup_midpoint_neighbors)) then
-        allocate(self%downup_midpoint_neighbors(2, 2, ilo:ihi, jlo:jhi))
+      if(.not. allocated(downup_midpoint_neighbors)) then
+        allocate(downup_midpoint_neighbors(2, 2, ilo:ihi, jlo:jhi))
         do j = jlo, jhi
           do i = ilo, ihi
-            self%downup_midpoint_neighbors(:, 1, i, j) = [i - 1, j] ! left
-            self%downup_midpoint_neighbors(:, 2, i, j) = [i, j]     ! right
+            downup_midpoint_neighbors(:, 1, i, j) = [i - 1, j] ! left
+            downup_midpoint_neighbors(:, 2, i, j) = [i, j]     ! right
           end do
         end do
       end if
@@ -337,14 +382,16 @@ contains
       !$omp end do
       !$omp end parallel
 
-      call self%downup_midpoint_mach_cones%initialize(tau=tau, edge_vectors=self%grid%downup_midpoint_edge_vectors, &
-                                                      reconstructed_rho=reconstructed_rho, &
-                                                      reconstructed_u=reconstructed_u, &
-                                                      reconstructed_v=reconstructed_v, &
-                                                      reconstructed_p=reconstructed_p, &
-                                                      cell_indices=self%downup_midpoint_neighbors, &
-                                                      cone_location=trim(location))
-      call self%e0_operator(cones=self%downup_midpoint_mach_cones, &
+      call downup_midpoint_mach_cones%initialize(tau=tau, edge_vectors=self%grid%downup_midpoint_edge_vectors, &
+                                                 reconstructed_rho=reconstructed_rho, &
+                                                 reconstructed_u=reconstructed_u, &
+                                                 reconstructed_v=reconstructed_v, &
+                                                 reconstructed_p=reconstructed_p, &
+                                                 cell_indices=downup_midpoint_neighbors, &
+                                                 cone_location=trim(location), &
+                                                 lbounds=lbound(reconstructed_rho), &
+                                                 reconstruction_operator=self%reconstruction_operator)
+      call self%e0_operator(cones=downup_midpoint_mach_cones, &
                             rho=evolved_rho, u=evolved_u, v=evolved_v, p=evolved_p)
 
     case default
@@ -355,10 +402,10 @@ contains
     if(allocated(reconstructed_u)) deallocate(reconstructed_u)
     if(allocated(reconstructed_v)) deallocate(reconstructed_v)
     if(allocated(reconstructed_p)) deallocate(reconstructed_p)
-  end subroutine
+  end subroutine evolve
 
   subroutine e0_operator(cones, rho, u, v, p)
-    class(mach_cone_collection_t), intent(in) :: cones
+    type(mach_cone_collection_t), intent(in) :: cones
     real(rk), dimension(:, :), intent(inout) :: rho
     real(rk), dimension(:, :), intent(inout) :: u
     real(rk), dimension(:, :), intent(inout) :: v
@@ -368,6 +415,8 @@ contains
     integer(ik) :: i, j, c
     real(rk) :: t1, t2, t3
     real(rk), dimension(3) :: t_tot
+
+    call debug_print('Running local_evo_operator_t%e0_operator()', __FILE__, __LINE__)
 
     allocate(rho_a_tilde, mold=cones%reference_density)
 
@@ -403,9 +452,6 @@ contains
           t3 = neumaier_sum(rho_a_tilde(i, j) * v_i(:, i, j) * cos_dtheta(:, i, j))
           t_tot = [t1, t2, t3]
           p(i, j) = neumaier_sum(t_tot) / (2.0_rk * pi)
-          ! p(i, j) = sum(p_i(:, i, j) * dtheta(:, i, j) - &
-          !               rho_a_tilde(i, j) * u_i(:, i, j) * sin_dtheta(:, i, j) + &
-          !               rho_a_tilde(i, j) * v_i(:, i, j) * cos_dtheta(:, i, j)) / (2.0_rk * pi)
         end do
       end do
       !$omp end do
@@ -415,9 +461,6 @@ contains
         do i = 1, cones%ni
           t_tot = [rho_p_prime(i, j),(p(i, j) / a_tilde(i, j)**2), -pressure_p_prime(i, j) / a_tilde(i, j)**2]
           rho(i, j) = neumaier_sum(t_tot)
-          ! rho(i, j) = rho_p_prime(i, j) + (p(i, j) / a_tilde(i, j)**2) - (pressure_p_prime(i, j) / a_tilde(i, j)**2)
-          ! print*, neumaier_sum(t_tot), rho(i,j), abs(neumaier_sum(t_tot) - rho(i,j))
-
         end do
       end do
       !$omp end do
@@ -436,10 +479,6 @@ contains
 
           t_tot = [t1, t2, t3]
           u(i, j) = neumaier_sum(t_tot) / pi
-
-          ! u(i, j) = sum((-p_i(:, i, j) / rho_a_tilde(i, j)) * sin_dtheta(:, i, j) &
-          !               + u_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) + (sin_d2theta(:, i, j) / 4.0_rk)) &
-          !               - v_i(:, i, j) * (cos_d2theta(:, i, j) / 4.0_rk)) / pi
         end do
       end do
       !$omp end do
@@ -458,100 +497,12 @@ contains
 
           t_tot = [t1, t2, t3]
           v(i, j) = neumaier_sum(t_tot) / pi
-
-          ! v(i, j) = sum((p_i(:, i, j) / rho_a_tilde(i, j)) * cos_dtheta(:, i, j) &
-          !               - u_i(:, i, j) * (cos_d2theta(:, i, j) / 4.0_rk) &
-          !               + v_i(:, i, j) * ((dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk))) / pi
-
-          ! if(abs(v(i, j)) > 0.0_rk) then
-          !   write(*, '(a, 8(es16.6, 1x))') "reference_u     ", cones%reference_u(i, j)
-          !   write(*, '(a, 8(es16.6, 1x))') "reference_v     ", cones%reference_v(i, j)
-          !   write(*, '(a, 8(es16.6, 1x))') "reference_v_tot ", sqrt(cones%reference_u(i, j)**2 + cones%reference_v(i, j)**2)
-          !   write(*, '(a, 8(es16.6, 1x))') 'p_i * cos_dtheta         ', p_i(:, i, j) * cos_dtheta(:, i, j)
-          !   write(*, '(a, 8(es16.6, 1x))') "dtheta                   ", dtheta(:, i, j)
-          !   write(*, '(a, 8(es16.6, 1x))') "-u_i * cos_d2theta       ", -u_i(:, i, j) * cos_d2theta(:, i, j)
-          !   write(*, '(a, 8(es16.6, 1x))') "u_i                      ", u_i(:, i, j)
-          !   write(*, '(a, 8(es16.6, 1x))') "v_i                      ", v_i(:, i, j)
-          !   write(*, '(a, 8(es16.6, 1x))') "dtheta/2 - sin_d2theta/4 ",(dtheta(:, i, j) / 2.0_rk) - (sin_d2theta(:, i, j) / 4.0_rk)
-          !   write(*, '(a, 8(es16.6, 1x))') "sum(u_i)", neumaier_sum(u_i(:, i, j))
-          !   write(*, '(a, 8(es16.6, 1x))') "sum(v_i)", neumaier_sum(v_i(:, i, j))
-          !   print *, 'neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))', neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))
-          !   print *, '         sum(p_i(:, i, j) * cos_dtheta(:, i, j))', sum(p_i(:, i, j) * cos_dtheta(:, i, j))
-          !   print*, 'neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j)) / rho_a_tilde(i, j)', neumaier_sum(p_i(:, i, j) * cos_dtheta(:, i, j))/ rho_a_tilde(i, j)
-          !   print*, '         sum(p_i(:, i, j) * cos_dtheta(:, i, j)) / rho_a_tilde(i, j)', sum(p_i(:, i, j) * cos_dtheta(:, i, j))/ rho_a_tilde(i, j)
-          !   print *, 'rho a tilde: ', rho_a_tilde(i, j)
-          !   print *, 't1:          ', t1
-          !   print *, 't2:          ', t2
-          !   print *, 't3:          ', t3
-          !   print *, 'v(i, j)', v(i, j)
-          !   print *
-          !   error stop "abs(v(i, j)) > 0.0_rk"
-          ! end if
-          ! if (abs(v(i,j)) > 0.0_rk) then
-          !   print*, 'v ', i, j, v(i,j)
-          !   print*, t1
-          !   print*, t2
-          !   print*, t3
-          !   print*, neumaier_sum(t_tot) / pi
-          !   print*
-          !   ! error stop "v > 0!"
-          ! end if
         end do
       end do
       !$omp end do
-
       !$omp end parallel
-
-      ! print *, 'E0: ', cones%cone_location
-      ! write(*, '(a, 6(es16.6))') 'rho_a_tilde ', maxval(rho_a_tilde(204, :)) - minval(rho_a_tilde(204, :))
-      ! write(*, '(a, 6(es16.6))') "rho(P')     ", maxval(cones%density_p_prime(204, :)) - minval(cones%density_p_prime(204, :))
-      ! write(*, '(a, 6(es16.6))') "p(P')       ", maxval(cones%pressure_p_prime(204, :)) - minval(cones%pressure_p_prime(204, :))
-      ! write(*, '(a, 6(es16.6))') "rho         ", maxval(rho(204, :)) - minval(rho(204, :))
-      ! write(*, '(a, 6(es16.6))') "u           ", maxval(u(204, :)) - minval(u(204, :))
-      ! write(*, '(a, 6(es16.6))') "v           ", maxval(v(204, :)) - minval(v(204, :))
-      ! write(*, '(a, 6(es16.6))') "p           ", maxval(p(204, :)) - minval(p(204, :))
-
-      ! write(*,'(a, 6(es16.6))') 'reference_sound_speed ', maxval(cones%reference_sound_speed(204,:)) - minval(cones%reference_sound_speed(204,:))
-      ! write(*,'(a, 6(es16.6))') 'reference_pressure ', maxval(cones%reference_pressure(204,:)) - minval(cones%reference_pressure(204,:))
-      ! write(*, '(a, 6(es16.6))') 'radius  ', &
-      !     maxval(cones%radius(204, :)) - minval(cones%radius(204, :))
-      ! write(*, '(a, 6(es16.6))') 'dtheta  ', &
-      !     maxval(sum(cones%dtheta(:, 204, :), dim=1)) - minval(sum(cones%dtheta(:, 204, :), dim=1))
-      ! write(*,'(a, 6(es16.6))') 'sin_dtheta  max-min ', maxval(sum(cones%sin_dtheta(:,204,:), dim=1)) - minval(sum(cones%sin_dtheta(:,204,:), dim=1))
-      ! write(*,'(a, 6(es16.6))') 'cos_dtheta  max-min ', maxval(sum(cones%cos_dtheta(:,204,:), dim=1)) - minval(sum(cones%cos_dtheta(:,204,:), dim=1))
-
-      ! ! write(*, '(a, 8(es16.6))') 'sin_dtheta (j=3)     ', rad2deg(cones%sin_dtheta(:, 204, 3))
-      ! ! write(*, '(a, 8(es16.6))') 'sin_dtheta (j=2)     ', rad2deg(cones%sin_dtheta(:, 204, 2))
-      ! write(*, '(a, 8(es16.6))') 'sin_dtheta (j=3-j=2) ', abs(cones%sin_dtheta(:, 204, 3) - cones%sin_dtheta(:, 204, 2))
-
-      ! ! write(*, '(a, 8(es16.6))') 'cos_dtheta (j=3)     ', rad2deg(cones%cos_dtheta(:, 204, 3))
-      ! ! write(*, '(a, 8(es16.6))') 'cos_dtheta (j=2)     ', rad2deg(cones%cos_dtheta(:, 204, 2))
-      ! write(*, '(a, 8(es16.6))') 'cos_dtheta (j=3-j=2) ', abs(cones%cos_dtheta(:, 204, 3) - cones%cos_dtheta(:, 204, 2))
-
-      ! ! write(*, '(a, 8(es16.6))') 'cos_d2theta (j=3)     ', rad2deg(cones%cos_d2theta(:, 204, 3))
-      ! ! write(*, '(a, 8(es16.6))') 'cos_d2theta (j=2)     ', rad2deg(cones%cos_d2theta(:, 204, 2))
-      ! write(*, '(a, 8(es16.6))') 'cos_d2theta (j=3-j=2) ', abs(cones%cos_d2theta(:, 204, 3) - cones%cos_d2theta(:, 204, 2))
-
-      ! ! write(*, '(a, 8(es16.6))') 'sin_d2theta (j=3)     ', rad2deg(cones%sin_d2theta(:, 204, 3))
-      ! ! write(*, '(a, 8(es16.6))') 'sin_d2theta (j=2)     ', rad2deg(cones%sin_d2theta(:, 204, 2))
-      ! write(*, '(a, 8(es16.6))') 'sin_d2theta (j=3-j=2) ', abs(cones%sin_d2theta(:, 204, 3) - cones%sin_d2theta(:, 204, 2))
-
-      ! write(*, '(a, 6(es16.6))') 'ref rho ', maxval(cones%reference_density(204, :)) - minval(cones%reference_density(204, :))
-      ! write(*, '(a, 6(es16.6))') 'ref u   ', maxval(cones%reference_u(204, :)) - minval(cones%reference_u(204, :))
-      ! write(*, '(a, 6(es16.6))') 'ref v   ', maxval(cones%reference_v(204, :)) - minval(cones%reference_v(204, :))
-
-      ! write(*, '(a, es16.6)') "P'(y) - P0(y) j=3 ", abs(cones%p_prime_y(204,3) - cones%p0_y(204,3))
-      ! write(*, '(a, es16.6)') "P'(y) - P0(y) j=2 ", abs(cones%p_prime_y(204,2) - cones%p0_y(204,2))
-      ! write(*, '(a, es16.6)') "P'(P) - ref P j=3 ", abs(cones%pressure_p_prime(204,3) - cones%reference_pressure(204,3))
-      ! write(*, '(a, es16.6)') "P'(P) - ref P j=2 ", abs(cones%pressure_p_prime(204,2) - cones%reference_pressure(204,2))
-      ! print *
-
     end associate
-
-    ! deallocate(t3)
-    ! deallocate(t2)
-    ! deallocate(t1)
     deallocate(rho_a_tilde)
-  end subroutine
+  end subroutine e0_operator
 
 end module mod_local_evo_operator

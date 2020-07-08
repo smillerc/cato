@@ -1,114 +1,112 @@
 module test_gradients
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_gradients
+  use mod_grid_factory, only: grid_factory
+  use mod_grid, only: grid_t
+  use mod_input, only: input_t
   use funit
 
   implicit none
 
-  integer(ik), parameter :: ni_nodes = 4
-  integer(ik), parameter :: nj_nodes = 4
+  integer(ik), parameter :: ni_nodes = 5
+  integer(ik), parameter :: nj_nodes = 5
   integer(ik), parameter :: ni_cells = ni_nodes - 1
   integer(ik), parameter :: nj_cells = nj_nodes - 1
-  integer(ik) :: alloc_status
+  real(rk), parameter :: xmin = -2.0_rk
+  real(rk), parameter :: xmax = 2.0_rk
+  real(rk), parameter :: ymin = -2.0_rk
+  real(rk), parameter :: ymax = 2.0_rk
+  integer(ik) :: alloc_stat
+  integer(ik), parameter :: C1 = 1
+  integer(ik), parameter :: M1 = 2
+  integer(ik), parameter :: C2 = 3
+  integer(ik), parameter :: M2 = 4
+  integer(ik), parameter :: C3 = 5
+  integer(ik), parameter :: M3 = 6
+  integer(ik), parameter :: C4 = 7
+  integer(ik), parameter :: M4 = 8
+
+  class(grid_t), pointer :: grid
+  type(input_t) :: input
 
 contains
 
-  @test
-  subroutine test_smoothness()
-    real(rk) :: current = 1.0_rk
-    real(rk) :: left = 5.0_rk
-    real(rk) :: right = 3.0_rk
-    real(rk) :: smoothness = 0.0_rk
+  @before
+  subroutine before()
+    input = input_t(cell_reconstruction='piecewise_linear', &
+                    edge_interpolation_scheme='TVD2', &
+                    limiter='none', &
+                    gradient_scheme='green_gauss', &
+                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
+                    read_init_cond_from_file=.false., &
+                    xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+    grid => grid_factory(input)
+  end subroutine
 
-    smoothness = get_smoothness(current, left, right)
-    @assertEqual(-0.5_rk, smoothness)
-  end subroutine test_smoothness
+  @after
+  subroutine after()
+    deallocate(grid)
+  end subroutine
 
   @test
   subroutine test_sgg_gradient()
-    real(rk), dimension(4, 2) :: gradient
-    real(rk), dimension(4, 5) :: prim_vars  !< primitive variables of current and neighbor cells
-    real(rk), dimension(5) :: volumes  !< volume of each cell
-    real(rk), dimension(4) :: edge_lengths  !< length of each face
-    real(rk), dimension(2, 4) :: edge_normals  !< normal vectors of each face
+
+    ! real(rk), dimension(0:ni_cells-1, 0:nj_cells-1) :: rho = 0.0_rk
+    real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: grad_x = 0.0_rk
+    real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: grad_y = 0.0_rk
+    real(rk), dimension(1:4, 0:ni_cells - 1, 0:nj_cells - 1) :: edge_vars = 0.0_rk
+    integer(ik) :: i, j
 
     write(*, *) "Testing the standard Green-Gauss gradient reconstruction"
 
-    volumes = 1.0_rk
-    edge_lengths = 1.0_rk
-    edge_normals(:, 1) = [0.0_rk, -1.0_rk]
-    edge_normals(:, 2) = [1.0_rk, 0.0_rk]
-    edge_normals(:, 3) = [0.0_rk, 1.0_rk]
-    edge_normals(:, 4) = [-1.0_rk, 0.0_rk]
+    !           Domain           -->     Primitive Variable (rho)
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
 
-    !           Domain           -->     Primitive Variable (v)
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,3) | (2,3) | (3,3) |  -->  |   1   |   2   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,2) | (2,2) | (3,2) |  -->  |   1   |   2   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,1) | (2,1) | (3,1) |  -->  |   1   |   2   |   3   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    edge_vars(1, 0, :) = 1.0_rk ! bottom
+    edge_vars(2, 0, :) = 1.5_rk ! right
+    edge_vars(3, 0, :) = 1.0_rk ! top
+    edge_vars(4, 0, :) = 0.5_rk ! left
 
-    prim_vars(:, 1) = 2.0_rk  ! (2,2)
-    prim_vars(:, 2) = 2.0_rk  ! (2,1)
-    prim_vars(:, 3) = 3.0_rk  ! (3,2)
-    prim_vars(:, 4) = 2.0_rk  ! (2,3)
-    prim_vars(:, 5) = 1.0_rk  ! (1,2)
+    edge_vars(1, 1, :) = 2.0_rk ! bottom
+    edge_vars(2, 1, :) = 2.5_rk ! right
+    edge_vars(3, 1, :) = 2.0_rk ! top
+    edge_vars(4, 1, :) = 1.5_rk ! left
 
-    gradient = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
+    edge_vars(1, 2, :) = 3.0_rk ! bottom
+    edge_vars(2, 2, :) = 3.5_rk ! right
+    edge_vars(3, 2, :) = 3.0_rk ! top
+    edge_vars(4, 2, :) = 2.5_rk ! left
 
-    ! dU/dx
-    @assertEqual(1.0_rk, gradient(:, 1))
+    edge_vars(1, 3, :) = 4.0_rk ! bottom
+    edge_vars(2, 3, :) = 4.5_rk ! right
+    edge_vars(3, 3, :) = 4.0_rk ! top
+    edge_vars(4, 3, :) = 3.5_rk ! left
 
-    ! dU/dy
-    @assertEqual(0.0_rk, gradient(:, 2))
+    call green_gauss_gradient(edge_vars, lbounds=lbound(edge_vars), &
+                              grid=grid, grad_x=grad_x, grad_y=grad_y, &
+                              name='rho', stage_name='rho_test')
 
-    !           Domain           -->     Primitive Variable (v)
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,3) | (2,3) | (3,3) |  -->  |   1   |   1   |   1   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,2) | (2,2) | (3,2) |  -->  |   1   |   1   |   2   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,1) | (2,1) | (3,1) |  -->  |   1   |   2   |   2   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
+    ! Only (1,1) will have a gradient, all other zones are ghost
+    @assertEqual(1.0_rk, grad_x(1:2, 1:2))
+    @assertEqual(0.0_rk, grad_y(1:2, 1:2))
 
-    prim_vars(:, 1) = 1.0_rk  ! (2,2)
-    prim_vars(:, 2) = 2.0_rk  ! (2,1)
-    prim_vars(:, 3) = 2.0_rk  ! (3,2)
-    prim_vars(:, 4) = 1.0_rk  ! (2,3)
-    prim_vars(:, 5) = 1.0_rk  ! (1,2)
-
-    gradient = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
-
-    ! dU/dx
-    @assertEqual(0.5_rk, gradient(:, 1))
-
-    ! dU/dy
-    @assertEqual(-0.5_rk, gradient(:, 2))
-
-    !           Domain           -->     Primitive Variable (v)
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,3) | (2,3) | (3,3) |  -->  |   1   |   1   |   1   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,2) | (2,2) | (3,2) |  -->  |   1   |   2   |   1   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-    ! | (1,1) | (2,1) | (3,1) |  -->  |   1   |   1   |   1   |
-    ! |-------|-------|-------|  -->  |-------|-------|-------|
-
-    prim_vars(:, 1) = 2.0_rk  ! (2,2)
-    prim_vars(:, 2) = 1.0_rk  ! (2,1)
-    prim_vars(:, 3) = 1.0_rk  ! (3,2)
-    prim_vars(:, 4) = 1.0_rk  ! (2,3)
-    prim_vars(:, 5) = 1.0_rk  ! (1,2)
-
-    gradient = green_gauss_gradient(prim_vars, volumes, edge_lengths, edge_normals)
-
-    ! dU/dx
-    @assertEqual(0.0_rk, gradient(:, 1))
-
-    ! dU/dy
-    @assertEqual(0.0_rk, gradient(:, 2))
+    print *, 'grad x'
+    do j = nj_cells - 1, 0, -1
+      write(*, '(a, i0, a, 5(es16.6))') 'grad_x(:,', j, ') -> ', grad_x(:, j)
+    end do
+    print *
+    print *, 'grad y'
+    do j = nj_cells - 1, 0, -1
+      write(*, '(a, i0, a, 5(es16.6))') 'grad_y(:,', j, ') -> ', grad_y(:, j)
+    end do
 
   end subroutine test_sgg_gradient
 

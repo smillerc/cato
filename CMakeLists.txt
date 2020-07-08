@@ -1,3 +1,37 @@
+# MIT License
+# Copyright (c) 2019 Sam Miller
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+#
+# CMake configuration options
+#     -DUSE_OPENMP=[YES/NO]
+#         Enable OpenMP parallelization and SIMD vectorization
+#     -DOUTPUT_OPTIMIZATION_REPORTS=[YES/NO]
+#         Enable optimization reports (gfortran and ifort do this a bit differently)
+#     -DUSE_ASAN=[YES/NO]
+#         Enable leak checks (gfortran only)
+#     -DUSE_DSAN=[YES/NO]
+#         Enable OpenMP thread data race checking (gfortran only)
+#     -DENABLE_TESTING=[YES/NO]
+#         Turn on the pFUnit unit tests (to be run with ctest). Note, pFUnit must be built with the same compiler
+#
+
 cmake_minimum_required(VERSION 3.8)
 
 project(

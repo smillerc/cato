@@ -45,9 +45,11 @@ papers/~$method_explanation.pptx
 # test details
 tests/**/cato.x
 tests/**/*.txt
+tests/**/*.png
 tests/**/*.error
 tests/**/*.ipynb
 tests/**/*/timing.csv
+tests/**/*/timing_summary.yaml
 tests/integrated/**/input_source_value.dat
 tests/integrated/**/boundary_pressure_input_value.dat
 
@@ -73,3 +75,7 @@ tests/integrated/*/out
 *.csv
 *.xlsx
 instruments*
+
+# integrated test details
+tests/integrated/converge_characteristic_growth/symmetric.ini
+tests/integrated/converge_characteristic_growth/perturbed.ini

@@ -1,3 +1,23 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_globals
   use iso_fortran_env, only: compiler_options, compiler_version, std_out => output_unit, &
                              ik => int32, rk => real64
@@ -57,13 +77,16 @@ contains
     end if
   end subroutine set_global_options
 
-  subroutine set_domain_dimensionality(dimensionality, grid_orthogonality)
+  subroutine set_domain_dimensionality(dimensionality, grid_orthogonality, num_ghost_layers)
     !< Set the global dimensionality of the domain. This helps the code
     !< make shortcuts elsewhere
     character(len=4), intent(in) :: dimensionality
     logical, intent(in) :: grid_orthogonality
+    integer(ik), intent(in) :: num_ghost_layers
 
     grid_is_orthogonal = grid_orthogonality
+
+    n_ghost_layers = num_ghost_layers
 
     select case(trim(dimensionality))
     case('1D_X')

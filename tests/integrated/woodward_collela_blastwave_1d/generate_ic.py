@@ -13,7 +13,7 @@ sys.path.append(os.path.abspath("../../.."))
 from pycato import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
-ic = make_1d_in_x_uniform_grid(n_cells=500, limits=(0, 1.0))
+ic = make_1d_in_x_uniform_grid(n_cells=1000, limits=(0, 1.0))
 
 # Set the initial conditions
 gamma = 1.4

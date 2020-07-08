@@ -179,6 +179,7 @@ def make_2d_layered_grid(
     if not layer_spacing:
         layer_spacing = ["constant"] * len(layer_thicknesses)
 
+    print(f"Building with {n_ghost_layers} ghost layers")
     layer_thicknesses = layer_thicknesses.to("cm").m
     cumulative_thickness = 0
     dx_last = 0
@@ -223,15 +224,29 @@ def make_2d_layered_grid(
         dy = np.diff(x).min()
     else:
         dy = dy.to("cm").m
-    n_ycells = np.round(y_thickness / dy, 0).astype(int)
+    n_y_cells = np.round(y_thickness / dy, 0).astype(int)
 
-    y = np.linspace(0, y_thickness, n_ycells + 1, endpoint=True, dtype=np.float64)
-    ldy = y[1] - y[0]
-    rdy = y[-1] - y[-2]
-    y = np.array([y[0] - ldy] + list(y) + [y[-1] + rdy], dtype=np.float64)
+    y = np.linspace(
+        start=0 - n_ghost_layers * dy,
+        stop=y_thickness + n_ghost_layers * dy,
+        num=(n_y_cells + 1) + (n_ghost_layers * 2),
+        dtype=np.float64,
+    )
 
     # add a ghost cell on either side
-    x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)
+    if n_ghost_layers == 1:
+        x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)
+    elif n_ghost_layers == 2:
+        x = np.array(
+            [x[0] - 2 * ldx]
+            + [x[0] - ldx]
+            + list(x)
+            + [x[-1] + rdx]
+            + [x[-1] + 2 * rdx],
+            dtype=np.float64,
+        )
+    else:
+        raise Exception("Unable to work with n_ghost_layers that aren't 1 or 2")
     dx = np.diff(x) / 2.0
     xc = x[:-1] + dx
 
@@ -280,6 +295,13 @@ def make_2d_layered_grid(
         p[s:e, :] = layer_pressure[layer_idx].to("barye").m
 
     # Assign ghost layer values
+    if n_ghost_layers == 1:
+        ghost_layers = [0, -1]
+    elif n_ghost_layers == 2:
+        ghost_layers = [0, 1, -2, -1]
+    else:
+        raise Exception("Unable to work with n_ghost_layers that aren't 1 or 2")
+
     for i in [0, -1]:
         rho[i, :] = layer_density[i].to("g/cc").m
         u[i, :] = layer_u[i].to("cm/s").m
