@@ -383,11 +383,11 @@ contains
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/sound_speed</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    unit_label = "["//trim(io_temperature_label)//"]"
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Temperature '//trim(unit_label)//'">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/temperature</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
+    ! unit_label = "["//trim(io_temperature_label)//"]"
+    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Temperature '//trim(unit_label)//'">'
+    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+    !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/temperature</DataItem>'
+    ! write(xdmf_unit, '(a)') '      </Attribute>'
 
     unit_label = "["//trim(io_pressure_label)//"]"
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Pressure '//trim(unit_label)//'">'

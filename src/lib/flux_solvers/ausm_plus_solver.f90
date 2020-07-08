@@ -27,7 +27,7 @@ module mod_ausm_plus_solver
     !< Implementation of the AUSM+-up scheme
     private
     real(rk) :: mach_split_beta = 1.0_rk / 8.0_rk        !< beta parameter in Eq. 20 in Ref [1]
-    real(rk) :: pressure_split_alpha = 3.0_rk / 16.0_rk        !< beta parameter in Eq. 20 in Ref [1]
+    real(rk) :: pressure_split_alpha = 3.0_rk / 16.0_rk  !< beta parameter in Eq. 20 in Ref [1]
     real(rk) :: pressure_diffusion_coeff = 0.25_rk       !< K_p; pressure diffusion coefficient in Eq 21 in Ref [1]
     real(rk) :: pressure_flux_coeff = 0.75_rk            !< K_u; pressure flux coefficient in Eq 26 in Ref [1]
     real(rk) :: sigma = 1.0_rk                           !< sigma; another pressure diffusion coefficient in Eq 21 in Ref [1]
@@ -139,15 +139,15 @@ contains
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho !< density
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u   !< x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v   !< y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p   !< pressure
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: u   !< x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: v   !< y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: p   !< pressure
 
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi

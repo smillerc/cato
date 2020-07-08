@@ -97,6 +97,5 @@ contains
     end do
     !$omp end do
     !$omp end parallel
-    ! error stop
   end function
 end module mod_flux_array
