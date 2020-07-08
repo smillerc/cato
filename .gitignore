@@ -75,3 +75,7 @@ tests/integrated/*/out
 *.csv
 *.xlsx
 instruments*
+
+# integrated test details
+tests/integrated/converge_characteristic_growth/symmetric.ini
+tests/integrated/converge_characteristic_growth/perturbed.ini
