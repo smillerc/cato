@@ -69,13 +69,13 @@ module mod_ausm_plus_solver
 
     ! Private methods
     procedure, private :: flux_edges
-    procedure, private, nopass :: split_mach_deg_1
-    procedure, private, nopass :: split_mach_deg_2
-    procedure, private, nopass :: scaling_factor
-    procedure, private, nopass :: alpha
+    ! procedure, private, nopass :: split_mach_deg_1
+    ! procedure, private, nopass :: split_mach_deg_2
+    ! procedure, private, nopass :: scaling_factor
+    ! procedure, private, nopass :: alpha
     procedure, private :: interface_state
-    procedure, private :: split_mach_deg_4
-    procedure, private :: split_pressure_deg_5
+    ! procedure, private :: split_mach_deg_4
+    ! procedure, private :: split_pressure_deg_5
     final :: finalize
 
     ! Operators
@@ -526,12 +526,12 @@ contains
 
   end function split_mach_deg_2
 
-  pure function split_mach_deg_4(self, M, plus_or_minus) result(M_split)
+  pure function split_mach_deg_4(M, beta, plus_or_minus) result(M_split)
     !< Implementation of the 4th order polynomial split Mach function M±(4).
     !< See Eq. 20 in Ref [1]
 
-    class(ausm_plus_solver_t), intent(in) :: self
     real(rk), intent(in) :: M         !< Mach number
+    real(rk), intent(in) :: beta      !< Mach number
     character(len=1), intent(in) :: plus_or_minus !< which split? '+' or '-'
     real(rk) :: M_split !< Split Mach number
 
@@ -539,35 +539,30 @@ contains
     real(rk) :: M_2_plus  !< 2nd order split Mach polynomial M+(2)
     real(rk) :: M_2_minus !< 2nd order split Mach polynomial M-(2)
 
-    M_2_plus = self%split_mach_deg_2(M, '+')  ! M+(2)
-    M_2_minus = self%split_mach_deg_2(M, '-') ! M-(2)
+    M_2_plus = split_mach_deg_2(M, '+')  ! M+(2)
+    M_2_minus = split_mach_deg_2(M, '-') ! M-(2)
 
     if(plus_or_minus == '+') then
       if(abs(M) >= 1.0_rk) then
-        M_split = self%split_mach_deg_1(M, '+') ! M+(1)
+        M_split = split_mach_deg_1(M, '+') ! M+(1)
       else
-        associate(beta=>self%mach_split_beta)
-          ! M+(4)
-          M_split = M_2_plus * (1.0_rk - 16.0_rk * beta * M_2_minus)
-        end associate
+        ! M+(4)
+        M_split = M_2_plus * (1.0_rk - 16.0_rk * beta * M_2_minus)
       end if
     else ! '-'
       if(abs(M) >= 1.0_rk) then
-        M_split = self%split_mach_deg_1(M, '-')
+        M_split = split_mach_deg_1(M, '-')
       else
-        associate(beta=>self%mach_split_beta)
-          ! M-(4)
-          M_split = M_2_minus * (1.0_rk + 16.0_rk * beta * M_2_plus)
-        end associate
+        ! M-(4)
+        M_split = M_2_minus * (1.0_rk + 16.0_rk * beta * M_2_plus)
       end if
     end if
   end function split_mach_deg_4
 
-  pure function split_pressure_deg_5(self, M, plus_or_minus, alpha) result(P_split)
+  pure function split_pressure_deg_5(M, plus_or_minus, alpha) result(P_split)
     !< Implementation of the 5th order polynomial split pressure function P±(5).
     !< See Eq. 24 in Ref [1]
 
-    class(ausm_plus_solver_t), intent(in) :: self
     real(rk), intent(in) :: M                     !< Mach number
     real(rk), intent(in) :: alpha
     character(len=1), intent(in) :: plus_or_minus !< Which split? '+' or '-'
@@ -577,20 +572,20 @@ contains
     real(rk) :: M_2_plus  !< 2nd order split Mach polynomial M+(2)
     real(rk) :: M_2_minus !< 2nd order split Mach polynomial M-(2)
 
-    M_2_plus = self%split_mach_deg_2(M, '+')  ! M+(2)
-    M_2_minus = self%split_mach_deg_2(M, '-') ! M-(2)
+    M_2_plus = split_mach_deg_2(M, '+')  ! M+(2)
+    M_2_minus = split_mach_deg_2(M, '-') ! M-(2)
 
     if(plus_or_minus == '+') then
       ! P+(5)
       if(abs(M) >= 1.0_rk) then
-        P_split = self%split_mach_deg_1(M, '+') / M
+        P_split = split_mach_deg_1(M, '+') / M
       else
         P_split = M_2_plus * ((2.0_rk - M) - 16.0_rk * alpha * M * M_2_minus)
       end if
     else
       ! P-(5)
       if(abs(M) >= 1.0_rk) then
-        P_split = self%split_mach_deg_1(M, '-') / M
+        P_split = split_mach_deg_1(M, '-') / M
       else
         P_split = M_2_minus * ((-2.0_rk - M) + 16.0_rk * alpha * M * M_2_plus)
       end if
@@ -690,8 +685,8 @@ contains
       ! Reference Mach number, see Eq. 71
       M_0_sq = min(1.0_rk, max(M_bar_sq, self%M_inf_sq))
       M_0 = sqrt(M_0_sq)
-      f_a = self%scaling_factor(M_0) ! Scaling function, Eq. 72
-      alpha_param = self%alpha(f_a) ! alpha parameter, Eq. 76
+      f_a = scaling_factor(M_0) ! Scaling function, Eq. 72
+      alpha_param = alpha(f_a) ! alpha parameter, Eq. 76
     else
       ! Mean local Mach, Eq. 13
       M_bar_sq = 0.5_rk * (M_L + M_R)
@@ -699,8 +694,8 @@ contains
     end if
 
     ! Interface Mach number, Eq. 73
-    M_plus = self%split_mach_deg_4(M=M_L, plus_or_minus='+')
-    M_minus = self%split_mach_deg_4(M=M_R, plus_or_minus='-')
+    M_plus = split_mach_deg_4(M=M_L, plus_or_minus='+', beta=self%mach_split_beta)
+    M_minus = split_mach_deg_4(M=M_R, plus_or_minus='-', beta=self%mach_split_beta)
 
     ! Interface density
     rho_half = 0.5_rk * (rho(2) + rho(1))
@@ -729,8 +724,8 @@ contains
     if(abs(M_half) < 1e-13_rk) M_half = 0.0_rk
 
     ! Pressure splitting functions in Eq. 75
-    P_plus = self%split_pressure_deg_5(M=M_L, plus_or_minus='+', alpha=alpha_param)
-    P_minus = self%split_pressure_deg_5(M=M_R, plus_or_minus='-', alpha=alpha_param)
+    P_plus = split_pressure_deg_5(M=M_L, plus_or_minus='+', alpha=alpha_param)
+    P_minus = split_pressure_deg_5(M=M_R, plus_or_minus='-', alpha=alpha_param)
 
     ! Velocity difference (diffusion) term p_u, NOT, Eq. 26, but rather the last term in Eq 75
     ! This is the "u" in the AUSM+-u and AUSM+-up schemes
