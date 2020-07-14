@@ -36,8 +36,8 @@ module mod_inlet_outlet
   public :: subsonic_inlet, subsonic_outlet, supersonic_inlet, supersonic_outlet
 
 contains
-  function subsonic_inlet(domain_prim_vars, boundary_norm, inlet_density, &
-                          inlet_total_press, inlet_flow_angle) result(boundary_prim_vars)
+  pure function subsonic_inlet(domain_prim_vars, boundary_norm, inlet_density, &
+                               inlet_total_press, inlet_flow_angle) result(boundary_prim_vars)
     !< Set the subsonic inlet conditions by using the outgoing Riemann invariant and sound speed
 
     real(rk), dimension(4) :: boundary_prim_vars !< (rho, u, v, p); primitive vars at the boundary
@@ -59,11 +59,12 @@ contains
     real(rk) :: v_tot_d !< total velocity in the domain, e.g. norm2(vel vector)
     real(rk) :: v_tot_b !< total velocity at the boundary
     real(rk) :: v_dot_n !< domain velocity vector dotted with the normal of the boundary face
-    real(rk) :: T_b   !< temperature at the boundary
-    real(rk) :: p_b   !< pressure at the boundary
-    real(rk) :: rho_b !< density at the boundary
-    real(rk) :: u_b   !< x-velocity at the boundary
-    real(rk) :: v_b   !< y-velocity at the boundary
+    real(rk) :: T_b    !< temperature at the boundary
+    real(rk) :: p_b    !< pressure at the boundary
+    real(rk) :: mach_b !< Mach number at the boundary
+    real(rk) :: rho_b  !< density at the boundary
+    real(rk) :: u_b    !< x-velocity at the boundary
+    real(rk) :: v_b    !< y-velocity at the boundary
     real(rk) :: first_term, second_term, third_term
 
     gamma = eos%get_gamma()
@@ -72,10 +73,7 @@ contains
 
     ! if(inlet_total_temp < 0.0_rk) error stop "Error in subsonic_inlet, inlet temperature < 0"
     if(inlet_density < 0.0_rk) error stop "Error in subsonic_inlet, inlet density < 0"
-    if(inlet_total_press < 0.0_rk) then
-      write(*, *) "inlet_total_press", inlet_total_press
-      error stop "Error in subsonic_inlet, inlet pressure < 0"
-    end if
+    if(inlet_total_press < 0.0_rk) error stop "Error in subsonic_inlet, inlet pressure < 0"
 
     associate(rho=>domain_prim_vars(1), u=>domain_prim_vars(2), &
               v=>domain_prim_vars(3), p=>domain_prim_vars(4), &
@@ -87,7 +85,12 @@ contains
               R_minus=>outgoing_riemann_inv, R_plus=>incoming_riemann_inv, &
               R=>universal_gas_constant)
 
-      v_dot_n = u * n_x + v * n_y
+      ! The (-) sign in n_x and n_y is b/c the boundary condition gives the outward
+      ! normal vector respective to the domain, e.g. @ the "+x" bc n=[1,0], but here
+      ! we want the norm going __into__ the domain. This wasn't the initial version, but
+      ! was a later bugfix
+      v_dot_n = u * (-n_x) + v * (-n_y)
+
       v_tot_d = sqrt(u**2 + v**2)
 
       if(v_tot_d > 0.0_rk) cos_theta = -v_dot_n / v_tot_d
@@ -100,7 +103,7 @@ contains
 
       R_minus = v_dot_n - (2.0_rk * cs_d / (gamma - 1.0_rk))
 
-      ! See Eq 8.33 in Ref [1] for boundary sound speed b_b
+      ! See Eq 8.33 in Ref [1] for boundary sound speed cs_b
       first_term = -R_minus * (gamma - 1.0_rk) / ((gamma - 1.0_rk) * cos_theta**2 + 2.0_rk)
 
       if(abs(cos_theta) > 0.0_rk) then
@@ -112,14 +115,15 @@ contains
       end if
 
       R_plus = v_dot_n + (2.0_rk * cs_b / (gamma - 1.0_rk))
-
-      ! boundary state
-      p_b = p_0 * (cs_b**2 / cs_0_sq)**(gamma / (gamma - 1.0_rk))
-      rho_b = rho_0 * (p_b / p_0)**(1.0_rk / gamma)
       v_tot_b = (2.0_rk * cs_b / (gamma - 1.0_rk)) - R_plus
-
+      mach_b = v_tot_b / cs_b
       u_b = v_tot_b * cos(theta)
       v_b = v_tot_b * sin(theta)
+
+      ! boundary state
+      p_b = p_0 * (1.0_rk + 0.5_rk * (gamma - 1.0_rk) * mach_b**2)**(-gamma / (gamma - 1.0_rk))
+      rho_b = rho_0 * (1.0_rk + 0.5_rk * (gamma - 1.0_rk) * mach_b**2)**(-1.0_rk / (gamma - 1.0_rk))
+
     end associate
 
     boundary_prim_vars = [rho_b, u_b, v_b, p_b]

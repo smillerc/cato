@@ -104,6 +104,7 @@ contains
       error stop 'Error in pressure_input_bc_t%read_pressure_input(); pressure input file not found, exiting...'
     end if
 
+    ! Open and determine how many lines there are
     open(newunit=input_unit, file=trim(self%input_filename))
     nlines = 0
     do
@@ -118,6 +119,7 @@ contains
     end do
     close(input_unit)
 
+    ! Re-open and now allocate the arrays to the proper size based on the # of lines in the file
     open(newunit=input_unit, file=trim(self%input_filename))
     if(has_header_line) then
       read(input_unit, *, iostat=io_status) ! skip the first line
@@ -135,6 +137,10 @@ contains
     end do
     close(input_unit)
 
+    ! Apply scaling and non-dimensionalization
+    time_sec = time_sec / t_0
+    pressure_barye = (pressure_barye / p_0) * self%scale_factor
+
     self%max_time = maxval(time_sec)
 
     ! Initialize the linear interpolated data object so we can query the pressure at any time
@@ -148,7 +154,7 @@ contains
 
     deallocate(time_sec)
     deallocate(pressure_barye)
-  end subroutine
+  end subroutine read_pressure_input
 
   real(rk) function get_desired_pressure(self) result(desired_pressure)
     class(pressure_input_bc_t), intent(inout) :: self
@@ -157,14 +163,11 @@ contains
     if(self%constant_pressure) then
       desired_pressure = self%pressure_input
     else
-      call self%temporal_pressure_input%evaluate(x=self%get_time() * t_0, f=desired_pressure, istat=interp_stat)
+      call self%temporal_pressure_input%evaluate(x=self%get_time(), f=desired_pressure, istat=interp_stat)
       if(interp_stat /= 0) then
         error stop "Unable to interpolate pressure within pressure_input_bc_t%get_desired_pressure()"
       end if
     end if
-
-    ! apply scale factor (for user convienence) and non-dimensional scale factor
-    desired_pressure = desired_pressure * self%scale_factor / p_0
   end function get_desired_pressure
 
   subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p, lbounds)
@@ -245,7 +248,7 @@ contains
         domain_u = u(right, bottom_ghost(1):top_ghost(n))
         domain_v = 0.0_rk
         domain_p = p(right, bottom_ghost(1):top_ghost(n))
-        boundary_norm = [1.0_rk, 0.0_rk]
+        boundary_norm = [1.0_rk, 0.0_rk] ! outward normal vector at +x
 
         do j = bottom, top
           associate(rho_d=>domain_rho(j), u_d=>domain_u(j), &
@@ -266,7 +269,7 @@ contains
               end if
             else ! inlet
               if(abs(mach_u) > 1.0_rk) then
-                error stop 'supersonic inlet'
+              error stop 'Error in pressure_input_bc_t%apply_pressure_input_primitive_var_bc(): Supersonic inlet not configured yet'
               else
                 boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
                                                     boundary_norm=boundary_norm, &
@@ -401,5 +404,5 @@ contains
     if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
     if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)
     if(allocated(self%jhi_ghost)) deallocate(self%jhi_ghost)
-  end subroutine
+  end subroutine finalize
 end module mod_pressure_input_bc
