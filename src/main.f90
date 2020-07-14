@@ -52,7 +52,6 @@ program cato
   real(rk) :: contour_interval_dt, max_time
   ! real(rk), dimension(:,:), allocatable :: sound_speed
 
-  print *, 'std_error', std_error
   open(std_error, file='cato.error')
 
   ! ascii art for the heck of it :)
