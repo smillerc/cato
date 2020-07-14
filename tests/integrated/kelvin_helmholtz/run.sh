@@ -7,7 +7,7 @@
 export I_MPI_REMOVED_VAR_WARNING=0
 export I_MPI_VAR_CHECK_SPELLING=0
 export FOR_COARRAY_NUM_IMAGES=1
-export OMP_NUM_THREADS=2
+export OMP_NUM_THREADS=6
 
 cato_dir=../../../build
 run_dir=`pwd`
