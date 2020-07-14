@@ -88,13 +88,8 @@ endif()
 # ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
-  # if(USE_ASAN or USE_TSAN) message( FATAL_ERROR "Cannot enable USE_ASAN or USE_TSAN with the Intel
-  # Fortran Compiler, this is a GCC/Clang feature" ) endif() if(SERIAL_BUILD) set(IFORT_COARRAY
-  # "-coarray=single") elseif(SHARED_MEMORY) set(IFORT_COARRAY "-coarray=shared")
-  # elseif(DISTRIBUTED_MEMORY) set(IFORT_COARRAY "-coarray=distributed") endif()
-
   set(IFORT_FLAGS
-      "-fpp -align all -fp-model source -diag-disable 5268 -diag-disable 8770 ${Coarray_COMPILE_OPTIONS}"
+      "-fpp -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -diag-disable 5268 -diag-disable 8770 ${Coarray_COMPILE_OPTIONS}"
   )
   # set(IFORT_FLAGS "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770
   # ${Coarray_COMPILE_OPTIONS}" )
@@ -117,7 +112,10 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
     set(CMAKE_Fortran_FLAGS
         "${CMAKE_Fortran_FLAGS}  -g -qopt-report-phase=all -qopt-report-annotate-position=both -qopt-report=5"
     )
-    message(STATUS "Intel Fortran optimization reports will be in the src/CMakeFiles directories with *.optrpt extensions")
+    message(
+      STATUS
+        "Intel Fortran optimization reports will be in the src/CMakeFiles directories with *.optrpt extensions"
+    )
   endif()
 
 endif()
