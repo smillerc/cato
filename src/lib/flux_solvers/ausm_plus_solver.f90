@@ -69,13 +69,7 @@ module mod_ausm_plus_solver
 
     ! Private methods
     procedure, private :: flux_edges
-    ! procedure, private, nopass :: split_mach_deg_1
-    ! procedure, private, nopass :: split_mach_deg_2
-    ! procedure, private, nopass :: scaling_factor
-    ! procedure, private, nopass :: alpha
     procedure, private :: interface_state
-    ! procedure, private :: split_mach_deg_4
-    ! procedure, private :: split_pressure_deg_5
     final :: finalize
 
     ! Operators

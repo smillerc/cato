@@ -37,7 +37,7 @@ module mod_flux_limiter
   implicit none
 
   private
-  public :: flux_limiter_t, smoothness, delta
+  public :: flux_limiter_t, smoothness, delta, superbee
 
   real(rk), parameter :: EPS = 1e-30_rk !< small number epsilon, mainly used in the smoothness function
   real(rk), parameter :: PHI_EPS = 1e-5_rk !< small number epsilon, mainly used in the smoothness function
