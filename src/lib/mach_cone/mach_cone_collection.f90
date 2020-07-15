@@ -37,11 +37,14 @@ module mod_mach_cone_collection
   private
   public :: mach_cone_collection_t, reconstruct_p_prime
 
-  logical, parameter :: filter_small_dist = .true.
-  logical, parameter :: reconstruct_p_prime = .false.
-  real(rk), parameter :: TINY_DIST_RATIO = 1.0e-8_rk
+  logical, parameter :: reconstruct_p_prime = .false. !< Reconstruct pressure and density at P'?
+  logical, parameter :: apply_transonic_fix = .false. !< Apply a fix for transonic cones?
 
   type :: mach_cone_collection_t
+    !< Encapsulate the Mach cone and its required state variables. This is a collection of mach cones,
+    !< i.e. a structure of arrays (SoA) instead of and array of structures (AoS) which is much better
+    !< for memory access patterns.
+
     integer(ik) :: ilo = 0 !< low i boundary based on cell indexing
     integer(ik) :: ihi = 0 !< high i boundary based on cell indexing
     integer(ik) :: jlo = 0 !< low j boundary based on cell indexing
@@ -369,34 +372,60 @@ contains
       !$omp end do
     end if
 
-    !$omp do
-    do j = self%jlo, self%jhi
-      do i = self%ilo, self%ihi
+    if(apply_transonic_fix) then
+      with_transonic_fix: block
+        !$omp do
+        do j = self%jlo, self%jhi
+          do i = self%ilo, self%ihi
 
-        if(self%cone_is_transonic(i, j)) then
-          call self%get_transonic_cone_extents(i, j, transonic_origin, transonic_radius)
-          self%p_prime_x(i, j) = transonic_origin(1)
-          self%p_prime_y(i, j) = transonic_origin(2)
-          self%radius(i, j) = transonic_radius
-        else
-          self%radius(i, j) = self%tau * self%reference_sound_speed(i, j)
+            if(self%cone_is_transonic(i, j)) then
+              call self%get_transonic_cone_extents(i, j, transonic_origin, transonic_radius)
+              self%p_prime_x(i, j) = transonic_origin(1)
+              self%p_prime_y(i, j) = transonic_origin(2)
+              self%radius(i, j) = transonic_radius
+            else
+              self%radius(i, j) = self%tau * self%reference_sound_speed(i, j)
 
-          if(abs(self%p0_x(i, j) - self%tau * self%reference_u(i, j)) < epsilon(1.0_rk)) then
-            self%p_prime_x(i, j) = self%p0_x(i, j)
-          else
-            self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
-          end if
+              if(abs(self%p0_x(i, j) - self%tau * self%reference_u(i, j)) < epsilon(1.0_rk)) then
+                self%p_prime_x(i, j) = self%p0_x(i, j)
+              else
+                self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
+              end if
 
-          if(abs(self%p0_y(i, j) - self%tau * self%reference_v(i, j)) < epsilon(1.0_rk)) then
-            self%p_prime_y(i, j) = self%p0_y(i, j)
-          else
-            self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
-          end if
+              if(abs(self%p0_y(i, j) - self%tau * self%reference_v(i, j)) < epsilon(1.0_rk)) then
+                self%p_prime_y(i, j) = self%p0_y(i, j)
+              else
+                self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
+              end if
 
-        end if
-      end do
-    end do
-    !$omp end do
+            end if
+          end do
+        end do
+        !$omp end do
+      end block with_transonic_fix
+    else
+      no_transonic_fix: block
+        !$omp do
+        do j = self%jlo, self%jhi
+          do i = self%ilo, self%ihi
+            self%radius(i, j) = self%tau * self%reference_sound_speed(i, j)
+
+            if(abs(self%p0_x(i, j) - self%tau * self%reference_u(i, j)) < epsilon(1.0_rk)) then
+              self%p_prime_x(i, j) = self%p0_x(i, j)
+            else
+              self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
+            end if
+
+            if(abs(self%p0_y(i, j) - self%tau * self%reference_v(i, j)) < epsilon(1.0_rk)) then
+              self%p_prime_y(i, j) = self%p0_y(i, j)
+            else
+              self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
+            end if
+          end do
+        end do
+        !$omp end do
+      end block no_transonic_fix
+    end if
     !$omp end parallel
 
     call self%compute_trig_angles()
