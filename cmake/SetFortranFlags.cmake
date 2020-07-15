@@ -65,7 +65,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -fimplicit-none -fbacktrace \
  -fcheck=all -ffpe-trap=zero,overflow,invalid,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -funroll-loops -finline-functions ${GNUNATIVE}")
+  set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftree-vectorize -funroll-loops -finline-functions ${GNUNATIVE}")
 
   if(USE_ASAN)
     set(CMAKE_Fortran_FLAGS
