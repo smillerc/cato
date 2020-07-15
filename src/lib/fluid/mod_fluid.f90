@@ -55,15 +55,25 @@ module mod_fluid
     private ! make all private by default
 
     real(rk), dimension(:, :), allocatable, public :: rho    !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: rho
     real(rk), dimension(:, :), allocatable, public :: rho_u  !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: rho_u
     real(rk), dimension(:, :), allocatable, public :: rho_v  !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: rho_v
     real(rk), dimension(:, :), allocatable, public :: rho_E  !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: rho_E
     real(rk), dimension(:, :), allocatable, public :: u      !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: u
     real(rk), dimension(:, :), allocatable, public :: v      !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: v
     real(rk), dimension(:, :), allocatable, public :: p      !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: p
     real(rk), dimension(:, :), allocatable, public :: cs     !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: cs
     real(rk), dimension(:, :), allocatable, public :: mach_u   !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: mach_u
     real(rk), dimension(:, :), allocatable, public :: mach_v   !< (i, j); Conserved quantities
+    !dir$ attributes align:__ALIGNBYTES__ :: mach_v
 
     class(flux_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
 
@@ -204,14 +214,15 @@ contains
     !$omp private(i, j), &
     !$omp firstprivate(ilo, ihi, jlo, jhi), &
     !$omp shared(self)
-    !$omp simd
+    !$omp do
     do j = jlo, jhi
+      !$omp simd
       do i = ilo, ihi
         self%mach_u(i, j) = self%u(i, j) / self%cs(i, j)
         self%mach_v(i, j) = self%v(i, j) / self%cs(i, j)
       end do
     end do
-    !$omp end simd
+    !$omp end do
     !$omp end parallel
 
     self%prim_vars_updated = .true.
@@ -478,6 +489,7 @@ contains
     !$omp shared(self)
     !$omp do
     do j = jlo, jhi
+      !$omp simd
       do i = ilo, ihi
         self%mach_u(i, j) = self%u(i, j) / self%cs(i, j)
         self%mach_v(i, j) = self%v(i, j) / self%cs(i, j)
@@ -589,8 +601,13 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j, diff, threshold) &
     !$omp shared(a,b,c)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         c(i, j) = a(i, j) + b(i, j)
         diff = abs(c(i, j) - a(i, j))
@@ -598,7 +615,7 @@ contains
         if(diff < threshold) c(i, j) = a(i, j)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
 
   end subroutine add_fields
@@ -624,8 +641,13 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j, diff, threshold) &
     !$omp shared(a,b,c)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         c(i, j) = a(i, j) - b(i, j)
         diff = abs(c(i, j) - a(i, j))
@@ -635,7 +657,7 @@ contains
         end if
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
 
   end subroutine subtract_fields
@@ -660,13 +682,18 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
     !$omp shared(a,b,c)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         c(i, j) = a(i, j) * b(i, j)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
 
   end subroutine mult_fields
@@ -691,13 +718,18 @@ contains
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
     !$omp shared(a,b,c)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(a, c:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         c(i, j) = a(i, j) * b
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
   end subroutine mult_field_by_real
 

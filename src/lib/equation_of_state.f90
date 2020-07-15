@@ -136,13 +136,18 @@ contains
     !$omp shared(rho, u, v, p, E) &
     !$omp firstprivate(ilo, ihi, jlo, jhi, gamma_m_one) &
     !$omp private(i, j)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(E, rho, u, v, p:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         E(i, j) = (p(i, j) / (rho(i, j) * gamma_m_one)) + ((u(i, j)**2 + v(i, j)**2) / 2.0_rk)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
   end subroutine total_energy_2d
 
@@ -169,13 +174,18 @@ contains
     !$omp shared(rho, u, v, p, H) &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j, gamma)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(H, rho, u, v, p:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         H(i, j) = (p(i, j) / rho(i, j)) * (gamma / (gamma - 1.0_rk)) + ((u(i, j)**2 + v(i, j)**2) / 2.0_rk)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
   end subroutine total_enthalpy_2d
 
@@ -200,13 +210,18 @@ contains
     !$omp shared(rho, p, cs) &
     !$omp firstprivate(ilo, ihi, jlo, jhi, gamma) &
     !$omp private(i, j)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(cs,p,rho:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         cs(i, j) = sqrt(gamma * abs(p(i, j) / rho(i, j)))
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
   end subroutine sound_speed_2d
 
@@ -232,13 +247,18 @@ contains
     !$omp shared(rho, p, t) &
     !$omp firstprivate(ilo, ihi, jlo, jhi, R) &
     !$omp private(i, j)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(r, p, rho:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         t(i, j) = p(i, j) / (rho(i, j) * R)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
   end subroutine temperature_2d
 
@@ -272,6 +292,11 @@ contains
     !$omp private(i, j, vel)
     !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(rho, u, v, p, rho_u, rho_v, rho_E:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         u(i, j) = rho_u(i, j) / rho(i, j)
         if(abs(u(i, j)) < 1e-30_rk) u(i, j) = 0.0_rk
@@ -318,8 +343,13 @@ contains
     !$omp shared(rho, u, v, p, rho_u, rho_v, rho_E) &
     !$omp firstprivate(ilo, ihi, jlo, jhi, gamma_m_one) &
     !$omp private(i, j)
-    !$omp do simd
+    !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(rho, u, v, p, rho_u, rho_v, rho_E:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
         rho_u(i, j) = u(i, j) * rho(i, j)
         rho_v(i, j) = v(i, j) * rho(i, j)
@@ -327,7 +357,7 @@ contains
                       rho(i, j) * ((u(i, j)**2 + v(i, j)**2) / 2.0_rk)
       end do
     end do
-    !$omp end do simd
+    !$omp end do
     !$omp end parallel
 
   end subroutine primitive_to_conserved_2d

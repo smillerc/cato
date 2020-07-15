@@ -1,5 +1,7 @@
 # MIT License
+
 # Copyright (c) 2019 Sam Miller
+
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
@@ -17,8 +19,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-#
-#
+
 # CMake configuration options
 #     -DUSE_OPENMP=[YES/NO]
 #         Enable OpenMP parallelization and SIMD vectorization
@@ -30,7 +31,6 @@
 #         Enable OpenMP thread data race checking (gfortran only)
 #     -DENABLE_TESTING=[YES/NO]
 #         Turn on the pFUnit unit tests (to be run with ctest). Note, pFUnit must be built with the same compiler
-#
 
 cmake_minimum_required(VERSION 3.8)
 
@@ -63,6 +63,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Determine the host architecture, e.g. Intel Kabylake, and optimize for it
 include(OptimizeForArchitecture)
 optimizeforarchitecture()
+
+# Set __ALIGNBYTES__ for use in OpenMP/Compiler SIMD alignment statements, e.g. __ALIGNBYTES__ = 32
+add_compile_definitions(__ALIGNBYTES__=${MEMORY_ALIGN_BYTES})
+
+if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
+  add_compile_definitions(__SIMD_ALIGN_OMP__)
+endif()
 
 # Determine the number of cores (useful for single machine, shared-memory build)
 include(ProcessorCount)

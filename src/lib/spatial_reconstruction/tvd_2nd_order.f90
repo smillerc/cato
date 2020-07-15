@@ -113,11 +113,15 @@ contains
     jhi = jhi_bc - n_ghost_layers
 
     allocate(edge_values(4, ilo_bc:ihi_bc, jlo_bc:jhi_bc))
-
     allocate(r_L_i(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     allocate(r_R_i(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     allocate(r_L_j(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     allocate(r_R_j(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
+
+    !dir$ attributes align:__ALIGNBYTES__ :: r_R_i
+    !dir$ attributes align:__ALIGNBYTES__ :: r_L_i
+    !dir$ attributes align:__ALIGNBYTES__ :: r_L_j
+    !dir$ attributes align:__ALIGNBYTES__ :: r_R_j
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -131,9 +135,20 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         r_L_i(i, j) = smoothness(q(i - 1, j), q(i, j), q(i + 1, j))
-        r_R_i(i, j) = 1.0_rk / r_L_i(i, j)
-
         r_L_j(i, j) = smoothness(q(i, j - 1), q(i, j), q(i, j + 1))
+      end do
+    end do
+    !$omp end do
+
+    !$omp do
+    do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(r_R_i, r_L_i, r_R_j, r_L_j:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
+      do i = ilo, ihi
+        r_R_i(i, j) = 1.0_rk / r_L_i(i, j)
         r_R_j(i, j) = 1.0_rk / r_L_j(i, j)
       end do
     end do

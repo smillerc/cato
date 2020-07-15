@@ -31,8 +31,10 @@ module mod_flux_array
   public :: get_fluxes, flux_array_t
 
   type :: flux_array_t
-    real(rk), dimension(:, :, :), allocatable :: F
-    real(rk), dimension(:, :, :), allocatable :: G
+    real(rk), dimension(:, :, :), allocatable :: F !< ((rhou, rhou^2 + p, rhouv, u(rhoE + p)), i, j); x-direction flux array
+    !dir$ attributes align:__ALIGNBYTES__ :: F
+    real(rk), dimension(:, :, :), allocatable :: G !< ((rhov, rhouv, rhov^2 + p, v(rhoE + p)), i, j); y-direction flux array
+    !dir$ attributes align:__ALIGNBYTES__ :: G
   contains
   end type flux_array_t
 
@@ -71,6 +73,8 @@ contains
 
     ! get the total energy
     allocate(E, mold=rho)
+    !dir$ attributes align:__ALIGNBYTES__ :: E
+
     call eos%total_energy(rho, u, v, p, E)
 
     ! The flux tensor is H = Fi + Gj
@@ -81,6 +85,11 @@ contains
     !$omp shared(flux, rho, u, v, p, E)
     !$omp do
     do j = jlo, jhi
+#ifdef __SIMD_ALIGN_OMP__
+      !$omp simd aligned(rho, u, v, p, E:__ALIGNBYTES__)
+#else
+      !$omp simd
+#endif
       do i = ilo, ihi
 
         rho_u = rho(i, j) * u(i, j)
