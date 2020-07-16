@@ -36,15 +36,12 @@ module mod_flux_limiter
 
   implicit none
 
-  private
-  public :: flux_limiter_t, smoothness, delta, superbee
-
   real(rk), parameter :: EPS = 1e-30_rk !< small number epsilon, mainly used in the smoothness function
   real(rk), parameter :: PHI_EPS = 1e-5_rk !< small number epsilon, mainly used in the smoothness function
 
   type :: flux_limiter_t
     character(:), allocatable :: name
-    procedure(limit), pointer, nopass :: limit => null()
+    ! procedure(limit), pointer, nopass :: limit => null()
   contains
     final :: finalize
   end type
@@ -68,13 +65,14 @@ module mod_flux_limiter
     module procedure constructor
   end interface
 
-  interface
-    pure real(rk) function limit(R) result(psi_lim)
-      import :: rk
-      real(rk), intent(in) :: R
-      !< u_{i+1} - u_i / u_i - u_{i-1}; ratio of forward to backward differences in the solution
-    end function
-  end interface
+  ! interface
+  ! pure real(rk) function limit(R) result(psi_lim)
+  !   !$omp declare simd aligned(R:__ALIGNBYTES__)
+  !   import :: rk
+  !   real(rk), intent(in) :: R
+  !   !< u_{i+1} - u_i / u_i - u_{i-1}; ratio of forward to backward differences in the solution
+  ! end function
+  ! end interface
 
 contains
   type(flux_limiter_t) function constructor(name) result(limiter)
@@ -83,29 +81,30 @@ contains
 
     limiter%name = trim(name)
 
-    select case(trim(name))
-    case('none')
-      limiter%limit => none
-    case('minmod')
-      limiter%limit => minmod
-    case('van_leer')
-      limiter%limit => van_leer
-    case('superbee')
-      limiter%limit => superbee
-    case default
-      error stop "Error in flux_limiter_t%constructor(): Unknown flux limiter name"
-    end select
+    ! select case(trim(name))
+    ! case('none')
+    !   limiter%limit => none
+    ! case('minmod')
+    !   limiter%limit => minmod
+    ! case('van_leer')
+    !   limiter%limit => van_leer
+    ! case('superbee')
+    !   limiter%limit => superbee
+    ! case default
+    !   error stop "Error in flux_limiter_t%constructor(): Unknown flux limiter name"
+    ! end select
   end function
 
   subroutine finalize(self)
     type(flux_limiter_t), intent(inout) :: self
-    if(associated(self%limit)) nullify(self%limit)
+    ! if(associated(self%limit)) nullify(self%limit)
     if(allocated(self%name)) deallocate(self%name)
   end subroutine finalize
 
   pure real(rk) function smoothness(plus, current, minus) result(r)
     real(rk), intent(in) :: plus, current, minus
     real(rk) :: delta_plus, delta_minus
+
     delta_plus = plus - current
     if(abs(delta_plus) < EPS) delta_plus = EPS
 
@@ -115,7 +114,10 @@ contains
     r = (delta_minus + EPS) / (delta_plus + EPS)
   end function smoothness
 
-  elemental real(rk) function delta(a, b)
+  impure real(rk) function delta(a, b)
+    !$omp declare simd(delta)
+
+    !aligned(a:__ALIGNBYTES__, b:__ALIGNBYTES__)
     !< Find the delta in the solution, e.g. delta = a - b. This checks for numbers
     !< near 0 and when a and b are very similar in magnitude. The aim is to avoid
     !< catastrophic cancellation and very small numbers that are essentially 0 for this scenario
@@ -144,14 +146,15 @@ contains
     end if
   end function delta
 
-  pure real(rk) function none(R) result(psi_lim)
+  elemental real(rk) function none(R) result(psi_lim)
     !< Unlimited slope
     real(rk), intent(in) :: R !< smoothness indicator
 
     psi_lim = 1.0_rk
   end function none
 
-  pure real(rk) function minmod(R) result(psi_lim)
+  elemental real(rk) function minmod(R) result(psi_lim)
+    !$omp declare simd(minmod)
     !< Min-mod flux limiter. See Eq. 8 in [2]
     real(rk), intent(in) :: R !< smoothness indicator
 
@@ -164,7 +167,7 @@ contains
     end if
   end function minmod
 
-  pure real(rk) function van_leer(R) result(psi_lim)
+  elemental real(rk) function van_leer(R) result(psi_lim)
     !< van Leer flux limiter. See Eq. 9 in [2]
     real(rk), intent(in) :: R !< smoothness indicator
 
@@ -175,7 +178,7 @@ contains
     end if
   end function van_leer
 
-  pure real(rk) function superbee(R) result(psi_lim)
+  elemental real(rk) function superbee(R) result(psi_lim)
     !< Superbee flux limiter. See Eq. 3 in [1]
     real(rk), intent(in) :: R !< smoothness indicator
 
