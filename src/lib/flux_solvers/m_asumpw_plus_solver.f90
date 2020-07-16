@@ -98,6 +98,21 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
+    integer(ik) :: i, j
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
+
+    ! Use the baseline interpolation
+    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
+
+    ! We also need the superbee version
+    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
   end subroutine solve_m_ausmpw_plus
 
   subroutine flux_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
@@ -164,62 +179,6 @@ contains
     endif
   end function mach_split_minus
 
-  pure real(rk) function smoothness(plus, current, minus) result(r)
-    real(rk), intent(in) :: plus, current, minus
-    real(rk) :: delta_plus, delta_minus
-    delta_plus = plus - current
-    if(abs(delta_plus) < EPS) delta_plus = EPS
-
-    delta_minus = current - minus
-    if(abs(delta_minus) < EPS) delta_minus = EPS
-
-    r = (delta_minus + EPS) / (delta_plus + EPS)
-  end function smoothness
-
-  elemental real(rk) function delta(a, b)
-    !< Find the delta in the solution, e.g. delta = a - b. This checks for numbers
-    !< near 0 and when a and b are very similar in magnitude. The aim is to avoid
-    !< catastrophic cancellation and very small numbers that are essentially 0 for this scenario
-
-    real(rk), intent(in) :: a, b
-    real(rk), parameter :: rel_tol = 1e-12_rk     !< relative error tolerance
-    real(rk), parameter :: abs_tol = tiny(1.0_rk) !< absolute error tolerance
-    real(rk) :: abs_err !< absolute error
-
-    delta = a - b
-    abs_err = abs_tol + rel_tol * max(abs(a), abs(b))
-
-    if(abs(delta) < epsilon(1.0_rk)) then
-      delta = 0.0_rk
-      return
-    end if
-
-    if(abs(a) < tiny(1.0_rk) .and. abs(b) < tiny(1.0_rk)) then
-      delta = 0.0_rk
-      return
-    end if
-
-    if(abs(delta) < abs_err) then
-      delta = 0.0_rk
-      return
-    end if
-  end function delta
-
-  pure real(rk) function superbee(R) result(psi_lim)
-    !< Superbee flux limiter. While this is also defined in the flux limiter module, it
-    !< is a key part of M-AUSMPW+, so its here again and inlined for speed.
-    real(rk), intent(in) :: R !< smoothness indicator
-    real(rk), parameter :: PHI_EPS = 1e-5_rk
-
-    if(R < 0.0_rk .or. abs(R) < PHI_EPS) then
-      psi_lim = 0.0_rk
-    else if(R > 2.0_rk) then
-      psi_lim = 2.0_rk
-    else
-      psi_lim = max(0.0_rk, min(2.0_rk * R, 1.0_rk), min(R, 2.0_rk))
-    end if
-  end function superbee
-
   pure real(rk) function f(p, p_s, w_2)
     !< Implementation of the f function (Eq. 33 in Ref [1]). This is used to help determine
     !< where shock discontinuities are
@@ -272,26 +231,26 @@ contains
     real(rk), intent(in) :: phi_R !<
     real(rk), intent(in) :: a     !< a = 1 - min(1, max(|M_L|, |M_R|))^2
 
-    if(abs(a) < tiny(1.0_rk)) then
-      phi_L_half = phi_L
-    else
-      phi_R_minus_L = phi_L - phi_R
-      if(abs(phi_R_minus_L) < epsilon(1.0_rk)) phi_R_minus_L = 0.0_rk
+    ! if(abs(a) < tiny(1.0_rk)) then
+    !   phi_L_half = phi_L
+    ! else
+    !   phi_R_minus_L = phi_L - phi_R
+    !   if(abs(phi_R_minus_L) < epsilon(1.0_rk)) phi_R_minus_L = 0.0_rk
 
-      phi_superbee_minus_L = phi_L_superbee - phi_L
-      if(abs(phi_superbee_minus_L) < epsilon(1.0_rk)) phi_superbee_minus_L = 0.0_rk
+    !   phi_superbee_minus_L = phi_L_superbee - phi_L
+    !   if(abs(phi_superbee_minus_L) < epsilon(1.0_rk)) phi_superbee_minus_L = 0.0_rk
 
-      phi_L_half = phi_L + (max(0.0_rk, phi_R_minus_L * phi_superbee_minus_L) / (phi_R_minus_L*))
-    end if
+    !   phi_L_half = phi_L + (max(0.0_rk, phi_R_minus_L * phi_superbee_minus_L) / (phi_R_minus_L*))
+    ! end if
   end function phi_L_half
 
   pure real(rk) function phi_R_half()
 
-    phi_L_minus_R = phi_R - phi_L
-    if(abs(phi_R_minus_L) < epsilon(1.0_rk)) phi_R_minus_L = 0.0_rk
+    ! phi_L_minus_R = phi_R - phi_L
+    ! if(abs(phi_R_minus_L) < epsilon(1.0_rk)) phi_R_minus_L = 0.0_rk
 
-    phi_superbee_minus_R = phi_R_superbee - phi_R
-    if(abs(phi_superbee_minus_R) < epsilon(1.0_rk)) phi_superbee_minus_R = 0.0_rk
+    ! phi_superbee_minus_R = phi_R_superbee - phi_R
+    ! if(abs(phi_superbee_minus_R) < epsilon(1.0_rk)) phi_superbee_minus_R = 0.0_rk
   end function phi_R_half
 
 end module mod_mausmpw_plus_solver
