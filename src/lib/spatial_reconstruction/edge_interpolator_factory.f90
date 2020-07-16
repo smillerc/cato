@@ -50,9 +50,10 @@ module mod_edge_interpolator_factory
 
 contains
 
-  function edge_interpolator_factory(input) result(interpolator)
+  function edge_interpolator_factory(input, limiter_name) result(interpolator)
     class(input_t), intent(in) :: input
     class(edge_iterpolator_t), pointer :: interpolator
+    character(len=*), optional :: limiter_name
 
     select case(trim(input%edge_interpolation_scheme))
     case('TVD2')
