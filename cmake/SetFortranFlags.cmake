@@ -65,7 +65,8 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -fimplicit-none -fbacktrace \
  -fcheck=all -ffpe-trap=zero,overflow,invalid,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftree-vectorize -funroll-loops -finline-functions ${GNUNATIVE}")
+  set(CMAKE_Fortran_FLAGS_RELEASE
+      "-O3 -ftree-vectorize -funroll-loops -finline-functions ${GNUNATIVE}")
 
   if(USE_ASAN)
     set(CMAKE_Fortran_FLAGS
@@ -89,7 +90,7 @@ endif()
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
   set(IFORT_FLAGS
-      "-fpp -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -diag-disable 5268 -diag-disable 8770 ${Coarray_COMPILE_OPTIONS}"
+      "-fpp -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -diag-disable 5268 -diag-disable 7025 -diag-disable 8770 -diag-disable 6477 ${Coarray_COMPILE_OPTIONS}"
   )
   # set(IFORT_FLAGS "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770
   # ${Coarray_COMPILE_OPTIONS}" )
