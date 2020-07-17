@@ -103,16 +103,44 @@ contains
     integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
 
     ! Use the baseline interpolation
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
+    ! call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
+    ! call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
+    ! call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
+    ! call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
 
-    ! We also need the superbee version
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
+    do j = jlo, jhi
+      do i = ilo, ihi
+
+        if(0.5_rk * (U_L + U_R) < 0.0_rk) then
+          c_half = c_s**2 / max(abs(U_L), c_s)
+        else
+          c_half = c_s**2 / max(abs(U_R), c_s)
+        end if
+
+        M_L = U_L / c_half
+        M_R = U_R / c_half
+
+        c_s = sqrt(2.0_rk * ((gamma - 1.0_rk) / (gamma + 1.0_rk)) * H_normal)
+        H_normal = min(H_L - 0.5_rk * V_L**2, H_R - 0.5_rk * V_R**2)
+
+        M_L_plus = mach_split_plus(M_L)
+        M_R_minus = mach_split_minus(M_R)
+
+        P_L_plus = pressure_split_plus(M_L)
+        P_R_minus = pressure_split_minus(M_R)
+
+        if(m_half < 0.0_rk) then
+          M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
+          M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
+        else
+          M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
+          M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
+        end if
+
+        m_half = M_plus_L + M_minus_R
+      end do
+    end do
+
   end subroutine solve_m_ausmpw_plus
 
   subroutine flux_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
@@ -226,31 +254,58 @@ contains
               (1.0_rk - min(p(i, j) / p(i, j + 1), p(i, j + 1) / p(i, j)))**2
   end function w_2_eta
 
-  pure real(rk) function phi_L_half(phi_L, phi_R, a)
-    real(rk), intent(in) :: phi_L !<
-    real(rk), intent(in) :: phi_R !<
-    real(rk), intent(in) :: a     !< a = 1 - min(1, max(|M_L|, |M_R|))^2
+  pure real(rk) function phi_L_half(phi_L, phi_R, phi_L_superbee, a)
+    !$omp declare simd(phi_L_half) linear(ref(phi_L, phi_R, phi_L_superbee, a)) simdlen(__ALIGNBYTES__)
+    real(rk), intent(in) :: phi_L          !< limited primitive interface LHS variable
+    real(rk), intent(in) :: phi_R          !< limited primitive interface RHS variable
+    real(rk), intent(in) :: phi_L_superbee !< limited primitive interface LHS variable w/ the superbee limiter
+    real(rk), intent(in) :: a              !< supersonic function (a=0 in subsonic); a = 1 - min(1, max(|M_L|, |M_R|))^2
 
-    ! if(abs(a) < tiny(1.0_rk)) then
-    !   phi_L_half = phi_L
-    ! else
-    !   phi_R_minus_L = phi_L - phi_R
-    !   if(abs(phi_R_minus_L) < epsilon(1.0_rk)) phi_R_minus_L = 0.0_rk
+    ! Locals
+    real(rk) :: phi_R_minus_L        !< phi_R - phi_L
+    real(rk) :: phi_superbee_minus_L !< phi_L_superbee - phi_L
 
-    !   phi_superbee_minus_L = phi_L_superbee - phi_L
-    !   if(abs(phi_superbee_minus_L) < epsilon(1.0_rk)) phi_superbee_minus_L = 0.0_rk
+    if(abs(a) < tiny(1.0_rk)) then
+      phi_L_half = phi_L
+    else
+      phi_R_minus_L = phi_R - phi_L
+      phi_superbee_minus_L = phi_L_superbee - phi_L
 
-    !   phi_L_half = phi_L + (max(0.0_rk, phi_R_minus_L * phi_superbee_minus_L) / (phi_R_minus_L*))
-    ! end if
+      if(abs(phi_R_minus_L) < epsilon(1.0_rk)) phi_R_minus_L = 0.0_rk
+      if(abs(phi_superbee_minus_L) < epsilon(1.0_rk)) phi_superbee_minus_L = 0.0_rk
+
+      ! Eq. 27a in Ref [1]
+      phi_L_half = phi_L + (max(0.0_rk, phi_R_minus_L * phi_superbee_minus_L) / &
+                            (phi_R_minus_L * abs(phi_superbee_minus_L))) * &
+                   min(a * 0.5_rk * abs(phi_R_minus_L), abs(phi_superbee_minus_L))
+    end if
   end function phi_L_half
 
-  pure real(rk) function phi_R_half()
+  pure real(rk) function phi_R_half(phi_L, phi_R, phi_R_superbee, a)
+    !$omp declare simd(phi_R_half) linear(ref(phi_L, phi_R, phi_R_superbee, a)) simdlen(__ALIGNBYTES__)
+    real(rk), intent(in) :: phi_L          !< limited primitive interface LHS variable
+    real(rk), intent(in) :: phi_R          !< limited primitive interface RHS variable
+    real(rk), intent(in) :: phi_R_superbee !< limited primitive interface RHS variable w/ the superbee limiter
+    real(rk), intent(in) :: a              !< supersonic function (a=0 in subsonic); a = 1 - min(1, max(|M_L|, |M_R|))^2
 
-    ! phi_L_minus_R = phi_R - phi_L
-    ! if(abs(phi_R_minus_L) < epsilon(1.0_rk)) phi_R_minus_L = 0.0_rk
+    ! Locals
+    real(rk) :: phi_L_minus_R        !< phi_L - phi_R
+    real(rk) :: phi_superbee_minus_R !< phi_R_superbee - phi_R
 
-    ! phi_superbee_minus_R = phi_R_superbee - phi_R
-    ! if(abs(phi_superbee_minus_R) < epsilon(1.0_rk)) phi_superbee_minus_R = 0.0_rk
+    if(abs(a) < tiny(1.0_rk)) then
+      phi_R_half = phi_R
+    else
+      phi_L_minus_R = phi_L - phi_R
+      phi_superbee_minus_R = phi_R_superbee - phi_R
+
+      if(abs(phi_L_minus_R) < epsilon(1.0_rk)) phi_L_minus_R = 0.0_rk
+      if(abs(phi_superbee_minus_R) < epsilon(1.0_rk)) phi_superbee_minus_R = 0.0_rk
+
+      ! Eq. 27b in Ref [1]
+      phi_R_half = phi_R + (max(0.0_rk, phi_L_minus_R * phi_superbee_minus_R) / &
+                            (phi_L_minus_R * abs(phi_superbee_minus_R))) * &
+                   min(a * 0.5_rk * abs(phi_L_minus_R), abs(phi_superbee_minus_R))
+    end if
   end function phi_R_half
 
 end module mod_mausmpw_plus_solver
