@@ -111,37 +111,67 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
 
-        if(0.5_rk * (U_L + U_R) < 0.0_rk) then
-          c_half = c_s**2 / max(abs(U_L), c_s)
-        else
-          c_half = c_s**2 / max(abs(U_R), c_s)
-        end if
-
-        M_L = U_L / c_half
-        M_R = U_R / c_half
-
-        c_s = sqrt(2.0_rk * ((gamma - 1.0_rk) / (gamma + 1.0_rk)) * H_normal)
-        H_normal = min(H_L - 0.5_rk * V_L**2, H_R - 0.5_rk * V_R**2)
-
-        M_L_plus = mach_split_plus(M_L)
-        M_R_minus = mach_split_minus(M_R)
-
-        P_L_plus = pressure_split_plus(M_L)
-        P_R_minus = pressure_split_minus(M_R)
-
-        if(m_half < 0.0_rk) then
-          M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
-          M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
-        else
-          M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
-          M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
-        end if
-
-        m_half = M_plus_L + M_minus_R
       end do
     end do
 
   end subroutine solve_m_ausmpw_plus
+
+  pure subroutine interface_state(self, n, rho, u, v, p, M_half, p_half, a_half, H)
+    !< Interface Mach number, e.g. M_(1/2)
+    class(m_ausmpw_plus_solver_t), intent(in) :: self
+    real(rk), dimension(2), intent(in) :: n   !< (x,y); edge normal vector
+    real(rk), dimension(2), intent(in) :: rho !< (L,R); density
+    real(rk), dimension(2), intent(in) :: u   !< (L,R); x-velocity
+    real(rk), dimension(2), intent(in) :: v   !< (L,R); y-velocity
+    real(rk), dimension(2), intent(in) :: p   !< (L,R); pressure
+    real(rk), intent(out) :: M_half           !< Mach of the interface
+    real(rk), intent(out) :: p_half           !< pressure of the interface
+    real(rk), intent(out) :: a_half         !< total enthalpy of the left side
+    real(rk), dimension(2), intent(out) :: H  !< (L,R); Total enthalpy
+
+    ! Locals
+    real(rk) :: gamma, w, f_R, f_L, H_normal, H_R, H_L
+    real(rk) :: c_half, c_s
+    real(rk) :: U_L, U_R
+    real(rk) :: V_L, V_R
+    real(rk) :: M_L, M_R
+    real(rk) :: M_L_plus, M_R_minus
+    real(rk) :: P_L_plus, P_R_minus
+    real(rk) :: M_bar_L_plus, M_bar_R_minus
+    real(rk) :: M_plus_L, M_minus_R
+
+    ! Precompute a few re-used scalars
+    gamma = eos%get_gamma()
+
+    if(0.5_rk * (U_L + U_R) < 0.0_rk) then
+      c_half = c_s**2 / max(abs(U_L), c_s)
+    else
+      c_half = c_s**2 / max(abs(U_R), c_s)
+    end if
+
+    M_L = U_L / c_half
+    M_R = U_R / c_half
+
+    c_s = sqrt(2.0_rk * ((gamma - 1.0_rk) / (gamma + 1.0_rk)) * H_normal)
+    H_normal = min(H_L - 0.5_rk * V_L**2, H_R - 0.5_rk * V_R**2)
+
+    M_L_plus = mach_split_plus(M_L)
+    M_R_minus = mach_split_minus(M_R)
+
+    P_L_plus = pressure_split_plus(M_L)
+    P_R_minus = pressure_split_minus(M_R)
+
+    m_half = M_plus_L + M_minus_R
+
+    if(m_half < 0.0_rk) then
+      M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
+      M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
+    else
+      M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
+      M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
+    end if
+
+  end subroutine interface_state
 
   subroutine flux_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
