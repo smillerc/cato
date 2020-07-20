@@ -489,10 +489,36 @@ contains
     character(len=*), intent(in) :: description  !< dataset description
     character(len=*), intent(in) :: units        !< dataset units (if any)
 
+    integer(ik):: ilo, ihi, jlo, jhi, i, j
+    real(real32), dimension(:, :), allocatable :: single_prec_data
+
+    ilo = lbound(data, dim=1)
+    ihi = ubound(data, dim=1)
+    jlo = lbound(data, dim=2)
+    jhi = ubound(data, dim=2)
+
     if(self%plot_64bit) then
       call self%hdf5_file%add(name, data)
     else
-      call self%hdf5_file%add(name, real(data, real32))
+
+      allocate(single_prec_data(ilo:ihi, jlo:jhi))
+
+      ! Conversion checks
+      do j = lbound(data, dim=2), ubound(data, dim=2)
+        do i = lbound(data, dim=1), ubound(data, dim=1)
+          if(data(i, j) > huge(1.0_real32)) then
+            single_prec_data(i, j) = huge(1.0_real32)
+          else if(data(i, j) < tiny(1.0_real32)) then
+            single_prec_data(i, j) = tiny(1.0_real32)
+          else
+            single_prec_data(i, j) = real(data(i, j), real32)
+          end if
+        end do
+      end do
+
+      call self%hdf5_file%add(name, single_prec_data)
+
+      deallocate(single_prec_data)
     end if
 
     call self%hdf5_file%writeattr(name, 'description', trim(description))
