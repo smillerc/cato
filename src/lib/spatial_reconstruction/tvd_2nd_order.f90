@@ -19,7 +19,7 @@
 ! SOFTWARE.
 
 #ifdef __SIMD_ALIGN_OMP__
-#define __EDGE_ALIGN__ aligned(q, edge_values, psi_right, psi_left, psi_top, psi_bottom, delta_i_minus, delta_i_plus, delta_j_minus, delta_j_plus)
+#define __EDGE_ALIGN__ aligned(q, edge_values, phi_r_L_i, phi_r_R_i, phi_r_L_j, phi_r_R_j, delta_i_minus, delta_i_plus, delta_j_minus, delta_j_plus)
 #else
 #define __EDGE_ALIGN__
 #endif
@@ -87,7 +87,7 @@ contains
 
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
+    integer(ik) :: ilo_real, ihi_real, jlo_real, jhi_real
     real(rk), dimension(:, :), allocatable :: r_L_i  !< r_L,i in Ref[1]
     real(rk), dimension(:, :), allocatable :: r_R_i  !< r_R,i in Ref[1]
     real(rk), dimension(:, :), allocatable :: r_L_j  !< r_L,j in Ref[1]
@@ -98,113 +98,120 @@ contains
     real(rk), dimension(:, :), allocatable :: delta_j_plus   !<(i,j);  difference operator -> q(i,j+1) - q(i,j)
     real(rk), dimension(:, :), allocatable :: delta_j_minus  !<(i,j);  difference operator -> q(i,j) - q(i,j-1)
 
-    real(rk), dimension(:, :), allocatable  :: psi_top    !< limiter for the top edge, see Eq. 32 in Ref [1]
-    real(rk), dimension(:, :), allocatable  :: psi_bottom !< limiter for the bottom edge, see Eq. 32 in Ref [1]
-    real(rk), dimension(:, :), allocatable  :: psi_left   !< limiter for the left edge, see Eq. 32 in Ref [1]
-    real(rk), dimension(:, :), allocatable  :: psi_right  !< limiter for the right edge, see Eq. 32 in Ref [1]
+    real(rk), dimension(:, :), allocatable  :: phi_r_L_j    !< limiter for the top edge, see Eq. 32 in Ref [1]
+    real(rk), dimension(:, :), allocatable  :: phi_r_R_j !< limiter for the bottom edge, see Eq. 32 in Ref [1]
+    real(rk), dimension(:, :), allocatable  :: phi_r_R_i   !< limiter for the left edge, see Eq. 32 in Ref [1]
+    real(rk), dimension(:, :), allocatable  :: phi_r_L_i  !< limiter for the right edge, see Eq. 32 in Ref [1]
 
     call debug_print('Running tvd_2nd_order_t%interpolate_edge_values()', __FILE__, __LINE__)
 
-    ilo_bc = lbound(q, dim=1)
-    ihi_bc = ubound(q, dim=1)
-    jlo_bc = lbound(q, dim=2)
-    jhi_bc = ubound(q, dim=2)
+    ilo = lbound(q, dim=1)
+    ihi = ubound(q, dim=1)
+    jlo = lbound(q, dim=2)
+    jhi = ubound(q, dim=2)
 
     ! Index limits for the real domain
-    ilo = ilo_bc + n_ghost_layers !< first real i cell
-    ihi = ihi_bc - n_ghost_layers !< last  real i cell
-    jlo = jlo_bc + n_ghost_layers !< first real j cell
-    jhi = jhi_bc - n_ghost_layers !< last  real j cell
+    ilo_real = ilo + n_ghost_layers !< first real i cell
+    ihi_real = ihi - n_ghost_layers !< last  real i cell
+    jlo_real = jlo + n_ghost_layers !< first real j cell
+    jhi_real = jhi - n_ghost_layers !< last  real j cell
 
-    allocate(edge_values(4, ilo_bc:ihi_bc, jlo_bc:jhi_bc))
+    allocate(edge_values(4, ilo:ihi, jlo:jhi))
+    edge_values = 0.0_rk
 
-    allocate(delta_i_plus(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
+    allocate(delta_i_plus(ilo:ihi, jlo:jhi))
+    delta_i_plus = 0.0_rk
+    allocate(delta_i_minus(ilo:ihi, jlo:jhi))
+    delta_i_minus = 0.0_rk
+    allocate(delta_j_plus(ilo:ihi, jlo:jhi))
+    delta_j_plus = 0.0_rk
+    allocate(delta_j_minus(ilo:ihi, jlo:jhi))
+    delta_j_minus = 0.0_rk
     !dir$ attributes align:__ALIGNBYTES__ :: delta_i_plus
-    allocate(delta_i_minus(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     !dir$ attributes align:__ALIGNBYTES__ :: delta_i_minus
-    allocate(delta_j_plus(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     !dir$ attributes align:__ALIGNBYTES__ :: delta_j_plus
-    allocate(delta_j_minus(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     !dir$ attributes align:__ALIGNBYTES__ :: delta_j_minus
 
-    allocate(r_L_i(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
+    allocate(r_L_i(ilo:ihi, jlo:jhi))
+    r_L_i = 0.0_rk
+    allocate(r_R_i(ilo:ihi, jlo:jhi))
+    r_R_i = 0.0_rk
+    allocate(r_L_j(ilo:ihi, jlo:jhi))
+    r_L_j = 0.0_rk
+    allocate(r_R_j(ilo:ihi, jlo:jhi))
+    r_R_j = 0.0_rk
     !dir$ attributes align:__ALIGNBYTES__ :: r_L_i
-
-    allocate(r_R_i(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     !dir$ attributes align:__ALIGNBYTES__ :: r_R_i
-
-    allocate(r_L_j(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     !dir$ attributes align:__ALIGNBYTES__ :: r_L_j
-
-    allocate(r_R_j(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
     !dir$ attributes align:__ALIGNBYTES__ :: r_R_j
 
-    allocate(psi_right(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
-    !dir$ attributes align:__ALIGNBYTES__ :: psi_right
+    allocate(phi_r_L_i(ilo:ihi, jlo:jhi))
+    phi_r_L_i = 0.0_rk
+    allocate(phi_r_R_i(ilo:ihi, jlo:jhi))
+    phi_r_R_i = 0.0_rk
+    allocate(phi_r_L_j(ilo:ihi, jlo:jhi))
+    phi_r_L_j = 0.0_rk
+    allocate(phi_r_R_j(ilo:ihi, jlo:jhi))
+    phi_r_R_j = 0.0_rk
+    !dir$ attributes align:__ALIGNBYTES__ :: phi_r_L_i
+    !dir$ attributes align:__ALIGNBYTES__ :: phi_r_R_i
+    !dir$ attributes align:__ALIGNBYTES__ :: phi_r_L_j
+    !dir$ attributes align:__ALIGNBYTES__ :: phi_r_R_j
 
-    allocate(psi_left(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
-    !dir$ attributes align:__ALIGNBYTES__ :: psi_left
-
-    allocate(psi_top(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
-    !dir$ attributes align:__ALIGNBYTES__ :: psi_top
-
-    allocate(psi_bottom(ilo - 1:ihi + 1, jlo - 1:jhi + 1))
-    !dir$ attributes align:__ALIGNBYTES__ :: psi_bottom
-
-    call self%get_deltas(q, q_lbounds=lbound(q), &
+    call self%get_deltas(q, &
                          delta_i_plus=delta_i_plus, &
                          delta_i_minus=delta_i_minus, &
                          delta_j_plus=delta_j_plus, &
                          delta_j_minus=delta_j_minus, &
-                         delta_lbounds=lbound(delta_i_plus))
+                         lbounds=lbound(q))
 
-    call self%get_smoothness_R(delta_plus=delta_i_plus, delta_minus=delta_i_minus, R=r_L_i, R_inv=r_R_i)
-    call self%get_smoothness_R(delta_plus=delta_j_plus, delta_minus=delta_j_minus, R=r_L_j, R_inv=r_R_j)
+    call self%get_R_smoothness(delta_plus=delta_i_plus, delta_minus=delta_i_minus, R=r_L_i, R_inv=r_R_i)
+    call self%get_R_smoothness(delta_plus=delta_j_plus, delta_minus=delta_j_minus, R=r_L_j, R_inv=r_R_j)
 
-    call self%limit(R=r_L_i, psi=psi_right, name=self%limiter_name)
-    call self%limit(R=r_R_i, psi=psi_left, name=self%limiter_name)
-    call self%limit(R=r_L_j, psi=psi_top, name=self%limiter_name)
-    call self%limit(R=r_R_j, psi=psi_bottom, name=self%limiter_name)
+    call self%limit(R=r_L_i, psi=phi_r_L_i, name=self%limiter_name)
+    call self%limit(R=r_R_i, psi=phi_r_R_i, name=self%limiter_name)
+    call self%limit(R=r_L_j, psi=phi_r_L_j, name=self%limiter_name)
+    call self%limit(R=r_R_j, psi=phi_r_R_j, name=self%limiter_name)
 
     !$omp parallel default(none), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp firstprivate(ilo_real, ihi_real, jlo_real, jhi_real) &
     !$omp private(i, j) &
-    !$omp private(psi_bottom, psi_top, psi_left, psi_right) &
-    !$omp private(delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus) &
-    !$omp shared(r_L_i, r_R_i, r_L_j, r_R_j) &
+    !$omp shared(delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus) &
+    !$omp shared(phi_r_L_i, phi_r_R_i, phi_r_L_j, phi_r_R_j) &
     !$omp shared(q, self, edge_values)
 
     !$omp do
-    do j = jlo, jhi
+    do j = jlo_real, jhi_real
       !$omp simd __EDGE_ALIGN__
       !dir$ vector aligned
-      do i = ilo, ihi
+      do i = ilo_real, ihi_real
         ! (i+1/2, j), cell "right" edge -> corresponds to the "L" side of the interface, thus the "L" terms
-        edge_values(2, i, j) = q(i, j) + 0.5_rk * psi_right(i, j) * delta_i_minus(i, j)
+        ! phi_L = q + .5 * psi(r_L) * delta-
+        edge_values(2, i, j) = q(i, j) + 0.5_rk * phi_r_L_i(i, j) * delta_i_minus(i, j)
 
         ! (i-1/2, j), cell "left" edge -> corresponds to the "R" side of the interface, thus the "R" terms
-        edge_values(4, i, j) = q(i, j) - 0.5_rk * psi_left(i, j) * delta_i_plus(i, j)
+        edge_values(4, i, j) = q(i, j) - 0.5_rk * phi_r_R_i(i, j) * delta_i_plus(i, j)
 
         ! (i, j+1/2), cell "top" edge -> corresponds to the "L" side of the interface, thus the "L" terms
-        edge_values(3, i, j) = q(i, j) + 0.5_rk * psi_top(i, j) * delta_j_minus(i, j)
+        edge_values(3, i, j) = q(i, j) + 0.5_rk * phi_r_L_j(i, j) * delta_j_minus(i, j)
 
         ! (i, j-1/2), cell "bottom" edge -> corresponds to the "R" side of the interface, thus the "R" terms
-        edge_values(1, i, j) = q(i, j) - 0.5_rk * psi_bottom(i, j) * delta_j_plus(i, j)
+        edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_r_R_j(i, j) * delta_j_plus(i, j)
 
       end do
     end do
     !$omp end do
     !$omp end parallel
 
-    deallocate(psi_right)
-    deallocate(psi_left)
-    deallocate(psi_top)
-    deallocate(psi_bottom)
-
     deallocate(r_L_i)
     deallocate(r_R_i)
     deallocate(r_L_j)
     deallocate(r_R_j)
+
+    deallocate(phi_r_L_i)
+    deallocate(phi_r_R_i)
+    deallocate(phi_r_L_j)
+    deallocate(phi_r_R_j)
 
     deallocate(delta_i_plus)
     deallocate(delta_i_minus)

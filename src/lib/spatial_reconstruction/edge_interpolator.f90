@@ -19,9 +19,9 @@
 ! SOFTWARE.
 
 #ifdef __SIMD_ALIGN_OMP__
-#define __PSI_ALIGN__ aligned(psi, R:__ALIGNBYTES__)
+#define __PSI_ALIGN__ aligned(psi, r:__ALIGNBYTES__)
 #define __DELTAQ_ALIGN__ aligned(delta_i_minus, delta_i_plus, delta_j_plus, delta_j_minus, q:__ALIGNBYTES__)
-#define __DELTAR_ALIGN__ aligned(delta_plus, delta_minus, R, R_inv:__ALIGNBYTES__)
+#define __DELTAR_ALIGN__ aligned(delta_plus, delta_minus, r, r_inv:__ALIGNBYTES__)
 #else
 #define __PSI_ALIGN__
 #define __DELTAQ_ALIGN__
@@ -57,7 +57,7 @@ module mod_edge_interpolator
     procedure(basic_interface), deferred, public :: interpolate_edge_values
     procedure, public, nopass :: get_deltas
     procedure, public, nopass :: limit
-    procedure, public, nopass :: get_smoothness_R
+    procedure, public, nopass :: get_R_smoothness
   end type edge_iterpolator_t
 
   abstract interface
@@ -80,18 +80,17 @@ module mod_edge_interpolator
 
 contains
 
-  subroutine get_deltas(q, q_lbounds, delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus, delta_lbounds)
+  subroutine get_deltas(q, delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus, lbounds)
     !< Get the solution smoothness at each cell. This is sent to the limiters and MUSCL interpolation. The lbound
     !< arrays are needed b/c q includes ghost regions, whereas the delta arrays do not, since they are only for
     !< non-ghost cells
 
-    integer(ik), dimension(2), intent(in) :: q_lbounds     !< lower bounds for the q array
-    integer(ik), dimension(2), intent(in) :: delta_lbounds !< lower bounds for the delta arrays; indexing is different that q
-    real(rk), dimension(q_lbounds(1):, q_lbounds(2):), contiguous, intent(in) :: q
-    real(rk), dimension(delta_lbounds(1):, delta_lbounds(2):), contiguous, intent(inout) :: delta_i_plus  !< (i,j); q(i+1,j) - q(i,j)
-    real(rk), dimension(delta_lbounds(1):, delta_lbounds(2):), contiguous, intent(inout) :: delta_i_minus !< (i,j); q(i,j) - q(i-1,j)
-    real(rk), dimension(delta_lbounds(1):, delta_lbounds(2):), contiguous, intent(inout) :: delta_j_plus  !< (i,j); q(i,j+1) - q(i,j)
-    real(rk), dimension(delta_lbounds(1):, delta_lbounds(2):), contiguous, intent(inout) :: delta_j_minus !< (i,j); q(i,j) - q(i,j-1)
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: delta_i_plus  !< (i,j); q(i+1,j) - q(i,j)
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: delta_i_minus !< (i,j); q(i,j) - q(i-1,j)
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: delta_j_plus  !< (i,j); q(i,j+1) - q(i,j)
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: delta_j_minus !< (i,j); q(i,j) - q(i,j-1)
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -105,55 +104,63 @@ contains
     !dir$ assume_aligned delta_i_minus: __ALIGNBYTES__
     !dir$ assume_aligned delta_j_minus: __ALIGNBYTES__
 
-    ilo = lbound(delta_i_plus, dim=1)  !< first real i cell
-    ihi = ubound(delta_i_plus, dim=1)  !< last  real i cell
-    jlo = lbound(delta_i_plus, dim=2)  !< first real j cell
-    jhi = ubound(delta_i_plus, dim=2)  !< last  real j cell
+    ! The delta arrays have the same size and indexing as the q array does. Each cell
+    ! has a delta+ and a delta- value. The very edges of the q array will not have a
+    ! delta b/c they are on the edge of the total domain. With multiple ghost layers,
+    ! the outermost ghost cells will not have a delta, but the inner ones will
+    ilo = lbound(q, dim=1) + n_ghost_layers  !< first real i cell
+    ihi = ubound(q, dim=1) - n_ghost_layers  !< last  real i cell
+    jlo = lbound(q, dim=2) + n_ghost_layers  !< first real j cell
+    jhi = ubound(q, dim=2) - n_ghost_layers  !< last  real j cell
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j, abs_err) &
     !$omp shared(delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus, q)
+
+    ! First do the i-direction
     !$omp do
     do j = jlo, jhi
       !$omp simd __DELTAQ_ALIGN__
       !dir$ vector aligned
       do i = ilo, ihi
         delta_i_plus(i, j) = q(i + 1, j) - q(i, j)
-        abs_err = ABS_TOL + REL_TOL * max(abs(q(i + 1, j)), abs(q(i, j)))
+        ! abs_err = ABS_TOL + REL_TOL * max(abs(q(i + 1, j)), abs(q(i, j)))
 
-        ! Error checks
-        if(abs(delta_i_plus(i, j)) < epsilon(1.0_rk)) then
-          delta_i_plus(i, j) = 0.0_rk
-        else if(abs(q(i + 1, j)) < tiny(1.0_rk) .and. abs(q(i, j)) < tiny(1.0_rk)) then
-          delta_i_plus(i, j) = 0.0_rk
-        else if(abs(delta_i_plus(i, j)) < abs_err) then
-          delta_i_plus(i, j) = 0.0_rk
-        end if
+        ! ! Error checks
+        ! if(abs(delta_i_plus(i, j)) < epsilon(1.0_rk)) then
+        !   delta_i_plus(i, j) = 0.0_rk
+        ! else if(abs(q(i + 1, j)) < tiny(1.0_rk) .and. abs(q(i, j)) < tiny(1.0_rk)) then
+        !   delta_i_plus(i, j) = 0.0_rk
+        ! else if(abs(delta_i_plus(i, j)) < abs_err) then
+        !   delta_i_plus(i, j) = 0.0_rk
+        ! end if
       end do
     end do
     !$omp end do
 
+    ! Now do the j-direction
     !$omp do
     do j = jlo, jhi
       !$omp simd __DELTAQ_ALIGN__
       !dir$ vector aligned
       do i = ilo, ihi
         delta_j_plus(i, j) = q(i, j + 1) - q(i, j)
-        abs_err = ABS_TOL + REL_TOL * max(abs(q(i, j + 1)), abs(q(i, j)))
+        ! abs_err = ABS_TOL + REL_TOL * max(abs(q(i, j + 1)), abs(q(i, j)))
 
-        ! Error checks
-        if(abs(delta_j_plus(i, j)) < epsilon(1.0_rk)) then
-          delta_j_plus(i, j) = 0.0_rk
-        else if(abs(q(i, j + 1)) < tiny(1.0_rk) .and. abs(q(i, j)) < tiny(1.0_rk)) then
-          delta_j_plus(i, j) = 0.0_rk
-        else if(abs(delta_j_plus(i, j)) < abs_err) then
-          delta_j_plus(i, j) = 0.0_rk
-        end if
+        ! ! Error checks
+        ! if(abs(delta_j_plus(i, j)) < epsilon(1.0_rk)) then
+        !   delta_j_plus(i, j) = 0.0_rk
+        ! else if(abs(q(i, j + 1)) < tiny(1.0_rk) .and. abs(q(i, j)) < tiny(1.0_rk)) then
+        !   delta_j_plus(i, j) = 0.0_rk
+        ! else if(abs(delta_j_plus(i, j)) < abs_err) then
+        !   delta_j_plus(i, j) = 0.0_rk
+        ! end if
       end do
     end do
     !$omp end do
 
+    ! Since the "minus" value is just the previous cell's "+" value, loop over and copy
     !$omp do
     do j = jlo, jhi
       !$omp simd __DELTAQ_ALIGN__
@@ -168,11 +175,13 @@ contains
     !$omp end parallel
   end subroutine get_deltas
 
-  subroutine get_smoothness_R(delta_plus, delta_minus, R, R_inv)
-    real(rk), dimension(:, :), contiguous, intent(in) :: delta_plus
-    real(rk), dimension(:, :), contiguous, intent(in) :: delta_minus
-    real(rk), dimension(:, :), contiguous, intent(inout) :: R     !<
-    real(rk), dimension(:, :), contiguous, intent(inout) :: R_inv !< 1/R
+  subroutine get_R_smoothness(delta_plus, delta_minus, r, r_inv)
+    !< Find the smoothness of solution based on nearest neighbor cell averages. Typically referred to
+    !< as "r" in the literature. This is sent to the limiters, e.g. phi(r)
+    real(rk), dimension(:, :), contiguous, intent(in) :: delta_plus  !< (i,j); Difference operators
+    real(rk), dimension(:, :), contiguous, intent(in) :: delta_minus !< (i,j); Difference operators
+    real(rk), dimension(:, :), contiguous, intent(inout) :: r        !< (i,j); smoothness r = delta+/delta-
+    real(rk), dimension(:, :), contiguous, intent(inout) :: r_inv    !< (i,j); 1/r
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -190,58 +199,57 @@ contains
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
-    !$omp shared(delta_plus, delta_minus, R, R_inv)
-    !$omp do
-    do j = jlo, jhi
-      !$omp simd __DELTAR_ALIGN__
-
-      !dir$ vector aligned
-      do i = ilo, ihi
-        R(i, j) = (delta_minus(i, j) + EPS) / (delta_plus(i, j) + EPS)
-        R_inv(i, j) = (delta_plus(i, j) + EPS) / (delta_minus(i, j) + EPS)
-      end do
-    end do
-    !$omp end do
-
+    !$omp shared(delta_plus, delta_minus, r, r_inv)
     !$omp do
     do j = jlo, jhi
       !$omp simd __DELTAR_ALIGN__
       !dir$ vector aligned
       do i = ilo, ihi
-        if(abs(R(i, j)) < EPS) R(i, j) = 0.0_rk
-        if(abs(R_inv(i, j)) < EPS) R_inv(i, j) = 0.0_rk
+        r(i, j) = (delta_plus(i, j) + EPS) / (delta_minus(i, j) + EPS)
+        r_inv(i, j) = (delta_minus(i, j) + EPS) / (delta_plus(i, j) + EPS)
       end do
     end do
     !$omp end do
+
+    ! !$omp do
+    ! do j = jlo, jhi
+    !   !$omp simd __DELTAR_ALIGN__
+    !   !dir$ vector aligned
+    !   do i = ilo, ihi
+    !     if(abs(r(i, j)) < 1e-10_rk) r(i, j) = 0.0_rk
+    !     if(abs(r_inv(i, j)) < 1e-10_rk) r_inv(i, j) = 0.0_rk
+    !   end do
+    ! end do
+    ! !$omp end do
     !$omp end parallel
-  end subroutine get_smoothness_R
+  end subroutine get_R_smoothness
 
-  subroutine limit(R, psi, name)
+  subroutine limit(r, psi, name)
     !< Apply the flux limiter based on the smoothness
-    real(rk), dimension(:, :), contiguous, intent(in) :: R !< smoothness
+    real(rk), dimension(:, :), contiguous, intent(in) :: r !< smoothness
     real(rk), dimension(:, :), contiguous, intent(inout) :: psi !< flux limiter value
     character(len=*), intent(in) :: name !< name of the limiter
 
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     real(RK), parameter :: PSI_EPS = 1e-5_rk
-    !dir$ assume_aligned R: __ALIGNBYTES__
+    !dir$ assume_aligned r: __ALIGNBYTES__
     !dir$ assume_aligned psi: __ALIGNBYTES__
 
-    ilo = lbound(R, dim=1)
-    ihi = ubound(R, dim=1)
-    jlo = lbound(R, dim=2)
-    jhi = ubound(R, dim=2)
+    ilo = lbound(r, dim=1)
+    ihi = ubound(r, dim=1)
+    jlo = lbound(r, dim=2)
+    jhi = ubound(r, dim=2)
     select case(trim(name))
     case('minmod')
       !$omp parallel default(none), &
       !$omp firstprivate(ilo, ihi, jlo, jhi) &
-      !$omp private(i, j) shared(psi, R)
+      !$omp private(i, j) shared(psi, r)
       !$omp do
       do j = jlo, jhi
         !dir$ vector aligned
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
-          psi(i, j) = max(0.0_rk, min(R(i, j), 1.0_rk))
+          psi(i, j) = max(0.0_rk, min(r(i, j), 1.0_rk))
         end do
       end do
 
@@ -250,9 +258,9 @@ contains
         !dir$ vector aligned
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
-          if(R(i, j) < PSI_EPS) then
+          if(r(i, j) < PSI_EPS) then
             psi(i, j) = 0.0_rk
-          else if(R(i, j) > 1.0_rk) then
+          else if(r(i, j) > 1.0_rk) then
             psi(i, j) = 1.0_rk
           endif
         end do
@@ -263,13 +271,13 @@ contains
     case('superbee')
       !$omp parallel default(none), &
       !$omp firstprivate(ilo, ihi, jlo, jhi) &
-      !$omp private(i, j) shared(psi, R)
+      !$omp private(i, j) shared(psi, r)
       !$omp do
       do j = jlo, jhi
         !dir$ vector aligned
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
-          psi(i, j) = max(0.0_rk, min(2.0_rk * R(i, j), 1.0_rk), min(R(i, j), 2.0_rk))
+          psi(i, j) = max(0.0_rk, min(2.0_rk * r(i, j), 1.0_rk), min(r(i, j), 2.0_rk))
         end do
       end do
 
@@ -278,9 +286,9 @@ contains
         !dir$ vector aligned
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
-          if(R(i, j) < PSI_EPS) then
+          if(r(i, j) < PSI_EPS) then
             psi(i, j) = 0.0_rk
-          else if(R(i, j) > 2.0_rk) then
+          else if(r(i, j) > 2.0_rk) then
             psi(i, j) = 2.0_rk
           endif
         end do
@@ -290,13 +298,13 @@ contains
     case('van_leer')
       !$omp parallel default(none), &
       !$omp firstprivate(ilo, ihi, jlo, jhi) &
-      !$omp private(i, j) shared(psi, R)
+      !$omp private(i, j) shared(psi, r)
       !$omp do
       do j = jlo, jhi
         !dir$ vector aligned
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
-          psi(i, j) = (R(i, j) + abs(R(i, j))) / (1.0_rk + abs(R(i, j)))
+          psi(i, j) = (r(i, j) + abs(r(i, j))) / (1.0_rk + abs(r(i, j)))
         end do
       end do
 
@@ -305,7 +313,7 @@ contains
         !dir$ vector aligned
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
-          if(R(i, j) < PSI_EPS) psi(i, j) = 0.0_rk
+          if(r(i, j) < PSI_EPS) psi(i, j) = 0.0_rk
         end do
       end do
       !$omp end do
