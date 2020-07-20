@@ -67,6 +67,7 @@ module mod_mausmpw_plus_solver
     procedure, public, pass(lhs) :: copy => copy_m_ausmpw_plus
 
     ! Private methods
+    procedure, private :: get_edge_flux
     procedure, private :: flux_edges
     final :: finalize
 
@@ -146,24 +147,42 @@ contains
       end do
     end do
 
+    allocate(self%i_edge_flux(4, ilo - 1:ihi, jlo:jhi))
+    call self%get_edge_flux(direction='i', grid=grid, &
+                            rho=rho_interface_values, u=u_interface_values, &
+                            v=v_interface_values, p=p_interface_values, &
+                            rho_sb=rho_superbee_values, u_sb=u_superbee_values, &
+                            v_sb=v_superbee_values, p_sb=p_superbee_values, &
+                            w2=w_2_xi, &
+                            bounds=[ilo, ihi, jlo - 1, jhi], edge_flux=self%i_edge_flux)
+
+    allocate(self%j_edge_flux(4, ilo:ihi, jlo - 1:jhi))
+    call self%get_edge_flux(direction='j', grid=grid, &
+                            rho=rho_interface_values, u=u_interface_values, &
+                            v=v_interface_values, p=p_interface_values, &
+                            rho_sb=rho_superbee_values, u_sb=u_superbee_values, &
+                            v_sb=v_superbee_values, p_sb=p_superbee_values, &
+                            w2=w_2_eta, &
+                            bounds=[ilo - 1, ihi, jlo, jhi], edge_flux=self%j_edge_flux)
+
   end subroutine solve_m_ausmpw_plus
 
-  subroutine get_edge_flux(self, direction, grid, rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, w2, lbounds, edge_flux)
+  subroutine get_edge_flux(self, direction, grid, rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, w2, bounds, edge_flux)
     !< Solve and flux the edges
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
-    integer(ik), dimension(2), intent(in) :: lbounds
+    integer(ik), dimension(4), intent(in) :: bounds !< (ilo, ihi, jlo, jhi)
     character(len=1), intent(in) :: direction !> 'i', or 'j'
 
-    real(rk), dimension(1:, lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho    !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for density
-    real(rk), dimension(1:, lbounds(1):, lbounds(2):), contiguous, intent(in) :: u      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
-    real(rk), dimension(1:, lbounds(1):, lbounds(2):), contiguous, intent(in) :: v      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
-    real(rk), dimension(1:, lbounds(1):, lbounds(2):), contiguous, intent(in) :: p      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for pressure
-    real(rk), dimension(1:, lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho_sb !< (1:4, i,j); interpolated w/superbee (L/R state) values for density
-    real(rk), dimension(1:, lbounds(1):, lbounds(2):), contiguous, intent(in) :: u_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for x-velocity
-    real(rk), dimension(1:, lbounds(1):, lbounds(2):), contiguous, intent(in) :: v_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for y-velocity
-    real(rk), dimension(1:, lbounds(1):, lbounds(2):), contiguous, intent(in) :: p_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for pressure
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: w2 !< shock sensing function (determines if shock exists in transversal direction to the interface)
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: rho    !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for density
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: u      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: v      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: p      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: rho_sb !< (1:4, i,j); interpolated w/superbee (L/R state) values for density
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: u_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: v_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), contiguous, intent(in) :: p_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for pressure
+    real(rk), dimension(:, :), contiguous, intent(in) :: w2 !< shock sensing function (determines if shock exists in transversal direction to the interface)
     real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_flux
 
     integer(ik) :: i, j
