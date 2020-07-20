@@ -85,6 +85,7 @@ contains
     !$omp shared(flux, rho, u, v, p, E)
     !$omp do
     do j = jlo, jhi
+      !dir$ vector aligned
 #ifdef __SIMD_ALIGN_OMP__
       !$omp simd aligned(rho, u, v, p, E:__ALIGNBYTES__)
 #else
