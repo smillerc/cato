@@ -1326,7 +1326,7 @@ contains
   ! end subroutine test_corner_p_prime_upper_left_2_arcs
 
   ! Transonic tests
-  @test
+  !@test
   subroutine test_transonic_du_midpoint()
     !< Test the Mach cone, when the cell set is transonic
 
