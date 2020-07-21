@@ -29,6 +29,7 @@ module mod_flux_solver
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
+  use mod_floating_point_utils, only: neumaier_sum_4
   use mod_grid, only: grid_t
   use mod_input, only: input_t
   use mod_boundary_conditions, only: boundary_condition_t
@@ -37,7 +38,7 @@ module mod_flux_solver
   implicit none
 
   private
-  public :: flux_solver_t
+  public :: flux_solver_t, edge_split_flux_solver_t
 
   type, abstract :: flux_solver_t
     type(input_t) :: input
@@ -56,6 +57,13 @@ module mod_flux_solver
     procedure(solve), deferred, public :: solve
 
   end type flux_solver_t
+
+  type, abstract, extends(flux_solver_t) :: edge_split_flux_solver_t
+    real(rk), dimension(:, :, :), allocatable :: i_edge_flux !< ((1:4), i, j) edge flux of the i-direction edges
+    real(rk), dimension(:, :, :), allocatable :: j_edge_flux !< ((1:4), i, j) edge flux of the j-direction edges
+  contains
+    procedure, public :: flux_split_edges
+  end type edge_split_flux_solver_t
 
   abstract interface
     subroutine solve(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
@@ -249,4 +257,112 @@ contains
     end do
 
   end subroutine apply_reconstructed_bc
+
+  subroutine flux_split_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
+    class(edge_split_flux_solver_t), intent(in) :: self
+    class(grid_t), intent(in) :: grid
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk), dimension(4) :: delta_l !< edge length
+    real(rk) :: volume !< cell volume
+    real(rk), parameter :: FLUX_EPS = 5e-13_rk
+    real(rk), parameter :: REL_THRESHOLD = 1e-5_rk !< relative error threshold
+
+    real(rk), dimension(4) :: rho_edge_fluxes
+    real(rk), dimension(4) :: rhou_edge_fluxes
+    real(rk), dimension(4) :: rhov_edge_fluxes
+    real(rk), dimension(4) :: rhoE_edge_fluxes
+    real(rk) :: ave_rho_edge_flux, rho_flux, rho_flux_threshold
+    real(rk) :: ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold
+    real(rk) :: ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold
+    real(rk) :: ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold
+
+    ilo = grid%ilo_cell
+    ihi = grid%ihi_cell
+    jlo = grid%jlo_cell
+    jhi = grid%jhi_cell
+
+    !                      j_edge(:,i,j)
+    !                   ___________________
+    !                  |                   |
+    !                  |                   |
+    ! i_edge(:,i-1,j)  |     cell (i,j)    | i_edge(:,i,j)
+    !                  |                   |
+    !                  |___________________|
+    !                     j_edge(:,i,j-1)
+
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi), &
+    !$omp shared(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt), &
+    !$omp private(i, j, delta_l, volume) &
+    !$omp private(ave_rho_edge_flux, rho_flux, rho_flux_threshold) &
+    !$omp private(ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold) &
+    !$omp private(ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold) &
+    !$omp private(ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold) &
+    !$omp private(rho_edge_fluxes, rhou_edge_fluxes, rhov_edge_fluxes, rhoE_edge_fluxes)
+    !$omp do
+    do j = jlo, jhi
+      do i = ilo, ihi
+
+        delta_l = grid%cell_edge_lengths(:, i, j)
+        volume = grid%cell_volume(i, j)
+
+        ! rho
+        rho_edge_fluxes = [self%i_edge_flux(1, i, j) * delta_l(2), -self%i_edge_flux(1, i - 1, j) * delta_l(4), &
+                           -self%j_edge_flux(1, i, j - 1) * delta_l(1), self%j_edge_flux(1, i, j) * delta_l(3)]
+        ave_rho_edge_flux = 0.25_rk * sum(abs(rho_edge_fluxes))
+        rho_flux = -neumaier_sum_4(rho_edge_fluxes)
+        rho_flux_threshold = abs(ave_rho_edge_flux) * REL_THRESHOLD
+        if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
+          rho_flux = 0.0_rk
+        end if
+        d_rho_dt(i, j) = rho_flux / volume
+
+        ! rho u
+        rhou_edge_fluxes = [self%i_edge_flux(2, i, j) * delta_l(2), -self%i_edge_flux(2, i - 1, j) * delta_l(4), &
+                            -self%j_edge_flux(2, i, j - 1) * delta_l(1), self%j_edge_flux(2, i, j) * delta_l(3)]
+        ave_rhou_edge_flux = 0.25_rk * sum(abs(rhou_edge_fluxes))
+        rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
+        rhou_flux_threshold = abs(ave_rhou_edge_flux) * REL_THRESHOLD
+        if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
+          rhou_flux = 0.0_rk
+        end if
+        d_rho_u_dt(i, j) = rhou_flux / volume
+
+        ! rho v
+        rhov_edge_fluxes = [self%i_edge_flux(3, i, j) * delta_l(2), -self%i_edge_flux(3, i - 1, j) * delta_l(4), &
+                            -self%j_edge_flux(3, i, j - 1) * delta_l(1), self%j_edge_flux(3, i, j) * delta_l(3)]
+        ave_rhov_edge_flux = 0.25_rk * sum(abs(rhov_edge_fluxes))
+        rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
+        rhov_flux_threshold = abs(ave_rhov_edge_flux) * REL_THRESHOLD
+        if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
+          rhov_flux = 0.0_rk
+        end if
+        d_rho_v_dt(i, j) = rhov_flux / volume
+
+        ! rho E
+        rhoE_edge_fluxes = [self%i_edge_flux(4, i, j) * delta_l(2), -self%i_edge_flux(4, i - 1, j) * delta_l(4), &
+                            -self%j_edge_flux(4, i, j - 1) * delta_l(1), self%j_edge_flux(4, i, j) * delta_l(3)]
+        ave_rhoE_edge_flux = 0.25_rk * sum(abs(rhoE_edge_fluxes))
+        rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
+        rhoE_flux_threshold = abs(ave_rhoE_edge_flux) * REL_THRESHOLD
+        if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
+          rhoE_flux = 0.0_rk
+        end if
+        d_rho_E_dt(i, j) = rhoE_flux / volume
+
+      end do
+    end do
+    !$omp end do
+    !$omp end parallel
+
+  end subroutine flux_split_edges
+
 end module mod_flux_solver
