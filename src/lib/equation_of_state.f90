@@ -455,7 +455,6 @@ contains
     real(rk), intent(inout) :: rho_E
 
     ! Locals
-    integer(ik) :: i, j, ilo, ihi, jlo, jhi
     real(rk) :: gamma_m_one
 
     gamma_m_one = self%gamma - 1.0_rk
