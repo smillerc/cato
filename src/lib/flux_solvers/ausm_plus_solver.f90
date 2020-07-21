@@ -33,7 +33,7 @@ module mod_ausm_plus_solver
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_edge_interpolator_factory, only: edge_interpolator_factory
   use mod_edge_interpolator, only: edge_iterpolator_t
-  use mod_flux_solver, only: flux_solver_t
+  use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -43,7 +43,7 @@ module mod_ausm_plus_solver
   private
   public :: ausm_plus_solver_t
 
-  type, extends(flux_solver_t) :: ausm_plus_solver_t
+  type, extends(edge_split_flux_solver_t) :: ausm_plus_solver_t
     !< Implementation of the AUSM+-up scheme
     private
     real(rk) :: mach_split_beta = 1.0_rk / 8.0_rk        !< beta parameter in Eq. 20 in Ref [1]
@@ -52,9 +52,6 @@ module mod_ausm_plus_solver
     real(rk) :: pressure_flux_coeff = 0.75_rk            !< K_u; pressure flux coefficient in Eq 26 in Ref [1]
     real(rk) :: sigma = 1.0_rk                           !< sigma; another pressure diffusion coefficient in Eq 21 in Ref [1]
     real(rk) :: M_inf_sq = 1.0_rk                        !< Freestream Mach number squared
-
-    real(rk), dimension(:, :, :), allocatable :: i_edge_flux !< ((1:4), i, j) edge flux of the i-direction edges
-    real(rk), dimension(:, :, :), allocatable :: j_edge_flux !< ((1:4), i, j) edge flux of the j-direction edges
 
     ! Variants of the AUSM+ family
     logical :: ausm_plus_u = .false.            !< Enable the AUSM+-u scheme
@@ -68,7 +65,6 @@ module mod_ausm_plus_solver
     procedure, public, pass(lhs) :: copy => copy_ausm_plus
 
     ! Private methods
-    procedure, private :: flux_edges
     procedure, private :: interface_state
     final :: finalize
 
@@ -89,13 +85,13 @@ contains
 
     select case(trim(input%flux_solver))
     case('AUSM+-u')
-      self%name = 'AUSM+-u'
+      self%name = 'AUSM+-u_'//input%limiter
       self%ausm_plus_u = .true.
     case('AUSM+-up', 'AUSM+-up_basic')
-      self%name = 'AUSM+-up'
+      self%name = 'AUSM+-up'//input%limiter
       self%ausm_plus_up_basic = .true.
     case('AUSM+-up_all_speed')
-      self%name = 'AUSM+-up all-speed'
+      self%name = 'AUSM+-up all-speed'//input%limiter
       self%ausm_plus_up_all_speed = .true.
     case default
       write(std_err, '(a)') "Unknown variant of the AUSM+ family, must be one of the following"// &
@@ -369,7 +365,7 @@ contains
     !$omp end do
     !$omp end parallel
 
-    call self%flux_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
 
     deallocate(rho_interface_values)
     deallocate(u_interface_values)
@@ -385,113 +381,6 @@ contains
     if(allocated(self%i_edge_flux)) deallocate(self%i_edge_flux)
     if(allocated(self%j_edge_flux)) deallocate(self%j_edge_flux)
   end subroutine solve_ausm_plus
-
-  subroutine flux_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
-    !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
-    class(ausm_plus_solver_t), intent(in) :: self
-    class(grid_t), intent(in) :: grid
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
-
-    ! Locals
-    integer(ik) :: i, j, ilo, ihi, jlo, jhi
-    real(rk), dimension(4) :: delta_l !< edge length
-    real(rk) :: volume !< cell volume
-    real(rk), parameter :: FLUX_EPS = 5e-13_rk
-    real(rk), parameter :: REL_THRESHOLD = 1e-5_rk !< relative error threshold
-
-    real(rk), dimension(4) :: rho_edge_fluxes
-    real(rk), dimension(4) :: rhou_edge_fluxes
-    real(rk), dimension(4) :: rhov_edge_fluxes
-    real(rk), dimension(4) :: rhoE_edge_fluxes
-    real(rk) :: ave_rho_edge_flux, rho_flux, rho_flux_threshold
-    real(rk) :: ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold
-    real(rk) :: ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold
-    real(rk) :: ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold
-
-    ilo = grid%ilo_cell
-    ihi = grid%ihi_cell
-    jlo = grid%jlo_cell
-    jhi = grid%jhi_cell
-
-    !                      j_edge(:,i,j)
-    !                   ___________________
-    !                  |                   |
-    !                  |                   |
-    ! i_edge(:,i-1,j)  |     cell (i,j)    | i_edge(:,i,j)
-    !                  |                   |
-    !                  |___________________|
-    !                     j_edge(:,i,j-1)
-
-    !$omp parallel default(none), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi), &
-    !$omp shared(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt), &
-    !$omp private(i, j, delta_l, volume) &
-    !$omp private(ave_rho_edge_flux, rho_flux, rho_flux_threshold) &
-    !$omp private(ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold) &
-    !$omp private(ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold) &
-    !$omp private(ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold) &
-    !$omp private(rho_edge_fluxes, rhou_edge_fluxes, rhov_edge_fluxes, rhoE_edge_fluxes)
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-
-        delta_l = grid%cell_edge_lengths(:, i, j)
-        volume = grid%cell_volume(i, j)
-
-        ! rho
-        rho_edge_fluxes = [self%i_edge_flux(1, i, j) * delta_l(2), -self%i_edge_flux(1, i - 1, j) * delta_l(4), &
-                           -self%j_edge_flux(1, i, j - 1) * delta_l(1), self%j_edge_flux(1, i, j) * delta_l(3)]
-        ave_rho_edge_flux = 0.25_rk * sum(abs(rho_edge_fluxes))
-        rho_flux = -neumaier_sum_4(rho_edge_fluxes)
-        rho_flux_threshold = abs(ave_rho_edge_flux) * REL_THRESHOLD
-        if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
-          rho_flux = 0.0_rk
-        end if
-        d_rho_dt(i, j) = rho_flux / volume
-
-        ! rho u
-        rhou_edge_fluxes = [self%i_edge_flux(2, i, j) * delta_l(2), -self%i_edge_flux(2, i - 1, j) * delta_l(4), &
-                            -self%j_edge_flux(2, i, j - 1) * delta_l(1), self%j_edge_flux(2, i, j) * delta_l(3)]
-        ave_rhou_edge_flux = 0.25_rk * sum(abs(rhou_edge_fluxes))
-        rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
-        rhou_flux_threshold = abs(ave_rhou_edge_flux) * REL_THRESHOLD
-        if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
-          rhou_flux = 0.0_rk
-        end if
-        d_rho_u_dt(i, j) = rhou_flux / volume
-
-        ! rho v
-        rhov_edge_fluxes = [self%i_edge_flux(3, i, j) * delta_l(2), -self%i_edge_flux(3, i - 1, j) * delta_l(4), &
-                            -self%j_edge_flux(3, i, j - 1) * delta_l(1), self%j_edge_flux(3, i, j) * delta_l(3)]
-        ave_rhov_edge_flux = 0.25_rk * sum(abs(rhov_edge_fluxes))
-        rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
-        rhov_flux_threshold = abs(ave_rhov_edge_flux) * REL_THRESHOLD
-        if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
-          rhov_flux = 0.0_rk
-        end if
-        d_rho_v_dt(i, j) = rhov_flux / volume
-
-        ! rho E
-        rhoE_edge_fluxes = [self%i_edge_flux(4, i, j) * delta_l(2), -self%i_edge_flux(4, i - 1, j) * delta_l(4), &
-                            -self%j_edge_flux(4, i, j - 1) * delta_l(1), self%j_edge_flux(4, i, j) * delta_l(3)]
-        ave_rhoE_edge_flux = 0.25_rk * sum(abs(rhoE_edge_fluxes))
-        rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
-        rhoE_flux_threshold = abs(ave_rhoE_edge_flux) * REL_THRESHOLD
-        if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
-          rhoE_flux = 0.0_rk
-        end if
-        d_rho_E_dt(i, j) = rhoE_flux / volume
-
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-
-  end subroutine flux_edges
 
   pure function split_mach_deg_1(M, plus_or_minus) result(M_split)
     !< Implementation of the 1st order polynomial split Mach function M±(1). See Eq. 18 in Ref [1]
@@ -629,7 +518,7 @@ contains
     real(rk) :: p_u            !< Velocity difference (diffusion) term
     real(rk) :: P_plus         !< Split pressure term P+, see Eq. 75
     real(rk) :: P_minus        !< Split pressure term P-, see Eq. 75
-    real(rk) :: P_sum          !< P_plus + P_minus; used for round-off machine epsilon checks
+    ! real(rk) :: P_sum          !< P_plus + P_minus; used for round-off machine epsilon checks
     real(rk) :: a_circumflex_L !< â_L; used to find the left interface sound speed see Eq 28 in Ref [1]
     real(rk) :: a_circumflex_R !< â_R; used to find the rgight interface sound speed see Eq 28 in Ref [1]
     real(rk) :: a_crit_L       !< a*; critical sound speed of the left side

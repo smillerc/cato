@@ -20,8 +20,10 @@
 
 #ifdef __SIMD_ALIGN_OMP__
 #define __INTERP_ALIGN__ aligned(rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, edge_flux:__ALIGNBYTES__)
+#define __W2_ALIGN__ aligned(p, w_2_xi, w_2_eta:__ALIGNBYTES__)
 #else
 #define __INTERP_ALIGN__
+#define __W2_ALIGN__
 #endif
 
 module mod_mausmpw_plus_solver
@@ -43,7 +45,7 @@ module mod_mausmpw_plus_solver
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_edge_interpolator_factory, only: edge_interpolator_factory
   use mod_edge_interpolator, only: edge_iterpolator_t
-  use mod_flux_solver, only: flux_solver_t
+  use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -53,11 +55,9 @@ module mod_mausmpw_plus_solver
   private
   public :: m_ausmpw_plus_solver_t
 
-  type, extends(flux_solver_t) :: m_ausmpw_plus_solver_t
+  type, extends(edge_split_flux_solver_t) :: m_ausmpw_plus_solver_t
     !< Implementation of the M-AUSMPW+ scheme
     private
-    real(rk), dimension(:, :, :), allocatable :: i_edge_flux !< ((1:4), i, j) edge flux of the i-direction edges
-    real(rk), dimension(:, :, :), allocatable :: j_edge_flux !< ((1:4), i, j) edge flux of the j-direction edges
     real(rk) :: gamma = 0.0_rk
 
   contains
@@ -68,7 +68,6 @@ module mod_mausmpw_plus_solver
 
     ! Private methods
     procedure, private :: get_edge_flux
-    procedure, private :: flux_edges
     final :: finalize
 
     ! Operators
@@ -81,6 +80,7 @@ contains
     class(input_t), intent(in) :: input
 
     self%gamma = eos%get_gamma()
+    self%name = 'M-AUSMPW+_'//input%limiter
   end subroutine initialize_m_ausmpw_plus
 
   subroutine copy_m_ausmpw_plus(lhs, rhs)
@@ -113,10 +113,15 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
+    class(edge_iterpolator_t), pointer :: edge_interpolator => null()
+    class(edge_iterpolator_t), pointer :: sb_edge_interpolator => null()
+    class(boundary_condition_t), allocatable:: bc_plus_x
+    class(boundary_condition_t), allocatable:: bc_plus_y
+    class(boundary_condition_t), allocatable:: bc_minus_x
+    class(boundary_condition_t), allocatable:: bc_minus_y
+
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
-    real(rk) :: gamma
 
     real(rk), dimension(:, :, :), allocatable :: rho_interface_values !< interface (L/R state) values for density
     real(rk), dimension(:, :, :), allocatable :: u_interface_values   !< interface (L/R state) values for x-velocity
@@ -131,11 +136,72 @@ contains
     real(rk), dimension(:, :), allocatable :: w_2_xi
     real(rk), dimension(:, :), allocatable :: w_2_eta
 
-    ! FIXME:
-    allocate(w_2_xi(ilo:ihi, jlo:jhi))
-    allocate(w_2_eta(ilo:ihi, jlo:jhi))
+    call debug_print('Running m_ausmpw_plus_solver_t%solve_m_ausmpw_plus()', __FILE__, __LINE__)
 
+    if(dt < tiny(1.0_rk)) error stop "Error in m_ausmpw_plus_solver_t%solve_m_ausmpw_plus(), the timestep dt is < tiny(1.0_rk)"
+    self%time = self%time + dt
+    self%dt = dt
+    self%iteration = self%iteration + 1
+
+    call self%init_boundary_conditions(grid, &
+                                       bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                       bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
+                                 bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                 bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+
+    edge_interpolator => edge_interpolator_factory(self%input)
+    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
+    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
+
+    sb_edge_interpolator => edge_interpolator_factory(self%input, limiter_name='superbee')
+    call sb_edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_superbee_values)
+    call sb_edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_superbee_values)
+    call sb_edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_superbee_values)
+    call sb_edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_superbee_values)
+
+    call self%apply_reconstructed_bc(recon_rho=rho_interface_values, recon_u=u_interface_values, &
+                                     recon_v=v_interface_values, recon_p=p_interface_values, &
+                                     lbounds=lbounds, &
+                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+
+    ! The interfaces where the flux occurs is shared by 2 cells. The indexing for the
+    ! edges is staggered so that when reading/writing data to those arrays, we avoid using i-1
+    ! as much as possible to avoid vectorization dependence flags from the compiler
+    !
+    !             (i-1/2)  (i+1/2)         interface locations
+    !        |       |       |       |
+    !        |       |     L | R     |     L/R locations
+    !        |       |       |       |
+    !        | (i-1) |  (i)  | (i+1) |     cell indexing
+    !              (i-1)    (i)    (i+1)   edge indexing
+    !        |   0   |   1   |   2   |     cell index example
+    !        |       0       1       2     edge indexing example
+    !        |       |       |       |
+    !
+
+    ilo = grid%ilo_cell  !< first real i cell
+    ihi = grid%ihi_cell  !< last  real i cell
+    jlo = grid%jlo_cell  !< first real j cell
+    jhi = grid%jhi_cell  !< last  real j cell
+
+    ! Find the shock sensor values w_2_xi and w_2_eta
+    allocate(w_2_xi(ilo:ihi, jlo:jhi))  !dir$ attributes align:__ALIGNBYTES__ :: w_2_xi
+    allocate(w_2_eta(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: w_2_eta
+    w_2_xi = 0.0_rk
+    w_2_eta = 0.0_rk
+
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j) &
+    !$omp shared(p, w_2_xi, w_2_eta)
+    !$omp do
     do j = jlo, jhi
+      !$omp simd __W2_ALIGN__
+      !dir$ vector aligned
       do i = ilo, ihi
         w_2_xi(i, j) = (1.0_rk - min(1.0_rk,(p(i + 1, j) - p(i, j)) / &
                                      (0.25_rk * (p(i + 1, j + 1) + p(i, j + 1) - p(i + 1, j - 1) - p(i, j - 1)))))**2 * &
@@ -146,6 +212,8 @@ contains
                         (1.0_rk - min(p(i, j) / p(i, j + 1), p(i, j + 1) / p(i, j)))**2
       end do
     end do
+    !$omp end do
+    !$omp end parallel
 
     allocate(self%i_edge_flux(4, ilo - 1:ihi, jlo:jhi))
     call self%get_edge_flux(direction='i', grid=grid, &
@@ -165,10 +233,35 @@ contains
                             w2=w_2_eta, &
                             bounds=[ilo - 1, ihi, jlo, jhi], edge_flux=self%j_edge_flux)
 
+    ! Now flux the edges to get the next solution
+    call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+
+    deallocate(edge_interpolator)
+    deallocate(sb_edge_interpolator)
+    deallocate(w_2_eta)
+    deallocate(w_2_xi)
+
+    deallocate(rho_interface_values)
+    deallocate(u_interface_values)
+    deallocate(v_interface_values)
+    deallocate(p_interface_values)
+
+    deallocate(rho_superbee_values)
+    deallocate(u_superbee_values)
+    deallocate(v_superbee_values)
+    deallocate(p_superbee_values)
+
+    deallocate(bc_plus_x)
+    deallocate(bc_plus_y)
+    deallocate(bc_minus_x)
+    deallocate(bc_minus_y)
+
+    deallocate(self%i_edge_flux)
+    deallocate(self%j_edge_flux)
   end subroutine solve_m_ausmpw_plus
 
   subroutine get_edge_flux(self, direction, grid, rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, w2, bounds, edge_flux)
-    !< Solve and flux the edges
+    !< Construct the fluxes for each edge
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(4), intent(in) :: bounds !< (ilo, ihi, jlo, jhi)
@@ -187,7 +280,6 @@ contains
 
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
     real(rk) :: gamma      !< polytropic gas index
     real(rk) :: rho_L      !< density left state w/ limiter of choice
     real(rk) :: rho_R      !< density right state w/ limiter of choice
@@ -275,6 +367,11 @@ contains
     end select
 
     gamma = self%gamma
+
+    ilo = bounds(1)
+    ihi = bounds(2)
+    jlo = bounds(3)
+    jhi = bounds(4)
 
     allocate(edge_flux(4, ilo:ihi, jlo:jhi))
 
@@ -406,32 +503,13 @@ contains
 
   end subroutine get_edge_flux
 
-  subroutine flux_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
-    !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
-    class(m_ausmpw_plus_solver_t), intent(in) :: self
-    class(grid_t), intent(in) :: grid
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
-  end subroutine flux_edges
-
   subroutine finalize(self)
     !< Cleanup the M-AUSMPW+ solver
     type(m_ausmpw_plus_solver_t), intent(inout) :: self
+    call debug_print('Running m_ausmpw_plus_solver_t%finalize()', __FILE__, __LINE__)
+    if(allocated(self%i_edge_flux)) deallocate(self%i_edge_flux) ! these should already be deallocated
+    if(allocated(self%j_edge_flux)) deallocate(self%j_edge_flux) ! these should already be deallocated
   end subroutine finalize
-
-  pure subroutine project_vector(a, b, b_parallel, b_perpendicular)
-    !< Project vector "b" onto vector "a" and get the parallel and perpenticular components
-    real(rk), dimension(2), intent(in) :: a                !<(x,y); the vector getting projected
-    real(rk), dimension(2), intent(in) :: b                !<(x,y); the vector to project onto
-    real(rk), dimension(2), intent(out) :: b_parallel      !<(x,y); vector parallel to a
-    real(rk), dimension(2), intent(out) :: b_perpendicular !<(x,y); vector perpendicular to a
-
-    b_parallel = (dot_product(b, a) / dot_product(a, a)) * a
-    b_perpendicular = b - b_parallel
-  end subroutine project_vector
 
   pure real(rk) function pressure_split_plus(M) result(P_plus)
     !< The pressure splitting function (Eq. 4 in Ref[1]). This is the P+ version. This is kept
