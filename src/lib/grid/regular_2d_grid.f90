@@ -99,7 +99,7 @@ contains
     class(regular_2d_grid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
-    integer(ik) :: i, j, alloc_status
+    integer(ik) :: alloc_status
 
     ! Low node/cell indices (always starts at 1)
     self%ilo_node = 1
@@ -497,7 +497,6 @@ contains
     real(rk), dimension(8) :: p_x !< x coords of the cell corners and midpoints (c1,m1,c2,m2,c3,m3,c4,m4)
     real(rk), dimension(8) :: p_y !< x coords of the cell corners and midpoints (c1,m1,c2,m2,c3,m3,c4,m4)
 
-    real(rk) :: min_vol, max_vol
     integer(ik) :: i, j
 
     x_coords = 0.0_rk

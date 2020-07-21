@@ -40,7 +40,7 @@ module mod_edge_interpolator
   !<   [2] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
   !<       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
 
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: ieee_arithmetic
   use mod_globals, only: n_ghost_layers, debug_print
   use mod_flux_limiter, only: flux_limiter_t, minmod, superbee
@@ -299,7 +299,8 @@ contains
     jhi = ubound(r, dim=2)
     select case(trim(name))
     case default
-      error stop "Unsupported limiter type in mod_edge_interpolator::limit"
+      write(std_err, '(a)') "Error: Unsupported limiter type in mod_edge_interpolator%limit() '"//trim(name)//"'"
+      error stop "Error: Unsupported limiter type in mod_edge_interpolator%limit()"
     case('none')
       psi = 1.0_rk
     case('minmod')

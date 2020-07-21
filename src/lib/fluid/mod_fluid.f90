@@ -41,6 +41,7 @@ module mod_fluid
   use mod_flux_solver, only: flux_solver_t
   use mod_ausm_plus_solver, only: ausm_plus_solver_t
   use mod_fvleg_solver, only: fvleg_solver_t
+  use mod_mausmpw_plus_solver, only: m_ausmpw_plus_solver_t
 
   implicit none
 
@@ -181,12 +182,14 @@ contains
       allocate(fvleg_solver_t :: solver)
     case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
       allocate(ausm_plus_solver_t :: solver)
+    case('M-AUSMPW+')
+      allocate(m_ausmpw_plus_solver_t :: solver)
     case default
       write(std_err, '(a)') "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
-        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed'], the input was: '"//trim(input%flux_solver)//"'"
+       "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'M-AUSMPW+'], the input was: '"//trim(input%flux_solver)//"'"
 
       error stop "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
-        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed']"
+        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'M-AUSMPW+']"
     end select
 
     call solver%initialize(input)
@@ -414,6 +417,7 @@ contains
     real(rk), intent(in) :: dt            !< time-step
     integer(ik), intent(in) :: iteration  !< iteration
 
+    call debug_print('Running fluid_t%set_time()', __FILE__, __LINE__)
     self%time = time
     self%iteration = iteration
     self%dt = dt
@@ -425,6 +429,7 @@ contains
     real(rk), intent(in) :: dt !< time step
     class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
 
+    call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
     self%time = self%time + dt
     self%dt = dt
 
@@ -509,6 +514,7 @@ contains
     integer(ik) :: i, j
     real(rk), parameter :: EPS = 5e-14_rk
 
+    call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
     if(self%smooth_residuals) then
       ilo = lbound(self%rho, dim=1) + 1
       ihi = ubound(self%rho, dim=1) - 1
@@ -913,6 +919,8 @@ contains
     integer(ik) :: error_code
     real(rk) :: dt
 
+    call debug_print('Running fluid_t%ssp_rk3()', __FILE__, __LINE__)
+
     dt = U%dt
     allocate(U_1, source=U)
     allocate(U_2, source=U)
@@ -952,6 +960,8 @@ contains
     type(fluid_t), allocatable :: R !< hist
     integer(ik) :: error_code
 
+    call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
+
     allocate(U_1, source=U)
     allocate(R, source=U)
 
@@ -989,6 +999,8 @@ contains
     real(rk) :: rho_E_diff !< difference in the rhoE residual
     integer(ik) :: io
     integer(ik) :: i, j, ilo, jlo, ihi, jhi
+
+    call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
 
     ilo = lbound(last_stage%rho, dim=1) + n_ghost_layers
     ihi = ubound(last_stage%rho, dim=1) - n_ghost_layers

@@ -84,7 +84,7 @@ contains
         "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
     end select
 
-    call interpolator%initialize(limiter=input%limiter)
+    call interpolator%initialize(limiter=limiter)
     deallocate(limiter)
 
   end function

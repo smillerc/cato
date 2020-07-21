@@ -121,10 +121,10 @@ program cato
 
   call master%set_time(time, delta_t, iteration)
 
-  if(input%restart_from_file) then
-    write(std_out, '(a, es10.3)') "Starting time:", time
-    write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
-  end if
+  ! if(input%restart_from_file) then
+  write(std_out, '(a, es10.3)') "Starting time:", time
+  write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
+  ! end if
 
   do while(time < max_time .and. iteration < input%max_iterations)
 

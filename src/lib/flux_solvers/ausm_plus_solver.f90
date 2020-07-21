@@ -213,7 +213,11 @@ contains
 
     call debug_print('Running ausm_plus_solver_t%solve_ausm_plus()', __FILE__, __LINE__)
 
-    if(dt < tiny(1.0_rk)) error stop "Error in ausm_plus_solver_t%solve_ausm_plus(), the timestep dt is < tiny(1.0_rk)"
+    if(dt < tiny(1.0_rk)) then
+      write(std_err, '(a, es16.6)') "Error in ausm_plus_solver_t%solve_ausm_plus(), the timestep dt is < tiny(1.0_rk): dt = ", dt
+      error stop "Error in ausm_plus_solver_t%solve_ausm_plus(), the timestep dt is < tiny(1.0_rk)"
+    end if
+
     self%time = self%time + dt
     self%dt = dt
     self%iteration = self%iteration + 1

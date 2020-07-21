@@ -80,7 +80,7 @@ contains
     real(rk), dimension(2, 2) :: line !< ((x,y), (tail,head)); Single line point locations
     real(rk), dimension(2) :: intersection_angles_per_line !< intersection angles
     real(rk), dimension(2, 2) :: intersection_angles !< intersection angles for all lines
-    integer(ik) :: i, n_int
+    integer(ik) :: i
     logical, dimension(2) :: valid_intersections
     logical, dimension(2, 2) :: total_valid_intersections !< ((intersection 1, intersection 2), (line 1, line 2)); valid intersections for each line
 
