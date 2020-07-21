@@ -53,19 +53,29 @@ contains
   function edge_interpolator_factory(input, limiter_name) result(interpolator)
     class(input_t), intent(in) :: input
     class(edge_iterpolator_t), pointer :: interpolator
-    character(len=*), optional :: limiter_name
+    character(len=*), optional :: limiter_name !< option to override the input limiter type
+    character(len=:), allocatable :: limiter
+
+    ! Some of the flux solvers use more than one limiter at the same time, so
+    ! this is an optional argument. M-AUSMPW+ used both superbee and the user's limiter
+    ! of choice and interpolated between the two versions, like superbee + minmod.
+    if(present(limiter_name)) then
+      limiter = trim(limiter_name)
+    else
+      limiter = input%limiter
+    end if
 
     select case(trim(input%edge_interpolation_scheme))
     case('TVD2')
-      interpolator => new_tvd_2nd_order_t(limiter=input%limiter)
+      interpolator => new_tvd_2nd_order_t(limiter=limiter)
     case('TVD3')
-      interpolator => new_tvd_3rd_order_t(limiter=input%limiter)
+      interpolator => new_tvd_3rd_order_t(limiter=limiter)
     case('TVD5')
-      interpolator => new_tvd_5th_order_t(limiter=input%limiter)
+      interpolator => new_tvd_5th_order_t(limiter=limiter)
       ! case('MLP3')
-      !   interpolator => new_mlp_3rd_order_t(limiter=input%limiter)
+      !   interpolator => new_mlp_3rd_order_t(limiter=limiter)
       ! case('MLP5')
-      !   interpolator => new_mlp_5th_order_t(limiter=input%limiter)
+      !   interpolator => new_mlp_5th_order_t(limiter=limiter)
     case default
       write(std_err, '(a)') "Unknown edge interpolation scheme, must be one of the following: "// &
         "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5', the input value was '"//trim(input%edge_interpolation_scheme)//"'"
@@ -75,6 +85,7 @@ contains
     end select
 
     call interpolator%initialize(limiter=input%limiter)
+    deallocate(limiter)
 
   end function
 

@@ -212,7 +212,7 @@ contains
 
   end subroutine test_tvd2_none
 
-  @test
+  ! @test
   subroutine test_tvd3()
 
     class(edge_iterpolator_t), allocatable :: edge_interpolator

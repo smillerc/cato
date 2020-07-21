@@ -98,10 +98,10 @@ contains
     real(rk), dimension(:, :), allocatable :: delta_j_plus   !<(i,j);  difference operator -> q(i,j+1) - q(i,j)
     real(rk), dimension(:, :), allocatable :: delta_j_minus  !<(i,j);  difference operator -> q(i,j) - q(i,j-1)
 
-    real(rk), dimension(:, :), allocatable  :: phi_r_L_j    !< limiter for the top edge, see Eq. 32 in Ref [1]
+    real(rk), dimension(:, :), allocatable  :: phi_r_L_j !< limiter for the top edge, see Eq. 32 in Ref [1]
     real(rk), dimension(:, :), allocatable  :: phi_r_R_j !< limiter for the bottom edge, see Eq. 32 in Ref [1]
-    real(rk), dimension(:, :), allocatable  :: phi_r_R_i   !< limiter for the left edge, see Eq. 32 in Ref [1]
-    real(rk), dimension(:, :), allocatable  :: phi_r_L_i  !< limiter for the right edge, see Eq. 32 in Ref [1]
+    real(rk), dimension(:, :), allocatable  :: phi_r_R_i !< limiter for the left edge, see Eq. 32 in Ref [1]
+    real(rk), dimension(:, :), allocatable  :: phi_r_L_i !< limiter for the right edge, see Eq. 32 in Ref [1]
 
     call debug_print('Running tvd_2nd_order_t%interpolate_edge_values()', __FILE__, __LINE__)
 
@@ -119,54 +119,19 @@ contains
     allocate(edge_values(4, ilo:ihi, jlo:jhi))
     edge_values = 0.0_rk
 
-    allocate(delta_i_plus(ilo:ihi, jlo:jhi))
-    delta_i_plus = 0.0_rk
-    allocate(delta_i_minus(ilo:ihi, jlo:jhi))
-    delta_i_minus = 0.0_rk
-    allocate(delta_j_plus(ilo:ihi, jlo:jhi))
-    delta_j_plus = 0.0_rk
-    allocate(delta_j_minus(ilo:ihi, jlo:jhi))
-    delta_j_minus = 0.0_rk
-    !dir$ attributes align:__ALIGNBYTES__ :: delta_i_plus
-    !dir$ attributes align:__ALIGNBYTES__ :: delta_i_minus
-    !dir$ attributes align:__ALIGNBYTES__ :: delta_j_plus
-    !dir$ attributes align:__ALIGNBYTES__ :: delta_j_minus
-
-    allocate(r_L_i(ilo:ihi, jlo:jhi))
-    r_L_i = 0.0_rk
-    allocate(r_R_i(ilo:ihi, jlo:jhi))
-    r_R_i = 0.0_rk
-    allocate(r_L_j(ilo:ihi, jlo:jhi))
-    r_L_j = 0.0_rk
-    allocate(r_R_j(ilo:ihi, jlo:jhi))
-    r_R_j = 0.0_rk
-    !dir$ attributes align:__ALIGNBYTES__ :: r_L_i
-    !dir$ attributes align:__ALIGNBYTES__ :: r_R_i
-    !dir$ attributes align:__ALIGNBYTES__ :: r_L_j
-    !dir$ attributes align:__ALIGNBYTES__ :: r_R_j
-
-    allocate(phi_r_L_i(ilo:ihi, jlo:jhi))
+    allocate(phi_r_L_i(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: phi_r_L_i
+    allocate(phi_r_R_i(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: phi_r_R_i
+    allocate(phi_r_L_j(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: phi_r_L_j
+    allocate(phi_r_R_j(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: phi_r_R_j
     phi_r_L_i = 0.0_rk
-    allocate(phi_r_R_i(ilo:ihi, jlo:jhi))
-    phi_r_R_i = 0.0_rk
-    allocate(phi_r_L_j(ilo:ihi, jlo:jhi))
-    phi_r_L_j = 0.0_rk
-    allocate(phi_r_R_j(ilo:ihi, jlo:jhi))
     phi_r_R_j = 0.0_rk
-    !dir$ attributes align:__ALIGNBYTES__ :: phi_r_L_i
-    !dir$ attributes align:__ALIGNBYTES__ :: phi_r_R_i
-    !dir$ attributes align:__ALIGNBYTES__ :: phi_r_L_j
-    !dir$ attributes align:__ALIGNBYTES__ :: phi_r_R_j
+    phi_r_L_j = 0.0_rk
+    phi_r_R_i = 0.0_rk
 
-    call self%get_deltas(q, &
-                         delta_i_plus=delta_i_plus, &
-                         delta_i_minus=delta_i_minus, &
-                         delta_j_plus=delta_j_plus, &
-                         delta_j_minus=delta_j_minus, &
-                         lbounds=lbound(q))
-
-    call self%get_R_smoothness(delta_plus=delta_i_plus, delta_minus=delta_i_minus, R=r_L_i, R_inv=r_R_i)
-    call self%get_R_smoothness(delta_plus=delta_j_plus, delta_minus=delta_j_minus, R=r_L_j, R_inv=r_R_j)
+    call self%get_solution_smoothness(q, lbounds=lbound(q), &
+                                      delta_i_plus=delta_i_plus, delta_i_minus=delta_i_minus, &
+                                      delta_j_plus=delta_j_plus, delta_j_minus=delta_j_minus, &
+                                      r_L_i=r_L_i, r_R_i=r_R_i, r_L_j=r_L_j, r_R_j=r_R_j)
 
     call self%limit(R=r_L_i, psi=phi_r_L_i, name=self%limiter_name)
     call self%limit(R=r_R_i, psi=phi_r_R_i, name=self%limiter_name)

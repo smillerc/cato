@@ -57,7 +57,8 @@ module mod_edge_interpolator
     procedure(basic_interface), deferred, public :: interpolate_edge_values
     procedure, public, nopass :: get_deltas
     procedure, public, nopass :: limit
-    procedure, public, nopass :: get_R_smoothness
+    procedure, public, nopass :: get_r_smoothness
+    procedure, public, nopass :: get_solution_smoothness
   end type edge_iterpolator_t
 
   abstract interface
@@ -79,6 +80,63 @@ module mod_edge_interpolator
   end interface
 
 contains
+
+  subroutine get_solution_smoothness(q, lbounds, delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus, &
+                                     r_L_i, r_R_i, r_L_j, r_R_j)
+    !< Find the smoothness of the solution based on the primitive variable q. This smoothness is dependent on the
+    !< nearest neighbor
+
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q !<(i,j); primitive variable
+
+    real(rk), dimension(:, :), allocatable, intent(out) :: r_L_i  !<(i,j); r_L,i in Ref[1]
+    real(rk), dimension(:, :), allocatable, intent(out) :: r_R_i  !<(i,j); r_R,i in Ref[1]
+    real(rk), dimension(:, :), allocatable, intent(out) :: r_L_j  !<(i,j); r_L,j in Ref[1]
+    real(rk), dimension(:, :), allocatable, intent(out) :: r_R_j  !<(i,j); r_R,j in Ref[1]
+
+    real(rk), dimension(:, :), allocatable, intent(out) :: delta_i_plus   !<(i,j);  difference operator -> q(i+1,j) - q(i,j)
+    real(rk), dimension(:, :), allocatable, intent(out) :: delta_i_minus  !<(i,j);  difference operator -> q(i,j) - q(i-1,j)
+    real(rk), dimension(:, :), allocatable, intent(out) :: delta_j_plus   !<(i,j);  difference operator -> q(i,j+1) - q(i,j)
+    real(rk), dimension(:, :), allocatable, intent(out) :: delta_j_minus  !<(i,j);  difference operator -> q(i,j) - q(i,j-1)
+
+    integer(ik) :: ilo, ihi, jlo, jhi
+
+    call debug_print('Running edge_iterpolator_t%get_solution_smoothness()', __FILE__, __LINE__)
+
+    ilo = lbound(q, dim=1)
+    ihi = ubound(q, dim=1)
+    jlo = lbound(q, dim=2)
+    jhi = ubound(q, dim=2)
+
+    allocate(delta_i_plus(ilo:ihi, jlo:jhi))  !dir$ attributes align:__ALIGNBYTES__ :: delta_i_plus
+    allocate(delta_i_minus(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: delta_i_minus
+    allocate(delta_j_plus(ilo:ihi, jlo:jhi))  !dir$ attributes align:__ALIGNBYTES__ :: delta_j_plus
+    allocate(delta_j_minus(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: delta_j_minus
+    delta_i_plus = 0.0_rk
+    delta_i_minus = 0.0_rk
+    delta_j_plus = 0.0_rk
+    delta_j_minus = 0.0_rk
+
+    allocate(r_L_i(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: r_L_i
+    allocate(r_L_j(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: r_L_j
+    allocate(r_R_i(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: r_R_i
+    allocate(r_R_j(ilo:ihi, jlo:jhi)) !dir$ attributes align:__ALIGNBYTES__ :: r_R_j
+    r_L_i = 0.0_rk
+    r_R_i = 0.0_rk
+    r_L_j = 0.0_rk
+    r_R_j = 0.0_rk
+
+    call get_deltas(q, &
+                    delta_i_plus=delta_i_plus, &
+                    delta_i_minus=delta_i_minus, &
+                    delta_j_plus=delta_j_plus, &
+                    delta_j_minus=delta_j_minus, &
+                    lbounds=lbound(q))
+
+    call get_r_smoothness(delta_plus=delta_i_plus, delta_minus=delta_i_minus, R=r_L_i, R_inv=r_R_i)
+    call get_r_smoothness(delta_plus=delta_j_plus, delta_minus=delta_j_minus, R=r_L_j, R_inv=r_R_j)
+
+  end subroutine get_solution_smoothness
 
   subroutine get_deltas(q, delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus, lbounds)
     !< Get the solution smoothness at each cell. This is sent to the limiters and MUSCL interpolation. The lbound
@@ -175,7 +233,7 @@ contains
     !$omp end parallel
   end subroutine get_deltas
 
-  subroutine get_R_smoothness(delta_plus, delta_minus, r, r_inv)
+  subroutine get_r_smoothness(delta_plus, delta_minus, r, r_inv)
     !< Find the smoothness of solution based on nearest neighbor cell averages. Typically referred to
     !< as "r" in the literature. This is sent to the limiters, e.g. phi(r)
     real(rk), dimension(:, :), contiguous, intent(in) :: delta_plus  !< (i,j); Difference operators
@@ -222,7 +280,7 @@ contains
     ! end do
     ! !$omp end do
     !$omp end parallel
-  end subroutine get_R_smoothness
+  end subroutine get_r_smoothness
 
   subroutine limit(r, psi, name)
     !< Apply the flux limiter based on the smoothness
@@ -240,6 +298,10 @@ contains
     jlo = lbound(r, dim=2)
     jhi = ubound(r, dim=2)
     select case(trim(name))
+    case default
+      error stop "Unsupported limiter type in mod_edge_interpolator::limit"
+    case('none')
+      psi = 1.0_rk
     case('minmod')
       !$omp parallel default(none), &
       !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -318,6 +380,7 @@ contains
       end do
       !$omp end do
       !$omp end parallel
+
     end select
   end subroutine limit
 
