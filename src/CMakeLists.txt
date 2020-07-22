@@ -38,8 +38,38 @@ add_library(
 
 target_link_libraries(geometry PUBLIC globals io eos functional)
 
+### Pre-process: .fypp -> .f90 via Fypp
+
+# Create a list of the files to be preprocessed
+set(fyppFiles lib/flux_solvers/m_ausmpw_plus_solver.fypp)
+
+# Pre-process
+foreach(infileName IN LISTS fyppFiles)
+
+    # Generate output file name
+    string(REGEX REPLACE ".fypp\$" ".f90" outfileName "${infileName}")
+
+    # Create the full path for the new file
+    set(outfile "${CMAKE_CURRENT_SOURCE_DIR}/${outfileName}")
+
+    # Generate input file name
+    set(infile "${CMAKE_CURRENT_SOURCE_DIR}/${infileName}")
+
+    # Custom command to do the processing
+    add_custom_command(
+        OUTPUT "${outfile}"
+        COMMAND fypp "${infile}" "${outfile}"
+        MAIN_DEPENDENCY "${infile}"
+        VERBATIM)
+
+    # Finally add output file to a list
+    set(outFiles ${outFiles} "${outfile}")
+
+endforeach(infileName)
+
 add_library(
   cato
+  ${outFiles}
   lib/mach_cone/mach_cone_utilities.f90
   lib/mach_cone/mach_cone_collection.f90
   lib/mod_timing.f90
@@ -60,7 +90,7 @@ add_library(
   lib/flux_solvers/flux_solver.f90
   lib/flux_solvers/fvleg_solver.f90
   lib/flux_solvers/ausm_plus_solver.f90
-  lib/flux_solvers/m_asumpw_plus_solver.f90
+  lib/flux_solvers/m_ausmpw_plus_solver.f90
   lib/evolution_operator/local_evo_operator.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
   lib/spatial_reconstruction/gradients.f90

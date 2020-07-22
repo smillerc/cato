@@ -18,6 +18,10 @@
 ! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ! SOFTWARE.
 
+! Fypp variables. This allows us to generate an edge flux subroutine for each direction
+! and still allow the compiler to optimize
+#:set DIRECTIONS = ['i', 'j']
+
 #ifdef __SIMD_ALIGN_OMP__
 #define __INTERP_ALIGN__ aligned(rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, edge_flux:__ALIGNBYTES__)
 #define __W2_ALIGN__ aligned(p, w_2_xi, w_2_eta:__ALIGNBYTES__)
@@ -67,7 +71,9 @@ module mod_mausmpw_plus_solver
     procedure, public, pass(lhs) :: copy => copy_m_ausmpw_plus
 
     ! Private methods
-    procedure, private :: get_edge_flux
+    #:for DIR in DIRECTIONS
+    procedure, private :: get_${DIR}$_edge_flux
+    #:endfor
     final :: finalize
 
     ! Operators
@@ -147,7 +153,8 @@ contains
     call debug_print('Running m_ausmpw_plus_solver_t%solve_m_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
- write(std_err, '(a, es16.6)') "Error in m_ausmpw_plus_solver_t%solve_m_ausmpw_plus(), the timestep dt is < tiny(1.0_rk): dt = ", dt
+      write(std_err, '(a, es16.6)') "Error in m_ausmpw_plus_solver_t%solve_m_ausmpw_plus(), "// &
+                                    "the timestep dt is < tiny(1.0_rk): dt = ", dt
       error stop "Error in m_ausmpw_plus_solver_t%solve_m_ausmpw_plus(), the timestep dt is < tiny(1.0_rk)"
     end if
     self%time = self%time + dt
@@ -179,6 +186,12 @@ contains
                                      bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                      bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
+    call self%apply_reconstructed_bc(recon_rho=rho_superbee_values, recon_u=u_superbee_values, &
+                                     recon_v=v_superbee_values, recon_p=p_superbee_values, &
+                                     lbounds=lbounds, &
+                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+
     ! The interfaces where the flux occurs is shared by 2 cells. The indexing for the
     ! edges is staggered so that when reading/writing data to those arrays, we avoid using i-1
     ! as much as possible to avoid vectorization dependence flags from the compiler
@@ -189,6 +202,7 @@ contains
     !        |       |       |       |
     !        | (i-1) |  (i)  | (i+1) |     cell indexing
     !              (i-1)    (i)    (i+1)   edge indexing
+
     !        |   0   |   1   |   2   |     cell index example
     !        |       0       1       2     edge indexing example
     !        |       |       |       |
@@ -243,8 +257,9 @@ contains
     !$omp end do
     !$omp end parallel
 
+    print*, "i-edge flux"
     allocate(self%i_edge_flux(4, ilo - 1:ihi, jlo:jhi))
-    call self%get_edge_flux(direction='i', grid=grid, &
+    call self%get_i_edge_flux(grid=grid, &
                             lbounds=lbound(rho_interface_values), &
                             eflux_lbounds=lbound(self%i_edge_flux), &
                             rho=rho_interface_values, u=u_interface_values, &
@@ -254,8 +269,9 @@ contains
                             w2=w_2_xi, &
                             limits=[ilo - 1, ihi, jlo, jhi], edge_flux=self%i_edge_flux)
 
+    print*, "j-edge flux"
     allocate(self%j_edge_flux(4, ilo:ihi, jlo - 1:jhi))
-    call self%get_edge_flux(direction='j', grid=grid, &
+    call self%get_j_edge_flux(grid=grid, &
                             lbounds=lbound(rho_interface_values), &
                             eflux_lbounds=lbound(self%j_edge_flux), &
                             rho=rho_interface_values, u=u_interface_values, &
@@ -265,6 +281,7 @@ contains
                             w2=w_2_eta, &
                             limits=[ilo, ihi, jlo - 1, jhi], edge_flux=self%j_edge_flux)
 
+    print*, 'done'
     ! Now flux the edges to get the next solution
     call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
 
@@ -292,12 +309,12 @@ contains
     deallocate(self%j_edge_flux)
   end subroutine solve_m_ausmpw_plus
 
-  subroutine get_edge_flux(self, direction, grid, lbounds, rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, w2, limits, eflux_lbounds, edge_flux)
-    !< Construct the fluxes for each edge
+  #:for DIR in DIRECTIONS
+  subroutine get_${DIR}$_edge_flux(self, grid, lbounds, rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, w2, limits, eflux_lbounds, edge_flux)
+    !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(4), intent(in) :: limits !< (ilo, ihi, jlo, jhi)
-    character(len=1), intent(in) :: direction !> 'i', or 'j'
     integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho    !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for density
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
@@ -356,6 +373,7 @@ contains
     real(rk) :: w          !< shock sensing function: max(w1, w2); w1: normal direction, w2: transverse direction
     real(rk) :: c_s        !< transversal interface sound speed
     real(rk) :: c_half     !< final interface sound speed
+    real(rk) :: m_half     !< interface Mach number
     real(rk) :: a               !< supersonic sensor
     real(rk) :: M_bar_L_plus    !< left final split Mach
     real(rk) :: M_bar_R_minus   !< right final split Mach
@@ -375,8 +393,6 @@ contains
     integer(ik), parameter ::    TOP_IDX = 3 !< edge index for the top edge of the current cell
     integer(ik), parameter ::   LEFT_IDX = 4 !< edge index for the left edge of the current cell
 
-    integer(ik) :: left, right
-
     !dir$ assume_aligned rho: __ALIGNBYTES__
     !dir$ assume_aligned u: __ALIGNBYTES__
     !dir$ assume_aligned v: __ALIGNBYTES__
@@ -388,17 +404,6 @@ contains
     !dir$ assume_aligned w2: __ALIGNBYTES__
     !dir$ assume_aligned edge_flux: __ALIGNBYTES__
 
-    select case(direction)
-    case('i')
-      left = LEFT_IDX
-      right = RIGHT_IDX
-    case('j')
-      left = BOTTOM_IDX
-      right = TOP_IDX
-    case default
-      error stop "Invalid direction in m_ausmpw_plus_solver_t%get_edge_flux(); must be 'i' or 'j'"
-    end select
-
     gamma = self%gamma
 
     ilo = limits(1)
@@ -407,9 +412,9 @@ contains
     jhi = limits(4)
 
     !$omp parallel default(none), &
-    !$omp firstprivate(gamma, left, right, ilo, ihi, jlo, jhi) &
+    !$omp firstprivate(gamma, ilo, ihi, jlo, jhi) &
     !$omp private(i, j) &
-    !$omp private(rho_L, rho_R, u_LHS, u_RHS, v_LHS, v_RHS, p_L, p_R) &
+    !$omp private(rho_L, rho_R, u_LHS, u_RHS, v_LHS, v_RHS, p_L, p_R, m_half) &
     !$omp private(rho_L_sb, rho_R_sb, u_LHS_sb, u_RHS_sb, v_LHS_sb, v_RHS_sb, p_L_sb, p_R_sb) &
     !$omp private(n_x, n_y, p_s, U_L, U_R, V_L, V_R) &
     !$omp private(rho_L_half, rho_R_half ,u_L_half, u_R_half, v_L_half, v_R_half, p_L_half, p_R_half) &
@@ -422,28 +427,65 @@ contains
       !$omp simd __INTERP_ALIGN__
       !dir$ vector aligned
       do i = ilo, ihi
-        ! use the normal vector of the right edge of the current cell
-        n_x = grid%cell_edge_norm_vectors(1, right, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, right, i, j)
 
         ! right edge (i + 1/2)
-        rho_L = rho(right, i, j)    ! right edge of the current cell
-        rho_R = rho(left, i + 1, j) ! left edge of the cell to the right
-        u_LHS = u(right, i, j)      ! right edge of the current cell
-        u_RHS = u(left, i + 1, j)   ! left edge of the cell to the right
-        v_LHS = v(right, i, j)      ! right edge of the current cell
-        v_RHS = v(left, i + 1, j)   ! left edge of the cell to the right
-        p_L = p(right, i, j)        ! right edge of the current cell
-        p_R = p(left, i + 1, j)     ! left edge of the cell to the right
+        #:if DIR == 'i'
+          ! use the normal vector of the right edge of the current cell
+          n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
+          n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
 
-        rho_L_sb = rho_sb(right, i, j)    ! right edge of the current cell
-        rho_R_sb = rho_sb(left, i + 1, j) ! left edge of the cell to the right
-        u_LHS_sb = u_sb(right, i, j)        ! right edge of the current cell
-        u_RHS_sb = u_sb(left, i + 1, j)     ! left edge of the cell to the right
-        v_LHS_sb = v_sb(right, i, j)        ! right edge of the current cell
-        v_RHS_sb = v_sb(left, i + 1, j)     ! left edge of the cell to the right
-        p_L_sb = p_sb(right, i, j)        ! right edge of the current cell
-        p_R_sb = p_sb(left, i + 1, j)     ! left edge of the cell to the right
+          rho_L = rho(RIGHT_IDX, i, j)    ! right edge of the current cell
+          rho_R = rho(LEFT_IDX, i + 1, j) ! left edge of the cell to the right
+          u_LHS = u(RIGHT_IDX, i, j)
+          u_RHS = u(LEFT_IDX, i + 1, j)
+          v_LHS = v(RIGHT_IDX, i, j)
+          v_RHS = v(LEFT_IDX, i + 1, j)
+          p_L = p(RIGHT_IDX, i, j)
+          p_R = p(LEFT_IDX, i + 1, j)
+
+          rho_L_sb = rho_sb(RIGHT_IDX, i, j)    ! right edge of the current cell
+          rho_R_sb = rho_sb(LEFT_IDX, i + 1, j) ! left edge of the cell to the right
+          u_LHS_sb = u_sb(RIGHT_IDX, i, j)
+          u_RHS_sb = u_sb(LEFT_IDX, i + 1, j)
+          v_LHS_sb = v_sb(RIGHT_IDX, i, j)
+          v_RHS_sb = v_sb(LEFT_IDX, i + 1, j)
+          p_L_sb = p_sb(RIGHT_IDX, i, j)
+          p_R_sb = p_sb(LEFT_IDX, i + 1, j)
+
+          ! FIXME: lazy hack
+          ! U_L = u_LHS
+          ! U_R = u_RHS
+          ! V_R = v_RHS
+          ! V_L = v_LHS
+        #:else
+          ! use the normal vector of the right edge of the current cell
+          n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
+          n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
+
+          rho_L = rho(TOP_IDX, i, j)        ! top edge of the current cell
+          rho_R = rho(BOTTOM_IDX, i, j + 1) ! bottom edge of the cell above
+          u_LHS = u(TOP_IDX, i, j)
+          u_RHS = u(BOTTOM_IDX, i, j + 1)
+          v_LHS = v(TOP_IDX, i, j)
+          v_RHS = v(BOTTOM_IDX, i, j + 1)
+          p_L = p(TOP_IDX, i, j)
+          p_R = p(BOTTOM_IDX, i, j + 1)
+
+          rho_L_sb = rho_sb(TOP_IDX, i, j)        ! top edge of the current cell
+          rho_R_sb = rho_sb(BOTTOM_IDX, i, j + 1) ! bottom edge of the cell above
+          u_LHS_sb = u_sb(TOP_IDX, i, j)
+          u_RHS_sb = u_sb(BOTTOM_IDX, i, j + 1)
+          v_LHS_sb = v_sb(TOP_IDX, i, j)
+          v_RHS_sb = v_sb(BOTTOM_IDX, i, j + 1)
+          p_L_sb = p_sb(TOP_IDX, i, j)
+          p_R_sb = p_sb(BOTTOM_IDX, i, j + 1)
+
+          ! FIXME: lazy hack
+          ! U_L = v_LHS
+          ! U_R = v_RHS
+          ! V_R = u_RHS
+          ! V_L = u_LHS
+        #:endif
 
         ! Velocity normal to the edge, see Fig 2 in Ref[3]
         ! _RHS/_LHS is to avoid naming conflicts with _L and _R (slightly different meaning)
@@ -451,23 +493,23 @@ contains
         U_R = u_RHS * n_x + v_RHS * n_y
 
         ! Velocity component parallel to the edge
-        V_L = u_LHS * (-n_y) + v_LHS * n_x
-        V_R = u_RHS * (-n_y) + v_RHS * n_x
+        V_L = u_LHS * (n_y) + v_LHS * n_x
+        V_R = u_RHS * (n_y) + v_RHS * n_x
 
-        H_L = (gamma / (gamma - 1.0_rk)) * (p_L / rho_L) + 0.5_rk * (U_L**2 + V_L**2)
-        H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (U_R**2 + V_R**2)
+        H_L = (gamma / (gamma - 1.0_rk)) * (p_L / rho_L) + 0.5_rk * (u_LHS**2 + v_LHS**2)
+        H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_RHS**2 + v_RHS**2)
 
         ! Total enthalpy normal to the edge
         H_normal = min(H_L - 0.5_rk * V_L**2, H_R - 0.5_rk * V_R**2)
-        write(*, '(10(es16.6))') H_normal, H_L, V_L, H_R, V_R, p_L, p_R, rho_L, rho_R
+
         ! Speed of sound normal to the edge
         c_s = sqrt(2.0_rk * ((gamma - 1.0_rk) / (gamma + 1.0_rk)) * H_normal)
 
         ! Interface sound speed
-        if(0.5_rk * (U_L + U_R) < 0.0_rk) then
-          c_half = c_s**2 / max(abs(U_L), c_s)
-        else
+        if(0.5_rk * (U_L + U_R) < 0.0_rk) then  ! part (ii) in the paper after Eq 3
           c_half = c_s**2 / max(abs(U_R), c_s)
+        else
+          c_half = c_s**2 / max(abs(U_L), c_s) ! part (i)
         end if
 
         ! Left/Right Mach number
@@ -490,33 +532,37 @@ contains
         f_L = f(p=p_L, p_s=p_s, w_2=w2(i, j))
         f_R = f(p=p_R, p_s=p_s, w_2=w2(i, j))
 
-        if(M_L_plus + M_R_minus < 0.0_rk) then
-          M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
-          M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
-        else
+        m_half = M_L_plus + M_R_minus
+        if (abs(m_half) < epsilon(1.0_rk)) m_half = 0.0_rk
+
+        ! Eq. 2b in Ref [1]
+        if(m_half < 0.0_rk) then
           M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
-          M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
+          M_bar_R_minus = m_half * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
+        else ! Eq. 2a in Ref [1]
+          M_bar_L_plus = m_half * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
+          M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
         end if
 
-        rho_L_half = phi_L_half(rho_L, rho_R, rho_L_sb, a)
-        rho_R_half = phi_R_half(rho_L, rho_R, rho_R_sb, a)
+        rho_L_half = phi_L_half(phi_L=rho_L, phi_R=rho_R, phi_L_superbee=rho_L_sb, a=a)
+        rho_R_half = phi_R_half(phi_L=rho_L, phi_R=rho_R, phi_R_superbee=rho_R_sb, a=a)
 
-        u_L_half = phi_L_half(u_LHS, u_RHS, u_LHS_sb, a)
-        u_R_half = phi_R_half(u_LHS, u_RHS, u_RHS_sb, a)
+        u_L_half = phi_L_half(phi_L=u_LHS, phi_R=u_RHS, phi_L_superbee=u_LHS_sb, a=a)
+        u_R_half = phi_R_half(phi_L=u_LHS, phi_R=u_RHS, phi_R_superbee=u_RHS_sb, a=a)
 
-        v_L_half = phi_L_half(v_LHS, v_RHS, v_LHS_sb, a)
-        v_R_half = phi_R_half(v_LHS, v_RHS, v_RHS_sb, a)
+        v_L_half = phi_L_half(phi_L=v_LHS, phi_R=v_RHS, phi_L_superbee=v_LHS_sb, a=a)
+        v_R_half = phi_R_half(phi_L=v_LHS, phi_R=v_RHS, phi_R_superbee=v_RHS_sb, a=a)
 
-        p_L_half = phi_L_half(p_L, p_R, p_L_sb, a)
-        p_R_half = phi_R_half(p_L, p_R, p_R_sb, a)
+        p_L_half = phi_L_half(phi_L=p_L, phi_R=p_R, phi_L_superbee=p_L_sb, a=a)
+        p_R_half = phi_R_half(phi_L=p_L, phi_R=p_R, phi_R_superbee=p_R_sb, a=a)
 
         ! Enthalpy
         H_L_half = (gamma / (gamma - 1.0_rk)) * (p_L_half / rho_L_half) + 0.5_rk * (u_L_half**2 + v_L_half**2)
         H_R_half = (gamma / (gamma - 1.0_rk)) * (p_R_half / rho_R_half) + 0.5_rk * (u_R_half**2 + v_R_half**2)
 
         ! Convective vectors, Psi
-        psi_L_half = rho_L_half*[1.0_rk, u_L_half, v_L_half, H_L_half]
-        psi_R_half = rho_R_half*[1.0_rk, u_R_half, v_R_half, H_R_half]
+        psi_L_half = rho_L_half * [1.0_rk, u_L_half, v_L_half, H_L_half]
+        psi_R_half = rho_R_half * [1.0_rk, u_R_half, v_R_half, H_R_half]
 
         ! Pressure vectors
         p_L_vec = [0.0_rk, n_x * p_L, n_y * p_L, 0.0_rk]
@@ -524,15 +570,27 @@ contains
 
         ! F 1/2, See Eq. 1 in Ref [1]
         edge_flux(:, i, j) = (M_bar_L_plus * c_half * psi_L_half) + &
-                             (M_bar_R_minus * c_half * psi_R_half) + &
-                             (P_L_plus * p_L_vec) + (P_R_minus * p_R_vec)
+                              (M_bar_R_minus * c_half * psi_R_half) + &
+                              (P_L_plus * p_L_vec) + (P_R_minus * p_R_vec)
+        if (i == 50 .or. i == 49 .or. i == 51) then
+          write(*,'(a, 2(i4), 10(es16.6))') "rho L/R 1/2: ", i, j, rho_L_half, rho_R_half
+          write(*,'(a, 2(i4), 10(es16.6))') "u   L/R 1/2: ", i, j, u_L_half, u_R_half
+          write(*,'(a, 2(i4), 10(es16.6))') "v   L/R 1/2: ", i, j, v_L_half, v_R_half
+          write(*,'(a, 2(i4), 10(es16.6))') "p   L/R 1/2: ", i, j, p_L_half, p_R_half
+          write(*,'(a, 2(i4), 10(es16.6))') "psi_L 1/2  : ", i, j, psi_L_half
+          write(*,'(a, 2(i4), 10(es16.6))') "psi_R 1/2  : ", i, j, psi_R_half
+          write(*,'(a, 2(i4), 10(es16.6))') "p_L_vec    : ", i, j, p_L_vec
+          write(*,'(a, 2(i4), 10(es16.6))') "p_R_vec    : ", i, j, p_R_vec
+          write(*,'(a, 2(i4), 10(es16.6))') "Edge flux  : ", i, j, edge_flux(:, i, j)
+          print*
+        end if
       end do
     end do
     !$omp end do
-
     !$omp end parallel
+  end subroutine get_${DIR}$_edge_flux
 
-  end subroutine get_edge_flux
+  #:endfor
 
   subroutine finalize(self)
     !< Cleanup the M-AUSMPW+ solver
@@ -543,26 +601,24 @@ contains
   end subroutine finalize
 
   pure real(rk) function pressure_split_plus(M) result(P_plus)
-    !< The pressure splitting function (Eq. 4 in Ref[1]). This is the P+ version. This is kept
-    !< simple for inlining
+    !< The pressure splitting function (Eq. 4 in Ref[1]). This is the P+ version
     real(rk), intent(in) :: M !< interface Mach number
 
     if(abs(M) > 1.0_rk) then
       P_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M))
     else ! |M| <= 1
-      P_plus = 0.25_rk * (2.0_rk - M) * (M + 1.0_rk)**2
+      P_plus = 0.25_rk * ((M + 1.0_rk)**2) * (2.0_rk - M)
     endif
   end function pressure_split_plus
 
   pure real(rk) function pressure_split_minus(M) result(P_minus)
-    !< The pressure splitting function (Eq. 4 in Ref[1]). This is the P- version. This is kept
-    !< simple for inlining
+    !< The pressure splitting function (Eq. 4 in Ref[1]). This is the P- version
     real(rk), intent(in) :: M !< interface Mach number
 
     if(abs(M) > 1.0_rk) then
       P_minus = 0.5_rk * (1.0_rk - sign(1.0_rk, M))
     else ! |M| <= 1
-      P_minus = 0.25_rk * (2.0_rk + M) * (M - 1.0_rk)**2
+      P_minus = 0.25_rk * ((M - 1.0_rk)**2) * (2.0_rk + M)
     endif
   end function pressure_split_minus
 
@@ -579,7 +635,7 @@ contains
   end function mach_split_plus
 
   pure real(rk) function mach_split_minus(M) result(M_minus)
-    !< The Mach splitting function (Eq. 3 in Ref[1]). This is the M- version. This is kept
+    !< The Mach splitting function (Eq. 3 in Ref [1]). This is the M- version. This is kept
     !< simple for inlining
     real(rk), intent(in) :: M !< interface Mach number
 
@@ -616,30 +672,6 @@ contains
     w_1 = 1.0_rk - min_term * min_term * min_term
   end function w_1
 
-  ! pure real(rk) function w_2_xi(p, i, j, lbounds)
-  !   !< Discontinuity sensor w_2 in the xi (i) direction. Equation 31a in Ref [1]
-  !   integer(ik), dimension(2), intent(in) :: lbounds
-  !   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p
-  !   integer(ik), intent(in) :: i, j
-
-  !   w_2_xi = (1.0_rk - min(1.0_rk, &
-  !                          (p(i + 1, j) - p(i, j)) / (0.25_rk * (p(i + 1, j + 1) + p(i, j + 1) - p(i + 1, j - 1) - p(i, j - 1)))) &
-  !             )**2 * &
-  !            (1.0_rk - min(p(i, j) / p(i + 1, j), p(i + 1, j) / p(i, j)))**2
-  ! end function w_2_xi
-
-  ! pure real(rk) function w_2_eta(p, i, j, lbounds)
-  !   !< Discontinuity sensor w_2 in the eta (j) direction. Equation 31b in Ref [1]
-  !   integer(ik), dimension(2), intent(in) :: lbounds
-  !   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p
-  !   integer(ik), intent(in) :: i, j
-
-  !   w_2_eta = (1.0_rk - min(1.0_rk, &
-  !                           (p(i, j + 1) - p(i, j)) / (0.25_rk * (p(i + 1, j + 1) + p(i + 1, j) - p(i - 1, j + 1) - p(i - 1, j)))) &
-  !              )**2 * &
-  !             (1.0_rk - min(p(i, j) / p(i, j + 1), p(i, j + 1) / p(i, j)))**2
-  ! end function w_2_eta
-
   pure real(rk) function phi_L_half(phi_L, phi_R, phi_L_superbee, a)
     !$omp declare simd(phi_L_half) linear(ref(phi_L, phi_R, phi_L_superbee, a)) simdlen(__ALIGNBYTES__)
     real(rk), intent(in) :: phi_L          !< limited primitive interface LHS variable
@@ -650,7 +682,6 @@ contains
     ! Locals
     real(rk) :: phi_R_minus_L        !< phi_R - phi_L
     real(rk) :: phi_superbee_minus_L !< phi_L_superbee - phi_L
-    real(rk) :: denom
 
     if(abs(a) < tiny(1.0_rk)) then
       phi_L_half = phi_L
@@ -662,7 +693,8 @@ contains
         phi_L_half = phi_L
       else
         ! Eq. 27a in Ref [1]
-        phi_L_half = phi_L + (max(0.0_rk, phi_R_minus_L * phi_superbee_minus_L) / (phi_R_minus_L * abs(phi_superbee_minus_L))) * &
+        phi_L_half = phi_L + (max(0.0_rk, phi_R_minus_L * phi_superbee_minus_L) / &
+                                         (phi_R_minus_L * abs(phi_superbee_minus_L))) * &
                      min(a * 0.5_rk * abs(phi_R_minus_L), abs(phi_superbee_minus_L))
       end if
     end if
@@ -690,7 +722,7 @@ contains
       else
         ! Eq. 27b in Ref [1]
         phi_R_half = phi_R + (max(0.0_rk, phi_L_minus_R * phi_superbee_minus_R) / &
-                              (phi_L_minus_R * abs(phi_superbee_minus_R))) * &
+                                         (phi_L_minus_R * abs(phi_superbee_minus_R))) * &
                      min(a * 0.5_rk * abs(phi_L_minus_R), abs(phi_superbee_minus_R))
       end if
     end if

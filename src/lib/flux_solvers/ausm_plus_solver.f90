@@ -187,10 +187,10 @@ contains
     real(rk) :: a_half    !< Final interface sound speed
     real(rk) :: mass_flux !< Final mass flux across the interface
 
-    integer(ik), parameter :: bottom = 1 !< edge index for the bottom edge of the current cell
-    integer(ik), parameter :: right = 2 !< edge index for the right edge of the current cell
-    integer(ik), parameter :: top = 3 !< edge index for the top edge of the current cell
-    integer(ik), parameter :: left = 4 !< edge index for the left edge of the current cell
+    integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
+    integer(ik), parameter ::  RIGHT_IDX = 2 !< edge index for the right edge of the current cell
+    integer(ik), parameter ::    TOP_IDX = 3 !< edge index for the top edge of the current cell
+    integer(ik), parameter ::   LEFT_IDX = 4 !< edge index for the left edge of the current cell
 
     real(rk) :: n_x  !< normal vectors of each face
     real(rk) :: n_y  !< normal vectors of each face
@@ -283,18 +283,18 @@ contains
       do i = ilo - 1, ihi ! start at ilo-1 b/c of the first i edge, e.g. i = 0
 
         ! use the normal vector of the right edge of the current cell
-        n_x = grid%cell_edge_norm_vectors(1, right, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, right, i, j)
+        n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
+        n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
 
         ! right edge (i + 1/2)
-        rho_L = rho_interface_values(right, i, j)    ! right edge of the current cell
-        rho_R = rho_interface_values(left, i + 1, j) ! left edge of the cell to the right
-        u_L = u_interface_values(right, i, j)        ! right edge of the current cell
-        u_R = u_interface_values(left, i + 1, j)     ! left edge of the cell to the right
-        v_L = v_interface_values(right, i, j)        ! right edge of the current cell
-        v_R = v_interface_values(left, i + 1, j)     ! left edge of the cell to the right
-        p_L = p_interface_values(right, i, j)        ! right edge of the current cell
-        p_R = p_interface_values(left, i + 1, j)     ! left edge of the cell to the right
+        rho_L = rho_interface_values(RIGHT_IDX, i, j)    ! right edge of the current cell
+        rho_R = rho_interface_values(LEFT_IDX, i + 1, j) ! left edge of the cell to the right
+        u_L = u_interface_values(RIGHT_IDX, i, j)
+        u_R = u_interface_values(LEFT_IDX, i + 1, j)
+        v_L = v_interface_values(RIGHT_IDX, i, j)
+        v_R = v_interface_values(LEFT_IDX, i + 1, j)
+        p_L = p_interface_values(RIGHT_IDX, i, j)
+        p_R = p_interface_values(LEFT_IDX, i + 1, j)
 
         call self%interface_state(rho=[rho_L, rho_R], &
                                   u=[u_L, u_R], &
@@ -327,18 +327,18 @@ contains
     ! Find fluxes in the j-direction
     do j = jlo - 1, jhi
       do i = ilo, ihi
-        n_x = grid%cell_edge_norm_vectors(1, top, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, top, i, j)
+        n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
+        n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
 
         ! top edge (j + 1/2)
-        rho_L = rho_interface_values(top, i, j)        ! top edge of the current cell
-        rho_R = rho_interface_values(bottom, i, j + 1) ! bottom edge of the cell to above
-        u_L = u_interface_values(top, i, j)            ! top edge of the current cell
-        u_R = u_interface_values(bottom, i, j + 1)     ! bottom edge of the cell to above
-        v_L = v_interface_values(top, i, j)            ! top edge of the current cell
-        v_R = v_interface_values(bottom, i, j + 1)     ! bottom edge of the cell to above
-        p_L = p_interface_values(top, i, j)            ! top edge of the current cell
-        p_R = p_interface_values(bottom, i, j + 1)     ! bottom edge of the cell to above
+        rho_L = rho_interface_values(TOP_IDX, i, j)        ! top edge of the current cell
+        rho_R = rho_interface_values(BOTTOM_IDX, i, j + 1) ! bottom edge of the cell above
+        u_L = u_interface_values(TOP_IDX, i, j)
+        u_R = u_interface_values(BOTTOM_IDX, i, j + 1)
+        v_L = v_interface_values(TOP_IDX, i, j)
+        v_R = v_interface_values(BOTTOM_IDX, i, j + 1)
+        p_L = p_interface_values(TOP_IDX, i, j)
+        p_R = p_interface_values(BOTTOM_IDX, i, j + 1)
 
         call self%interface_state(rho=[rho_L, rho_R], &
                                   u=[u_L, u_R], &
