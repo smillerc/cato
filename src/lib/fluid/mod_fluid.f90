@@ -41,7 +41,8 @@ module mod_fluid
   use mod_flux_solver, only: flux_solver_t
   use mod_ausm_plus_solver, only: ausm_plus_solver_t
   use mod_fvleg_solver, only: fvleg_solver_t
-  use mod_mausmpw_plus_solver, only: m_ausmpw_plus_solver_t
+  use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
+  use mod_ausmpw_plus_solver, only: ausmpw_plus_solver_t
 
   implicit none
 
@@ -184,12 +185,15 @@ contains
       allocate(ausm_plus_solver_t :: solver)
     case('M-AUSMPW+')
       allocate(m_ausmpw_plus_solver_t :: solver)
+    case('AUSMPW+')
+      allocate(ausmpw_plus_solver_t :: solver)
     case default
       write(std_err, '(a)') "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
-       "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'M-AUSMPW+'], the input was: '"//trim(input%flux_solver)//"'"
+        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'AUSMPW+', 'M-AUSMPW+'], "// &
+        "the input was: '"//trim(input%flux_solver)//"'"
 
       error stop "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
-        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'M-AUSMPW+']"
+        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'AUSMPW+', 'M-AUSMPW+']"
     end select
 
     call solver%initialize(input)
