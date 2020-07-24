@@ -262,11 +262,11 @@ contains
     jlo = grid%jlo_cell
     jhi = grid%jhi_cell
 
-    if(allocated(self%i_edge_flux)) deallocate(self%i_edge_flux)
-    if(allocated(self%j_edge_flux)) deallocate(self%j_edge_flux)
+    if(allocated(self%iflux)) deallocate(self%iflux)
+    if(allocated(self%jflux)) deallocate(self%jflux)
 
-    allocate(self%i_edge_flux(4, ilo - 1:ihi, jlo:jhi))
-    allocate(self%j_edge_flux(4, ilo:ihi, jlo - 1:jhi))
+    allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
+    allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi), &
@@ -279,7 +279,7 @@ contains
 
     ! Find fluxes in the i-direction
     !$omp do
-    do j = jlo, jhi       ! the i_edge_flux is the same size in the j direction as the cell quantities
+    do j = jlo, jhi       ! the iflux is the same size in the j direction as the cell quantities
       do i = ilo - 1, ihi ! start at ilo-1 b/c of the first i edge, e.g. i = 0
 
         ! use the normal vector of the right edge of the current cell
@@ -308,16 +308,16 @@ contains
         ! Edge flux values, via upwinding
         if(M_half > 0.0_rk) then
           mass_flux = M_half * a_half * rho_L
-          self%i_edge_flux(1, i, j) = mass_flux
-          self%i_edge_flux(2, i, j) = mass_flux * u_L + (n_x * p_half)
-          self%i_edge_flux(3, i, j) = mass_flux * v_L + (n_y * p_half)
-          self%i_edge_flux(4, i, j) = mass_flux * H(1)
+          self%iflux(1, i, j) = mass_flux
+          self%iflux(2, i, j) = mass_flux * u_L + (n_x * p_half)
+          self%iflux(3, i, j) = mass_flux * v_L + (n_y * p_half)
+          self%iflux(4, i, j) = mass_flux * H(1)
         else
           mass_flux = M_half * a_half * rho_R
-          self%i_edge_flux(1, i, j) = mass_flux
-          self%i_edge_flux(2, i, j) = mass_flux * u_R + (n_x * p_half)
-          self%i_edge_flux(3, i, j) = mass_flux * v_R + (n_y * p_half)
-          self%i_edge_flux(4, i, j) = mass_flux * H(2)
+          self%iflux(1, i, j) = mass_flux
+          self%iflux(2, i, j) = mass_flux * u_R + (n_x * p_half)
+          self%iflux(3, i, j) = mass_flux * v_R + (n_y * p_half)
+          self%iflux(4, i, j) = mass_flux * H(2)
         end if
       end do
     end do
@@ -352,16 +352,16 @@ contains
         ! Edge flux values, via upwinding
         if(M_half > 0.0_rk) then
           mass_flux = M_half * a_half * rho_L
-          self%j_edge_flux(1, i, j) = mass_flux
-          self%j_edge_flux(2, i, j) = mass_flux * u_L + (n_x * p_half)
-          self%j_edge_flux(3, i, j) = mass_flux * v_L + (n_y * p_half)
-          self%j_edge_flux(4, i, j) = mass_flux * H(1)
+          self%jflux(1, i, j) = mass_flux
+          self%jflux(2, i, j) = mass_flux * u_L + (n_x * p_half)
+          self%jflux(3, i, j) = mass_flux * v_L + (n_y * p_half)
+          self%jflux(4, i, j) = mass_flux * H(1)
         else
           mass_flux = M_half * a_half * rho_R
-          self%j_edge_flux(1, i, j) = mass_flux
-          self%j_edge_flux(2, i, j) = mass_flux * u_R + (n_x * p_half)
-          self%j_edge_flux(3, i, j) = mass_flux * v_R + (n_y * p_half)
-          self%j_edge_flux(4, i, j) = mass_flux * H(2)
+          self%jflux(1, i, j) = mass_flux
+          self%jflux(2, i, j) = mass_flux * u_R + (n_x * p_half)
+          self%jflux(3, i, j) = mass_flux * v_R + (n_y * p_half)
+          self%jflux(4, i, j) = mass_flux * H(2)
         end if
 
       end do
@@ -382,8 +382,8 @@ contains
     deallocate(bc_minus_x)
     deallocate(bc_minus_y)
 
-    if(allocated(self%i_edge_flux)) deallocate(self%i_edge_flux)
-    if(allocated(self%j_edge_flux)) deallocate(self%j_edge_flux)
+    if(allocated(self%iflux)) deallocate(self%iflux)
+    if(allocated(self%jflux)) deallocate(self%jflux)
   end subroutine solve_ausm_plus
 
   pure function split_mach_deg_1(M, plus_or_minus) result(M_split)
@@ -642,8 +642,8 @@ contains
     type(ausm_plus_solver_t), intent(inout) :: self
 
     call debug_print('Running ausm_plus_solver_t%finalize()', __FILE__, __LINE__)
-    if(allocated(self%i_edge_flux)) deallocate(self%i_edge_flux) ! these should already be deallocated
-    if(allocated(self%j_edge_flux)) deallocate(self%j_edge_flux) ! these should already be deallocated
+    if(allocated(self%iflux)) deallocate(self%iflux) ! these should already be deallocated
+    if(allocated(self%jflux)) deallocate(self%jflux) ! these should already be deallocated
 
     ! if(allocated(self%reconstructor)) deallocate(self%reconstructor)
     ! if(allocated(self%bc_plus_x)) deallocate(self%bc_plus_x)
