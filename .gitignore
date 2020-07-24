@@ -79,3 +79,4 @@ instruments*
 # integrated test details
 tests/integrated/converge_characteristic_growth/symmetric.ini
 tests/integrated/converge_characteristic_growth/perturbed.ini
+tests/integrated/sod_1d/output
