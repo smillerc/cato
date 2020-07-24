@@ -507,7 +507,8 @@ contains
       do j = lbound(data, dim=2), ubound(data, dim=2)
         do i = lbound(data, dim=1), ubound(data, dim=1)
           if(abs(data(i, j)) > huge(1.0_real32)) then
-            single_prec_data(i, j) = sign(a=huge(1.0_real32), b=data(i, j))
+            if(data(i, j) > 0.0_rk) single_prec_data(i, j) = huge(1.0_real32)
+            if(data(i, j) < 0.0_rk) single_prec_data(i, j) = -huge(1.0_real32)
           else if(abs(data(i, j)) < tiny(1.0_real32)) then
             single_prec_data(i, j) = 0.0_rk
           else
