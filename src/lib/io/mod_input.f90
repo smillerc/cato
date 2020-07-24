@@ -111,6 +111,7 @@ module mod_input
     character(len=32) :: cell_reconstruction = 'piecewise_linear' !< How are the cells being reconstructed
     character(len=32) :: gradient_scheme = 'green_gauss'          !< How is the gradient estimated?
     character(len=32) :: edge_interpolation_scheme = 'TVD2'       !< How are the edge values interpolated?
+    logical :: apply_low_mach_fix = .false.                       !< some flux solvers have this option
 
     ! AUSM solver specifics, see the AUSM solver packages for more details.
     ! These are only read in if the flux solver is from the AUSM family
@@ -238,6 +239,8 @@ contains
 
     call cfg%get("scheme", "limiter", char_buffer, 'minmod')
     self%limiter = trim(char_buffer)
+
+    call cfg%get("scheme", "apply_low_mach_fix", self%apply_low_mach_fix, .false.)
 
     ! Restart files
     call cfg%get("restart", "restart_from_file", self%restart_from_file, .false.)

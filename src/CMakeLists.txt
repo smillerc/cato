@@ -43,7 +43,8 @@ target_link_libraries(geometry PUBLIC globals io eos functional)
 # Create a list of the files to be preprocessed
 set(fyppFiles
     lib/flux_solvers/m_ausmpw_plus_solver.fypp
-    lib/flux_solvers/ausmpw_plus_solver.fypp)
+    lib/flux_solvers/ausmpw_plus_solver.fypp
+    lib/flux_solvers/slau_solver.fypp)
 
 # Pre-process
 foreach(infileName IN LISTS fyppFiles)

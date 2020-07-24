@@ -46,6 +46,7 @@ module mod_flux_solver
     integer(ik) :: iteration = 0
     real(rk) :: time = 0.0_rk
     real(rk) :: dt = 0.0_rk
+
   contains
     ! Public methods
     procedure, public :: init_boundary_conditions

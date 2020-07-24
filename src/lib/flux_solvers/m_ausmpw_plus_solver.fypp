@@ -42,9 +42,12 @@ module mod_m_ausmpw_plus_solver
   !<         Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
   !<     [3] K.H. Kim, C. Kim, O.H. Rho, "Methods for the Accurate Computations of Hypersonic Flows I. AUSMPW+ Scheme"
   !<         Journal of Computational Physics 174, (2001) 38–80, https://doi.org/10.1006/jcph.2001.6873
+  !<     [4] Chen, S., Yan, C., Lin, B., & Li, E., "An improved low-dissipation AUSMPW+ scheme for low MACH number.",
+  !<        (2017) 8th International Conference on Mechanical and Aerospace Engineering (ICMAE), 522-526., https://doi.org/10.1109/ICMAE.2017.8038701
+
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
-  use mod_globals, only: debug_print
+  use mod_globals, only: debug_print, LOW_MACH
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_edge_interpolator_factory, only: edge_interpolator_factory
@@ -63,6 +66,7 @@ module mod_m_ausmpw_plus_solver
     !< Implementation of the M-AUSMPW+ scheme
     private
     real(rk) :: gamma = 0.0_rk
+    logical :: apply_low_mach_fix = .false.
 
   contains
     ! Public methods
@@ -88,6 +92,7 @@ contains
     self%input = input
     self%gamma = eos%get_gamma()
     self%name = 'M-AUSMPW+_'//input%limiter
+    self%apply_low_mach_fix = input%apply_low_mach_fix
   end subroutine initialize_m_ausmpw_plus
 
   subroutine copy_m_ausmpw_plus(lhs, rhs)
@@ -394,6 +399,13 @@ contains
     real(rk) :: M_star, M_star_2, M_star_1
     real(rk) :: vel_ave, vel_ave_2
     real(rk) :: mass_flux_L, mass_flux_R
+    real(rk) :: u_LHS_fix !< apply fix from Ref [4] for low Mach flows
+    real(rk) :: u_RHS_fix !< apply fix from Ref [4] for low Mach flows
+    real(rk) :: v_LHS_fix !< apply fix from Ref [4] for low Mach flows
+    real(rk) :: v_RHS_fix !< apply fix from Ref [4] for low Mach flows
+    real(rk) :: cs_L, cs_R
+    real(rk) :: M_LHS, M_RHS, f_M
+    logical :: apply_low_mach_fix
 
     integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
     integer(ik), parameter ::  RIGHT_IDX = 2 !< edge index for the right edge of the current cell
@@ -412,6 +424,7 @@ contains
     !dir$ assume_aligned edge_flux: __ALIGNBYTES__
 
     gamma = self%gamma
+    apply_low_mach_fix = self%apply_low_mach_fix
 
     ilo = lbound(edge_flux, dim=2)
     ihi = ubound(edge_flux, dim=2)
@@ -434,7 +447,7 @@ contains
     !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
 
     !$omp parallel default(none), &
-    !$omp firstprivate(gamma, ilo, ihi, jlo, jhi) &
+    !$omp firstprivate(gamma, ilo, ihi, jlo, jhi, apply_low_mach_fix) &
     !$omp private(i, j) &
     !$omp private(rho_L, rho_R, u_LHS, u_RHS, v_LHS, v_RHS, p_L, p_R, m_half) &
     !$omp private(rho_L_sb, rho_R_sb, u_LHS_sb, u_RHS_sb, v_LHS_sb, v_RHS_sb, p_L_sb, p_R_sb) &
@@ -444,6 +457,8 @@ contains
     !$omp private(M_bar_L_plus, M_bar_R_minus, P_L_plus, P_R_minus, M_L_plus, M_R_minus) &
     !$omp private(mass_flux_L, mass_flux_R) &
     !$omp private(M_star, M_star_2, M_star_1, vel_ave, vel_ave_2) &
+    !$omp private(u_LHS_fix, u_RHS_fix, v_LHS_fix, v_RHS_fix) &
+    !$omp private(cs_L, cs_R, M_LHS, M_RHS, f_M) &
     !$omp shared(rho_ave, u_ave, v_ave, p_ave) &
     !$omp shared(grid, w2, rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, edge_flux)
     !$omp do
@@ -508,6 +523,26 @@ contains
         V_L = u_LHS
         V_R = u_RHS
       #:endif
+
+      cs_L = sqrt(gamma * p_L / rho_L)
+      cs_R = sqrt(gamma * p_R / rho_R)
+      M_LHS = sqrt(u_LHS**2 + v_LHS**2) / cs_L
+      M_RHS = sqrt(u_RHS**2 + v_RHS**2) / cs_R
+
+      if (apply_low_mach_fix .and. (abs(M_LHS) < LOW_MACH .or. abs(M_RHS) < LOW_MACH)) then
+        f_M = min(1.0_rk, max(M_LHS, M_RHS))
+
+        ! Eq 8 in Ref [4]
+        u_LHS_fix = 0.5_rk * (u_LHS + u_RHS) + f_M * 0.5_rk * (u_LHS - u_RHS)
+        u_RHS_fix = 0.5_rk * (u_LHS + u_RHS) - f_M * 0.5_rk * (u_LHS - u_RHS)
+        v_LHS_fix = 0.5_rk * (v_LHS + v_RHS) + f_M * 0.5_rk * (v_LHS - v_RHS)
+        v_RHS_fix = 0.5_rk * (v_LHS + v_RHS) - f_M * 0.5_rk * (v_LHS - v_RHS)
+
+        u_LHS = u_LHS_fix
+        u_RHS = u_RHS_fix
+        v_LHS = v_LHS_fix
+        v_RHS = v_RHS_fix
+      end if
 
         ! Velocity normal to the edge, see Fig 2 in Ref[3]
         ! _RHS/_LHS is to avoid naming conflicts with _L and _R (slightly different meaning)
