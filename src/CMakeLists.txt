@@ -48,12 +48,12 @@ foreach(infileName IN LISTS fyppFiles)
 
     # Generate output file name
     string(REGEX REPLACE ".fypp\$" ".f90" outfileName "${infileName}")
-
-    # Create the full path for the new file
-    set(outfile "${CMAKE_CURRENT_SOURCE_DIR}/${outfileName}")
-
     # Generate input file name
     set(infile "${CMAKE_CURRENT_SOURCE_DIR}/${infileName}")
+
+    # Create the full path for the new file
+    get_filename_component(f90_file ${outfileName} NAME)
+    set(outfile "${CMAKE_BINARY_DIR}/generated/${f90_file}")
 
     # Custom command to do the processing
     add_custom_command(
@@ -90,7 +90,6 @@ add_library(
   lib/flux_solvers/flux_solver.f90
   lib/flux_solvers/fvleg_solver.f90
   lib/flux_solvers/ausm_plus_solver.f90
-  lib/flux_solvers/m_ausmpw_plus_solver.f90
   lib/evolution_operator/local_evo_operator.f90
   lib/spatial_reconstruction/abstract_reconstruction.f90
   lib/spatial_reconstruction/gradients.f90
