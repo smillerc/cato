@@ -242,20 +242,19 @@ contains
                                      bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                      bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    ! The interfaces where the flux occurs is shared by 2 cells. The indexing for the
-    ! edges is staggered so that when reading/writing data to those arrays, we avoid using i-1
-    ! as much as possible to avoid vectorization dependence flags from the compiler
-    !
-    !             (i-1/2)  (i+1/2)         interface locations
-    !        |       |       |       |
-    !        |       |     L | R     |     L/R locations
-    !        |       |       |       |
-    !        | (i-1) |  (i)  | (i+1) |     cell indexing
-    !              (i-1)    (i)    (i+1)   edge indexing
-    !        |   0   |   1   |   2   |     cell index example
-    !        |       0       1       2     edge indexing example
-    !        |       |       |       |
-    !
+    !                   edge(3)
+    !                  jflux(i,j+1)  'R'
+    !               o--------------------o
+    !               |                'L' |
+    !               |                    |
+    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
+    !    edge(4)    |                    |  edge(2)
+    !               |                'L' | 'R'
+    !               o--------------------o
+    !                  jflux(i,j)
+    !                   edge(1)
+    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
+    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
 
     ilo = grid%ilo_cell
     ihi = grid%ihi_cell
@@ -288,12 +287,13 @@ contains
 
         ! right edge (i + 1/2)
         rho_L = rho_interface_values(RIGHT_IDX, i, j)    ! right edge of the current cell
-        rho_R = rho_interface_values(LEFT_IDX, i + 1, j) ! left edge of the cell to the right
         u_L = u_interface_values(RIGHT_IDX, i, j)
-        u_R = u_interface_values(LEFT_IDX, i + 1, j)
         v_L = v_interface_values(RIGHT_IDX, i, j)
-        v_R = v_interface_values(LEFT_IDX, i + 1, j)
         p_L = p_interface_values(RIGHT_IDX, i, j)
+
+        rho_R = rho_interface_values(LEFT_IDX, i + 1, j) ! left edge of the cell to the right
+        u_R = u_interface_values(LEFT_IDX, i + 1, j)
+        v_R = v_interface_values(LEFT_IDX, i + 1, j)
         p_R = p_interface_values(LEFT_IDX, i + 1, j)
 
         call self%interface_state(rho=[rho_L, rho_R], &
@@ -332,12 +332,13 @@ contains
 
         ! top edge (j + 1/2)
         rho_L = rho_interface_values(TOP_IDX, i, j)        ! top edge of the current cell
-        rho_R = rho_interface_values(BOTTOM_IDX, i, j + 1) ! bottom edge of the cell above
         u_L = u_interface_values(TOP_IDX, i, j)
-        u_R = u_interface_values(BOTTOM_IDX, i, j + 1)
         v_L = v_interface_values(TOP_IDX, i, j)
-        v_R = v_interface_values(BOTTOM_IDX, i, j + 1)
         p_L = p_interface_values(TOP_IDX, i, j)
+
+        rho_R = rho_interface_values(BOTTOM_IDX, i, j + 1) ! bottom edge of the cell above
+        u_R = u_interface_values(BOTTOM_IDX, i, j + 1)
+        v_R = v_interface_values(BOTTOM_IDX, i, j + 1)
         p_R = p_interface_values(BOTTOM_IDX, i, j + 1)
 
         call self%interface_state(rho=[rho_L, rho_R], &

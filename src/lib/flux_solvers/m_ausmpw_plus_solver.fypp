@@ -69,7 +69,7 @@ module mod_mausmpw_plus_solver
     procedure, public :: initialize => initialize_m_ausmpw_plus
     procedure, public :: solve => solve_m_ausmpw_plus
     procedure, public, pass(lhs) :: copy => copy_m_ausmpw_plus
-    procedure, public :: flux_split_edges
+    ! procedure, public :: flux_split_edges
     ! Private methods
     #:for DIR in DIRECTIONS
     procedure, private :: get_${DIR}$flux
@@ -192,15 +192,19 @@ contains
                                      bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                      bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    !                  jflux(i,j+1)
-    !               |--------------------|
+    !                   edge(3)
+    !                  jflux(i,j+1)  'R'
+    !               o--------------------o
+    !               |                'L' |
     !               |                    |
-    !           "L" | "R"                |
     !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
-    !               |                    |
-    !               |              "R"   |
-    !               |--------------------|
-    !                  jflux(i,j)  "L"
+    !    edge(4)    |                    |  edge(2)
+    !               |                'L' | 'R'
+    !               o--------------------o
+    !                  jflux(i,j)
+    !                   edge(1)
+    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
+    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
 
     ilo = grid%ilo_cell
     ihi = grid%ihi_cell
@@ -210,8 +214,10 @@ contains
     if(allocated(self%iflux)) deallocate(self%iflux)
     if(allocated(self%jflux)) deallocate(self%jflux)
 
-    allocate(self%iflux(4, ilo:ihi + 1, jlo:jhi))
-    allocate(self%jflux(4, ilo:ihi, jlo:jhi + 1))
+    ! allocate(self%iflux(4, ilo:ihi + 1, jlo:jhi))
+    ! allocate(self%jflux(4, ilo:ihi, jlo:jhi + 1))
+    allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
+    allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
 
     ilo_bc = grid%ilo_bc_cell
     ihi_bc = grid%ihi_bc_cell
@@ -261,7 +267,6 @@ contains
     !$omp end do
     !$omp end parallel
 
-    ! print*, "iflux"
     call self%get_iflux(grid=grid, &
                         lbounds=lbound(rho_interface_values), &
                         eflux_lbounds=lbound(self%iflux), &
@@ -272,7 +277,6 @@ contains
                         v_sb=v_superbee_values, p_sb=p_superbee_values, &
                         w2=w_2_xi, edge_flux=self%iflux)
 
-    ! print*, "jflux"
     call self%get_jflux(grid=grid, &
                         lbounds=lbound(rho_interface_values), &
                         eflux_lbounds=lbound(self%jflux), &
@@ -283,7 +287,6 @@ contains
                         v_sb=v_superbee_values, p_sb=p_superbee_values, &
                         w2=w_2_eta, edge_flux=self%jflux)
 
-    ! print*, 'done'
     ! Now flux the edges to get the next solution
     call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
 
@@ -416,13 +419,20 @@ contains
     jlo = lbound(edge_flux, dim=3)
     jhi = ubound(edge_flux, dim=3)
 
-    ! print*, 'iflux ', lbound(self%iflux)
-    ! print*, 'iflux ', ubound(self%iflux)
-    ! print*, 'jflux ', lbound(self%jflux)
-    ! print*, 'jflux ', ubound(self%jflux)
-    ! print*, "${DIR}$flux"
-    ! print*, 'irange', ilo, ihi
-    ! print*, 'jrange', jlo, jhi
+
+    !                   edge(3)
+    !                  jflux(i,j+1)  'R'
+    !               o--------------------o
+    !               |                'L' |
+    !               |                    |
+    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
+    !    edge(4)    |                    |  edge(2)
+    !               |                'L' | 'R'
+    !               o--------------------o
+    !                  jflux(i,j)
+    !                   edge(1)
+    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
+    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
 
     !$omp parallel default(none), &
     !$omp firstprivate(gamma, ilo, ihi, jlo, jhi) &
@@ -442,27 +452,27 @@ contains
       do i = ilo, ihi
 
       #:if DIR == 'i'
-        n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i - 1, j)
-        n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i - 1, j)
+        n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
+        n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
 
-        rho_L = rho(RIGHT_IDX, i - 1, j)
-        u_LHS =   u(RIGHT_IDX, i - 1, j)
-        v_LHS =   v(RIGHT_IDX, i - 1, j)
-        p_L   =   p(RIGHT_IDX, i - 1, j)
-        rho_R = rho(LEFT_IDX , i, j)
-        u_RHS =   u(LEFT_IDX , i, j)
-        v_RHS =   v(LEFT_IDX , i, j)
-        p_R   =   p(LEFT_IDX , i, j)
+        rho_L = rho(RIGHT_IDX, i, j)
+        u_LHS =   u(RIGHT_IDX, i, j)
+        v_LHS =   v(RIGHT_IDX, i, j)
+        p_L   =   p(RIGHT_IDX, i, j)
+        rho_R = rho(LEFT_IDX , i + 1, j)
+        u_RHS =   u(LEFT_IDX , i + 1, j)
+        v_RHS =   v(LEFT_IDX , i + 1, j)
+        p_R   =   p(LEFT_IDX , i + 1, j)
 
         ! Superbee values
-        rho_L_sb = rho_sb(RIGHT_IDX, i - 1, j)
-        u_LHS_sb =   u_sb(RIGHT_IDX, i - 1, j)
-        v_LHS_sb =   v_sb(RIGHT_IDX, i - 1, j)
-        p_L_sb   =   p_sb(RIGHT_IDX, i - 1, j)
-        rho_R_sb = rho_sb(LEFT_IDX , i, j)
-        u_RHS_sb =   u_sb(LEFT_IDX , i, j)
-        v_RHS_sb =   v_sb(LEFT_IDX , i, j)
-        p_R_sb   =   p_sb(LEFT_IDX , i, j)
+        rho_L_sb = rho_sb(RIGHT_IDX, i, j)
+        u_LHS_sb =   u_sb(RIGHT_IDX, i, j)
+        v_LHS_sb =   v_sb(RIGHT_IDX, i, j)
+        p_L_sb   =   p_sb(RIGHT_IDX, i, j)
+        rho_R_sb = rho_sb(LEFT_IDX , i + 1, j)
+        u_RHS_sb =   u_sb(LEFT_IDX , i + 1, j)
+        v_RHS_sb =   v_sb(LEFT_IDX , i + 1, j)
+        p_R_sb   =   p_sb(LEFT_IDX , i + 1, j)
 
         U_L = u_LHS
         U_R = u_RHS
@@ -470,27 +480,27 @@ contains
         V_R = v_RHS
 
       #:else
-        n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j - 1)
-        n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j - 1)
+        n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
+        n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
 
-        rho_L = rho(TOP_IDX, i, j - 1)
-        u_LHS =   u(TOP_IDX, i, j - 1)
-        v_LHS =   v(TOP_IDX, i, j - 1)
-        p_L   =   p(TOP_IDX, i, j - 1)
-        rho_R = rho(BOTTOM_IDX, i, j)
-        u_RHS =   u(BOTTOM_IDX, i, j)
-        v_RHS =   v(BOTTOM_IDX, i, j)
-        p_R   =   p(BOTTOM_IDX, i, j)
+        rho_L = rho(TOP_IDX, i, j)
+        u_LHS =   u(TOP_IDX, i, j)
+        v_LHS =   v(TOP_IDX, i, j)
+        p_L   =   p(TOP_IDX, i, j)
+        rho_R = rho(BOTTOM_IDX, i, j + 1)
+        u_RHS =   u(BOTTOM_IDX, i, j + 1)
+        v_RHS =   v(BOTTOM_IDX, i, j + 1)
+        p_R   =   p(BOTTOM_IDX, i, j + 1)
 
         ! Superbee values
-        rho_L_sb = rho_sb(TOP_IDX, i, j - 1)
-        u_LHS_sb =   u_sb(TOP_IDX, i, j - 1)
-        v_LHS_sb =   v_sb(TOP_IDX, i, j - 1)
-        p_L_sb   =   p_sb(TOP_IDX, i, j - 1)
-        rho_R_sb = rho_sb(BOTTOM_IDX , i, j)
-        u_RHS_sb =   u_sb(BOTTOM_IDX , i, j)
-        v_RHS_sb =   v_sb(BOTTOM_IDX , i, j)
-        p_R_sb   =   p_sb(BOTTOM_IDX , i, j)
+        rho_L_sb = rho_sb(TOP_IDX, i, j)
+        u_LHS_sb =   u_sb(TOP_IDX, i, j)
+        v_LHS_sb =   v_sb(TOP_IDX, i, j)
+        p_L_sb   =   p_sb(TOP_IDX, i, j)
+        rho_R_sb = rho_sb(BOTTOM_IDX , i, j + 1)
+        u_RHS_sb =   u_sb(BOTTOM_IDX , i, j + 1)
+        v_RHS_sb =   v_sb(BOTTOM_IDX , i, j + 1)
+        p_R_sb   =   p_sb(BOTTOM_IDX , i, j + 1)
 
         U_L = v_LHS
         U_R = v_RHS
@@ -552,27 +562,26 @@ contains
 
         ! Pressure splitting functions
         ! Eq. 38a in Ref [1]
-        ! if (M_star > 1.0_rk .and. M_star_2 < 1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
-        ! #:if DIR == 'i'
-        !   P_R_minus = 1.0_rk - ((rho_ave(i,j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i,j)) / p_ave(i+1,j))
-        ! #:else
-        !   P_R_minus = 1.0_rk - ((rho_ave(i,j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i,j)) / p_ave(i,j+1))
-        ! #:endif
-        ! else
-          P_R_minus = pressure_split_minus(M_R)
-        ! end if
+        if (M_star > 1.0_rk .and. M_star_2 < 1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
+        #:if DIR == 'i'
+          P_R_minus = 1.0_rk - ((rho_ave(i,j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i,j)) / p_ave(i+1,j))
+        #:else
+          P_R_minus = 1.0_rk - ((rho_ave(i,j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i,j)) / p_ave(i,j+1))
+        #:endif
+        else
+        P_R_minus = pressure_split_minus(M_R)
+        end if
 
-        ! ! Eq, 38b in Ref [1]
-        ! ! write(*, '(a, i4, i4, 10(es16.6))') "M_star, M_star_2: ", i, j, M_star, M_star_2
-        ! if (M_star < -1.0_rk .and. M_star_2 < -1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
-        ! #:if DIR == 'i'
-        !   P_L_plus = 1.0_rk - ((rho_ave(i+1,j) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i+1,j)) / p_ave(i,j))
-        ! #:else
-        !   P_L_plus = 1.0_rk - ((rho_ave(i,j+1) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i,j+1)) / p_ave(i,j))
-        ! #:endif
-        ! else
-          P_L_plus = pressure_split_plus(M_L)
-        ! end if
+        ! Eq, 38b in Ref [1]
+        if (M_star < -1.0_rk .and. M_star_2 < -1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
+        #:if DIR == 'i'
+          P_L_plus = 1.0_rk - ((rho_ave(i+1,j) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i+1,j)) / p_ave(i,j))
+        #:else
+          P_L_plus = 1.0_rk - ((rho_ave(i,j+1) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i,j+1)) / p_ave(i,j))
+        #:endif
+        else
+         P_L_plus = pressure_split_plus(M_L)
+        end if
 
         p_s = p_L * P_L_plus + p_R * P_R_minus
         w1 = w_1(p_L=p_L, p_R=p_R)
@@ -662,134 +671,6 @@ contains
     b_parallel = (dot_product(b, a) / dot_product(a, a)) * a
     b_perpendicular = b - b_parallel
   end subroutine project_vector
-
-  subroutine flux_split_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
-    !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
-    class(m_ausmpw_plus_solver_t), intent(in) :: self
-    class(grid_t), intent(in) :: grid
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
-
-    ! Locals
-    integer(ik) :: i, j, ilo, ihi, jlo, jhi
-    real(rk), dimension(4) :: delta_l !< edge length
-    real(rk) :: volume !< cell volume
-    real(rk), parameter :: FLUX_EPS = 5e-13_rk
-    real(rk), parameter :: REL_THRESHOLD = 1e-5_rk !< relative error threshold
-
-    real(rk), dimension(4) :: rho_edge_fluxes
-    real(rk), dimension(4) :: rhou_edge_fluxes
-    real(rk), dimension(4) :: rhov_edge_fluxes
-    real(rk), dimension(4) :: rhoE_edge_fluxes
-    real(rk) :: ave_rho_edge_flux, rho_flux, rho_flux_threshold
-    real(rk) :: ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold
-    real(rk) :: ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold
-    real(rk) :: ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold
-
-    ilo = grid%ilo_cell
-    ihi = grid%ihi_cell
-    jlo = grid%jlo_cell
-    jhi = grid%jhi_cell
-
-    !                  jflux(i,j+1)  (3)
-    !               |--------------------|
-    !               |                    | (2)
-    !           "L" | "R"                |
-    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
-    !               |                    |
-    !           (4) |        (1)   "R"   |
-    !               |--------------------|
-    !                  jflux(i,j)  "L"
-
-    !$omp parallel default(none), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi), &
-    !$omp shared(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt), &
-    !$omp private(i, j, delta_l, volume) &
-    !$omp private(ave_rho_edge_flux, rho_flux, rho_flux_threshold) &
-    !$omp private(ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold) &
-    !$omp private(ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold) &
-    !$omp private(ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold) &
-    !$omp private(rho_edge_fluxes, rhou_edge_fluxes, rhov_edge_fluxes, rhoE_edge_fluxes)
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-
-        delta_l = grid%cell_edge_lengths(:, i, j)
-        volume = grid%cell_volume(i, j)
-
-        ! rho
-        rho_edge_fluxes = -[ self%iflux(1, i,     j) * delta_l(4), &
-                           -self%iflux(1, i + 1, j) * delta_l(2), &
-                            self%jflux(1, i,     j) * delta_l(1), &
-                           -self%jflux(1, i, j + 1) * delta_l(3)]
-
-        ave_rho_edge_flux = 0.25_rk * sum(abs(rho_edge_fluxes))
-        rho_flux = -neumaier_sum_4(rho_edge_fluxes)
-        rho_flux_threshold = abs(ave_rho_edge_flux) * REL_THRESHOLD
-        if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
-          rho_flux = 0.0_rk
-        end if
-        d_rho_dt(i, j) = rho_flux / volume
-
-        ! rho u
-        rhou_edge_fluxes = -[ self%iflux(2, i,     j) * delta_l(4), &
-                            -self%iflux(2, i + 1, j) * delta_l(2), &
-                             self%jflux(2, i,     j) * delta_l(1), &
-                            -self%jflux(2, i, j + 1) * delta_l(3)]
-
-        ave_rhou_edge_flux = 0.25_rk * sum(abs(rhou_edge_fluxes))
-        rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
-        rhou_flux_threshold = abs(ave_rhou_edge_flux) * REL_THRESHOLD
-        if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
-          rhou_flux = 0.0_rk
-        end if
-        d_rho_u_dt(i, j) = rhou_flux / volume
-
-        ! rho v
-        rhov_edge_fluxes = -[ self%iflux(3, i,     j) * delta_l(4), &
-                            -self%iflux(3, i + 1, j) * delta_l(2), &
-                             self%jflux(3, i,     j) * delta_l(1), &
-                            -self%jflux(3, i, j + 1) * delta_l(3)]
-
-        ave_rhov_edge_flux = 0.25_rk * sum(abs(rhov_edge_fluxes))
-        rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
-        rhov_flux_threshold = abs(ave_rhov_edge_flux) * REL_THRESHOLD
-        if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
-          rhov_flux = 0.0_rk
-        end if
-        d_rho_v_dt(i, j) = rhov_flux / volume
-
-        ! rho E
-        rhoE_edge_fluxes = -[ self%iflux(4, i,     j) * delta_l(4), &
-                            -self%iflux(4, i + 1, j) * delta_l(2), &
-                             self%jflux(4, i,     j) * delta_l(1), &
-                            -self%jflux(4, i, j + 1) * delta_l(3)]
-
-        ave_rhoE_edge_flux = 0.25_rk * sum(abs(rhoE_edge_fluxes))
-        rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
-        rhoE_flux_threshold = abs(ave_rhoE_edge_flux) * REL_THRESHOLD
-        if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
-          rhoE_flux = 0.0_rk
-        end if
-        d_rho_E_dt(i, j) = rhoE_flux / volume
-
-      !   if (i == 51) then
-      !     print*, 'Total Flux:', i, j
-      !     write(*, '(a, es16.6, a, 10(es16.6))') "rho ", rho_flux, ' : ', rho_edge_fluxes
-      !     write(*, '(a, es16.6, a, 10(es16.6))') "rhou", rhou_flux, ' : ', rhou_edge_fluxes
-      !     write(*, '(a, es16.6, a, 10(es16.6))') "rhov", rhov_flux, ' : ', rhov_edge_fluxes
-      !     write(*, '(a, es16.6, a, 10(es16.6))') "rhoe", rhoE_flux, ' : ', rhoE_edge_fluxes
-      !     print*
-      !   end if
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-
-  end subroutine flux_split_edges
 
   subroutine finalize(self)
     !< Cleanup the M-AUSMPW+ solver

@@ -289,14 +289,19 @@ contains
     jlo = grid%jlo_cell
     jhi = grid%jhi_cell
 
-    !                      iflux(i,j)
-    !                   ___________________
-    !                  |                   |
-    !                  |                   |
-    !    iflux(i-1,j)  |     cell (i,j)    | iflux(i,j)
-    !                  |                   |
-    !                  |___________________|
-    !                     jflux(i,j-1)
+    !                   edge(3)
+    !                  jflux(i,j+1)  'R'
+    !               o--------------------o
+    !               |                'L' |
+    !               |                    |
+    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
+    !    edge(4)    |                    |  edge(2)
+    !               |                'L' | 'R'
+    !               o--------------------o
+    !                  jflux(i,j)
+    !                   edge(1)
+    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
+    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi), &
@@ -361,15 +366,6 @@ contains
           rhoE_flux = 0.0_rk
         end if
         d_rho_E_dt(i, j) = rhoE_flux / volume
-
-        if(i == 51) then
-          print *, 'Total Flux:', i, j
-          write(*, '(a, es16.6, a, 10(es16.6))') "rho ", rho_flux, ' : ', rho_edge_fluxes
-          write(*, '(a, es16.6, a, 10(es16.6))') "rhou", rhou_flux, ' : ', rhou_edge_fluxes
-          write(*, '(a, es16.6, a, 10(es16.6))') "rhov", rhov_flux, ' : ', rhov_edge_fluxes
-          write(*, '(a, es16.6, a, 10(es16.6))') "rhoe", rhoE_flux, ' : ', rhoE_edge_fluxes
-          print *
-        end if
       end do
     end do
     !$omp end do
