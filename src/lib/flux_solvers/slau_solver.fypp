@@ -21,6 +21,7 @@
 ! Fypp variables. This allows us to generate an edge flux subroutine for each direction
 ! and still allow the compiler to optimize
 #:set DIRECTIONS = ['i', 'j']
+#:set VARIANTS = ['SLAU', 'SLAU2']
 
 #ifdef __SIMD_ALIGN_OMP__
 #define __INTERP_ALIGN__ aligned(rho, u, v, p, edge_flux:__ALIGNBYTES__)
@@ -57,9 +58,10 @@ module mod_slau_solver
   real(rk), parameter :: alpha = 1.0_rk / 8.0_rk !< alpha factor in Pressure splitting function
 
   type, extends(edge_split_flux_solver_t) :: slau_solver_t
-    !< Implementation of the SLAU scheme
+    !< Implementation of the SLAU or SLAU2 scheme
     private
     real(rk) :: gamma = 0.0_rk
+    character(32) :: variant = 'SLAU'
   contains
     ! Public methods
     procedure, public :: initialize => initialize_slau
@@ -68,7 +70,9 @@ module mod_slau_solver
     ! procedure, public :: flux_split_edges
     ! Private methods
     #:for DIR in DIRECTIONS
-    procedure, private :: get_${DIR}$flux
+    #:for VARIANT in VARIANTS
+    procedure, private :: get_${VARIANT}$_${DIR}$flux
+    #:endfor
     #:endfor
     final :: finalize
 
@@ -84,6 +88,13 @@ contains
     self%input = input
     self%gamma = eos%get_gamma()
     self%name = 'SLAU_'//input%limiter
+
+    select case(trim(input%flux_solver))
+    case('SLAU', 'SLAU2')
+      self%variant = trim(input%flux_solver)
+    case default
+      error stop "Unknown SLAU solver variant in slau_solver_t%initialize_slau()"
+    end select
   end subroutine initialize_slau
 
   subroutine copy_slau(lhs, rhs)
@@ -191,19 +202,22 @@ contains
     jlo_bc = grid%jlo_bc_cell
     jhi_bc = grid%jhi_bc_cell
 
-    call self%get_iflux(grid=grid, &
-                        lbounds=lbound(rho_interface_values), &
-                        eflux_lbounds=lbound(self%iflux), &
-                        rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
-                        rho=rho_interface_values, u=u_interface_values, &
-                        v=v_interface_values, p=p_interface_values, edge_flux=self%iflux)
-
-    call self%get_jflux(grid=grid, &
-                        lbounds=lbound(rho_interface_values), &
-                        eflux_lbounds=lbound(self%jflux), &
-                        rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
-                        rho=rho_interface_values, u=u_interface_values, &
-                        v=v_interface_values, p=p_interface_values, edge_flux=self%jflux)
+    select case (trim(self%variant))
+    #:for VARIANT in VARIANTS
+    case('${VARIANT}$')
+    #:for DIR in DIRECTIONS
+      call self%get_${VARIANT}$_${DIR}$flux(grid=grid, &
+                              lbounds=lbound(rho_interface_values), &
+                              rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
+                              rho=rho_interface_values, u=u_interface_values, &
+                              v=v_interface_values, p=p_interface_values, &
+                              eflux_lbounds=lbound(self%${DIR}$flux), &
+                              edge_flux=self%${DIR}$flux)
+    #:endfor
+    #:endfor
+    case default
+      error stop "Unknown SLAU variant in slau_solver_t%solve_SLAU()"
+    end select
 
     ! Now flux the edges to get the next solution
     call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
@@ -223,7 +237,8 @@ contains
   end subroutine solve_slau
 
   #:for DIR in DIRECTIONS
-  subroutine get_${DIR}$flux(self, grid, lbounds, rho, u, v, p, rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
+  #:for VARIANT in VARIANTS
+  subroutine get_${VARIANT}$_${DIR}$flux(self, grid, lbounds, rho, u, v, p, rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
     !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(slau_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
@@ -241,38 +256,27 @@ contains
 
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
-    real(rk) :: gamma      !< polytropic gas index
-    real(rk) :: rho_L      !< density left state w/ limiter of choice
-    real(rk) :: rho_R      !< density right state w/ limiter of choice
-    real(rk) :: u_L      !< x-velocity left state w/ limiter of choice
-    real(rk) :: u_R      !< x-velocity right state w/ limiter of choice
-    real(rk) :: v_L      !< y-velocity left state w/ limiter of choice
-    real(rk) :: v_R      !< y-velocity right state w/ limiter of choice
-    real(rk) :: p_L        !< pressure left state w/ limiter of choice
-    real(rk) :: p_R        !< pressure right state w/ limiter of choice
-    real(rk) :: H_L        !< enthalpy left state w/ limiter of choice
-    real(rk) :: H_R        !< enthalpy right state w/ limiter of choice
+    real(rk) :: gamma
+    real(rk) :: rho_L, rho_R                !< L/R density
+    real(rk) :: u_L, u_R                    !< L/R x-velocity
+    real(rk) :: v_L, v_R                    !< L/R y-velocity
+    real(rk) :: p_L, p_R                    !< L/R pressure
+    real(rk) :: H_L, H_R                    !< L/R enthalpy
+    real(rk) :: c_L, c_R                    !< L/R sound speed
+    real(rk) :: V_n_L, V_n_R                !< L/R normal velocity
+    real(rk) :: V_n_bar_plus, V_n_bar_minus !< L/R split normal velocity
+    real(rk) :: f_p_plus, f_p_minus         !< L/R split Mach function
 
     real(rk) :: Chi
-    real(rk) :: c_L
-    real(rk) :: c_R
     real(rk) :: c_half
-    real(rk) :: V_n_L
-    real(rk) :: V_n_R
-    real(rk) :: M_L
-    real(rk) :: M_R
-    real(rk) :: f_p_plus
-    real(rk) :: f_p_minus
+    real(rk) :: M_L, M_R
     real(rk) :: M_bar
     real(rk) :: p_tilde
     real(rk) :: V_n_bar
     real(rk) :: g
-    real(rk) :: V_n_bar_plus
-    real(rk) :: V_n_bar_minus
     real(rk) :: delta_p
     real(rk) :: mass_flux
-    real(rk) :: mass_flux_L
-    real(rk) :: mass_flux_R
+    real(rk) :: mass_flux_L, mass_flux_R
     real(rk) :: n_x, n_y
 
     integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
@@ -373,9 +377,18 @@ contains
         f_p_plus = mach_split_plus(M_R)
         f_p_minus = mach_split_minus(M_L)
 
-        ! Eq. 2.3c (SLAU original)
+        #:if VARIANT == 'SLAU'
+
+        ! Eq. 2.3c (Original SLAU pressure flux)
         p_tilde = 0.5_rk * (p_L + p_R) + (0.5_rk * (f_p_plus - f_p_minus) * (p_L - p_R)) + &
                   ((1.0_rk - Chi) * (f_p_plus + f_p_minus - 1.0_rk) * 0.5_rk * (p_L + p_R))
+        #:elif VARIANT == 'SLAU2'
+
+        ! Eq. 3.5 in Ref [2] (The improved SLAU2 pressure flux)
+        p_tilde = 0.5_rk * (p_L + p_R) + (0.5_rk * (f_p_plus - f_p_minus) * (p_L - p_R)) + &
+                  sqrt(0.5_rk * (u_L**2 + v_L**2 + u_R**2 + v_R**2)) * &
+                  (f_p_plus + f_p_minus - 1.0_rk) * (0.5_rk * (rho_L + rho_R)) * c_half
+        #:endif
 
         ! Eq 2.3k
         V_n_bar = (rho_L * abs(V_n_L) + rho_R * abs(V_n_R)) / (rho_L + rho_R)
@@ -406,8 +419,8 @@ contains
     end do
     !$omp end do
     !$omp end parallel
-  end subroutine get_${DIR}$flux
-
+  end subroutine get_${VARIANT}$_${DIR}$flux
+  #:endfor
   #:endfor
 
   pure subroutine project_vector(a, b, b_parallel, b_perpendicular)
