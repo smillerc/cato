@@ -19,11 +19,11 @@
 ! SOFTWARE.
 
 module mod_flux_solver
-  !> Summary: Provide a base Riemann solver class structure
-  !> Date: 06/22/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
+  !< Summary: Provide a base Riemann solver class structure
+  !< Date: 06/22/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
   !      [1]
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64

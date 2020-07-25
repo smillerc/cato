@@ -59,8 +59,8 @@ contains
     integer(ik), dimension(2) :: lbounds
 
     ! These are normally handled by the master puppeteer, but for now we make them ourselves
-    associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
-              bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
+    associate(left => grid%ilo_bc_cell, right => grid%ihi_bc_cell, &
+              bottom => grid%jlo_bc_cell, top => grid%jhi_bc_cell)
 
       allocate(rho(left:right, bottom:top), stat=alloc_status)
       allocate(u(left:right, bottom:top), stat=alloc_status)
@@ -126,8 +126,8 @@ contains
     !  D : unaffected central cell
 
     ! Set unique values along the (real) edges so I can test the bc routines
-    associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
-              bottom=>grid%jlo_cell, top=>grid%jhi_cell)
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell)
 
       rho(left:right, bottom) = 5.0_rk ! "5" cells in cartoon
       rho(left:right, top) = 7.0_rk    ! "7" cells in cartoon
@@ -169,10 +169,10 @@ contains
                                                  recon_v=recon_v, recon_p=recon_p, &
                                                  lbounds=lbounds)
 
-    associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
-              bottom=>grid%jlo_cell, top=>grid%jhi_cell, &
-              left_ghost=>grid%ilo_bc_cell, right_ghost=>grid%ihi_bc_cell, &
-              bottom_ghost=>grid%jlo_bc_cell, top_ghost=>grid%jhi_bc_cell)
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell, &
+              left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+              bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
 
       ! bottom ghost layer
       @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], rho(:, bottom_ghost))
@@ -224,8 +224,8 @@ contains
     right_ghost = grid%ihi_bc_cell
 
     ! These are normally handled by the master puppeteer, but for now we make them ourselves
-    associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
-              bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
+    associate(left => grid%ilo_bc_cell, right => grid%ihi_bc_cell, &
+              bottom => grid%jlo_bc_cell, top => grid%jhi_bc_cell)
 
       allocate(rho(left:right, bottom:top), stat=alloc_status)
       allocate(u(left:right, bottom:top), stat=alloc_status)

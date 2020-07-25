@@ -19,8 +19,8 @@
 ! SOFTWARE.
 
 module mod_timing
-  !> Summary: Provide implementations for timing and calculating the timestep
-  !> Author: Sam Miller
+  !< Summary: Provide implementations for timing and calculating the timestep
+  !< Author: Sam Miller
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64, std_out => output_unit
   use mod_master_puppeteer, only: master_puppeteer_t

@@ -19,8 +19,8 @@
 ! SOFTWARE.
 
 module mod_units
-  !> Summary:  Provide capability to handle units, nondimensionalization, etc.
-  !> Author: Sam Miller
+  !< Summary:  Provide capability to handle units, nondimensionalization, etc.
+  !< Author: Sam Miller
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
 

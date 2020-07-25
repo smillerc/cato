@@ -19,11 +19,11 @@
 ! SOFTWARE.
 
 module mod_fvleg_solver
-  !> Summary: Provide a FVLEG solver class structure
-  !> Date: 06/22/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
+  !< Summary: Provide a FVLEG solver class structure
+  !< Date: 06/22/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
   !      [1]
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64

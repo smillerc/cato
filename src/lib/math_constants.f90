@@ -19,8 +19,8 @@
 ! SOFTWARE.
 
 module math_constants
-  !> Summary: Provide global math constants
-  !> Author: Sam Miller
+  !< Summary: Provide global math constants
+  !< Author: Sam Miller
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
 
