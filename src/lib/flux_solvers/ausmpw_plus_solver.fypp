@@ -55,9 +55,8 @@ module mod_ausmpw_plus_solver
   private
   public :: ausmpw_plus_solver_t
 
-  real(rk), parameter :: beta = 3.0_rk/16.0_rk !< beta factor in Mach splitting function
-  real(rk), parameter :: alpha = 1.0_rk/8.0_rk !< alpha factor in Pressure splitting function
-
+  real(rk), parameter :: beta = 3.0_rk / 16.0_rk !< beta factor in Mach splitting function
+  real(rk), parameter :: alpha = 1.0_rk / 8.0_rk !< alpha factor in Pressure splitting function
 
   type, extends(edge_split_flux_solver_t) :: ausmpw_plus_solver_t
     !< Implementation of the AUSMPW+ scheme
@@ -140,7 +139,7 @@ contains
 
     if(dt < tiny(1.0_rk)) then
       write(std_err, '(a, es16.6)') "Error in ausmpw_plus_solver_t%solve_ausmpw_plus(), "// &
-                                    "the timestep dt is < tiny(1.0_rk): dt = ", dt
+        "the timestep dt is < tiny(1.0_rk): dt = ", dt
       error stop "Error in ausmpw_plus_solver_t%solve_ausmpw_plus(), the timestep dt is < tiny(1.0_rk)"
     end if
     self%time = self%time + dt
@@ -160,13 +159,11 @@ contains
     call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
     call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
 
-
     call self%apply_reconstructed_bc(recon_rho=rho_interface_values, recon_u=u_interface_values, &
                                      recon_v=v_interface_values, recon_p=p_interface_values, &
                                      lbounds=lbounds, &
                                      bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                      bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
-
 
     !                   edge(3)
     !                  jflux(i,j+1)  'R'
@@ -323,7 +320,6 @@ contains
     jlo = lbound(edge_flux, dim=3)
     jhi = ubound(edge_flux, dim=3)
 
-
     !                   edge(3)
     !                  jflux(i,j+1)  'R'
     !               o--------------------o
@@ -361,13 +357,13 @@ contains
         n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
 
         rho_L = rho(RIGHT_IDX, i, j)
-        u_LHS =   u(RIGHT_IDX, i, j)
-        v_LHS =   v(RIGHT_IDX, i, j)
-        p_L   =   p(RIGHT_IDX, i, j)
-        rho_R = rho(LEFT_IDX , i + 1, j)
-        u_RHS =   u(LEFT_IDX , i + 1, j)
-        v_RHS =   v(LEFT_IDX , i + 1, j)
-        p_R   =   p(LEFT_IDX , i + 1, j)
+        u_LHS = u(RIGHT_IDX, i, j)
+        v_LHS = v(RIGHT_IDX, i, j)
+        p_L = p(RIGHT_IDX, i, j)
+        rho_R = rho(LEFT_IDX, i + 1, j)
+        u_RHS = u(LEFT_IDX, i + 1, j)
+        v_RHS = v(LEFT_IDX, i + 1, j)
+        p_R = p(LEFT_IDX, i + 1, j)
 
         U_L = u_LHS
         U_R = u_RHS
@@ -379,13 +375,13 @@ contains
         n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
 
         rho_L = rho(TOP_IDX, i, j)
-        u_LHS =   u(TOP_IDX, i, j)
-        v_LHS =   v(TOP_IDX, i, j)
-        p_L   =   p(TOP_IDX, i, j)
+        u_LHS = u(TOP_IDX, i, j)
+        v_LHS = v(TOP_IDX, i, j)
+        p_L = p(TOP_IDX, i, j)
         rho_R = rho(BOTTOM_IDX, i, j + 1)
-        u_RHS =   u(BOTTOM_IDX, i, j + 1)
-        v_RHS =   v(BOTTOM_IDX, i, j + 1)
-        p_R   =   p(BOTTOM_IDX, i, j + 1)
+        u_RHS = u(BOTTOM_IDX, i, j + 1)
+        v_RHS = v(BOTTOM_IDX, i, j + 1)
+        p_R = p(BOTTOM_IDX, i, j + 1)
 
         U_L = v_LHS
         U_R = v_RHS
@@ -393,25 +389,25 @@ contains
         V_R = u_RHS
       #:endif
 
-      cs_L = sqrt(gamma * p_L / rho_L)
-      cs_R = sqrt(gamma * p_R / rho_R)
-      M_LHS = sqrt(u_LHS**2 + v_LHS**2) / cs_L
-      M_RHS = sqrt(u_RHS**2 + v_RHS**2) / cs_R
+        cs_L = sqrt(gamma * p_L / rho_L)
+        cs_R = sqrt(gamma * p_R / rho_R)
+        M_LHS = sqrt(u_LHS**2 + v_LHS**2) / cs_L
+        M_RHS = sqrt(u_RHS**2 + v_RHS**2) / cs_R
 
-      if (apply_low_mach_fix .and. (abs(M_LHS) < LOW_MACH .or. abs(M_RHS) < LOW_MACH)) then
-        f_M = min(1.0_rk, max(M_LHS, M_RHS))
+        if(apply_low_mach_fix .and. (abs(M_LHS) < LOW_MACH .or. abs(M_RHS) < LOW_MACH)) then
+          f_M = min(1.0_rk, max(M_LHS, M_RHS))
 
-        ! Eq 8 in Ref [2]
-        u_LHS_fix = 0.5_rk * (u_LHS + u_RHS) + f_M * 0.5_rk * (u_LHS - u_RHS)
-        u_RHS_fix = 0.5_rk * (u_LHS + u_RHS) - f_M * 0.5_rk * (u_LHS - u_RHS)
-        v_LHS_fix = 0.5_rk * (v_LHS + v_RHS) + f_M * 0.5_rk * (v_LHS - v_RHS)
-        v_RHS_fix = 0.5_rk * (v_LHS + v_RHS) - f_M * 0.5_rk * (v_LHS - v_RHS)
+          ! Eq 8 in Ref [2]
+          u_LHS_fix = 0.5_rk * (u_LHS + u_RHS) + f_M * 0.5_rk * (u_LHS - u_RHS)
+          u_RHS_fix = 0.5_rk * (u_LHS + u_RHS) - f_M * 0.5_rk * (u_LHS - u_RHS)
+          v_LHS_fix = 0.5_rk * (v_LHS + v_RHS) + f_M * 0.5_rk * (v_LHS - v_RHS)
+          v_RHS_fix = 0.5_rk * (v_LHS + v_RHS) - f_M * 0.5_rk * (v_LHS - v_RHS)
 
-        u_LHS = u_LHS_fix
-        u_RHS = u_RHS_fix
-        v_LHS = v_LHS_fix
-        v_RHS = v_RHS_fix
-      end if
+          u_LHS = u_LHS_fix
+          u_RHS = u_RHS_fix
+          v_LHS = v_LHS_fix
+          v_RHS = v_RHS_fix
+        end if
 
         ! Velocity normal to the edge, see Fig 2 in Ref[3]
         ! _RHS/_LHS is to avoid naming conflicts with _L and _R (slightly different meaning)
@@ -457,13 +453,13 @@ contains
 
         #:if DIR == 'i'
         call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                  p1_L=p_ave(i,j-1), p1_R=p_ave(i+1,j-1), &
-                  p2_L=p_ave(i,j+1), p2_R=p_ave(i+1,j+1), &
-                  f_L=f_L, f_R=f_R)
+                   p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
+                   p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
+                   f_L=f_L, f_R=f_R)
         #:else
         call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave(i+1,j), p1_R=p_ave(i+1,j+1), &
-                   p2_L=p_ave(i-1,j), p2_R=p_ave(i-1,j+1), &
+                   p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
+                   p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
                    f_L=f_L, f_R=f_R)
         #:endif
 
@@ -575,9 +571,9 @@ contains
       f_L = 0.0_rk
       f_R = 0.0_rk
     else
-      min_term = min(1.0_rk, min(p1_L, p1_R, p2_L, p2_R)/min(p_L, p_R))**2
-      f_L = ((p_L/p_s) - 1.0_rk) * min_term
-      f_R = ((p_R/p_s) - 1.0_rk) * min_term
+      min_term = min(1.0_rk, min(p1_L, p1_R, p2_L, p2_R) / min(p_L, p_R))**2
+      f_L = ((p_L / p_s) - 1.0_rk) * min_term
+      f_R = ((p_R / p_s) - 1.0_rk) * min_term
     end if
   end subroutine get_f
 

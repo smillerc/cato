@@ -45,7 +45,6 @@ module mod_m_ausmpw_plus_solver
   !<     [4] Chen, S., Yan, C., Lin, B., & Li, E., "An improved low-dissipation AUSMPW+ scheme for low MACH number.",
   !<        (2017) 8th International Conference on Mechanical and Aerospace Engineering (ICMAE), 522-526., https://doi.org/10.1109/ICMAE.2017.8038701
 
-
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_globals, only: debug_print, LOW_MACH
   use mod_floating_point_utils, only: neumaier_sum_4
@@ -159,7 +158,7 @@ contains
 
     if(dt < tiny(1.0_rk)) then
       write(std_err, '(a, es16.6)') "Error in m_ausmpw_plus_solver_t%solve_m_ausmpw_plus(), "// &
-                                    "the timestep dt is < tiny(1.0_rk): dt = ", dt
+        "the timestep dt is < tiny(1.0_rk): dt = ", dt
       error stop "Error in m_ausmpw_plus_solver_t%solve_m_ausmpw_plus(), the timestep dt is < tiny(1.0_rk)"
     end if
     self%time = self%time + dt
@@ -431,7 +430,6 @@ contains
     jlo = lbound(edge_flux, dim=3)
     jhi = ubound(edge_flux, dim=3)
 
-
     !                   edge(3)
     !                  jflux(i,j+1)  'R'
     !               o--------------------o
@@ -472,23 +470,23 @@ contains
         n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
 
         rho_L = rho(RIGHT_IDX, i, j)
-        u_LHS =   u(RIGHT_IDX, i, j)
-        v_LHS =   v(RIGHT_IDX, i, j)
-        p_L   =   p(RIGHT_IDX, i, j)
-        rho_R = rho(LEFT_IDX , i + 1, j)
-        u_RHS =   u(LEFT_IDX , i + 1, j)
-        v_RHS =   v(LEFT_IDX , i + 1, j)
-        p_R   =   p(LEFT_IDX , i + 1, j)
+        u_LHS = u(RIGHT_IDX, i, j)
+        v_LHS = v(RIGHT_IDX, i, j)
+        p_L = p(RIGHT_IDX, i, j)
+        rho_R = rho(LEFT_IDX, i + 1, j)
+        u_RHS = u(LEFT_IDX, i + 1, j)
+        v_RHS = v(LEFT_IDX, i + 1, j)
+        p_R = p(LEFT_IDX, i + 1, j)
 
         ! Superbee values
         rho_L_sb = rho_sb(RIGHT_IDX, i, j)
-        u_LHS_sb =   u_sb(RIGHT_IDX, i, j)
-        v_LHS_sb =   v_sb(RIGHT_IDX, i, j)
-        p_L_sb   =   p_sb(RIGHT_IDX, i, j)
-        rho_R_sb = rho_sb(LEFT_IDX , i + 1, j)
-        u_RHS_sb =   u_sb(LEFT_IDX , i + 1, j)
-        v_RHS_sb =   v_sb(LEFT_IDX , i + 1, j)
-        p_R_sb   =   p_sb(LEFT_IDX , i + 1, j)
+        u_LHS_sb = u_sb(RIGHT_IDX, i, j)
+        v_LHS_sb = v_sb(RIGHT_IDX, i, j)
+        p_L_sb = p_sb(RIGHT_IDX, i, j)
+        rho_R_sb = rho_sb(LEFT_IDX, i + 1, j)
+        u_RHS_sb = u_sb(LEFT_IDX, i + 1, j)
+        v_RHS_sb = v_sb(LEFT_IDX, i + 1, j)
+        p_R_sb = p_sb(LEFT_IDX, i + 1, j)
 
         U_L = u_LHS
         U_R = u_RHS
@@ -500,23 +498,23 @@ contains
         n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
 
         rho_L = rho(TOP_IDX, i, j)
-        u_LHS =   u(TOP_IDX, i, j)
-        v_LHS =   v(TOP_IDX, i, j)
-        p_L   =   p(TOP_IDX, i, j)
+        u_LHS = u(TOP_IDX, i, j)
+        v_LHS = v(TOP_IDX, i, j)
+        p_L = p(TOP_IDX, i, j)
         rho_R = rho(BOTTOM_IDX, i, j + 1)
-        u_RHS =   u(BOTTOM_IDX, i, j + 1)
-        v_RHS =   v(BOTTOM_IDX, i, j + 1)
-        p_R   =   p(BOTTOM_IDX, i, j + 1)
+        u_RHS = u(BOTTOM_IDX, i, j + 1)
+        v_RHS = v(BOTTOM_IDX, i, j + 1)
+        p_R = p(BOTTOM_IDX, i, j + 1)
 
         ! Superbee values
         rho_L_sb = rho_sb(TOP_IDX, i, j)
-        u_LHS_sb =   u_sb(TOP_IDX, i, j)
-        v_LHS_sb =   v_sb(TOP_IDX, i, j)
-        p_L_sb   =   p_sb(TOP_IDX, i, j)
-        rho_R_sb = rho_sb(BOTTOM_IDX , i, j + 1)
-        u_RHS_sb =   u_sb(BOTTOM_IDX , i, j + 1)
-        v_RHS_sb =   v_sb(BOTTOM_IDX , i, j + 1)
-        p_R_sb   =   p_sb(BOTTOM_IDX , i, j + 1)
+        u_LHS_sb = u_sb(TOP_IDX, i, j)
+        v_LHS_sb = v_sb(TOP_IDX, i, j)
+        p_L_sb = p_sb(TOP_IDX, i, j)
+        rho_R_sb = rho_sb(BOTTOM_IDX, i, j + 1)
+        u_RHS_sb = u_sb(BOTTOM_IDX, i, j + 1)
+        v_RHS_sb = v_sb(BOTTOM_IDX, i, j + 1)
+        p_R_sb = p_sb(BOTTOM_IDX, i, j + 1)
 
         U_L = v_LHS
         U_R = v_RHS
@@ -524,25 +522,25 @@ contains
         V_R = u_RHS
       #:endif
 
-      cs_L = sqrt(gamma * p_L / rho_L)
-      cs_R = sqrt(gamma * p_R / rho_R)
-      M_LHS = sqrt(u_LHS**2 + v_LHS**2) / cs_L
-      M_RHS = sqrt(u_RHS**2 + v_RHS**2) / cs_R
+        cs_L = sqrt(gamma * p_L / rho_L)
+        cs_R = sqrt(gamma * p_R / rho_R)
+        M_LHS = sqrt(u_LHS**2 + v_LHS**2) / cs_L
+        M_RHS = sqrt(u_RHS**2 + v_RHS**2) / cs_R
 
-      if (apply_low_mach_fix .and. (abs(M_LHS) < LOW_MACH .or. abs(M_RHS) < LOW_MACH)) then
-        f_M = min(1.0_rk, max(M_LHS, M_RHS))
+        if(apply_low_mach_fix .and. (abs(M_LHS) < LOW_MACH .or. abs(M_RHS) < LOW_MACH)) then
+          f_M = min(1.0_rk, max(M_LHS, M_RHS))
 
-        ! Eq 8 in Ref [4]
-        u_LHS_fix = 0.5_rk * (u_LHS + u_RHS) + f_M * 0.5_rk * (u_LHS - u_RHS)
-        u_RHS_fix = 0.5_rk * (u_LHS + u_RHS) - f_M * 0.5_rk * (u_LHS - u_RHS)
-        v_LHS_fix = 0.5_rk * (v_LHS + v_RHS) + f_M * 0.5_rk * (v_LHS - v_RHS)
-        v_RHS_fix = 0.5_rk * (v_LHS + v_RHS) - f_M * 0.5_rk * (v_LHS - v_RHS)
+          ! Eq 8 in Ref [4]
+          u_LHS_fix = 0.5_rk * (u_LHS + u_RHS) + f_M * 0.5_rk * (u_LHS - u_RHS)
+          u_RHS_fix = 0.5_rk * (u_LHS + u_RHS) - f_M * 0.5_rk * (u_LHS - u_RHS)
+          v_LHS_fix = 0.5_rk * (v_LHS + v_RHS) + f_M * 0.5_rk * (v_LHS - v_RHS)
+          v_RHS_fix = 0.5_rk * (v_LHS + v_RHS) - f_M * 0.5_rk * (v_LHS - v_RHS)
 
-        u_LHS = u_LHS_fix
-        u_RHS = u_RHS_fix
-        v_LHS = v_LHS_fix
-        v_RHS = v_RHS_fix
-      end if
+          u_LHS = u_LHS_fix
+          u_RHS = u_RHS_fix
+          v_LHS = v_LHS_fix
+          v_RHS = v_RHS_fix
+        end if
 
         ! Velocity normal to the edge, see Fig 2 in Ref[3]
         ! _RHS/_LHS is to avoid naming conflicts with _L and _R (slightly different meaning)
@@ -568,9 +566,9 @@ contains
         M_star = sqrt(u_ave(i, j)**2 + v_ave(i, j)**2) / c_s ! M*(i)
 
       #:if DIR == 'i'
-        M_star_2 = sqrt(u_ave(i+1, j)**2 + v_ave(i+1, j)**2) / c_s ! M*(i+1)
+        M_star_2 = sqrt(u_ave(i + 1, j)**2 + v_ave(i + 1, j)**2) / c_s ! M*(i+1)
       #:else
-        M_star_2 = sqrt(u_ave(i,j+1)**2 + v_ave(i,j+1)**2) / c_s ! M*(j+1)
+        M_star_2 = sqrt(u_ave(i, j + 1)**2 + v_ave(i, j + 1)**2) / c_s ! M*(j+1)
       #:endif
 
         ! Interface sound speed
@@ -589,34 +587,34 @@ contains
         M_L_plus = mach_split_plus(M_L)
         M_R_minus = mach_split_minus(M_R)
 
-        vel_ave   = sqrt(u_ave(i,j)**2 + v_ave(i,j)**2)
+        vel_ave = sqrt(u_ave(i, j)**2 + v_ave(i, j)**2)
       #:if DIR == 'i'
-        vel_ave_2 = sqrt(u_ave(i+1,j)**2 + v_ave(i+1,j)**2)
+        vel_ave_2 = sqrt(u_ave(i + 1, j)**2 + v_ave(i + 1, j)**2)
       #:else
-        vel_ave_2 = sqrt(u_ave(i,j+1)**2 + v_ave(i,j+1)**2)
+        vel_ave_2 = sqrt(u_ave(i, j + 1)**2 + v_ave(i, j + 1)**2)
       #:endif
 
         ! Pressure splitting functions
         ! Eq. 38a in Ref [1]
-        if (M_star > 1.0_rk .and. M_star_2 < 1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
+        if(M_star > 1.0_rk .and. M_star_2 < 1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
         #:if DIR == 'i'
-          P_R_minus = 1.0_rk - ((rho_ave(i,j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i,j)) / p_ave(i+1,j))
+          P_R_minus = 1.0_rk - ((rho_ave(i, j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i, j)) / p_ave(i + 1, j))
         #:else
-          P_R_minus = 1.0_rk - ((rho_ave(i,j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i,j)) / p_ave(i,j+1))
+          P_R_minus = 1.0_rk - ((rho_ave(i, j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i, j)) / p_ave(i, j + 1))
         #:endif
         else
-        P_R_minus = pressure_split_minus(M_R)
+          P_R_minus = pressure_split_minus(M_R)
         end if
 
         ! Eq, 38b in Ref [1]
-        if (M_star < -1.0_rk .and. M_star_2 < -1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
+        if(M_star < -1.0_rk .and. M_star_2 < -1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
         #:if DIR == 'i'
-          P_L_plus = 1.0_rk - ((rho_ave(i+1,j) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i+1,j)) / p_ave(i,j))
+          P_L_plus = 1.0_rk - ((rho_ave(i + 1, j) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i + 1, j)) / p_ave(i, j))
         #:else
-          P_L_plus = 1.0_rk - ((rho_ave(i,j+1) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i,j+1)) / p_ave(i,j))
+          P_L_plus = 1.0_rk - ((rho_ave(i, j + 1) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i, j + 1)) / p_ave(i, j))
         #:endif
         else
-         P_L_plus = pressure_split_plus(M_L)
+          P_L_plus = pressure_split_plus(M_L)
         end if
 
         p_s = p_L * P_L_plus + p_R * P_R_minus
@@ -653,9 +651,9 @@ contains
 
         mass_flux_L = M_bar_L_plus * c_half * rho_L_half
         mass_flux_R = M_bar_R_minus * c_half * rho_R_half
-        edge_flux(1, i, j) = (mass_flux_L           ) + (mass_flux_R           )
-        edge_flux(2, i, j) = (mass_flux_L * u_L_half) + (mass_flux_R * u_R_half) + ((P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R))
-        edge_flux(3, i, j) = (mass_flux_L * v_L_half) + (mass_flux_R * v_R_half) + ((P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R))
+        edge_flux(1, i, j) = (mass_flux_L) + (mass_flux_R)
+       edge_flux(2, i, j) = (mass_flux_L * u_L_half) + (mass_flux_R * u_R_half) + ((P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R))
+       edge_flux(3, i, j) = (mass_flux_L * v_L_half) + (mass_flux_R * v_R_half) + ((P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R))
         edge_flux(4, i, j) = (mass_flux_L * H_L_half) + (mass_flux_R * H_R_half)
 
         ! if (i == 51 .or. i == 52) then
@@ -810,7 +808,7 @@ contains
       else
         ! Eq. 27a in Ref [1]
         phi_L_half = phi_L + (max(0.0_rk, phi_R_minus_L * phi_superbee_minus_L) / &
-                                         (phi_R_minus_L * abs(phi_superbee_minus_L))) * &
+                              (phi_R_minus_L * abs(phi_superbee_minus_L))) * &
                      min(a * 0.5_rk * abs(phi_R_minus_L), abs(phi_superbee_minus_L))
       end if
     end if
@@ -838,7 +836,7 @@ contains
       else
         ! Eq. 27b in Ref [1]
         phi_R_half = phi_R + (max(0.0_rk, phi_L_minus_R * phi_superbee_minus_R) / &
-                                         (phi_L_minus_R * abs(phi_superbee_minus_R))) * &
+                              (phi_L_minus_R * abs(phi_superbee_minus_R))) * &
                      min(a * 0.5_rk * abs(phi_L_minus_R), abs(phi_superbee_minus_R))
       end if
     end if
