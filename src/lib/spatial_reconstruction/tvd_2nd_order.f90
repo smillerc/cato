@@ -116,6 +116,7 @@ contains
     jlo_real = jlo + n_ghost_layers !< first real j cell
     jhi_real = jhi - n_ghost_layers !< last  real j cell
 
+    print *, ilo_real, ihi_real, jlo_real, jhi_real
     allocate(edge_values(4, ilo:ihi, jlo:jhi))
     edge_values = 0.0_rk
 

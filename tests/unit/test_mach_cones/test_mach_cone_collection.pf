@@ -7,6 +7,7 @@ module test_mach_cone_collection
   use mod_grid, only: grid_t
   use mod_grid_factory, only: grid_factory
   use mod_input, only: input_t
+  use mod_globals, only: n_ghost_layers
 
   use funit
 
@@ -14,6 +15,7 @@ module test_mach_cone_collection
 
   class(abstract_reconstruction_t), allocatable :: reconstruction_operator !< Recon operator used to find P' values
   class(grid_t), pointer :: grid
+
   type(input_t) :: input
 
   integer(ik), parameter :: ni_nodes = 5
@@ -34,15 +36,19 @@ module test_mach_cone_collection
   integer(ik), parameter :: C4 = 7
   integer(ik), parameter :: M4 = 8
 
-  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: rho
-  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: u
-  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: v
-  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: p
+  integer(ik), parameter :: ilo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: ihi_c = ni_cells + n_ghost_layers
+  integer(ik), parameter :: jlo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: jhi_c = nj_cells + n_ghost_layers
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: rho = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: u = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: v = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: p = 0.0_rk
 
-  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_rho
-  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_u
-  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_v
-  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_p
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_rho
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_u
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_v
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_p
 
   integer(ik), allocatable, dimension(:, :, :, :) :: corner_neighbors
   integer(ik), allocatable, dimension(:, :, :, :) :: leftright_midpoint_neighbors
@@ -93,6 +99,8 @@ contains
               imin_cell=>grid%ilo_cell, imax_cell=>grid%ihi_cell, &
               jmin_cell=>grid%jlo_cell, jmax_cell=>grid%jhi_cell)
 
+      print*, imin_node, imax_node, jmin_node, jmax_node
+      print*, imin_cell, imax_cell, jmin_cell, jmax_cell
       allocate(corner_neighbors(2, 4, imin_node:imax_node, jmin_node:jmax_node))
       allocate(leftright_midpoint_neighbors(2, 2, imin_cell:imax_cell, jmin_node:jmax_node))
       allocate(downup_midpoint_neighbors(2, 2, imin_node:imax_node, jmin_cell:jmax_cell))

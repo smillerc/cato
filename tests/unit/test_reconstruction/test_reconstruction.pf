@@ -4,6 +4,7 @@ module test_reconstruction
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use mod_edge_interpolator, only: edge_iterpolator_t
+  use mod_edge_interpolator_factory, only: edge_interpolator_factory
   use mod_tvd_2nd_order, only: tvd_2nd_order_t
   use mod_tvd_3rd_order, only: tvd_3rd_order_t
   use mod_tvd_5th_order, only: tvd_5th_order_t
@@ -11,6 +12,7 @@ module test_reconstruction
   use mod_mlp_5th_order, only: mlp_5th_order_t
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
+  use mod_globals, only: n_ghost_layers
   use funit
 
   implicit none
@@ -37,15 +39,19 @@ module test_reconstruction
   class(abstract_reconstruction_t), allocatable :: reconstruction_operator
   type(input_t) :: input
 
-  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: rho = 0.0_rk
-  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: u = 0.0_rk
-  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: v = 0.0_rk
-  real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: p = 0.0_rk
+  integer(ik), parameter :: ilo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: ihi_c = ni_cells + n_ghost_layers
+  integer(ik), parameter :: jlo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: jhi_c = nj_cells + n_ghost_layers
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: rho = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: u = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: v = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: p = 0.0_rk
 
-  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_rho
-  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_u
-  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_v
-  real(rk), dimension(1:8, 0:ni_cells - 1, 0:nj_cells - 1) :: recon_p
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_rho
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_u
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_v
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_p
 
 contains
 
@@ -59,105 +65,16 @@ contains
     if(allocated(reconstruction_operator)) deallocate(reconstruction_operator)
   end subroutine
 
-  ! @test
-  ! subroutine test_piecewise_linear()
-
-  !   class(abstract_reconstruction_t), pointer :: r_omega => null()
-  !   integer(ik) :: i, j
-
-  !   write(*, *) "Testing the piecewise_linear with TVD2 edge iterpolation and 'none' flux limiter"
-
-  !   input = input_t(cell_reconstruction='piecewise_linear', &
-  !                   edge_interpolation_scheme='TVD2', &
-  !                   limiter='none', &
-  !                   gradient_scheme='green_gauss', &
-  !                   ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-  !                   read_init_cond_from_file=.false., &
-  !                   xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
-  !   grid => grid_factory(input)
-
-  !   r_omega => reconstruction_factory(input=input, grid_target=grid)
-  !   allocate(reconstruction_operator, source=r_omega)
-  !   deallocate(r_omega)
-
-  !   !                Domain           -->                Primitive Variable
-  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
-  !   ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   2   |   3   ||   4   |
-  !   ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
-  !   ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   1   ||   2   |   3   ||   4   |
-  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
-  !   ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   1   ||   2   |   3   ||   4   |
-  !   ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
-  !   ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   1   ||   2   |   3   ||   4   |
-  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
-
-  !   rho(0, :) = 1.0_rk
-  !   rho(1, :) = 2.0_rk
-  !   rho(2, :) = 3.0_rk
-  !   rho(3, :) = 4.0_rk
-
-  !   u = 0.0_rk
-  !   v = 0.0_rk
-  !   p = 1.0_rk
-
-  !   call reconstruction_operator%set_cell_average_pointers(rho=rho, p=p, lbounds=lbound(p))
-  !   call reconstruction_operator%reconstruct(primitive_var=rho, &
-  !                                            reconstructed_var=recon_rho, &
-  !                                            lbounds=lbound(rho), &
-  !                                            name='rho', stage_name='test_1')
-  !   call reconstruction_operator%reconstruct(primitive_var=u, &
-  !                                            reconstructed_var=recon_u, &
-  !                                            lbounds=lbound(p), &
-  !                                            name='u', stage_name='test_1')
-  !   call reconstruction_operator%reconstruct(primitive_var=v, &
-  !                                            reconstructed_var=recon_v, &
-  !                                            lbounds=lbound(v), &
-  !                                            name='v', stage_name='test_1')
-  !   call reconstruction_operator%reconstruct(primitive_var=p, &
-  !                                            reconstructed_var=recon_p, &
-  !                                            lbounds=lbound(p), &
-  !                                            name='p', stage_name='test_1')
-
-  !   i = 1
-  !   j = 1
-  !   associate(cell_ave=>rho(i, j), &
-  !             E1=>edge_vars(1, i, j), &
-  !             E2=>edge_vars(2, i, j), &
-  !             E3=>edge_vars(3, i, j), &
-  !             E4=>edge_vars(4, i, j))
-  !     write(*, '(a)') "*********************************************"
-  !     write(*, '(a)') "Interpolated edge state for: rho"
-  !     write(*, '(a)') "*********************************************"
-  !     write(*, *)
-  !     write(*, '(16x,es11.3)') E3
-  !     write(*, *) "           C---------E3---------C"
-  !     write(*, *) "           |                    |"
-  !     write(*, *) "           |                    |"
-  !     write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
-  !     write(*, '(2(es11.3,a))') E4, " E4       (i,j)      E2", E2
-  !     write(*, *) "           |                    |"
-  !     write(*, *) "           |                    |"
-  !     write(*, *) "           |                    |"
-  !     write(*, *) "           C---------E1---------C"
-  !     write(*, '(16x,es11.3)') E1
-  !     write(*, *)
-  !   end associate
-
-  !   if (associated(grid)) deallocate(grid)
-  !   if (allocated(reconstruction_operator)) deallocate(reconstruction_operator)
-
-  ! end subroutine test_piecewise_linear
-
   @test
   subroutine test_tvd2_none()
 
-    class(edge_iterpolator_t), allocatable :: edge_interpolator
+    class(edge_iterpolator_t), pointer :: edge_interpolator => null()
     real(rk), dimension(:, :, :), allocatable :: edge_vars
     integer(ik) :: i, j
 
     write(*, *) "Testing the TVD2 edge iterpolation and 'none' flux limiter"
-    allocate(tvd_2nd_order_t :: edge_interpolator)
-    call edge_interpolator%initialize(limiter='none')
+    input%limiter = 'none'
+    edge_interpolator => edge_interpolator_factory(input)
 
     !                Domain           -->                Primitive Variable
     ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
@@ -170,14 +87,26 @@ contains
     ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   1   ||   2   |   3   ||   4   |
     ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
 
-    rho(0, :) = 1.0_rk
+    rho(-1, :) = 1.0_rk ! ghost
+    rho(0, :) = 1.0_rk  ! ghost
     rho(1, :) = 2.0_rk
     rho(2, :) = 3.0_rk
-    rho(3, :) = 4.0_rk
+    rho(3, :) = 4.0_rk ! ghost
+    rho(4, :) = 4.0_rk ! ghost
+    ! print*, lbound(rho)
+    ! print*, ubound(rho)
 
-    call edge_interpolator%interpolate_edge_values(q=rho, &
-                                                   lbounds=lbound(rho), &
-                                                   edge_values=edge_vars)
+    ! print*, 'density'
+    ! do i = lbound(rho, dim=1), ubound(rho, dim=1)
+    !   do j = lbound(rho, dim=2), ubound(rho, dim=2)
+    !     write(*, '(4(es16.6))') rho(i, j)
+    !   end do
+    !   end do
+
+    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbound(rho), edge_values=edge_vars)
+    ! print*, lbound(edge_vars)
+    ! print*, ubound(edge_vars)
+
 
     i = 2
     j = 2
@@ -190,26 +119,36 @@ contains
       write(*, '(a)') "Interpolated edge state for: rho"
       write(*, '(a)') "*********************************************"
       write(*, *)
-      write(*, '(16x,es11.3)') E3
-      write(*, *) "           C---------E3---------C"
-      write(*, *) "           |                    |"
-      write(*, *) "           |                    |"
+      write(*, '(16x,es11.3)')                  E3
+      write(*, *)         "           C---------E3---------C"
+      write(*, *)         "           |                    |"
+      write(*, *)         "           |                    |"
       write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
       write(*, '(2(es11.3,a))') E4, " E4       (i,j)      E2", E2
-      write(*, *) "           |                    |"
-      write(*, *) "           |                    |"
-      write(*, *) "           |                    |"
-      write(*, *) "           C---------E1---------C"
-      write(*, '(16x,es11.3)') E1
+      write(*, *)         "           |                    |"
+      write(*, *)         "           |                    |"
+      write(*, *)         "           |                    |"
+      write(*, *)         "           C---------E1---------C"
+      write(*, '(16x,es11.3)')                  E1
       write(*, *)
 
     end associate
 
+    ! do i = lbound(edge_vars, dim=2), ubound(edge_vars, dim=2)
+    ! do j = lbound(edge_vars, dim=3), ubound(edge_vars, dim=3)
+    !   write(*, '(4(es16.6))') edge_vars(:, i, j)
+    ! end do
+    ! end do
+
+    i = 2
+    j = 2
     @assertEqual(3.0_rk, edge_vars(1, i, j))
     @assertEqual(3.5_rk, edge_vars(2, i, j))
     @assertEqual(3.0_rk, edge_vars(3, i, j))
     @assertEqual(2.5_rk, edge_vars(4, i, j))
 
+    deallocate(edge_vars)
+    deallocate(edge_interpolator)
   end subroutine test_tvd2_none
 
   ! @test

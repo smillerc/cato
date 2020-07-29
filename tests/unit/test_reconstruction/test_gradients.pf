@@ -4,6 +4,7 @@ module test_gradients
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
   use mod_input, only: input_t
+  use mod_globals, only: n_ghost_layers
   use funit
 
   implicit none
@@ -29,6 +30,15 @@ module test_gradients
   class(grid_t), pointer :: grid
   type(input_t) :: input
 
+  integer(ik), parameter :: ilo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: ihi_c = ni_cells + n_ghost_layers
+  integer(ik), parameter :: jlo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: jhi_c = nj_cells + n_ghost_layers
+
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: grad_x = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: grad_y = 0.0_rk
+  real(rk), dimension(1:4, ilo_c:ihi_c, jlo_c:jhi_c) :: edge_vars = 0.0_rk
+
 contains
 
   @before
@@ -52,9 +62,7 @@ contains
   subroutine test_sgg_gradient()
 
     ! real(rk), dimension(0:ni_cells-1, 0:nj_cells-1) :: rho = 0.0_rk
-    real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: grad_x = 0.0_rk
-    real(rk), dimension(0:ni_cells - 1, 0:nj_cells - 1) :: grad_y = 0.0_rk
-    real(rk), dimension(1:4, 0:ni_cells - 1, 0:nj_cells - 1) :: edge_vars = 0.0_rk
+
     integer(ik) :: i, j
 
     write(*, *) "Testing the standard Green-Gauss gradient reconstruction"
