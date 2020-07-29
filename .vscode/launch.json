@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Launcher",
+            "name": "(gdb) Sod 1D",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bin/cato.x",
@@ -14,6 +14,20 @@
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
-        }
+        },
+        {
+            "name": "(gdb) Planar Target 1D",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/cato.x",
+            "args": [
+                "input.ini"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/tests/integrated/planar_target_1d",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+        },
     ]
 }
