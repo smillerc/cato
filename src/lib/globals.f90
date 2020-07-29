@@ -37,7 +37,7 @@ module mod_globals
 
   logical :: globals_set = .false.
 
-  integer(ik), protected :: n_ghost_layers = 1
+  integer(ik), protected :: n_ghost_layers = 2
 
   character(len=5), protected :: global_dimensionality
   logical, protected :: is_1d = .false.
@@ -169,15 +169,15 @@ contains
       error stop 'Invalid primitive variable name'
     end select
 
-    associate(cell_ave=>primitive_vars(l, i, j), &
-              C1=>corners(l, i, j), &
-              C2=>corners(l, i + 1, j), &
-              C3=>corners(l, i + 1, j + 1), &
-              C4=>corners(l, i, j + 1), &
-              M1=>leftright_midpoints(l, i, j), &
-              M2=>updown_midoints(l, i + 1, j), &
-              M3=>leftright_midpoints(l, i, j + 1), &
-              M4=>updown_midoints(l, i, j))
+    associate(cell_ave => primitive_vars(l, i, j), &
+              C1 => corners(l, i, j), &
+              C2 => corners(l, i + 1, j), &
+              C3 => corners(l, i + 1, j + 1), &
+              C4 => corners(l, i, j + 1), &
+              M1 => leftright_midpoints(l, i, j), &
+              M2 => updown_midoints(l, i + 1, j), &
+              M3 => leftright_midpoints(l, i, j + 1), &
+              M4 => updown_midoints(l, i, j))
 
       write(*, '(a)') "*********************************************"
       write(*, '(a)') "Evolved state for: "//trim(primitive_variable)
@@ -197,7 +197,7 @@ contains
       write(*, *)
     end associate
 
-    associate(V=>primitive_vars)
+    associate(V => primitive_vars)
       write(*, *) "Cell neighbors: ", trim(primitive_variable)
       write(*, *) "   (i-1,j+1)  |    (i,j+1)   |   (i+1,j+1)"
       write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j + 1), "   |", V(l, i, j + 1), "  |", V(l, i + 1, j + 1)
@@ -241,14 +241,14 @@ contains
       cell_ave = primitive_vars(l, i, j)
     end if
 
-    associate(C1=>reconstructed_domain(l, 1, 1, i, j), &
-              C2=>reconstructed_domain(l, 2, 1, i, j), &
-              C3=>reconstructed_domain(l, 3, 1, i, j), &
-              C4=>reconstructed_domain(l, 4, 1, i, j), &
-              M1=>reconstructed_domain(l, 1, 2, i, j), &
-              M2=>reconstructed_domain(l, 2, 2, i, j), &
-              M3=>reconstructed_domain(l, 3, 2, i, j), &
-              M4=>reconstructed_domain(l, 4, 2, i, j))
+    associate(C1 => reconstructed_domain(l, 1, 1, i, j), &
+              C2 => reconstructed_domain(l, 2, 1, i, j), &
+              C3 => reconstructed_domain(l, 3, 1, i, j), &
+              C4 => reconstructed_domain(l, 4, 1, i, j), &
+              M1 => reconstructed_domain(l, 1, 2, i, j), &
+              M2 => reconstructed_domain(l, 2, 2, i, j), &
+              M3 => reconstructed_domain(l, 3, 2, i, j), &
+              M4 => reconstructed_domain(l, 4, 2, i, j))
 
       write(*, '(a)') "*********************************************"
       write(*, '(a)') "Reconstructed state for: "//trim(primitive_variable)
@@ -270,7 +270,7 @@ contains
     end associate
 
     if(present(primitive_vars)) then
-      associate(V=>primitive_vars)
+      associate(V => primitive_vars)
         write(*, *) "Cell neighbors: ", trim(primitive_variable)
         write(*, *) "   (i-1,j+1)  |    (i,j+1)   |   (i+1,j+1)"
         write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j + 1), "   |", V(l, i, j + 1), "  |", V(l, i + 1, j + 1)

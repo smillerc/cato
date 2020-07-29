@@ -47,7 +47,7 @@ module mod_input
     real(rk) :: ymax = 0.0_rk   !< Maximum extent of the grid in y (ignored for .h5 initial grids)
     integer(ik) :: ni_nodes = 0 !< # of i nodes (not including ghost) (ignored for .h5 initial grids)
     integer(ik) :: nj_nodes = 0 !< # of j nodes (not including ghost) (ignored for .h5 initial grids)
-    integer(ik) :: n_ghost_layers = 1 !< # of ghost layers to use (based on spatial reconstruction order)
+    integer(ik) :: n_ghost_layers = 2 !< # of ghost layers to use (based on spatial reconstruction order)
 
     ! initial conditions
     character(:), allocatable :: initial_condition_file
@@ -180,7 +180,7 @@ contains
     character(len=120) :: char_buffer
     type(cfg_t) :: cfg
     logical :: file_exists
-    integer(ik) :: required_n_ghost_layers = 0
+    integer(ik) :: required_n_ghost_layers = 2
 
     file_exists = .false.
 
@@ -281,21 +281,21 @@ contains
     end if
 
     ! Grid
-    select case(trim(self%edge_interpolation_scheme))
-    case('TVD2')
-      required_n_ghost_layers = 1
-      call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
-    case('TVD3', 'TVD5', 'MLP3', 'MLP5')
-      required_n_ghost_layers = 2
-      call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
-    case default
-      error stop "Unknown edge interpolation scheme, must be one of the following: "// &
-        "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
-    end select
+    ! select case(trim(self%edge_interpolation_scheme))
+    ! case('TVD2')
+    !   required_n_ghost_layers = 1
+    !   call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
+    ! case('TVD3', 'TVD5', 'MLP3', 'MLP5')
+    !   required_n_ghost_layers = 2
+    call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
+    ! case default
+    !   error stop "Unknown edge interpolation scheme, must be one of the following: "// &
+    !     "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
+    ! end select
 
-    if(self%n_ghost_layers /= required_n_ghost_layers) then
-      error stop "The number of required ghost cell layers doesn't match the edge interpolation order"
-    end if
+    ! if(self%n_ghost_layers /= required_n_ghost_layers) then
+    !   error stop "The number of required ghost cell layers doesn't match the edge interpolation order"
+    ! end if
 
     call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
     self%grid_type = trim(char_buffer)

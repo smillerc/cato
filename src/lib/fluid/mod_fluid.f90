@@ -32,6 +32,7 @@ module mod_fluid
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
   use mod_units
+  use mod_distinguisher, only: distinguish
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -78,6 +79,9 @@ module mod_fluid
     real(rk), dimension(:, :), allocatable, public :: mach_v   !< (i, j); Conserved quantities
     !dir$ attributes align:__ALIGNBYTES__ :: mach_v
 
+    integer(ik), dimension(:, :), allocatable, public :: continuous_sensor !< (i, j); Is the cell continuous, or (non)linear discontinuous?
+    !dir$ attributes align:__ALIGNBYTES__ :: continuous_sensor
+
     class(flux_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
 
     ! Time variables
@@ -102,6 +106,7 @@ module mod_fluid
     procedure :: sanity_check
     procedure :: ssp_rk2
     procedure :: ssp_rk3
+    procedure :: get_continuity_sensor
     procedure, nopass :: add_fields
     procedure, nopass :: mult_fields
     procedure, nopass :: subtract_fields
@@ -158,10 +163,10 @@ contains
         "scale factors haven't been set yet. These need to be set before fluid initialization"
     end if
 
-    associate(imin=>grid%ilo_bc_cell, &
-              imax=>grid%ihi_bc_cell, &
-              jmin=>grid%jlo_bc_cell, &
-              jmax=>grid%jhi_bc_cell)
+    associate(imin => grid%ilo_bc_cell, &
+              imax => grid%ihi_bc_cell, &
+              jmin => grid%jlo_bc_cell, &
+              jmax => grid%jhi_bc_cell)
 
       allocate(self%rho(imin:imax, jmin:jmax))
       allocate(self%u(imin:imax, jmin:jmax))
@@ -188,15 +193,15 @@ contains
       allocate(m_ausmpw_plus_solver_t :: solver)
     case('AUSMPW+')
       allocate(ausmpw_plus_solver_t :: solver)
-    case('SLAU', 'SLAU2')
+    case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
       allocate(slau_solver_t :: solver)
     case default
       write(std_err, '(a)') "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
-        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2'], "// &
+        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
         "the input was: '"//trim(input%flux_solver)//"'"
 
       error stop "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
-        "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2']"
+    "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2']"
     end select
 
     call solver%initialize(input)
@@ -213,6 +218,7 @@ contains
       call self%initialize_from_ini(input)
     end if
 
+    call self%get_continuity_sensor()
     call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
 
     ilo = lbound(self%rho, dim=1)
@@ -493,6 +499,7 @@ contains
                                     rho_v=self%rho_v, rho_E=self%rho_E, &
                                     u=self%u, v=self%v, p=self%p)
 
+    call self%get_continuity_sensor()
     call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
 
     !$omp parallel default(none) &
@@ -513,6 +520,14 @@ contains
     self%prim_vars_updated = .true.
 
   end subroutine calculate_derived_quantities
+
+  subroutine get_continuity_sensor(self)
+    !< Run a distinguishing step that determines which regions in the domain are smooth (continuous),
+    !< or discontinuous (linear or non-linear)
+    class(fluid_t), intent(inout) :: self
+
+    call distinguish(rho=self%rho, u=self%u, v=self%v, p=self%p, continuity_sensor=self%continuous_sensor)
+  end subroutine get_continuity_sensor
 
   subroutine residual_smoother(self)
     class(fluid_t), intent(inout) :: self
@@ -973,7 +988,7 @@ contains
     allocate(R, source=U)
 
     ! 1st stage
-    associate(dt=>U%dt)
+    associate(dt => U%dt)
       call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
       U_1 = U + U%t(grid, stage=1) * dt
       call U_1%residual_smoother()

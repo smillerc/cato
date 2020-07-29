@@ -139,7 +139,7 @@ def make_2d_layered_grid(
     dy=None,
     layer_spacing=None,
     spacing_scale_factor=1.05,
-    n_ghost_layers=1,
+    n_ghost_layers=2,
 ):
     """Create a 2D layered grid (uniform in y, layers are in x)
 
@@ -219,12 +219,16 @@ def make_2d_layered_grid(
     rdx = x[-1] - x[-2]
 
     # find the minimum cell spacing
-    y_thickness = y_thickness.to("cm").m
+    try:
+        y_thickness = y_thickness.to("cm").m
+    except AttributeError:
+        pass
+
     if not dy:
         dy = np.diff(x).min()
     else:
         dy = dy.to("cm").m
-    n_y_cells = np.round(y_thickness / dy, 0).astype(int)
+    n_y_cells = max(1, np.round(y_thickness / dy, 0).astype(int))
 
     y = np.linspace(
         start=0 - n_ghost_layers * dy,
