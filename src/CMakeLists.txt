@@ -42,6 +42,7 @@ target_link_libraries(geometry PUBLIC globals io eos functional)
 
 # Create a list of the files to be preprocessed
 set(fyppFiles
+    lib/boundary_conditions/periodic_bc.fypp
     lib/limiters/e_mlp_distinguisher.fypp
     lib/flux_solvers/m_ausmpw_plus_solver.fypp
     lib/flux_solvers/ausmpw_plus_solver.fypp
@@ -81,7 +82,6 @@ add_library(
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
   lib/boundary_conditions/inlet_outlet.f90
-  lib/boundary_conditions/periodic_bc.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/symmetry_bc.f90
   lib/boundary_conditions/bc_factory.f90

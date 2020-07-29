@@ -5,6 +5,7 @@ module test_bc
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
+  use mod_globals, only: n_ghost_layers
   use funit
 
   implicit none
@@ -13,6 +14,11 @@ module test_bc
   integer(ik), parameter :: nj_nodes = 5
   integer(ik), parameter :: ni_cells = ni_nodes - 1
   integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik), parameter :: ilo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: ihi_c = ni_cells + n_ghost_layers
+  integer(ik), parameter :: jlo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: jhi_c = nj_cells + n_ghost_layers
+
   integer(ik) :: alloc_status
 
   type(input_t) :: input
@@ -36,7 +42,7 @@ contains
     input = input_t(cell_reconstruction='piecewise_linear', &
                     edge_interpolation_scheme='TVD2', &
                     flux_solver='AUSM+-up', &
-                    n_ghost_layers=1, &
+                    n_ghost_layers=2, &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
@@ -57,23 +63,48 @@ contains
     class(boundary_condition_t), pointer :: bc_minus_x
     class(boundary_condition_t), pointer :: bc_minus_y
     integer(ik), dimension(2) :: lbounds
+    integer(ik) :: i, j
+
+    real(rk), dimension(ilo_c:ihi_c) :: top_row = 0.0_rk
+    real(rk), dimension(ilo_c:ihi_c) :: bottom_row = 0.0_rk
+    real(rk), dimension(jlo_c:jhi_c) :: right_col = 0.0_rk
+    real(rk), dimension(jlo_c:jhi_c) :: left_col = 0.0_rk
 
     ! These are normally handled by the master puppeteer, but for now we make them ourselves
     associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
               bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
 
+      if (allocated(rho)) deallocate(rho)
       allocate(rho(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate rho"
+
+      if (allocated(u)) deallocate(u)
       allocate(u(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate u"
+
+      if (allocated(v)) deallocate(v)
       allocate(v(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate v"
+
+      if (allocated(p)) deallocate(p)
       allocate(p(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate p"
 
-      allocate(recon_rho(8, left:right, bottom:top), stat=alloc_status)
-      allocate(recon_u(8, left:right, bottom:top), stat=alloc_status)
-      allocate(recon_v(8, left:right, bottom:top), stat=alloc_status)
-      allocate(recon_p(8, left:right, bottom:top), stat=alloc_status)
+      if (allocated(recon_rho)) deallocate(recon_rho)
+      allocate(recon_rho(4, left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate recon_rho"
 
-      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so right=ni-1, etc
-      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+      if (allocated(recon_u)) deallocate(recon_u)
+      allocate(recon_u(4, left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate recon_u"
+
+      if (allocated(recon_v)) deallocate(recon_v)
+      allocate(recon_v(4, left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate recon_v"
+
+      if (allocated(recon_p)) deallocate(recon_p)
+      allocate(recon_p(4, left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate recon_p"
     end associate
 
     lbounds = lbound(rho)
@@ -101,19 +132,23 @@ contains
     ! the boundary routines
 
     !   Domain cartoon layout
-    !   |---||---|---|---|---||---|
-    !   | 2 || 1 | 5 | 5 | 2 || 1 | <- j3; aka top_ghost (grid%jhi_bc_cell)
-    !   |===||===|===|===|===||===|
-    !   | 3 || 4 | 7 | 7 | 3 || 4 | <- j2; aka top (grid%jhi_cell)
-    !   |---||---|---|---|---||---|
-    !   | 6 || 8 | D | D | 6 || 8 |
-    !   |---||---|---|---|---||---|
-    !   | 6 || 8 | D | D | 6 || 8 |
-    !   |---||---|---|---|---||---|
-    !   | 2 || 1 | 5 | 5 | 2 || 1 | <- j1; aka bottom (grid%jlo_cell)
-    !   |===||===|===|===|===||===|
-    !   | 3 || 4 | 7 | 7 | 3 || 4 | <- j0; aka bottom_ghost (grid%jlo_bc_cell)
-    !   |---||---|---|---|---||---|
+    !   |---|---||---|---|---|---||---|---|
+    !   | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=6; aka top_ghost (grid%jhi_bc_cell)
+    !   |---|---||---|---|---|---||---|---|
+    !   | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 |
+    !   |===|===||===|===|===|===||===|===|
+    !   | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 | <- j=4; aka top (grid%jhi_cell)
+    !   |---|---||---|---|---|---||---|---|
+    !   | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 |
+    !   |---|---||---|---|---|---||---|---|
+    !   | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 |
+    !   |---|---||---|---|---|---||---|---|
+    !   | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 | <- j=1; aka bottom (grid%jlo_cell)
+    !   |===|===||===|===|===|===||===|===|
+    !   | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 |
+    !   |---|---||---|---|---|---||---|---|
+    !   | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=-1; aka bottom_ghost (grid%jlo_bc_cell)
+    !   |---|---||---|---|---|---||---|---|
     !    i0   i1  i2  i3  i4   i5
 
     ! i0; aka left_ghost, grid%ilo_bc_cell
@@ -121,32 +156,22 @@ contains
     ! i4; aka right, grid%ihi_cell
     ! i5; aka right_ghost grid%ihi_bc_cell
 
-    !  . : ghost cell (aka boundary cell)
-    !  x : physical domain cell
-    !  D : unaffected central cell
-
     ! Set unique values along the (real) edges so I can test the bc routines
     associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
               bottom=>grid%jlo_cell, top=>grid%jhi_cell)
 
-      rho(left:right, bottom) = 5.0_rk ! "5" cells in cartoon
-      rho(left:right, top) = 7.0_rk    ! "7" cells in cartoon
-      rho(left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
-      rho(right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
-      rho(left, bottom) = 1.0_rk       ! "1" cells in cartoon
-      rho(left, top) = 4.0_rk          ! "4" cells in cartoon
-      rho(right, bottom) = 2.0_rk      ! "2" cells in cartoon
-      rho(right, top) = 3.0_rk         ! "3" cells in cartoon
+      rho(left:right, top) =    [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
+      rho(left:right, bottom) = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
+      rho(left, bottom+1:top-1) = 8.0_rk
+      rho(right, bottom+1:top-1) = 6.0_rk
 
-      ! recon_rho(:, left:right, bottom) = 5.0_rk ! "5" cells in cartoon
-      ! recon_rho(:, left:right, top) = 7.0_rk    ! "7" cells in cartoon
-      ! recon_rho(:, right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
-      ! recon_rho(:, left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
-      ! recon_rho(:, left, bottom) = 1.0_rk       ! "1" cells in cartoon
-      ! recon_rho(:, left, top) = 4.0_rk          ! "4" cells in cartoon
-      ! recon_rho(:, right, bottom) = 2.0_rk      ! "2" cells in cartoon
-      ! recon_rho(:, right, top) = 3.0_rk         ! "3" cells in cartoon
     end associate
+
+    do j = grid%jlo_bc_cell, grid%jhi_bc_cell
+      do i = grid%ilo_bc_cell, grid%ihi_bc_cell
+        recon_rho(:,i,j) = rho(i,j)
+      end do
+    end do
 
     call bc_plus_x%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
     call bc_plus_y%apply_primitive_var_bc(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
@@ -169,26 +194,64 @@ contains
                                                  recon_v=recon_v, recon_p=recon_p, &
                                                  lbounds=lbounds)
 
+
+
     associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
               bottom=>grid%jlo_cell, top=>grid%jhi_cell, &
               left_ghost=>grid%ilo_bc_cell, right_ghost=>grid%ihi_bc_cell, &
               bottom_ghost=>grid%jlo_bc_cell, top_ghost=>grid%jhi_bc_cell)
 
-      ! bottom ghost layer
-      @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], rho(:, bottom_ghost))
-      ! @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], recon_rho(1, 1, 1, :, bottom_ghost))
+      ! bottom ghost layers
+      bottom_row = [7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk]
+      @assertEqual(bottom_row, rho(:, bottom_ghost + 1))
+      do i = lbound(bottom_row, dim=1), ubound(bottom_row, dim=1)
+        @assertEqual(bottom_row(i), recon_rho(:, i, bottom_ghost + 1))
+      end do
+
+      bottom_row = [0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk]
+      @assertEqual(bottom_row, rho(:, bottom_ghost))
+      do i = lbound(bottom_row, dim=1), ubound(bottom_row, dim=1)
+        @assertEqual(bottom_row(i), recon_rho(:, i, bottom_ghost))
+      end do
 
       ! top ghost layer
-      @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], rho(:, top_ghost))
-      ! @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], recon_rho(1, 1, 1, :, top_ghost))
+      top_row = [0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk]
+      @assertEqual(top_row, rho(:, top_ghost))
+      do i = lbound(top_row, dim=1), ubound(top_row, dim=1)
+        @assertEqual(top_row(i), recon_rho(:, i, top_ghost))
+      end do
 
-      ! left ghost layer
-      @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], rho(left_ghost, :))
-      ! @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], recon_rho(1, 1, 1, left_ghost, :))
+      top_row = [5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk]
+      @assertEqual(top_row, rho(:, top_ghost - 1))
+      do i = lbound(top_row, dim=1), ubound(top_row, dim=1)
+        @assertEqual(top_row(i), recon_rho(:, i, top_ghost - 1))
+      end do
 
       ! right ghost layer
-      @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], rho(right_ghost, :))
-      ! @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], recon_rho(1, 1, 1, right_ghost, :))
+      right_col = [8.0_rk, 4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk, 8.0_rk]
+      @assertEqual(right_col, rho(right_ghost - 1, :))
+      do i = lbound(right_col, dim=1), ubound(right_col, dim=1)
+        @assertEqual(right_col(i), recon_rho(:, right_ghost - 1, i))
+      end do
+
+      right_col = [0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk]
+      @assertEqual(right_col, rho(right_ghost, :))
+      do i = lbound(right_col, dim=1), ubound(right_col, dim=1)
+        @assertEqual(right_col(i), recon_rho(:, right_ghost, i))
+      end do
+
+      ! left ghost layer
+      left_col = [6.0_rk, 3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk, 6.0_rk]
+      @assertEqual(left_col, rho(left_ghost + 1, :))
+      do i = lbound(left_col, dim=1), ubound(left_col, dim=1)
+        @assertEqual(left_col(i), recon_rho(:, left_ghost + 1, i))
+      end do
+
+      left_col = [0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk]
+      @assertEqual(left_col, rho(left_ghost, :))
+      do i = lbound(left_col, dim=1), ubound(left_col, dim=1)
+        @assertEqual(left_col(i), recon_rho(:, left_ghost, i))
+      end do
     end associate
 
     deallocate(bc_plus_x)
@@ -207,7 +270,7 @@ contains
 
   end subroutine test_periodic
 
-  @test
+  ! @test
   subroutine test_symmetry_with_recon()
     !< Test the symmetry boundary condition
     class(boundary_condition_t), pointer :: bc_plus_x
@@ -216,6 +279,12 @@ contains
     class(boundary_condition_t), pointer :: bc_minus_y
     integer(ik) :: top_ghost, left_ghost, right_ghost, bottom_ghost
     integer(ik), dimension(2) :: lbounds
+    integer(ik) :: i, j
+
+    real(rk), dimension(ilo_c:ihi_c) :: top_row = 0.0_rk
+    real(rk), dimension(ilo_c:ihi_c) :: bottom_row = 0.0_rk
+    real(rk), dimension(jlo_c:jhi_c) :: right_col = 0.0_rk
+    real(rk), dimension(jlo_c:jhi_c) :: left_col = 0.0_rk
 
     bottom_ghost = grid%jlo_bc_cell
     top_ghost = grid%jhi_bc_cell
@@ -227,18 +296,38 @@ contains
     associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
               bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
 
+      if (allocated(rho)) deallocate(rho)
       allocate(rho(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate rho"
+
+      if (allocated(u)) deallocate(u)
       allocate(u(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate u"
+
+      if (allocated(v)) deallocate(v)
       allocate(v(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate v"
+
+      if (allocated(p)) deallocate(p)
       allocate(p(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate p"
 
+      if (allocated(recon_rho)) deallocate(recon_rho)
       allocate(recon_rho(4, left:right, bottom:top), stat=alloc_status)
-      allocate(recon_u(4, left:right, bottom:top), stat=alloc_status)
-      allocate(recon_v(4, left:right, bottom:top), stat=alloc_status)
-      allocate(recon_p(4, left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate recon_rho"
 
-      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so right=ni-1, etc
-      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+      if (allocated(recon_u)) deallocate(recon_u)
+      allocate(recon_u(4, left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate recon_u"
+
+      if (allocated(recon_v)) deallocate(recon_v)
+      allocate(recon_v(4, left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate recon_v"
+
+      if (allocated(recon_p)) deallocate(recon_p)
+      allocate(recon_p(4, left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate recon_p"
+
     end associate
 
     lbounds = lbound(rho)
@@ -252,20 +341,37 @@ contains
     @assertEqual('-x', bc_minus_x%location)
     @assertEqual('-y', bc_minus_y%location)
 
+    ! Test the conserved var state
+    rho = 0.0_rk
+    u = 0.0_rk
+    v = 0.0_rk
+    p = 0.0_rk
+
+    recon_rho = 0.0_rk
+    recon_u = 0.0_rk
+    recon_v = 0.0_rk
+    recon_p = 0.0_rk
+
+    ! the boundary routines
+
     !   Domain cartoon layout
-    !   |---||---|---|---|---||---|
-    !   | 0 || 0 | -2| -2| 0 || 0 | <- j3; aka top_ghost (grid%jhi_bc_cell)
-    !   |===||===|===|===|===||===|
-    !   | 0 || 0 | 2 | 2 | 0 || 0 | <- j2; aka top (grid%jhi_cell)
-    !   |---||---|---|---|---||---|
-    !   | -1|| 1 | 0 | 0 | 3 || -3|
-    !   |---||---|---|---|---||---|
-    !   | -1|| 1 | 0 | 0 | 3 || -3|
-    !   |---||---|---|---|---||---|
-    !   | 0 || 0 | 5 | 5 | 0 || 0 | <- j1; aka bottom (grid%jlo_cell)
-    !   |===||===|===|===|===||===|
-    !   | 0 || 0 | -5| -5| 0 || 0 | <- j0; aka bottom_ghost (grid%jlo_bc_cell)
-    !   |---||---|---|---|---||---|
+    !   |---|---||---|---|---|---||---|---|
+    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=6; aka top_ghost (grid%jhi_bc_cell)
+    !   |---|---||---|---|---|---||---|---|
+    !   | - | - || 4 | 7 | 7 | 3 || - | - |
+    !   |===|===||===|===|===|===||===|===|
+    !   | 7 | 4 || 4 | 7 | 7 | 3 || 3 | 7 | <- j=4; aka top (grid%jhi_cell)
+    !   |---|---||---|---|---|---||---|---|
+    !   | 0 | 8 || 8 | 0 | 0 | 6 || 6 | 0 |
+    !   |---|---||---|---|---|---||---|---|
+    !   | 0 | 8 || 8 | 0 | 0 | 6 || 6 | 0 |
+    !   |---|---||---|---|---|---||---|---|
+    !   | 5 | 1 || 1 | 5 | 5 | 2 || 2 | 5 | <- j=1; aka bottom (grid%jlo_cell)
+    !   |===|===||===|===|===|===||===|===|
+    !   | - | - || 1 | 5 | 5 | 2 || - | - |
+    !   |---|---||---|---|---|---||---|---|
+    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=-1; aka bottom_ghost (grid%jlo_bc_cell)
+    !   |---|---||---|---|---|---||---|---|
     !    i0   i1  i2  i3  i4   i5
 
     ! i0; aka left_ghost, grid%ilo_bc_cell
@@ -274,35 +380,21 @@ contains
     ! i5; aka right_ghost grid%ihi_bc_cell
 
     ! Set unique values along the (real) edges so I can test the bc routines
-    ! Recon cells are psuedo edge values that we would
-    ! normally get from the TVD edge interpolation values. The values
-    ! will be in order of [bottom, right, top, left]. These are important
-    ! to get flipped for a symmetry boundary. The value given in the cartoon represents
-    ! the cell average value, and the edge on the boundary will be +1 and the edge away
-    ! from it will be -1 of the average.
+    associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
+              bottom=>grid%jlo_cell, top=>grid%jhi_cell)
 
-    rho = 0.0_rk
-    recon_rho = 0.0_rk
+      rho(left:right, top) =    [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
+      rho(left:right, bottom) = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
+      rho(left, bottom+1:top-1) = 8.0_rk
+      rho(right, bottom+1:top-1) = 6.0_rk
 
-    ! Bottom BC of the domain (-y)
-    recon_rho(top_edge, 2:3, 1) = 4.0_rk
-    rho(2:3, 1) = 5.0_rk
-    recon_rho(bottom_edge, 2:3, 1) = 6.0_rk
+    end associate
 
-    ! Top BC of the domain (+y)
-    recon_rho(top_edge, 2:3, 4) = 3.0_rk
-    rho(2:3, 4) = 2.0_rk
-    recon_rho(bottom_edge, 2:3, 4) = 1.0_rk
-
-    ! Left BC of the domain (-x)
-    recon_rho(left_edge, 1, 2:3) = 2.0_rk
-    rho(1, 2:3) = 1.0_rk
-    recon_rho(right_edge, 1, 2:3) = 0.0_rk
-
-    ! Right BC of the domain (+x)
-    recon_rho(right_edge, 4, 2:3) = 4.0_rk
-    rho(4, 2:3) = 3.0_rk
-    recon_rho(left_edge, 4, 2:3) = 2.0_rk
+    do j = grid%jlo_bc_cell, grid%jhi_bc_cell
+      do i = grid%ilo_bc_cell, grid%ihi_bc_cell
+        recon_rho(:,i,j) = rho(i,j)
+      end do
+    end do
 
     ! Copy to the other arrays
     u = rho

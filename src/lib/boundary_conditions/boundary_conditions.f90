@@ -113,12 +113,12 @@ contains
     !< (ilo_layers(n), ihi_layers(n), jlo_layers(n), jhi_layers(n)); indices to the ghost layers.
     !< The ilo_layers type var can be scalar or a vector, e.g. ilo_layers = [-1,0] or ilo_layers = 0
 
+    ! Note: The indexing order starts with the inner-most index, e.g the index closest to the real domain
+
     ! Example:
     ! the cells are numbered as follows: [-1 0 | 1 2 3 4 | 5 6]
-    ! the real cells are [1,2,3,4] and the ghost cells are [-1 0] and [5 6]
-    ! or
-    ! the cells are numbered as follows: [ 0 | 1 2 3 4 | 5 ]
-    ! the real cells are [1,2,3,4] and the ghost cells are [0] and [5]
+    ! the real cells are [1,2,3,4] and the ghost cells are [-1 0] and [5 6].
+    ! Then ilo_ghost = [0, -1] and ihi_ghost = [5, 6]
 
     self%n_ghost_layers = grid%ilo_cell - grid%ilo_bc_cell
 
@@ -144,6 +144,8 @@ contains
         self%jlo_ghost(i) = grid%jlo_bc_cell + i - 1
         self%jhi_ghost(i) = grid%jhi_bc_cell - i + 1
       end do
+      self%ilo_ghost = .reverse.self%ilo_ghost
+      self%jlo_ghost = .reverse.self%jlo_ghost
       self%ihi_ghost = .reverse.self%ihi_ghost
       self%jhi_ghost = .reverse.self%jhi_ghost
 

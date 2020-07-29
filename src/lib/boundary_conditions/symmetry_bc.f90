@@ -202,9 +202,11 @@ contains
 
     integer(ik) :: g
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    ! error stop "FixME symmetry_bc_t"
+
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
@@ -266,9 +268,9 @@ contains
 
     integer(ik) :: i, j, g
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
@@ -330,9 +332,9 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
     integer(ik) :: g
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
