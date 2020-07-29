@@ -187,6 +187,9 @@ contains
 
     class(grid_t), intent(in) :: grid
     integer(ik) :: i, j
+    integer(ik), parameter :: n_ghost_cells = 2
+    integer(ik) :: total_ni_cells
+    integer(ik) :: total_nj_cells
     ! type(input_t) :: input
 
     @assertEqual(5, grid%ni_node)
@@ -205,15 +208,15 @@ contains
     @assertEqual(1, grid%jlo_cell)
     @assertEqual(2, grid%jhi_cell)
 
-    @assertEqual(0, grid%ilo_bc_node)
-    @assertEqual(0, grid%jlo_bc_node)
-    @assertEqual(0, grid%ilo_bc_cell)
-    @assertEqual(0, grid%jlo_bc_cell)
+    @assertEqual(-1, grid%ilo_bc_node)
+    @assertEqual(-1, grid%jlo_bc_node)
+    @assertEqual(-1, grid%ilo_bc_cell)
+    @assertEqual(-1, grid%jlo_bc_cell)
 
-    @assertEqual(6, grid%ihi_bc_node)
-    @assertEqual(4, grid%jhi_bc_node)
-    @assertEqual(5, grid%ihi_bc_cell)
-    @assertEqual(3, grid%jhi_bc_cell)
+    @assertEqual(7, grid%ihi_bc_node)
+    @assertEqual(5, grid%jhi_bc_node)
+    @assertEqual(6, grid%ihi_bc_cell)
+    @assertEqual(4, grid%jhi_bc_cell)
 
     @assertEqual(1.0_rk, grid%min_dx)
     @assertEqual(2.0_rk, grid%min_dy)
@@ -246,29 +249,31 @@ contains
     @assertEqual([-2.0_rk, -1.0_rk],[grid%cell_node_x(M4, 1, 1), grid%cell_node_y(M4, 1, 1)])
 
     ! Check bounds and shape
-    @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_volume))
-    @assertEqual([0, 0], lbound(grid%cell_volume))
-    @assertEqual([ni_cells + 1, nj_cells + 1], ubound(grid%cell_volume))
+    total_ni_cells = ni_cells + n_ghost_cells
+    total_nj_cells = nj_cells + n_ghost_cells
+    @assertEqual([ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_volume))
+    @assertEqual([-1, -1], lbound(grid%cell_volume))
+    @assertEqual([total_ni_cells, total_nj_cells], ubound(grid%cell_volume))
 
-    @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_centroid_x))
-    @assertEqual([0, 0], lbound(grid%cell_centroid_x))
-    @assertEqual([ni_cells + 1, nj_cells + 1], ubound(grid%cell_centroid_x))
+    @assertEqual([ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_centroid_x))
+    @assertEqual([-1, -1], lbound(grid%cell_centroid_x))
+    @assertEqual([total_ni_cells, total_nj_cells], ubound(grid%cell_centroid_x))
 
-    @assertEqual([ni_cells + 2, nj_cells + 2], shape(grid%cell_centroid_y))
-    @assertEqual([0, 0], lbound(grid%cell_centroid_y))
-    @assertEqual([ni_cells + 1, nj_cells + 1], ubound(grid%cell_centroid_y))
+    @assertEqual([ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_centroid_y))
+    @assertEqual([-1, -1], lbound(grid%cell_centroid_y))
+    @assertEqual([total_ni_cells, total_nj_cells], ubound(grid%cell_centroid_y))
 
-    @assertEqual([4, ni_cells + 2, nj_cells + 2], shape(grid%cell_edge_lengths))
-    @assertEqual([1, 0, 0], lbound(grid%cell_edge_lengths))
-    @assertEqual([4, ni_cells + 1, nj_cells + 1], ubound(grid%cell_edge_lengths))
+    @assertEqual([4, ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_edge_lengths))
+    @assertEqual([1, -1, -1], lbound(grid%cell_edge_lengths))
+    @assertEqual([4, total_ni_cells, total_nj_cells], ubound(grid%cell_edge_lengths))
 
-    @assertEqual([2, 4, ni_cells + 2, nj_cells + 2], shape(grid%cell_edge_norm_vectors))
-    @assertEqual([1, 1, 0, 0], lbound(grid%cell_edge_norm_vectors))
-    @assertEqual([2, 4, ni_cells + 1, nj_cells + 1], ubound(grid%cell_edge_norm_vectors))
+    @assertEqual([2, 4, ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_edge_norm_vectors))
+    @assertEqual([1, 1, -1, -1], lbound(grid%cell_edge_norm_vectors))
+    @assertEqual([2, 4, total_ni_cells, total_nj_cells], ubound(grid%cell_edge_norm_vectors))
 
-    @assertEqual([8, ni_cells + 2, nj_cells + 2], shape(grid%cell_node_x))
-    @assertEqual([1, 0, 0], lbound(grid%cell_node_x))
-    @assertEqual([8, ni_cells + 1, nj_cells + 1], ubound(grid%cell_node_x))
+    @assertEqual([8, ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_node_x))
+    @assertEqual([1, -1, -1], lbound(grid%cell_node_x))
+    @assertEqual([8, total_ni_cells, total_nj_cells], ubound(grid%cell_node_x))
 
   end subroutine test_grid_bounds
 end module test_grid

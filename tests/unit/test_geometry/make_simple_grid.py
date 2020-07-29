@@ -6,7 +6,7 @@ import pint
 ureg = pint.UnitRegistry()
 
 
-def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=1):
+def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=2):
     """Generate a uniform grid. This will output a dictionary
     that contains the appropriate arrays, which include the ghost
     cell layer.
