@@ -64,8 +64,8 @@ contains
 
     H_dot_n = 0.0_rk
     normal_vector = [6.0_rk, 7.0_rk]
-    associate(rho => 2.0_rk, u => 3.0_rk, v => 4.0_rk, p => 5.0_rk, &
-              gamma => (5.0_rk / 3.0_rk), n => normal_vector)
+    associate(rho=>2.0_rk, u=>3.0_rk, v=>4.0_rk, p=>5.0_rk, &
+              gamma=>(5.0_rk / 3.0_rk), n=>normal_vector)
 
       ! e = (p/(gamma - 1.0_rk)) + 0.5_rk*rho*(u**2 + v**2)
       e = 0.5_rk * rho * (u**2 + v**2) + (p / (gamma - 1.0_rk))

@@ -88,10 +88,10 @@ contains
     allocate(reconstruction_operator, source=r_omega)
     deallocate(r_omega)
 
-    associate(imin_node => grid%ilo_node, imax_node => grid%ihi_node, &
-              jmin_node => grid%jlo_node, jmax_node => grid%jhi_node, &
-              imin_cell => grid%ilo_cell, imax_cell => grid%ihi_cell, &
-              jmin_cell => grid%jlo_cell, jmax_cell => grid%jhi_cell)
+    associate(imin_node=>grid%ilo_node, imax_node=>grid%ihi_node, &
+              jmin_node=>grid%jlo_node, jmax_node=>grid%jhi_node, &
+              imin_cell=>grid%ilo_cell, imax_cell=>grid%ihi_cell, &
+              jmin_cell=>grid%jlo_cell, jmax_cell=>grid%jhi_cell)
 
       allocate(corner_neighbors(2, 4, imin_node:imax_node, jmin_node:jmax_node))
       allocate(leftright_midpoint_neighbors(2, 2, imin_cell:imax_cell, jmin_node:jmax_node))
