@@ -297,6 +297,8 @@ contains
     integer(ik), parameter ::    TOP_IDX = 3 !< edge index for the top edge of the current cell
     integer(ik), parameter ::   LEFT_IDX = 4 !< edge index for the left edge of the current cell
 
+    real(rk), parameter :: THRESHOLD = 5e-3_rk
+
     ! assume_aligned rho: __ALIGNBYTES__
     ! assume_aligned u: __ALIGNBYTES__
     ! assume_aligned v: __ALIGNBYTES__
@@ -410,7 +412,7 @@ contains
 
         ! Eq 2.3i
         delta_p = p_R - p_L
-        if(abs(delta_p) < epsilon(1.0_rk)) delta_p = 0.0_rk
+        if(abs(delta_p) < epsilon(1.0_rk) .or. abs(delta_p) < THRESHOLD * p_bar) delta_p = 0.0_rk
 
         delta_rho = rho_R - rho_L
         if(abs(delta_rho) < epsilon(1.0_rk)) delta_rho = 0.0_rk
@@ -444,13 +446,27 @@ contains
         delta_p6 = abs(p_ave(i - 1, j + 1) - p_ave(i, j + 1))
       #:endif
 
+        if(delta_p1 < epsilon(1.0_rk) .or. delta_p1 < THRESHOLD * p_bar) delta_p1 = 0.0_rk
+        if(delta_p2 < epsilon(1.0_rk) .or. delta_p2 < THRESHOLD * p_bar) delta_p2 = 0.0_rk
+        if(delta_p3 < epsilon(1.0_rk) .or. delta_p3 < THRESHOLD * p_bar) delta_p3 = 0.0_rk
+        if(delta_p4 < epsilon(1.0_rk) .or. delta_p4 < THRESHOLD * p_bar) delta_p4 = 0.0_rk
+        if(delta_p5 < epsilon(1.0_rk) .or. delta_p5 < THRESHOLD * p_bar) delta_p5 = 0.0_rk
+        if(delta_p6 < epsilon(1.0_rk) .or. delta_p6 < THRESHOLD * p_bar) delta_p6 = 0.0_rk
+
         ! Eq. 1d in Ref [2]
         delta_p_max = max(abs(delta_p), max(delta_p1, delta_p2, delta_p3, &
                                             delta_p4, delta_p5, delta_p6))
+
         ! Eq. 6a and 7 in Ref [2]
-        theta = min(1.0_rk, ((C_SD1 * abs(delta_p) / p_bar + C_SD1) / (delta_p_max / p_bar + C_SD1))**2) * &
-                0.5_rk * (abs(M_bar + 1.0_rk) + abs(M_bar - 1.0_rk) - 2.0_rk * abs(M_bar))
-        ! write(std_err,'(a, 10(es16.6))') '${DIR}$ theta', delta_p_max, delta_p, delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6
+        ! theta = min(1.0_rk, (((C_SD1 * abs(delta_p) / p_bar) + C_SD1) / &
+        !                      ((delta_p_max / p_bar) + C_SD1))**2) * &
+        !         0.5_rk * (abs(M_bar + 1.0_rk) + abs(M_bar - 1.0_rk) - 2.0_rk * abs(M_bar))
+        theta = min(1.0_rk, (((C_SD1 * abs(delta_p) / p_bar) + C_SD1) / &
+                             ((delta_p_max / p_bar) + C_SD1))**2) * &
+                max(0.0_rk, 1.0_rk - abs(M_bar))
+        ! if (delta_p_max > 0.0_rk) then
+        !   write(*,'(a, 2(i4), 20(es16.6))') '${DIR}$ theta', i, j, p_bar, THRESHOLD * p_bar, delta_p_max, delta_p, delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6
+        ! end if
     #:endif
 
       #:if VARIANT == 'SLAU' or VARIANT == 'SD-SLAU'
@@ -468,9 +484,9 @@ contains
         ! Eq. A5, Ref [1]
         mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * (1.0_rk - g) - ((Chi / (2.0_rk * c_bar)) * delta_p)
 
-      #:elif VARIANT == 'SD-SLAU' or VARIANT == 'SD-SLAU2'
+        #:elif VARIANT == 'SD-SLAU' or VARIANT == 'SD-SLAU2'
         ! Eq 5 in Ref [3]
-        mass_flux = 0.5_rk * (rho_L * V_n_plus + rho_R * V_n_minus - abs(V_n_bar) * delta_rho) * (1.0_rk - g) - ((Chi / (2.0_rk * c_bar)) * theta)
+        mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * (1.0_rk - g) - ((theta / (2.0_rk * c_bar)) * delta_p)
 
       #:endif
 
