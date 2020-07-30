@@ -204,30 +204,32 @@ contains
     if(allocated(self%edge_v)) deallocate(self%edge_v)
     if(allocated(self%edge_p)) deallocate(self%edge_p)
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost, &
-              n=>self%n_ghost_layers)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => minval(self%ilo_ghost), &
+              right_ghost => maxval(self%ihi_ghost), &
+              bottom_ghost => minval(self%jlo_ghost), &
+              top_ghost => maxval(self%jhi_ghost), &
+              n => self%n_ghost_layers)
 
       select case(self%location)
       case('+x', '-x')
-        allocate(self%edge_rho(bottom_ghost(1):top_ghost(n)))
-        allocate(self%edge_u(bottom_ghost(1):top_ghost(n)))
-        allocate(self%edge_v(bottom_ghost(1):top_ghost(n)))
-        allocate(self%edge_p(bottom_ghost(1):top_ghost(n)))
-        allocate(domain_rho(bottom_ghost(1):top_ghost(n)))
-        allocate(domain_u(bottom_ghost(1):top_ghost(n)))
-        allocate(domain_v(bottom_ghost(1):top_ghost(n)))
-        allocate(domain_p(bottom_ghost(1):top_ghost(n)))
+        allocate(self%edge_rho(bottom_ghost:top_ghost))
+        allocate(self%edge_u(bottom_ghost:top_ghost))
+        allocate(self%edge_v(bottom_ghost:top_ghost))
+        allocate(self%edge_p(bottom_ghost:top_ghost))
+        allocate(domain_rho(bottom_ghost:top_ghost))
+        allocate(domain_u(bottom_ghost:top_ghost))
+        allocate(domain_v(bottom_ghost:top_ghost))
+        allocate(domain_p(bottom_ghost:top_ghost))
       case('+y', '-y')
-        allocate(self%edge_rho(left_ghost(1):right_ghost(n)))
-        allocate(self%edge_u(left_ghost(1):right_ghost(n)))
-        allocate(self%edge_v(left_ghost(1):right_ghost(n)))
-        allocate(self%edge_p(left_ghost(1):right_ghost(n)))
-        allocate(domain_rho(left_ghost(1):right_ghost(n)))
-        allocate(domain_u(left_ghost(1):right_ghost(n)))
-        allocate(domain_v(left_ghost(1):right_ghost(n)))
-        allocate(domain_p(left_ghost(1):right_ghost(n)))
+        allocate(self%edge_rho(left_ghost:right_ghost))
+        allocate(self%edge_u(left_ghost:right_ghost))
+        allocate(self%edge_v(left_ghost:right_ghost))
+        allocate(self%edge_p(left_ghost:right_ghost))
+        allocate(domain_rho(left_ghost:right_ghost))
+        allocate(domain_u(left_ghost:right_ghost))
+        allocate(domain_v(left_ghost:right_ghost))
+        allocate(domain_p(left_ghost:right_ghost))
       end select
 
       self%edge_rho = 0.0_rk
@@ -244,15 +246,15 @@ contains
       case('+x')
         call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
-        domain_rho = rho(right, bottom_ghost(1):top_ghost(n))
-        domain_u = u(right, bottom_ghost(1):top_ghost(n))
+        domain_rho = rho(right, bottom_ghost:top_ghost)
+        domain_u = u(right, bottom_ghost:top_ghost)
         domain_v = 0.0_rk
-        domain_p = p(right, bottom_ghost(1):top_ghost(n))
+        domain_p = p(right, bottom_ghost:top_ghost)
         boundary_norm = [1.0_rk, 0.0_rk] ! outward normal vector at +x
 
         do j = bottom, top
-          associate(rho_d=>domain_rho(j), u_d=>domain_u(j), &
-                    v_d=>domain_v(j), p_d=>domain_p(j))
+          associate(rho_d => domain_rho(j), u_d => domain_u(j), &
+                    v_d => domain_v(j), p_d => domain_p(j))
             domain_prim_vars = [rho_d, u_d, v_d, p_d]
 
             call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
@@ -286,10 +288,10 @@ contains
         end do
 
         do i = 1, self%n_ghost_layers
-          rho(right_ghost(i), bottom:top) = self%edge_rho(bottom:top)
-          u(right_ghost(i), bottom:top) = self%edge_u(bottom:top)
-          v(right_ghost(i), bottom:top) = self%edge_v(bottom:top)
-          p(right_ghost(i), bottom:top) = self%edge_p(bottom:top)
+          rho(self%ihi_ghost(i), bottom:top) = self%edge_rho(bottom:top)
+          u(self%ihi_ghost(i), bottom:top) = self%edge_u(bottom:top)
+          v(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
+          p(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
         end do
       case default
         error stop "Unsupported location to apply the bc at in "// &
@@ -314,9 +316,9 @@ contains
 
     integer(ik) :: i, p
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
       select case(self%location)
       case('+x')
         call debug_print('Running pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc() +x', __FILE__, __LINE__)
@@ -360,8 +362,8 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
     integer(ik) :: i
 
-    associate(left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')

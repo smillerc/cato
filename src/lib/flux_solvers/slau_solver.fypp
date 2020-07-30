@@ -486,11 +486,6 @@ contains
         edge_flux(3, i, j) = (mass_flux_L * v_L) + (mass_flux_R * v_R) + p_tilde * n_y
         edge_flux(4, i, j) = (mass_flux_L * H_L) + (mass_flux_R * H_R)
 
-        ! if (M_plus < 0.0_rk .and. M_minus > 0.0_rk .and. p_bar < .05_rk .and. i > 300) then
-        !   print*, 'adsfasdfasdf'
-        ! end if
-
-
       end do
     end do
     !$omp end do

@@ -62,18 +62,18 @@ contains
 
     integer(ik) :: i
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
         call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', __FILE__, __LINE__)
         do i = 1, self%n_ghost_layers
-          rho(right_ghost(i), :) = rho(right + (i - 1), :)
-          u(right_ghost(i), :) = u(right + (i - 1), :)
-          v(right_ghost(i), :) = v(right + (i - 1), :)
-          p(right_ghost(i), :) = p(right + (i - 1), :)
+          rho(right_ghost(i), :) = rho(right - (i - 1), :)
+          u(right_ghost(i), :) = u(right - (i - 1), :)
+          v(right_ghost(i), :) = v(right - (i - 1), :)
+          p(right_ghost(i), :) = p(right - (i - 1), :)
         end do
 
       case('-x')
@@ -88,10 +88,10 @@ contains
       case('+y')
         call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', __FILE__, __LINE__)
         do i = 1, self%n_ghost_layers
-          rho(:, top_ghost(i)) = rho(:, top + (i - 1))
-          u(:, top_ghost(i)) = u(:, top + (i - 1))
-          v(:, top_ghost(i)) = v(:, top + (i - 1))
-          p(:, top_ghost(i)) = p(:, top + (i - 1))
+          rho(:, top_ghost(i)) = rho(:, top - (i - 1))
+          u(:, top_ghost(i)) = u(:, top - (i - 1))
+          v(:, top_ghost(i)) = v(:, top - (i - 1))
+          p(:, top_ghost(i)) = p(:, top - (i - 1))
         end do
       case('-y')
         call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', __FILE__, __LINE__)
@@ -121,19 +121,19 @@ contains
 
     integer(ik) :: i
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
         call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() +x', __FILE__, __LINE__)
 
         do i = 1, self%n_ghost_layers
-          recon_rho(:, right_ghost(i), :) = recon_rho(:, right + (i - 1), :)
-          recon_u(:, right_ghost(i), :) = recon_u(:, right + (i - 1), :)
-          recon_v(:, right_ghost(i), :) = recon_v(:, right + (i - 1), :)
-          recon_p(:, right_ghost(i), :) = recon_p(:, right + (i - 1), :)
+          recon_rho(:, right_ghost(i), :) = recon_rho(:, right - (i - 1), :)
+          recon_u(:, right_ghost(i), :) = recon_u(:, right - (i - 1), :)
+          recon_v(:, right_ghost(i), :) = recon_v(:, right - (i - 1), :)
+          recon_p(:, right_ghost(i), :) = recon_p(:, right - (i - 1), :)
         end do
 
       case('-x')
@@ -147,10 +147,10 @@ contains
       case('+y')
         call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() +y', __FILE__, __LINE__)
         do i = 1, self%n_ghost_layers
-          recon_rho(:, :, top_ghost(i)) = recon_rho(:, :, top + (i - 1))
-          recon_u(:, :, top_ghost(i)) = recon_u(:, :, top + (i - 1))
-          recon_v(:, :, top_ghost(i)) = recon_v(:, :, top + (i - 1))
-          recon_p(:, :, top_ghost(i)) = recon_p(:, :, top + (i - 1))
+          recon_rho(:, :, top_ghost(i)) = recon_rho(:, :, top - (i - 1))
+          recon_u(:, :, top_ghost(i)) = recon_u(:, :, top - (i - 1))
+          recon_v(:, :, top_ghost(i)) = recon_v(:, :, top - (i - 1))
+          recon_p(:, :, top_ghost(i)) = recon_p(:, :, top - (i - 1))
         end do
       case('-y')
         call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() -y', __FILE__, __LINE__)
@@ -175,8 +175,8 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
     integer(ik) :: i
 
-    associate(left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
