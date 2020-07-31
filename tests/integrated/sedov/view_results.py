@@ -50,6 +50,12 @@ except Exception:
 
 # Load cato results
 ds = load_dataset(".")
+
+try:
+    scheme = f"{ds.attrs['scheme.flux_solver']} + {ds.attrs['scheme.limiter']}"
+except Exception:
+    scheme = None
+
 ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
 df = pd.read_csv("residual_hist.csv", index_col=False)
@@ -87,7 +93,7 @@ resid_ax.set_ylim(1e-16, 0.1)
 
 t = ds.t[-1].data
 contour_ax.set_title(
-    f"Sedov Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+    f"Sedov Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}"
 )
 
 contour_ax.axis("equal")

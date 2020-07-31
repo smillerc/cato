@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Make a simple 1D planar layered target for ICF-like implosions
+and apply a perturbation at the ice-ablator interface"""
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
@@ -19,6 +21,18 @@ args = parser.parse_args()
 apply_perturbations = False
 if args.perturbed == "perturbed":
     apply_perturbations = True
+
+# Read the input file and make sure the spatial order is consistent
+config = ConfigParser()
+config.read("input.ini")
+config.sections()
+edge_interp = config["scheme"]["edge_interpolation_scheme"]
+edge_interp = edge_interp.strip("'").strip('"')
+
+if edge_interp in ["TVD3", "TVD5", "MLP3", "MLP5"]:
+    n_ghost_layers = 2
+else:
+    n_ghost_layers = 1
 
 # Physics
 gamma = 5.0 / 3.0

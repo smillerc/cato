@@ -39,30 +39,17 @@ def show_deltav(pert_ds, sym_ds, xrange, trange, title):
     return ds_cutoff
 
 
-perturbed_fvleg = load_dataset(folder="FVLEG_perturbed")
-symmetric_fvleg = load_dataset(folder="FVLEG_symmetric")
-
-perturbed_ausm = load_dataset(folder="AUSM+-up_all_speed_perturbed")
-symmetric_ausm = load_dataset(folder="AUSM+-up_all_speed_symmetric")
-
-dv_ausm = show_deltav(
-    pert_ds=perturbed_ausm,
-    sym_ds=symmetric_ausm,
-    xrange=[70, 80],
-    trange=(600, 800, 50),
-    title="AUSM+-up",
-)
-dv_fvleg = show_deltav(
-    pert_ds=perturbed_fvleg,
-    sym_ds=symmetric_fvleg,
-    xrange=[70, 80],
-    trange=(600, 800, 50),
-    title="FVLEG",
-)
-
 plt.figure(figsize=(14, 8))
-dv_ausm.max(axis=1).plot(label="AUSM+-up all-speed")
-dv_fvleg.max(axis=1).plot(label="FVLEG")
+
+for sol in ["AUSM+-up_all_speed", "AUSMPW+", "M-AUSMPW+"]:
+    pds = load_dataset(folder=f"{sol}_perturbed")
+    sds = load_dataset(folder=f"{sol}_symmetric")
+
+    dv_ausm = show_deltav(
+        pert_ds=pds, sym_ds=sds, xrange=[70, 80], trange=(600, 800, 50), title=sol,
+    )
+    dv_ausm.max(axis=1).plot(label=sol)
+
 plt.xlabel("Time [ns]")
 plt.ylabel("Delta V (perturbed-symmetric) [km/s]")
 plt.legend()

@@ -19,7 +19,7 @@
 ! SOFTWARE.
 
 module mod_pressure_input_bc
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_globals, only: debug_print
   use mod_grid, only: grid_t
   use mod_boundary_conditions, only: boundary_condition_t
@@ -316,6 +316,23 @@ contains
 
     integer(ik) :: i, p
 
+    if(.not. allocated(self%edge_rho)) then
+      write(std_err, *) "Error: pressure_input_bc_t%edge_rho should be allocated, but isn't"
+      error stop 10
+    end if
+    if(.not. allocated(self%edge_u)) then
+      write(std_err, *) "Error: pressure_input_bc_t%edge_u should be allocated, but isn't"
+      error stop 10
+    end if
+    if(.not. allocated(self%edge_v)) then
+      write(std_err, *) "Error: pressure_input_bc_t%edge_v should be allocated, but isn't"
+      error stop 10
+    end if
+    if(.not. allocated(self%edge_p)) then
+      write(std_err, *) "Error: pressure_input_bc_t%edge_p should be allocated, but isn't"
+      error stop 10
+    end if
+
     associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
               left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
               bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
@@ -348,11 +365,6 @@ contains
         error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
       end select
     end associate
-
-    if(allocated(self%edge_rho)) deallocate(self%edge_rho)
-    if(allocated(self%edge_u)) deallocate(self%edge_u)
-    if(allocated(self%edge_v)) deallocate(self%edge_v)
-    if(allocated(self%edge_p)) deallocate(self%edge_p)
   end subroutine apply_pressure_input_reconstructed_state_bc
 
   subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
@@ -406,5 +418,10 @@ contains
     if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
     if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)
     if(allocated(self%jhi_ghost)) deallocate(self%jhi_ghost)
+
+    if(allocated(self%edge_rho)) deallocate(self%edge_rho)
+    if(allocated(self%edge_u)) deallocate(self%edge_u)
+    if(allocated(self%edge_v)) deallocate(self%edge_v)
+    if(allocated(self%edge_p)) deallocate(self%edge_p)
   end subroutine finalize
 end module mod_pressure_input_bc

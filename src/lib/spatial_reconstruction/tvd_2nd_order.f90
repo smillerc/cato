@@ -150,19 +150,42 @@ contains
       !$omp simd __EDGE_ALIGN__
       !dir$ vector aligned
       do i = ilo_real, ihi_real
+        ! (i, j-1/2), cell "bottom" edge -> corresponds to the "R" side of the interface, thus the "R" terms
+        edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_r_R_j(i, j) * delta_j_plus(i, j)
+      end do
+    end do
+    !$omp end do
+
+    !$omp do
+    do j = jlo_real, jhi_real
+      !$omp simd __EDGE_ALIGN__
+      !dir$ vector aligned
+      do i = ilo_real, ihi_real
         ! (i+1/2, j), cell "right" edge -> corresponds to the "L" side of the interface, thus the "L" terms
         ! phi_L = q + .5 * psi(r_L) * delta-
         edge_values(2, i, j) = q(i, j) + 0.5_rk * phi_r_L_i(i, j) * delta_i_minus(i, j)
+      end do
+    end do
+    !$omp end do
 
-        ! (i-1/2, j), cell "left" edge -> corresponds to the "R" side of the interface, thus the "R" terms
-        edge_values(4, i, j) = q(i, j) - 0.5_rk * phi_r_R_i(i, j) * delta_i_plus(i, j)
-
+    !$omp do
+    do j = jlo_real, jhi_real
+      !$omp simd __EDGE_ALIGN__
+      !dir$ vector aligned
+      do i = ilo_real, ihi_real
         ! (i, j+1/2), cell "top" edge -> corresponds to the "L" side of the interface, thus the "L" terms
         edge_values(3, i, j) = q(i, j) + 0.5_rk * phi_r_L_j(i, j) * delta_j_minus(i, j)
+      end do
+    end do
+    !$omp end do
 
-        ! (i, j-1/2), cell "bottom" edge -> corresponds to the "R" side of the interface, thus the "R" terms
-        edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_r_R_j(i, j) * delta_j_plus(i, j)
-
+    !$omp do
+    do j = jlo_real, jhi_real
+      !$omp simd __EDGE_ALIGN__
+      !dir$ vector aligned
+      do i = ilo_real, ihi_real
+        ! (i-1/2, j), cell "left" edge -> corresponds to the "R" side of the interface, thus the "R" terms
+        edge_values(4, i, j) = q(i, j) - 0.5_rk * phi_r_R_i(i, j) * delta_i_plus(i, j)
       end do
     end do
     !$omp end do

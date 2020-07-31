@@ -51,6 +51,7 @@ module mod_contour_writer
     logical, private :: plot_reconstruction_states = .false.
     logical, private :: plot_reference_states = .false.
     logical, private :: plot_evolved_states = .false.
+    integer(ik), private :: compression_level = 6
 
     integer(ik) :: ilo_node, ihi_node
     integer(ik) :: jlo_node, jhi_node
@@ -118,10 +119,7 @@ contains
     write(*, '(a)') "==================="
     write(*, '(a, a)') 'Output folder: ', writer%results_folder
     write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
-    ! write(*, '(a, l1)') 'plot_reconstruction_states: ', writer%plot_reconstruction_states
-    ! write(*, '(a, l1)') 'plot_reference_states: ', writer%plot_reference_states
-    ! write(*, '(a, l1)') 'plot_evolved_states: ', writer%plot_evolved_states
-    ! write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
+    write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
     write(*, *)
 
   end function
@@ -144,15 +142,27 @@ contains
     self%hdf5_filename = trim(char_buff)//'.h5'
     self%xdmf_filename = trim(char_buff)//'.xdmf'
 
-    self%ilo_cell = master%grid%ilo_bc_cell
-    self%ihi_cell = master%grid%ihi_bc_cell
-    self%jlo_cell = master%grid%jlo_bc_cell
-    self%jhi_cell = master%grid%jhi_bc_cell
+    if(self%plot_ghost_cells) then
+      self%ilo_cell = master%grid%ilo_bc_cell
+      self%ihi_cell = master%grid%ihi_bc_cell
+      self%jlo_cell = master%grid%jlo_bc_cell
+      self%jhi_cell = master%grid%jhi_bc_cell
 
-    self%ilo_node = master%grid%ilo_bc_node
-    self%ihi_node = master%grid%ihi_bc_node
-    self%jlo_node = master%grid%jlo_bc_node
-    self%jhi_node = master%grid%jhi_bc_node
+      self%ilo_node = master%grid%ilo_bc_node
+      self%ihi_node = master%grid%ihi_bc_node
+      self%jlo_node = master%grid%jlo_bc_node
+      self%jhi_node = master%grid%jhi_bc_node
+    else
+      self%ilo_cell = master%grid%ilo_cell
+      self%ihi_cell = master%grid%ihi_cell
+      self%jlo_cell = master%grid%jlo_cell
+      self%jhi_cell = master%grid%jhi_cell
+
+      self%ilo_node = master%grid%ilo_node
+      self%ihi_node = master%grid%ihi_node
+      self%jlo_node = master%grid%jlo_node
+      self%jhi_node = master%grid%jhi_node
+    end if
 
     write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
@@ -184,7 +194,7 @@ contains
     delta_t_w_dims = master%dt * t_0
 
     call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
-                                   status='new', action='w', comp_lvl=6)
+                                   status='new', action='w', comp_lvl=self%compression_level)
 
     ! Header info
     call self%hdf5_file%add('/title', master%title)
@@ -225,17 +235,11 @@ contains
     io_data_buffer = master%grid%node_x(ilo:ihi, jlo:jhi) * l_0
     io_data_buffer = io_data_buffer * io_length_units
     call self%write_2d_real_data(data=io_data_buffer, name='/x', description='X Coordinate', units=trim(io_length_label))
-    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'X Coordinate')
-    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
     dataset_name = '/y'
     io_data_buffer = master%grid%node_y(ilo:ihi, jlo:jhi) * l_0
     io_data_buffer = io_data_buffer * io_length_units
     call self%write_2d_real_data(data=io_data_buffer, name='/y', description='Y Coordinate', units=trim(io_length_label))
-    ! call self%hdf5_file%add(trim(dataset_name), io_data_buffer)
-    ! call self%hdf5_file%writeattr(trim(dataset_name), 'description', 'Y Coordinate')
-    ! call self%hdf5_file%writeattr(trim(dataset_name), 'units', trim(io_length_label))
 
     deallocate(io_data_buffer)
 
@@ -247,15 +251,17 @@ contains
     allocate(io_data_buffer(ilo:ihi, jlo:jhi))
     allocate(int_data_buffer(ilo:ihi, jlo:jhi))
 
-    ! Write a simple flag to tag ghost cells
-    dataset_name = '/ghost_cell'
-    int_data_buffer = 1
-    associate(ilo_r => master%grid%ilo_cell, ihi_r => master%grid%ihi_cell, &
-              jlo_r => master%grid%jlo_cell, jhi_r => master%grid%jhi_cell)
-      int_data_buffer(ilo_r:ihi_r, jlo_r:jhi_r) = 0
-    end associate
-    call self%write_2d_integer_data(data=int_data_buffer, name='/ghost_cell', &
-                                    description='Ghost Cell [0=no, 1=yes]', units='dimensionless')
+    if(self%plot_ghost_cells) then
+      ! Write a simple flag to tag ghost cells
+      dataset_name = '/ghost_cell'
+      int_data_buffer = 1
+      associate(ilo_r => master%grid%ilo_cell, ihi_r => master%grid%ihi_cell, &
+                jlo_r => master%grid%jlo_cell, jhi_r => master%grid%jhi_cell)
+        int_data_buffer(ilo_r:ihi_r, jlo_r:jhi_r) = 0
+      end associate
+      call self%write_2d_integer_data(data=int_data_buffer, name='/ghost_cell', &
+                                      description='Ghost Cell [0=no, 1=yes]', units='dimensionless')
+    end if
 
     ! Indexing
     dataset_name = '/i'
@@ -275,43 +281,43 @@ contains
                                     description='Cell j Index', units='dimensionless')
     deallocate(int_data_buffer)
 
-    call self%write_2d_integer_data(data=master%fluid%continuous_sensor, name='/continuity_sensor', &
-                                description='Continuity Sensor [0=continuous, 1=linear discontinuity, 2=non-linear discontinuity', &
-                                    units='dimensionless')
+    ! call self%write_2d_integer_data(data=master%fluid%continuous_sensor, name='/continuity_sensor', &
+    !                             description='Continuity Sensor [0=continuous, 1=linear discontinuity, 2=non-linear discontinuity', &
+    !                                 units='dimensionless')
 
     ! Primitive Variables
     dataset_name = '/density'
-    io_data_buffer = master%fluid%rho * rho_0
+    io_data_buffer = master%fluid%rho(ilo:ihi, jlo:jhi) * rho_0
     io_data_buffer = io_data_buffer * io_density_units
     call self%write_2d_real_data(data=io_data_buffer, name='/density', &
                                  description='Cell Density', units=trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    io_data_buffer = master%fluid%u * v_0
+    io_data_buffer = master%fluid%u(ilo:ihi, jlo:jhi) * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%write_2d_real_data(data=io_data_buffer, name='/x_velocity', &
                                  description='Cell X Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    io_data_buffer = master%fluid%v * v_0
+    io_data_buffer = master%fluid%v(ilo:ihi, jlo:jhi) * v_0
     io_data_buffer = io_data_buffer * io_velocity_units
     call self%write_2d_real_data(data=io_data_buffer, name='/y_velocity', &
                                  description='Cell Y Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    io_data_buffer = master%fluid%p * p_0
+    io_data_buffer = master%fluid%p(ilo:ihi, jlo:jhi) * p_0
     io_data_buffer = io_data_buffer * io_pressure_units
     call self%write_2d_real_data(data=io_data_buffer, name='/pressure', &
                                  description='Cell Pressure', units=trim(io_pressure_label))
 
     dataset_name = '/sound_speed'
-    io_data_buffer = master%fluid%cs * v_0 * io_velocity_units
+    io_data_buffer = master%fluid%cs(ilo:ihi, jlo:jhi) * v_0 * io_velocity_units
     call self%write_2d_real_data(data=io_data_buffer, name='/sound_speed', &
                                  description='Cell Sound Speed', units=trim(io_velocity_label))
 
     ! Volume
     dataset_name = '/volume'
-    io_data_buffer = master%grid%cell_volume(:, :) * l_0**2
+    io_data_buffer = master%grid%cell_volume(ilo:ihi, jlo:jhi) * l_0**2
     io_data_buffer = io_data_buffer * io_volume_units
     call self%write_2d_real_data(data=io_data_buffer, name='/volume', &
                                  description='Cell Volume', units=trim(io_volume_label))
@@ -417,26 +423,25 @@ contains
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/volume</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    unit_label = ""
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Ghost Cell '//trim(unit_label)//'">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/ghost_cell</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
+    if(self%plot_ghost_cells) then
+      write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Ghost Cell">'
+      write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+        '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/ghost_cell</DataItem>'
+      write(xdmf_unit, '(a)') '      </Attribute>'
+    endif
 
-    unit_label = ""
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Continuity Sensor '//trim(unit_label)//'">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/continuity_sensor</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
+    ! unit_label = ""
+    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Continuity Sensor '//trim(unit_label)//'">'
+    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+    !   '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/continuity_sensor</DataItem>'
+    ! write(xdmf_unit, '(a)') '      </Attribute>'
 
-    unit_label = ""
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i'//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/i</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    unit_label = ""
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="j'//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="j">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
       '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/j</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'

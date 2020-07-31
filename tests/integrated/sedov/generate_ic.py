@@ -27,10 +27,7 @@ else:
 
 # Make the empty grid
 domain = make_uniform_grid(
-    n_cells=(100, 100),
-    xrange=(-0.25, 0.25),
-    yrange=(-0.25, 0.25),
-    n_ghost_layers=n_ghost_layers,
+    n_cells=(100, 100), xrange=(-0.25, 0.25), yrange=(-0.25, 0.25), n_ghost_layers=2,
 )
 
 # Set the initial conditions

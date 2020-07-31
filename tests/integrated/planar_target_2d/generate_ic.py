@@ -1,26 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Make a simple 2D planar layered target for ICF-like implosions
-and apply a perturbation at the ice-ablator interface"""
-import matplotlib.pyplot as plt
-from configparser import ConfigParser
-import numpy as np
-import sys
 import os
+import sys
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pint
 
 sys.path.append(os.path.abspath("../../.."))
 from pycato import *
-
-# Read the input file and make sure the spatial order is consistent
-config = ConfigParser()
-config.read("input.ini")
-config.sections()
-edge_interp = config["scheme"]["edge_interpolation_scheme"]
-edge_interp = edge_interp.strip("'").strip('"')
-
-if edge_interp in ["TVD3", "TVD5", "MLP3", "MLP5"]:
-    n_ghost_layers = 2
-else:
-    n_ghost_layers = 1
 
 # Physics
 gamma = 5.0 / 3.0
@@ -34,11 +21,16 @@ vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm
 
 # Mesh
 vacuum_feathering = 1.1
-y_thickness = 0.2 * ureg("um")
+wavelength = 2 * ureg("um")
+two_pi = (2 * np.pi) * ureg("radian")
+k = two_pi / wavelength
+print(f"k: {k}")
+y_thickness = two_pi / k
+print(f"y_thickness: {y_thickness.to('um')}")
 dy = None  # will use smallest dx if None
 
-interface_loc = 20.0
-layer_thicknesses = [interface_loc, 10, 3] * ureg("um")
+interface_loc = 10.0
+layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
 layer_resolution = [20, 20, 20] * ureg("1/um")
 
@@ -62,35 +54,29 @@ domain = make_2d_layered_grid(
     dy=dy,
     layer_spacing=layer_spacing,
     spacing_scale_factor=vacuum_feathering,
-    n_ghost_layers=2,
 )
 
-x = domain["xc"].to("cm").m
-y = domain["yc"].to("cm").m
+x = domain["xc"].to("um")
+y = domain["yc"].to("um")
 
 # Perturbation
-x0 = ((interface_loc) * ureg("um")).to("cm").m
-y0 = (y_thickness / 2.0).to("cm").m
-# y0 = 0
-fwhm = (1.5 * ureg("um")).to("cm").m
-gaussian_order = 1
-perturbation_frac = -0.5
+x0 = interface_loc * ureg("um")  # perturbation location
 
-# 2D
-perturbation = (-perturbation_frac) * np.exp(
-    -(((((x - x0) ** 2) / fwhm ** 2) + (((y - y0) ** 2) / fwhm ** 2)) ** gaussian_order)
-).astype(np.float64)
+pert_x = np.exp(-k.m * ((x - x0).m) ** 2)
+pert_x[pert_x < 1e-4] = 0.0
 
+pert_y = -((1.0 - np.cos(k * y)) / 2.0).to_base_units().m
+perturbation_loc = pert_x * pert_y
+perturbation_frac = 0.01
+
+perturbation = np.abs(perturbation_loc * perturbation_frac)
+perturbation[perturbation < 1e-4] = 0.0
+
+domain["rho"] = domain["rho"] * (1.0 - perturbation)
 # Cutoff the perturbation below 1e-6 otherwise there
 # will be weird noise issues
-if perturbation_frac < 0:
-    perturbation[perturbation < 1e-3] = 0.0
-else:
-    perturbation[perturbation > 1e-3] = 0.0
 
-perturbation = 1.0 - perturbation
-# domain["rho"] = perturbation * domain["rho"]
-
+# Save to file
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
 # Plot the results

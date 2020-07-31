@@ -38,9 +38,7 @@ else:
     n_ghost_layers = 1
 
 # Make the empty grid
-shock_tube = make_1d_in_x_uniform_grid(
-    n_cells=500, limits=(0, 1.0), n_ghost_layers=n_ghost_layers
-)
+shock_tube = make_1d_in_x_uniform_grid(n_cells=500, limits=(0, 1.0), n_ghost_layers=2)
 
 # Set the initial conditions
 shock_tube["u"] = shock_tube["u"] * 0.0

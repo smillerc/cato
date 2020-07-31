@@ -29,5 +29,19 @@
             "externalConsole": false,
             "MIMode": "gdb",
         },
+        {
+            "name": "(gdb) Planar Target 2D",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/cato.x",
+            "args": [
+                "input.ini"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/tests/integrated/planar_target_2d",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+        },
     ]
 }

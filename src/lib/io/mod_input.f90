@@ -90,7 +90,7 @@ module mod_input
     logical :: plot_reconstruction_states = .false.
     logical :: plot_reference_states = .false.
     logical :: plot_evolved_states = .false.
-    logical :: plot_64bit = .false.
+    logical :: plot_64bit = .true.
     logical :: plot_ghost_cells = .false.
 
     ! timing

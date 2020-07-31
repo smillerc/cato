@@ -24,7 +24,7 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     sed_ver=gsed
 fi
 
-for solver in {'AUSM+-up_all_speed','FVLEG'}; do
+for solver in {'AUSM+-up_all_speed','AUSMPW+','M-AUSMPW+','SLAU','SLAU2'}; do
     for pert in {'symmetric','perturbed'}; do
         folder=${solver}_${pert}
         rm -rf $folder

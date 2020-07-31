@@ -466,7 +466,7 @@ contains
         ! From Eq. 24 (ii) in Ref [1]
         if(M_L_plus + M_R_minus < 0.0_rk) then
           M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
-          M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R) ! Typo in Ref [1] here
+          M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
         else ! From Eq. 24 (i) in Ref [1]
           M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
           M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
