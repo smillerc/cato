@@ -132,14 +132,15 @@ contains
     if(allocated(self%fluid)) deallocate(self%fluid)
   end subroutine finalize
 
-  subroutine integrate(self, dt)
+  subroutine integrate(self, dt, error_code)
     !< Advance the simulation forward in time
     class(master_puppeteer_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< timestep
+    integer(ik), intent(out) :: error_code
 
     self%iteration = self%iteration + 1
     self%time = self%time + dt
-    call self%fluid%integrate(dt=dt, grid=self%grid)
+    call self%fluid%integrate(dt=dt, grid=self%grid, error_code=error_code)
   end subroutine integrate
 
   subroutine set_time(self, time, dt, iteration)

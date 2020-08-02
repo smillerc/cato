@@ -315,6 +315,7 @@ contains
     !$omp private(rho_edge_fluxes, rhou_edge_fluxes, rhov_edge_fluxes, rhoE_edge_fluxes)
     !$omp do
     do j = jlo, jhi
+      !$omp simd
       do i = ilo, ihi
 
         delta_l = grid%cell_edge_lengths(:, i, j)
@@ -326,7 +327,10 @@ contains
                            -self%jflux(1, i, j - 1) * delta_l(1), &
                            self%jflux(1, i, j) * delta_l(3)]
         ave_rho_edge_flux = 0.25_rk * sum(abs(rho_edge_fluxes))
+
         rho_flux = -neumaier_sum_4(rho_edge_fluxes)
+        ! rho_flux = -sum(rho_edge_fluxes)
+
         rho_flux_threshold = abs(ave_rho_edge_flux) * REL_THRESHOLD
         if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
           rho_flux = 0.0_rk
@@ -337,7 +341,10 @@ contains
         rhou_edge_fluxes = [self%iflux(2, i, j) * delta_l(2), -self%iflux(2, i - 1, j) * delta_l(4), &
                             -self%jflux(2, i, j - 1) * delta_l(1), self%jflux(2, i, j) * delta_l(3)]
         ave_rhou_edge_flux = 0.25_rk * sum(abs(rhou_edge_fluxes))
+
         rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
+        ! rhou_flux = -sum(rhou_edge_fluxes)
+
         rhou_flux_threshold = abs(ave_rhou_edge_flux) * REL_THRESHOLD
         if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
           rhou_flux = 0.0_rk
@@ -348,7 +355,10 @@ contains
         rhov_edge_fluxes = [self%iflux(3, i, j) * delta_l(2), -self%iflux(3, i - 1, j) * delta_l(4), &
                             -self%jflux(3, i, j - 1) * delta_l(1), self%jflux(3, i, j) * delta_l(3)]
         ave_rhov_edge_flux = 0.25_rk * sum(abs(rhov_edge_fluxes))
+
         rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
+        ! rhov_flux = -sum(rhov_edge_fluxes)
+
         rhov_flux_threshold = abs(ave_rhov_edge_flux) * REL_THRESHOLD
         if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
           rhov_flux = 0.0_rk
@@ -361,7 +371,10 @@ contains
                             -self%jflux(4, i, j - 1) * delta_l(1), &
                             self%jflux(4, i, j) * delta_l(3)]
         ave_rhoE_edge_flux = 0.25_rk * sum(abs(rhoE_edge_fluxes))
+
         rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
+        ! rhoE_flux = -sum(rhoE_edge_fluxes)
+
         rhoE_flux_threshold = abs(ave_rhoE_edge_flux) * REL_THRESHOLD
         if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
           rhoE_flux = 0.0_rk
@@ -371,6 +384,25 @@ contains
     end do
     !$omp end do
     !$omp end parallel
+
+    ! Ghost layers
+    d_rho_dt(grid%ilo_bc_cell:grid%ilo_cell - 1, :) = 0.0_rk
+    d_rho_u_dt(grid%ilo_bc_cell:grid%ilo_cell - 1, :) = 0.0_rk
+    d_rho_v_dt(grid%ilo_bc_cell:grid%ilo_cell - 1, :) = 0.0_rk
+    d_rho_E_dt(grid%ilo_bc_cell:grid%ilo_cell - 1, :) = 0.0_rk
+    d_rho_dt(grid%ihi_cell + 1:grid%ihi_bc_cell, :) = 0.0_rk
+    d_rho_u_dt(grid%ihi_cell + 1:grid%ihi_bc_cell, :) = 0.0_rk
+    d_rho_v_dt(grid%ihi_cell + 1:grid%ihi_bc_cell, :) = 0.0_rk
+    d_rho_E_dt(grid%ihi_cell + 1:grid%ihi_bc_cell, :) = 0.0_rk
+
+    d_rho_dt(:, grid%jlo_bc_cell:grid%jlo_cell - 1) = 0.0_rk
+    d_rho_u_dt(:, grid%jlo_bc_cell:grid%jlo_cell - 1) = 0.0_rk
+    d_rho_v_dt(:, grid%jlo_bc_cell:grid%jlo_cell - 1) = 0.0_rk
+    d_rho_E_dt(:, grid%jlo_bc_cell:grid%jlo_cell - 1) = 0.0_rk
+    d_rho_dt(:, grid%jhi_cell + 1:grid%jhi_bc_cell) = 0.0_rk
+    d_rho_u_dt(:, grid%jhi_cell + 1:grid%jhi_bc_cell) = 0.0_rk
+    d_rho_v_dt(:, grid%jhi_cell + 1:grid%jhi_bc_cell) = 0.0_rk
+    d_rho_E_dt(:, grid%jhi_cell + 1:grid%jhi_bc_cell) = 0.0_rk
 
   end subroutine flux_split_edges
 

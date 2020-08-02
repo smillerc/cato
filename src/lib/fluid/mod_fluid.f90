@@ -26,6 +26,7 @@ module mod_fluid
   use omp_lib
 #endif /* USE_OPENMP */
 
+  use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
   use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
@@ -436,11 +437,12 @@ contains
     self%dt = dt
   end subroutine set_time
 
-  subroutine integrate(self, dt, grid)
+  subroutine integrate(self, dt, grid, error_code)
     !< Integrate in time
     class(fluid_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< time step
     class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
+    integer(ik), intent(out) :: error_code
 
     call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
     self%time = self%time + dt
@@ -448,9 +450,9 @@ contains
 
     select case(trim(self%time_integration_scheme))
     case('ssp_rk2')
-      call self%ssp_rk2(grid)
+      call self%ssp_rk2(grid, error_code)
     case('ssp_rk3')
-      call self%ssp_rk3(grid)
+      call self%ssp_rk3(grid, error_code)
     case default
       error stop "Error: Unknown time integration scheme in fluid_t%integrate()"
     end select
@@ -526,7 +528,7 @@ contains
     !< or discontinuous (linear or non-linear)
     class(fluid_t), intent(inout) :: self
 
-    call distinguish(rho=self%rho, u=self%u, v=self%v, p=self%p, continuity_sensor=self%continuous_sensor)
+    ! call distinguish(rho=self%rho, u=self%u, v=self%v, p=self%p, continuity_sensor=self%continuous_sensor)
   end subroutine get_continuity_sensor
 
   subroutine residual_smoother(self)
@@ -847,7 +849,7 @@ contains
 
     call debug_print('Running fluid_t%sanity_check()', __FILE__, __LINE__)
 
-    error_code = 0
+    error_code = ALL_OK
 
     negative_numbers = .false.
     invalid_numbers = .false.
@@ -859,14 +861,15 @@ contains
 
     !$omp parallel default(none) &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j) &
+    !$omp private(i, j, error_code) &
     !$omp shared(self)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(self%rho(i, j) < 0.0_rk) then
           write(std_err, '(a, i0, ", ", i0, a)') "Negative density found at (", i, j, ")"
-          error stop "Negative density!"
+          error_code = NEG_DENSITY
+          ! error stop "Negative density!"
         end if
       end do
     end do
@@ -877,7 +880,8 @@ contains
       do i = ilo, ihi
         if(self%p(i, j) < 0.0_rk) then
           write(std_err, '(a, i0, ", ", i0, a)') "Negative pressure found at (", i, j, ")"
-          error stop "Negative pressure!"
+          error_code = NEG_PRESSURE
+          ! error stop "Negative pressure!"
         end if
       end do
     end do
@@ -890,7 +894,8 @@ contains
       do i = ilo, ihi
         if(ieee_is_nan(self%rho(i, j))) then
           write(std_err, '(a, i0, ", ", i0, a)') "NaN density found at (", i, j, ")"
-          error stop "Error: NaN density found in fluid_t%sanity_check()"
+          error_code = NANS_FOUND
+          ! error stop "Error: NaN density found in fluid_t%sanity_check()"
         end if
       end do
     end do
@@ -900,7 +905,8 @@ contains
       do i = ilo, ihi
         if(ieee_is_nan(self%u(i, j))) then
           write(std_err, '(a, i0, ", ", i0, a)') "NaN x-velocity found at (", i, j, ")"
-          error stop "Error: NaN x-velocity found in fluid_t%sanity_check()"
+          error_code = NANS_FOUND
+          ! error stop "Error: NaN x-velocity found in fluid_t%sanity_check()"
         end if
       end do
     end do
@@ -910,7 +916,8 @@ contains
       do i = ilo, ihi
         if(ieee_is_nan(self%v(i, j))) then
           write(std_err, '(a, i0, ", ", i0, a)') "NaN y-velocity found at (", i, j, ")"
-          error stop "Error: NaN y-velocity found in fluid_t%sanity_check()"
+          error_code = NANS_FOUND
+          ! error stop "Error: NaN y-velocity found in fluid_t%sanity_check()"
         end if
       end do
     end do
@@ -920,7 +927,8 @@ contains
       do i = ilo, ihi
         if(ieee_is_nan(self%p(i, j))) then
           write(std_err, '(a, i0, ", ", i0, a)') "NaN pressure found at (", i, j, ")"
-          error stop "Error: NaN pressure found in fluid_t%sanity_check()"
+          error_code = NANS_FOUND
+          ! error stop "Error: NaN pressure found in fluid_t%sanity_check()"
         end if
       end do
     end do
@@ -930,7 +938,7 @@ contains
 
   end subroutine sanity_check
 
-  subroutine ssp_rk3(U, grid)
+  subroutine ssp_rk3(U, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 3rd order
     class(fluid_t), intent(inout) :: U
     class(grid_t), intent(in) :: grid
@@ -938,7 +946,7 @@ contains
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
     type(fluid_t), allocatable :: R !< hist
-    integer(ik) :: error_code
+    integer(ik), intent(out) :: error_code
     real(rk) :: dt
 
     call debug_print('Running fluid_t%ssp_rk3()', __FILE__, __LINE__)
@@ -973,14 +981,14 @@ contains
 
   end subroutine ssp_rk3
 
-  subroutine ssp_rk2(U, grid)
+  subroutine ssp_rk2(U, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 2nd order
     class(fluid_t), intent(inout) :: U
     class(grid_t), intent(in) :: grid
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: R !< hist
-    integer(ik) :: error_code
+    integer(ik), intent(out) :: error_code
 
     call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
 

@@ -24,6 +24,7 @@ program cato
 #endif /* USE_OPENMP */
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit, std_error => error_unit
+  use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND
   use mod_contour_writer, only: contour_writer_t
   use mod_globals, only: print_version_stats, open_debug_files
   use mod_units, only: set_output_unit_system, io_time_label, io_time_units
@@ -134,9 +135,9 @@ program cato
     ! call master%apply_source_terms(conserved_vars=U%conserved_vars, &
     !                            lbounds=bounds)
     ! Integrate in time
-    call master%integrate(dt=delta_t)
+    call master%integrate(dt=delta_t, error_code=error_code)
 
-    if(error_code /= 0) then
+    if(error_code /= ALL_OK) then
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       call contour_writer%write_contour(master, time, iteration)

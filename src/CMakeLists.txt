@@ -1,4 +1,4 @@
-add_library(globals lib/hermetic.f90 lib/units.f90 lib/globals.f90 lib/non_dimensional.f90
+add_library(globals lib/error.f90 lib/hermetic.f90 lib/units.f90 lib/globals.f90 lib/non_dimensional.f90
                     lib/math_constants.f90 lib/floating_point_utilities.f90)
 
 add_library(ini_parser third_party/ini_parser/cfgio_mod.f90

@@ -22,6 +22,7 @@ module mod_contour_writer
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, real32
   use mod_master_puppeteer, only: master_puppeteer_t
+  use mod_globals, only: n_ghost_layers
   use mod_fluid, only: fluid_t
   use mod_units
   use mod_nondimensionalization, only: rho_0, v_0, p_0, t_0, l_0, e_0
@@ -209,6 +210,8 @@ contains
     call self%hdf5_file%add('/delta_t', delta_t_w_dims)
     call self%hdf5_file%writeattr('/delta_t', 'description', 'Simulation Timestep')
     call self%hdf5_file%writeattr('/delta_t', 'units', 'seconds')
+
+    call self%hdf5_file%add('/n_ghost_layers', n_ghost_layers)
 
     ! Version info
     if(.not. globals_set) call set_global_options()

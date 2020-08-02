@@ -91,7 +91,7 @@ module mod_input
     logical :: plot_reference_states = .false.
     logical :: plot_evolved_states = .false.
     logical :: plot_64bit = .true.
-    logical :: plot_ghost_cells = .false.
+    logical :: plot_ghost_cells = .true.
 
     ! timing
     real(rk) :: max_time = 1.0_rk
@@ -382,8 +382,8 @@ contains
     call cfg%get("io", "plot_reconstruction_states", self%plot_reconstruction_states, .false.)
     call cfg%get("io", "plot_reference_states", self%plot_reference_states, .false.)
     call cfg%get("io", "plot_evolved_states", self%plot_evolved_states, .false.)
-    call cfg%get("io", "plot_ghost_cells", self%plot_ghost_cells, .false.)
-    call cfg%get("io", "plot_64bit", self%plot_64bit, .false.)
+    call cfg%get("io", "plot_ghost_cells", self%plot_ghost_cells, .true.)
+    call cfg%get("io", "plot_64bit", self%plot_64bit, .true.)
 
   end subroutine read_from_ini
 

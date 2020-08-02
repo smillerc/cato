@@ -116,8 +116,8 @@ contains
     end if
 
     ! Allocate cell based arrays
-    associate(imin=>self%ilo_bc_cell, imax=>self%ihi_bc_cell, &
-              jmin=>self%jlo_bc_cell, jmax=>self%jhi_bc_cell)
+    associate(imin => self%ilo_bc_cell, imax => self%ihi_bc_cell, &
+              jmin => self%jlo_bc_cell, jmax => self%jhi_bc_cell)
 
       allocate(self%cell_volume(imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volume"
@@ -157,10 +157,10 @@ contains
     end associate
 
     ! Allocate the edge vector arrays
-    associate(imin_node=>self%ilo_node, imax_node=>self%ihi_node, &
-              jmin_node=>self%jlo_node, jmax_node=>self%jhi_node, &
-              imin_cell=>self%ilo_cell, imax_cell=>self%ihi_cell, &
-              jmin_cell=>self%jlo_cell, jmax_cell=>self%jhi_cell)
+    associate(imin_node => self%ilo_node, imax_node => self%ihi_node, &
+              jmin_node => self%jlo_node, jmax_node => self%jhi_node, &
+              imin_cell => self%ilo_cell, imax_cell => self%ihi_cell, &
+              jmin_cell => self%jlo_cell, jmax_cell => self%jhi_cell)
 
       allocate(self%corner_edge_vectors(2, 0:4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%corner_edge_vectors"
@@ -392,9 +392,12 @@ contains
     self%ni_cell = self%ni_node - 1
     self%nj_cell = self%nj_node - 1
 
+    if(self%ni_node < 1) error stop "Error: grid_t%ni_node < 1"
+    if(self%nj_node < 1) error stop "Error: grid_t%nj_node < 1"
+
     ! Allocate node based arrays
-    associate(imin=>self%ilo_bc_node, imax=>self%ihi_bc_node, &
-              jmin=>self%jlo_bc_node, jmax=>self%jhi_bc_node)
+    associate(imin => self%ilo_bc_node, imax => self%ihi_bc_node, &
+              jmin => self%jlo_bc_node, jmax => self%jhi_bc_node)
 
       ! error stop
       allocate(self%node_x(imin:imax, jmin:jmax), stat=alloc_status)
@@ -443,8 +446,8 @@ contains
     self%nj_cell = self%nj_node - 1
 
     ! Allocate node based arrays
-    associate(imin=>self%ilo_bc_node, imax=>self%ihi_bc_node, &
-              jmin=>self%jlo_bc_node, jmax=>self%jhi_bc_node)
+    associate(imin => self%ilo_bc_node, imax => self%ihi_bc_node, &
+              jmin => self%jlo_bc_node, jmax => self%jhi_bc_node)
 
       allocate(self%node_x(imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_x from .ini input file"
@@ -504,7 +507,7 @@ contains
 
     do j = self%jlo_bc_cell, self%jhi_bc_cell
       do i = self%ilo_bc_cell, self%ihi_bc_cell
-        associate(x=>self%node_x, y=>self%node_y)
+        associate(x => self%node_x, y => self%node_y)
           x_coords = [x(i, j), x(i + 1, j), x(i + 1, j + 1), x(i, j + 1)]
           y_coords = [y(i, j), y(i + 1, j), y(i + 1, j + 1), y(i, j + 1)]
 
