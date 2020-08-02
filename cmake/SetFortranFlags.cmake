@@ -66,7 +66,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -fcheck=all -ffpe-trap=zero,overflow,invalid,underflow -finit-real=nan")
 
   set(CMAKE_Fortran_FLAGS_RELEASE
-      "-O3 -ftree-vectorize -funroll-loops -finline-functions ${GNUNATIVE}")
+      "-O3 -ftree-vectorize -funroll-loops -finline-functions -march=native -mtune=native")
 
   if(USE_ASAN)
     set(CMAKE_Fortran_FLAGS
@@ -107,11 +107,11 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   endif()
 
   set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds")
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -mtune=${TARGET_ARCHITECTURE}")
+  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -mtune=${TARGET_ARCHITECTURE} -qopt-prefetch")
 
   if(OUTPUT_OPTIMIZATION_REPORTS)
     set(CMAKE_Fortran_FLAGS
-        "${CMAKE_Fortran_FLAGS}  -g -qopt-report-phase=all -qopt-report-annotate-position=both -qopt-report=5"
+        "${CMAKE_Fortran_FLAGS}  -g -qopt-report-phase=all -qopt-report=5"
     )
     message(
       STATUS
