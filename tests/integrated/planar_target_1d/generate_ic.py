@@ -18,13 +18,12 @@ shell_density = 1.0 * ureg("g/cc")
 
 vacuum_pressure = 7e12 * ureg("barye")
 vacuum_density = 0.01 * ureg("g/cc")
-vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s").m
 
 # Mesh
 interface_loc = 20.0
 layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [25, 25, 25] * ureg("1/um")
+layer_resolution = [20, 20, 20] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
