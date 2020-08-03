@@ -18,6 +18,10 @@
 ! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ! SOFTWARE.
 
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#define AT_LINE_LOC " in " // __FILE__ //":"//TOSTRING(__LINE__)
+
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
@@ -160,7 +164,7 @@ contains
     call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
 
     if(.not. scale_factors_set) then
-      error stop "Error in fluid_t%initialize(), global non-dimensional "// &
+      error stop "Error in fluid_t%initialize()"//AT_LINE_LOC//", global non-dimensional "// &
         "scale factors haven't been set yet. These need to be set before fluid initialization"
     end if
 
@@ -197,11 +201,11 @@ contains
     case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
       allocate(slau_solver_t :: solver)
     case default
-      write(std_err, '(a)') "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
+      write(std_err, '(a)') "Invalid flux solver in fluid_t%initializte()"//AT_LINE_LOC//". It must be one of the following: "// &
         "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
         "the input was: '"//trim(input%flux_solver)//"'"
 
-      error stop "Invalid flux solver in fluid_t%initializte(). It must be one of the following: "// &
+      error stop "Invalid flux solver in fluid_t%initializte()"//AT_LINE_LOC//". It must be one of the following: "// &
     "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', 'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2']"
     end select
 
@@ -273,8 +277,8 @@ contains
     inquire(file=filename, exist=file_exists)
 
     if(.not. file_exists) then
-      write(*, '(a)') 'Error in fluid_t%initialize_from_hdf5(); file not found: "'//filename//'"'
-      error stop 'Error in fluid_t%initialize_from_hdf5(); file not found, exiting...'
+      write(*, '(a)') 'Error in fluid_t%initialize_from_hdf5()'//AT_LINE_LOC//'; file not found: "'//filename//'"'
+      error stop 'Error in fluid_t%initialize_from_hdf5()'//AT_LINE_LOC//'; file not found, exiting...'
     end if
 
     call h5%initialize(filename=filename, status='old', action='r')
@@ -285,7 +289,7 @@ contains
       select case(trim(str_buff))
       case('g/cc')
       case default
-        error stop "Unknown density units in .h5 file. Acceptable units are 'g/cc'."
+        error stop "Unknown density units in .h5 file"//AT_LINE_LOC//". Acceptable units are 'g/cc'."
       end select
     end if
 
@@ -299,7 +303,7 @@ contains
         y_velocity = y_velocity * km_per_sec_to_cm_per_sec
       case('cm/s')
       case default
-        error stop "Unknown velocity units in .h5 file. Acceptable units are 'km/s' and 'cm/s'."
+        error stop "Unknown velocity units in .h5 file"//AT_LINE_LOC//". Acceptable units are 'km/s' and 'cm/s'."
       end select
     end if
 
@@ -312,7 +316,7 @@ contains
       case('Mbar')
         pressure = pressure * mega_bar_to_barye
       case default
-        error stop "Unknown density units in .h5 file. Acceptable units are 'g/cc'."
+        error stop "Unknown density units in .h5 file"//AT_LINE_LOC//". Acceptable units are 'g/cc'."
       end select
     end if
 
@@ -325,11 +329,11 @@ contains
     pressure = pressure / p_0
 
     if(any(near_zero(pressure))) then
-      error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5"
+      error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5()"//AT_LINE_LOC
     end if
 
     if(any(near_zero(density))) then
-      error stop "Some (or all) of the density array is ~0 in fluid_t%initialize_from_hdf5"
+      error stop "Some (or all) of the density array is ~0 in fluid_t%initialize_from_hdf5()"//AT_LINE_LOC
     end if
 
     self%rho = density
@@ -381,11 +385,11 @@ contains
                                     rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
     if(near_zero(input%init_pressure)) then
-      error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5"
+      error stop "Some (or all) of the pressure array is ~0 in fluid_t%initialize_from_hdf5()"//AT_LINE_LOC
     end if
 
     if(near_zero(input%init_density)) then
-      error stop "Some (or all) of the density array is ~0 in fluid_t%initialize_from_hdf5"
+      error stop "Some (or all) of the density array is ~0 in fluid_t%initialize_from_hdf5()"//AT_LINE_LOC
     end if
 
   end subroutine initialize_from_ini
@@ -454,7 +458,7 @@ contains
     case('ssp_rk3')
       call self%ssp_rk3(grid, error_code)
     case default
-      error stop "Error: Unknown time integration scheme in fluid_t%integrate()"
+      error stop "Error: Unknown time integration scheme in fluid_t%integrate()"//AT_LINE_LOC
     end select
   end subroutine integrate
 
@@ -774,16 +778,13 @@ contains
     call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
 
     allocate(product, source=lhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate product in fluid_t%fluid_mul_real"
+    if(alloc_status /= 0) error stop "Unable to allocate product in fluid_t%fluid_mul_real()"//AT_LINE_LOC
 
     call mult_field_by_real(a=lhs%rho, b=rhs, c=product%rho)
     call mult_field_by_real(a=lhs%rho_u, b=rhs, c=product%rho_u)
     call mult_field_by_real(a=lhs%rho_v, b=rhs, c=product%rho_v)
     call mult_field_by_real(a=lhs%rho_E, b=rhs, c=product%rho_E)
     product%prim_vars_updated = .false.
-
-    ! call move_alloc(product, product)
-    ! call product%set_temp(calling_function='fluid_mul_real (product)', line=__LINE__)
   end function fluid_mul_real
 
   function real_mul_fluid(lhs, rhs) result(product)
@@ -796,17 +797,13 @@ contains
     call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
 
     allocate(product, source=rhs, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate product in fluid_t%real_mul_fluid"
+    if(alloc_status /= 0) error stop "Unable to allocate product in fluid_t%real_mul_fluid()"//AT_LINE_LOC
 
-    ! product%time_integrator = rhs%time_integrator
     call mult_field_by_real(a=rhs%rho, b=lhs, c=product%rho)
     call mult_field_by_real(a=rhs%rho_u, b=lhs, c=product%rho_u)
     call mult_field_by_real(a=rhs%rho_v, b=lhs, c=product%rho_v)
     call mult_field_by_real(a=rhs%rho_E, b=lhs, c=product%rho_E)
     product%prim_vars_updated = .false.
-
-    ! call move_alloc(product, product)
-    ! call product%set_temp(calling_function='real_mul_fluid (product)', line=__LINE__)
   end function real_mul_fluid
 
   subroutine assign_fluid(lhs, rhs)
@@ -814,19 +811,19 @@ contains
     class(fluid_t), intent(inout) :: lhs
     type(fluid_t), intent(in) :: rhs
     integer(ik) :: error_code
+    integer(ik) :: alloc_status
 
     call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
-
-    ! call rhs%guard_temp(calling_function='assign_fluid (rhs)', line=__LINE__)
-
-    ! lhs%time_integrator = rhs%time_integrator
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
     lhs%rho = rhs%rho
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
     if(allocated(lhs%solver)) deallocate(lhs%solver)
-    allocate(lhs%solver, source=rhs%solver)
+
+    allocate(lhs%solver, source=rhs%solver, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate product in fluid_t%solver()"//AT_LINE_LOC
+
     lhs%time_integration_scheme = rhs%time_integration_scheme
     lhs%time = rhs%time
     lhs%dt = rhs%dt
@@ -867,7 +864,7 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(self%rho(i, j) < 0.0_rk) then
-          write(std_err, '(a, i0, ", ", i0, a)') "Negative density found at (", i, j, ")"
+          write(std_err, '(a, i0, ", ", i0, a)') "Negative density found at (", i, j, ");"//AT_LINE_LOC
           error_code = NEG_DENSITY
         end if
       end do
@@ -878,7 +875,7 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(self%p(i, j) < 0.0_rk) then
-          write(std_err, '(a, i0, ", ", i0, a)') "Negative pressure found at (", i, j, ")"
+          write(std_err, '(a, i0, ", ", i0, a)') "Negative pressure found at (", i, j, ");"//AT_LINE_LOC
           error_code = NEG_PRESSURE
         end if
       end do
@@ -891,7 +888,7 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%rho(i, j))) then
-          write(std_err, '(a, i0, ", ", i0, a)') "NaN density found at (", i, j, ")"
+          write(std_err, '(a, i0, ", ", i0, a)') "NaN density found at (", i, j, ");"//AT_LINE_LOC
           error_code = NANS_FOUND
         end if
       end do
@@ -902,7 +899,7 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%u(i, j))) then
-          write(std_err, '(a, i0, ", ", i0, a)') "NaN x-velocity found at (", i, j, ")"
+          write(std_err, '(a, i0, ", ", i0, a)') "NaN x-velocity found at (", i, j, ");"//AT_LINE_LOC
           error_code = NANS_FOUND
         end if
       end do
@@ -912,9 +909,8 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%v(i, j))) then
-          write(std_err, '(a, i0, ", ", i0, a)') "NaN y-velocity found at (", i, j, ")"
+          write(std_err, '(a, i0, ", ", i0, a)') "NaN y-velocity found at (", i, j, ");"//AT_LINE_LOC
           error_code = NANS_FOUND
-          ! error stop "Error: NaN y-velocity found in fluid_t%sanity_check()"
         end if
       end do
     end do
@@ -923,9 +919,8 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%p(i, j))) then
-          write(std_err, '(a, i0, ", ", i0, a)') "NaN pressure found at (", i, j, ")"
+          write(std_err, '(a, i0, ", ", i0, a)') "NaN pressure found at (", i, j, ");"//AT_LINE_LOC
           error_code = NANS_FOUND
-          ! error stop "Error: NaN pressure found in fluid_t%sanity_check()"
         end if
       end do
     end do
