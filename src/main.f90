@@ -53,7 +53,7 @@ program cato
   real(rk) :: contour_interval_dt, max_time
   ! real(rk), dimension(:,:), allocatable :: sound_speed
 
-  open(std_error, file='cato.error')
+  open(std_error, file='std.err')
 
   ! ascii art for the heck of it :)
   write(std_out, '(a)')
@@ -141,7 +141,7 @@ program cato
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       call contour_writer%write_contour(master, time, iteration)
-      error stop
+      error stop 1
     end if
 
     time = time + delta_t

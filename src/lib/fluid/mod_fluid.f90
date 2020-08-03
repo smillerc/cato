@@ -861,15 +861,14 @@ contains
 
     !$omp parallel default(none) &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, error_code) &
-    !$omp shared(self)
+    !$omp private(i, j) &
+    !$omp shared(self, error_code)
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(self%rho(i, j) < 0.0_rk) then
           write(std_err, '(a, i0, ", ", i0, a)') "Negative density found at (", i, j, ")"
           error_code = NEG_DENSITY
-          ! error stop "Negative density!"
         end if
       end do
     end do
@@ -881,7 +880,6 @@ contains
         if(self%p(i, j) < 0.0_rk) then
           write(std_err, '(a, i0, ", ", i0, a)') "Negative pressure found at (", i, j, ")"
           error_code = NEG_PRESSURE
-          ! error stop "Negative pressure!"
         end if
       end do
     end do
@@ -895,18 +893,17 @@ contains
         if(ieee_is_nan(self%rho(i, j))) then
           write(std_err, '(a, i0, ", ", i0, a)') "NaN density found at (", i, j, ")"
           error_code = NANS_FOUND
-          ! error stop "Error: NaN density found in fluid_t%sanity_check()"
         end if
       end do
     end do
     !$omp end do nowait
+
     !$omp do
     do j = jlo, jhi
       do i = ilo, ihi
         if(ieee_is_nan(self%u(i, j))) then
           write(std_err, '(a, i0, ", ", i0, a)') "NaN x-velocity found at (", i, j, ")"
           error_code = NANS_FOUND
-          ! error stop "Error: NaN x-velocity found in fluid_t%sanity_check()"
         end if
       end do
     end do
@@ -935,7 +932,6 @@ contains
     !$omp end do nowait
 
     !$omp end parallel
-
   end subroutine sanity_check
 
   subroutine ssp_rk3(U, grid, error_code)
