@@ -24,7 +24,7 @@ program cato
 #endif /* USE_OPENMP */
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit, std_error => error_unit
-  use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND
+  use mod_error, only: ALL_OK, error_msg
   use mod_contour_writer, only: contour_writer_t
   use mod_globals, only: print_version_stats, open_debug_files
   use mod_units, only: set_output_unit_system, io_time_label, io_time_units
@@ -51,7 +51,6 @@ program cato
   integer(ik) :: last_io_iteration = 0
   logical :: file_exists = .false.
   real(rk) :: contour_interval_dt, max_time
-  ! real(rk), dimension(:,:), allocatable :: sound_speed
 
   open(std_error, file='std.err')
 
@@ -77,7 +76,8 @@ program cato
   inquire(file=trim(input_filename), exist=file_exists)
 
   if(.not. file_exists) then
-    error stop 'Error in main(), CATO input (input.ini) file not found, exiting...'
+    call error_msg(module='cato', procedure='main', &
+                   message="CATO input (input.ini) file not found", file_name=__FILE__, line_number=__LINE__)
   end if
 
   call input%read_from_ini(input_filename)

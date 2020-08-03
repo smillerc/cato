@@ -315,8 +315,6 @@ contains
     !$omp private(rho_edge_fluxes, rhou_edge_fluxes, rhov_edge_fluxes, rhoE_edge_fluxes)
     !$omp do
     do j = jlo, jhi
-      !$omp simd
-      !dir$ vector aligned
       do i = ilo, ihi
 
         delta_l = grid%cell_edge_lengths(:, i, j)
@@ -329,8 +327,8 @@ contains
                            self%jflux(1, i, j) * delta_l(3)]
         ave_rho_edge_flux = 0.25_rk * sum(abs(rho_edge_fluxes))
 
-        ! rho_flux = -neumaier_sum_4(rho_edge_fluxes)
-        rho_flux = -sum(rho_edge_fluxes)
+        rho_flux = -neumaier_sum_4(rho_edge_fluxes)
+        ! rho_flux = -sum(rho_edge_fluxes)
 
         rho_flux_threshold = abs(ave_rho_edge_flux) * REL_THRESHOLD
         if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
@@ -343,8 +341,8 @@ contains
                             -self%jflux(2, i, j - 1) * delta_l(1), self%jflux(2, i, j) * delta_l(3)]
         ave_rhou_edge_flux = 0.25_rk * sum(abs(rhou_edge_fluxes))
 
-        ! rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
-        rhou_flux = -sum(rhou_edge_fluxes)
+        rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
+        ! rhou_flux = -sum(rhou_edge_fluxes)
 
         rhou_flux_threshold = abs(ave_rhou_edge_flux) * REL_THRESHOLD
         if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
@@ -357,8 +355,8 @@ contains
                             -self%jflux(3, i, j - 1) * delta_l(1), self%jflux(3, i, j) * delta_l(3)]
         ave_rhov_edge_flux = 0.25_rk * sum(abs(rhov_edge_fluxes))
 
-        ! rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
-        rhov_flux = -sum(rhov_edge_fluxes)
+        rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
+        ! rhov_flux = -sum(rhov_edge_fluxes)
 
         rhov_flux_threshold = abs(ave_rhov_edge_flux) * REL_THRESHOLD
         if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
@@ -373,8 +371,8 @@ contains
                             self%jflux(4, i, j) * delta_l(3)]
         ave_rhoE_edge_flux = 0.25_rk * sum(abs(rhoE_edge_fluxes))
 
-        ! rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
-        rhoE_flux = -sum(rhoE_edge_fluxes)
+        rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
+        ! rhoE_flux = -sum(rhoE_edge_fluxes)
 
         rhoE_flux_threshold = abs(ave_rhoE_edge_flux) * REL_THRESHOLD
         if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
