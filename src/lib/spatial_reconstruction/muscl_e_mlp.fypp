@@ -23,7 +23,7 @@
 #:set DIRECTIONS = ['i', 'j']
 #:set LIMITERS = ['minmod', 'superbee', 'vanleer']
 
-module mod_muscl_tvd2
+module mod_muscl_e_mlp
   !> Summary: Provide TVD 2nd order MUSCL edge interpolation
   !> Date: 08/03/2020
   !> Author: Sam Miller
@@ -33,22 +33,23 @@ module mod_muscl_tvd2
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_muscl_interpolation, only: muscl_interpolation_t
-  use mod_globals, only: n_ghost_layers, debug_print, enable_debug_print
+  use mod_globals, only: n_ghost_layers, debug_print
   use mod_error, only: error_msg
 
   implicit none
   private
-  public :: muscl_tvd2_t, new_muscl_tvd2
+  public :: muscl_e_mlp_t, new_muscl_e_mlp
 
-  type, extends(muscl_interpolation_t) :: muscl_tvd2_t
+  type, extends(muscl_interpolation_t) :: muscl_e_mlp_t
+    integer(ik), dimension(:,:), allocatable :: continuity_sensor !< (i,j); flag for continuous and linear/non-linear discontinuity regions
   contains
-    procedure, public :: initialize => init_muscl_tvd2
+    procedure, public :: initialize => init_muscl_e_mlp
     procedure, public :: interpolate_edge_values
     procedure, public :: distinguish_continuous_regions
 
     #:for DIR in DIRECTIONS
     #:for LIMITER in LIMITERS
-    procedure, private :: interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$
+    procedure, private :: interp_muscl_e_mlp_${DIR}$_edge_${LIMITER}$
     #:endfor
     #:endfor
 
@@ -57,8 +58,8 @@ module mod_muscl_tvd2
 
 contains
 
-function new_muscl_tvd2(limiter) result(interpolator)
-  type(muscl_tvd2_t), pointer :: interpolator
+function new_muscl_e_mlp(limiter) result(interpolator)
+  type(muscl_e_mlp_t), pointer :: interpolator
   character(len=*), intent(in) :: limiter
 
   allocate(interpolator)
@@ -66,15 +67,15 @@ function new_muscl_tvd2(limiter) result(interpolator)
   interpolator%order = 2
 end function
 
-subroutine init_muscl_tvd2(self, limiter)
-  class(muscl_tvd2_t), intent(inout) :: self
+subroutine init_muscl_e_mlp(self, limiter)
+  class(muscl_e_mlp_t), intent(inout) :: self
   character(len=*), intent(in) :: limiter
   self%limiter_name = trim(limiter)
   self%order = 2
-end subroutine init_muscl_tvd2
+end subroutine init_muscl_e_mlp
 
 subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
-  class(muscl_tvd2_t), intent(in) :: self
+  class(muscl_e_mlp_t), intent(in) :: self
   integer(ik), dimension(2), intent(in) :: lbounds
 
   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
@@ -83,17 +84,16 @@ subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
   real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
   real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
 
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interpolate_edge_values()', __FILE__, __LINE__)
 
   select case(trim(self%limiter_name))
     #:for LIMITER in LIMITERS
   case("${LIMITER}$")
     #:for DIR in DIRECTIONS
-    call self%interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(q, lbounds, ${DIR}$_edges)
+    call self%interp_muscl_e_mlp_${DIR}$_edge_${LIMITER}$(q, lbounds, ${DIR}$_edges)
     #:endfor
     #:endfor
   case default
-    call error_msg(module='mod_muscl_tvd2', class='muscl_tvd2_t', procedure='interpolate_edge_values', &
+    call error_msg(module='mod_muscl_e_mlp', class='muscl_e_mlp_t', procedure='interpolate_edge_values', &
                    message="Unknown limiter type: '" // trim(self%limiter_name) // "'", &
                    file_name=__FILE__, line_number=__LINE__)
   end select
@@ -103,25 +103,24 @@ end subroutine interpolate_edge_values
 subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
   !< For plain-jane TVD2, there is no need to distinguish the regions which are continuous or linear/non-linear discontinuity regions. This
   !< is required by the parent class, but is really only implemented in the e-MLP classes.
-  class(muscl_tvd2_t), intent(in) :: self
+  class(muscl_e_mlp_t), intent(in) :: self
   integer(ik), dimension(2), intent(in) :: lbounds
   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); density
   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); density
   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); density
-
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%distinguish_continuous_regions()', __FILE__, __LINE__)
 end subroutine distinguish_continuous_regions
 
 subroutine finalize(self)
   !< Finalizer routine to clean up allocated data
-  type(muscl_tvd2_t), intent(inout) :: self
+  type(muscl_e_mlp_t), intent(inout) :: self
+  if (allocated(self%continuity_sensor)) deallocate(self%continuity_sensor)
 end subroutine finalize
 
 #:for LIMITER in LIMITERS
 #:for DIR in DIRECTIONS
-subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, lbounds, edge_values)
-  class(muscl_tvd2_t), intent(in) :: self
+subroutine interp_muscl_e_mlp_${DIR}$_edge_${LIMITER}$(self, q, lbounds, edge_values)
+  class(muscl_e_mlp_t), intent(in) :: self
   integer(ik), dimension(2), intent(in) :: lbounds
 
   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
@@ -136,22 +135,11 @@ subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, lbounds, edge_val
   real(rk) :: delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half
   real(rk) :: r_R, r_L, phi_limit
 
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$()', __FILE__, __LINE__)
-
-  ! Because this is an edge-based array, the indexing is # cells + 1, and
-  ! only goes into the single nearest ghost layer
   ilo = lbound(q, dim=1) + n_ghost_layers - 1
+  ihi = ubound(q, dim=1) - n_ghost_layers + 1
   jlo = lbound(q, dim=2) + n_ghost_layers - 1
-  ihi = ubound(q, dim=1) - n_ghost_layers
-  jhi = ubound(q, dim=2) - n_ghost_layers
+  jhi = ubound(q, dim=2) - n_ghost_layers + 1
 
-#:if DIR == 'i'
-  allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
-#:elif DIR == 'j'
-  allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
-#:endif
-
-  edge_values = 0.0_rk
     !
     !                    jflux(i,j)  'R'
     !               o--------------------o
@@ -207,17 +195,13 @@ subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, lbounds, edge_val
     #:endif
 
       ! Phi R, e.g. right state
-    #:if DIR == 'i'
       edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * phi_limit * delta_i_plus_three_half
-    #:elif DIR == 'j'
-      edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * phi_limit * delta_i_plus_three_half
-    #:endif
 
     end do
   end do
 
-end subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$
+end subroutine interp_muscl_e_mlp_${DIR}$_edge_${LIMITER}$
 
 #:endfor
 #:endfor
-end module mod_muscl_tvd2
+end module mod_muscl_e_mlp

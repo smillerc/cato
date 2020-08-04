@@ -18,21 +18,22 @@ module mod_muscl_interpolation
   type, abstract :: muscl_interpolation_t
     private
     integer(ik), public :: order = 2 !< interpolation order
-    character(len=32), public :: name = ''
-    character(len=32), public :: limiter_name = ''
+    character(len=32), public :: name = '' !< name of the interpolation scheme, e.g. 'TVD2'
+    character(len=32), public :: limiter_name = '' !< Name of the TVD limiter, e.g. 'minmod'
   contains
-    procedure(init), deferred, public ::  initialize
-    procedure(basic_interface), deferred, public :: interpolate_edge_values
+    procedure(initialize), deferred, public ::  initialize
+    procedure(distinguish_continuous_regions), deferred, public :: distinguish_continuous_regions
+    procedure(interpolate_edge_values), deferred, public :: interpolate_edge_values
   end type
 
   abstract interface
-    subroutine init(self, limiter)
+    subroutine initialize(self, limiter)
       import :: muscl_interpolation_t
       class(muscl_interpolation_t), intent(inout) :: self
       character(len=*), intent(in) :: limiter
-    end subroutine init
+    end subroutine initialize
 
-    subroutine basic_interface(self, q, lbounds, i_edges, j_edges)
+    subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
       import :: muscl_interpolation_t, ik, rk
       class(muscl_interpolation_t), intent(in) :: self
       integer(ik), dimension(2), intent(in) :: lbounds
@@ -43,9 +44,18 @@ module mod_muscl_interpolation
       real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
       !<((L,R), i, j); L/R state for each edge
       real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
-    end subroutine
+    end subroutine interpolate_edge_values
+
+    subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
+      import :: muscl_interpolation_t, ik, rk
+      class(muscl_interpolation_t), intent(in) :: self
+      integer(ik), dimension(2), intent(in) :: lbounds
+      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
+      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); density
+      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); density
+      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); density
+    end subroutine distinguish_continuous_regions
   end interface
 
 contains
-
 end module mod_muscl_interpolation

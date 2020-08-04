@@ -115,15 +115,6 @@ contains
 
     ! Locals
     integer(ik) :: alloc_status
-    ! integer(ik), dimension(4, 2) :: ghost_layers
-
-    ! ! The ghost_layers array just tells the boundary condition which cell indices
-    ! ! are tagged as boundaries. See boundary_condition_t%set_indices() for details
-    ! ghost_layers(1, :) = [grid%ilo_bc_cell, grid%ilo_cell - 1] ! ilo
-    ! ghost_layers(3, :) = [grid%jlo_bc_cell, grid%jlo_cell - 1] ! jlo
-
-    ! ghost_layers(2, :) = [grid%ihi_cell + 1, grid%ihi_bc_cell] ! ihi
-    ! ghost_layers(4, :) = [grid%jhi_cell + 1, grid%jhi_bc_cell] ! jhi
 
     ! Set boundary conditions
     bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, grid=grid)
@@ -145,14 +136,6 @@ contains
     allocate(bc_minus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
     deallocate(bc)
-
-    ! write(*, '(a)') "Boundary Conditions"
-    ! write(*, '(a)') "==================="
-    ! write(*, '(3(a),i0,a)') "+x: ", trim(bc_plus_x%name), ' (priority = ', bc_plus_x%priority, ')'
-    ! write(*, '(3(a),i0,a)') "-x: ", trim(bc_minus_x%name), ' (priority = ', bc_minus_x%priority, ')'
-    ! write(*, '(3(a),i0,a)') "+y: ", trim(bc_plus_y%name), ' (priority = ', bc_plus_y%priority, ')'
-    ! write(*, '(3(a),i0,a)') "-y: ", trim(bc_minus_y%name), ' (priority = ', bc_minus_y%priority, ')'
-    ! write(*, *)
 
   end subroutine init_boundary_conditions
 
@@ -290,19 +273,19 @@ contains
     jlo = grid%jlo_cell
     jhi = grid%jhi_cell
 
-    !                   edge(3)
-    !                  jflux(i,j+1)  'R'
-    !               o--------------------o
-    !               |                'L' |
-    !               |                    |
-    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
-    !    edge(4)    |                    |  edge(2)
-    !               |                'L' | 'R'
-    !               o--------------------o
-    !                  jflux(i,j)
-    !                   edge(1)
-    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
-    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
+    !                                   /\
+    !                  jflux(i,j)  'R'  |
+    !                o--------------------o
+    !                |                'L' |
+    !            <---|                    |--->
+    ! -iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !                |                    |
+    !                |                'L' | 'R'
+    !                o--------------------o
+    !                   jflux(i,j-1)   |
+    !                                 \/
+    !
+    ! This is the numbering convention that this module uses
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi), &
@@ -321,10 +304,8 @@ contains
         volume = grid%cell_volume(i, j)
 
         ! rho
-        rho_edge_fluxes = [self%iflux(1, i, j) * delta_l(2), &
-                           -self%iflux(1, i - 1, j) * delta_l(4), &
-                           -self%jflux(1, i, j - 1) * delta_l(1), &
-                           self%jflux(1, i, j) * delta_l(3)]
+        rho_edge_fluxes = [self%iflux(1, i, j) * delta_l(2), -self%iflux(1, i - 1, j) * delta_l(4), &
+                           self%jflux(1, i, j) * delta_l(3), -self%jflux(1, i, j - 1) * delta_l(1)]
         ave_rho_edge_flux = 0.25_rk * sum(abs(rho_edge_fluxes))
 
         rho_flux = -neumaier_sum_4(rho_edge_fluxes)
@@ -338,7 +319,7 @@ contains
 
         ! rho u
         rhou_edge_fluxes = [self%iflux(2, i, j) * delta_l(2), -self%iflux(2, i - 1, j) * delta_l(4), &
-                            -self%jflux(2, i, j - 1) * delta_l(1), self%jflux(2, i, j) * delta_l(3)]
+                            self%jflux(2, i, j) * delta_l(3), -self%jflux(2, i, j - 1) * delta_l(1)]
         ave_rhou_edge_flux = 0.25_rk * sum(abs(rhou_edge_fluxes))
 
         rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
@@ -352,7 +333,7 @@ contains
 
         ! rho v
         rhov_edge_fluxes = [self%iflux(3, i, j) * delta_l(2), -self%iflux(3, i - 1, j) * delta_l(4), &
-                            -self%jflux(3, i, j - 1) * delta_l(1), self%jflux(3, i, j) * delta_l(3)]
+                            self%jflux(3, i, j) * delta_l(3), -self%jflux(3, i, j - 1) * delta_l(1)]
         ave_rhov_edge_flux = 0.25_rk * sum(abs(rhov_edge_fluxes))
 
         rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
@@ -365,10 +346,8 @@ contains
         d_rho_v_dt(i, j) = rhov_flux / volume
 
         ! rho E
-        rhoE_edge_fluxes = [self%iflux(4, i, j) * delta_l(2), &
-                            -self%iflux(4, i - 1, j) * delta_l(4), &
-                            -self%jflux(4, i, j - 1) * delta_l(1), &
-                            self%jflux(4, i, j) * delta_l(3)]
+        rhoE_edge_fluxes = [self%iflux(4, i, j) * delta_l(2), -self%iflux(4, i - 1, j) * delta_l(4), &
+                            self%jflux(4, i, j) * delta_l(3), -self%jflux(4, i, j - 1) * delta_l(1)]
         ave_rhoE_edge_flux = 0.25_rk * sum(abs(rhoE_edge_fluxes))
 
         rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
