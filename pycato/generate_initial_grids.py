@@ -61,8 +61,8 @@ def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=1):
     p = np.ones(cell_shape)
 
     # cell center locations
-    xc = x_2d[:-1, :-1] + dx
-    yc = y_2d[:-1, :-1] + dy
+    xc = x_2d[:-1, :-1] + dx / 2.0
+    yc = y_2d[:-1, :-1] + dy / 2.0
 
     return {
         "x": x_2d * ureg("cm"),
@@ -252,7 +252,7 @@ def make_2d_layered_grid(
     else:
         raise Exception("Unable to work with n_ghost_layers that aren't 1 or 2")
     dx = np.diff(x) / 2.0
-    xc = x[:-1] + dx
+    xc = x[:-1] + dx / 2.0
 
     layer_cell_idx_ranges = []  # [(first cell, last cell), etc]
     cum_layer_thickness = np.cumsum(layer_thicknesses)
@@ -317,8 +317,8 @@ def make_2d_layered_grid(
     dx = (np.diff(x_2d[:, 0]) / 2.0)[0]
 
     # cell center locations
-    xc = x_2d[:-1, :-1] + dx
-    yc = y_2d[:-1, :-1] + dy
+    xc = x_2d[:-1, :-1] + dx / 2.0
+    yc = y_2d[:-1, :-1] + dy / 2.0
 
     return {
         "x": x_2d * ureg("cm"),
@@ -415,7 +415,7 @@ def make_1d_layered_grid(
     # add a ghost cell on either side
     x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx], dtype=np.float64)
     dx = np.diff(x) / 2.0
-    xc = x[:-1] + dx
+    xc = x[:-1] + dx / 2.0
 
     layer_cell_idx_ranges = []  # [(first cell, last cell), etc]
     cum_layer_thickness = np.cumsum(layer_thicknesses)
@@ -471,8 +471,8 @@ def make_1d_layered_grid(
     dx = (np.diff(x_2d[:, 0]) / 2.0)[0]
 
     # cell center locations
-    xc = x_2d[:-1, :-1] + dx
-    yc = y_2d[:-1, :-1] + dy
+    xc = x_2d[:-1, :-1] + dx / 2.0
+    yc = y_2d[:-1, :-1] + dy / 2.0
 
     return {
         "x": x_2d * ureg("cm"),
@@ -532,8 +532,8 @@ def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1), n_ghost_layers=1):
     p = np.ones(cell_shape)
 
     # cell center locations
-    xc = x_2d[:-1, :-1] + dx
-    yc = y_2d[:-1, :-1] + dx
+    xc = x_2d[:-1, :-1] + dx / 2.0
+    yc = y_2d[:-1, :-1] + dy / 2.0
 
     return {
         "x": x_2d * ureg("cm"),
