@@ -317,8 +317,8 @@ def make_2d_layered_grid(
     dx = (np.diff(x_2d[:, 0]) / 2.0)[0]
 
     # cell center locations
-    xc = x_2d[:-1, :-1] + dx / 2.0
-    yc = y_2d[:-1, :-1] + dy / 2.0
+    xc = x_2d[:-1, :-1] + dx
+    yc = y_2d[:-1, :-1] + dy
 
     return {
         "x": x_2d * ureg("cm"),
@@ -471,8 +471,8 @@ def make_1d_layered_grid(
     dx = (np.diff(x_2d[:, 0]) / 2.0)[0]
 
     # cell center locations
-    xc = x_2d[:-1, :-1] + dx / 2.0
-    yc = y_2d[:-1, :-1] + dy / 2.0
+    xc = x_2d[:-1, :-1] + dx
+    yc = y_2d[:-1, :-1] + dy
 
     return {
         "x": x_2d * ureg("cm"),
