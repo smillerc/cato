@@ -88,12 +88,16 @@ contains
         d_ij_j = 0.0_rk
         if(abs(${F}$(i, j)) > 0.0_rk) then
           ! Eq 11a
-          d_ij_i = abs(((-one_sixth * ${F}$(i - 2, j) + two_thirds * ${F}$(i - 1, j) + two_thirds * ${F}$(i + 1, j) - one_sixth * ${F}$(i + 2, j))/${F}$(i,j)) - 1.0_rk)
+          d_ij_i = abs(((-one_sixth * ${F}$(i - 2, j) + two_thirds * ${F}$(i - 1, j) + two_thirds * ${F}$(i + 1, j) - one_sixth * ${F}$(i + 2, j)) &
+                        / ${F}$(i,j)) &
+                        - 1.0_rk)
 
           ! Eq 11b
-          d_ij_j = abs(((-one_sixth * ${F}$(i, j - 2) + two_thirds * ${F}$(i, j - 1) + two_thirds * ${F}$(i, j + 1) - one_sixth * ${F}$(i, j + 2))/${F}$(i,j)) - 1.0_rk)
+          d_ij_j = abs(((-one_sixth * ${F}$(i, j - 2) + two_thirds * ${F}$(i, j - 1) + two_thirds * ${F}$(i, j + 1) - one_sixth * ${F}$(i, j + 2)) &
+                         / ${F}$(i,j)) &
+                         - 1.0_rk)
         end if
-        d_bar_${F}$(i, j) = abs(0.5_rk * (d_ij_i + d_ij_j))
+        d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
         ! Eq 11c
       end do
     end do
@@ -102,15 +106,15 @@ contains
     ! Assign contiuous sensor based on the approximate values, e.g. d_bar_rho
     do j = jlo, jhi
       do i = ilo, ihi
-        if(d_bar_rho(i, j) > EPS) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+        if(abs(d_bar_rho(i, j)) > EPS) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
 
         if(abs(u(i, j)) < abs(v(i, j))) then
-          if(d_bar_v(i, j) > EPS .and. abs(v(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+          if(abs(d_bar_v(i, j)) > EPS .and. abs(v(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
         else ! abs(u(i,j)) >= abs(v(i,j))
-          if(d_bar_u(i, j) > EPS .and. abs(u(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+          if(abs(d_bar_u(i, j)) > EPS .and. abs(u(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
         end if
 
-        if(d_bar_p(i, j) > EPS) continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
+        if(abs(d_bar_p(i, j)) > EPS) continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
       end do
     end do
 
