@@ -51,6 +51,11 @@ except Exception:
 # Load cato results
 ds = load_dataset(".")
 
+try:
+    scheme = f"{ds.attrs['scheme.flux_solver']} + {ds.attrs['scheme.limiter']}"
+except Exception:
+    scheme = None
+
 # Remove the ghost layers (bc's)
 ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
@@ -86,7 +91,7 @@ ds.pressure.sel(t=t, method="nearest").plot(x="x", label="CATO Pressure")
 plt.plot(values["x"], p, label="Exact Pressure")
 
 plt.title(
-    f"Sod 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+    f"Sod 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}"
 )
 plt.ylabel("")
 plt.xlabel("X")

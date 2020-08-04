@@ -43,6 +43,8 @@ papers/~$method_explanation.pptx
 .ipynb_checkpoints
 
 # test details
+std.err
+std.out
 tests/**/cato.x
 tests/**/*.txt
 tests/**/*.png
