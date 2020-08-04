@@ -165,7 +165,14 @@ subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, lbounds, edge_val
     !
     ! This is the numbering convention that this module uses
 
+  !$omp parallel default(none), &
+  !$omp firstprivate(ilo, ihi, jlo, jhi) &
+  !$omp private(i, j, phi_limit, delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half) &
+  !$omp private(r_L, r_R) &
+  !$omp shared(q, edge_values)
+  !$omp do
   do j = jlo, jhi
+    !$omp simd
     do i = ilo, ihi
 
     #:if DIR == 'i'
@@ -215,6 +222,8 @@ subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, lbounds, edge_val
 
     end do
   end do
+  !$omp end do
+  !$omp end parallel
 
 end subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$
 

@@ -46,11 +46,12 @@ module mod_m_ausmpw_plus_solver
   !<        (2017) 8th International Conference on Mechanical and Aerospace Engineering (ICMAE), 522-526., https://doi.org/10.1109/ICMAE.2017.8038701
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use mod_error, only: error_msg
   use mod_globals, only: debug_print, LOW_MACH
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
-  use mod_edge_interpolator_factory, only: edge_interpolator_factory
-  use mod_edge_interpolator, only: edge_iterpolator_t
+  use mod_muscl_interpolator_factory, only: muscl_interpolator_factory
+  use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
   use mod_grid, only: grid_t
@@ -124,8 +125,8 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
-    class(edge_iterpolator_t), pointer :: edge_interpolator => null()
-    class(edge_iterpolator_t), pointer :: sb_edge_interpolator => null()
+    class(muscl_interpolation_t), pointer :: edge_interpolator => null()
+    class(muscl_interpolation_t), pointer :: sb_edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x
     class(boundary_condition_t), allocatable:: bc_plus_y
     class(boundary_condition_t), allocatable:: bc_minus_x
@@ -135,15 +136,29 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
 
-    real(rk), dimension(:, :, :), allocatable :: rho_interface_values !< interface (L/R state) values for density
-    real(rk), dimension(:, :, :), allocatable :: u_interface_values   !< interface (L/R state) values for x-velocity
-    real(rk), dimension(:, :, :), allocatable :: v_interface_values   !< interface (L/R state) values for y-velocity
-    real(rk), dimension(:, :, :), allocatable :: p_interface_values   !< interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable :: rho_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for density
+    real(rk), dimension(:, :, :), allocatable :: rho_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for density
 
-    real(rk), dimension(:, :, :), allocatable :: rho_superbee_values !< interface (L/R state) values for density
-    real(rk), dimension(:, :, :), allocatable :: u_superbee_values   !< interface (L/R state) values for x-velocity
-    real(rk), dimension(:, :, :), allocatable :: v_superbee_values   !< interface (L/R state) values for y-velocity
-    real(rk), dimension(:, :, :), allocatable :: p_superbee_values   !< interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable ::   u_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), allocatable ::   u_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for x-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   v_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), allocatable ::   v_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for y-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   p_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable ::   p_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for pressure
+
+    real(rk), dimension(:, :, :), allocatable :: rho_i_edges_sb   !< ((1:2), i, j) i-interface (L/R state) values for density
+    real(rk), dimension(:, :, :), allocatable :: rho_j_edges_sb   !< ((1:2), i, j) j-interface (L/R state) values for density
+
+    real(rk), dimension(:, :, :), allocatable ::   u_i_edges_sb   !< ((1:2), i, j) i-interface (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), allocatable ::   u_j_edges_sb   !< ((1:2), i, j) j-interface (L/R state) values for x-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   v_i_edges_sb   !< ((1:2), i, j) i-interface (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), allocatable ::   v_j_edges_sb   !< ((1:2), i, j) j-interface (L/R state) values for y-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   p_i_edges_sb   !< ((1:2), i, j) i-interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable ::   p_j_edges_sb   !< ((1:2), i, j) j-interface (L/R state) values for pressure
 
     real(rk) :: denom_xi           !< scalar used to aid in the compuation of w_2_xi
     real(rk) :: numer_xi           !< scalar used to aid in the compuation of w_2_xi
@@ -157,10 +172,11 @@ contains
     call debug_print('Running m_ausmpw_plus_solver_t%solve_m_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
-      write(std_err, '(a, es16.6)') "Error in m_ausmpw_plus_solver_t%solve_m_ausmpw_plus(), "// &
-        "the timestep dt is < tiny(1.0_rk): dt = ", dt
-      error stop "Error in m_ausmpw_plus_solver_t%solve_m_ausmpw_plus(), the timestep dt is < tiny(1.0_rk)"
+      call error_msg(module='mod_m_ausmpw_plus_solver', class='m_ausmpw_plus_solver_t', procedure='solve_m_ausmpw_plus', &
+                   message="The timestep dt is < tiny(1.0_rk)", &
+                   file_name=__FILE__, line_number=__LINE__)
     end if
+
     self%time = self%time + dt
     self%dt = dt
     self%iteration = self%iteration + 1
@@ -172,43 +188,35 @@ contains
                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    edge_interpolator => edge_interpolator_factory(self%input)
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
+    edge_interpolator => muscl_interpolator_factory(self%input)
 
-    sb_edge_interpolator => edge_interpolator_factory(self%input, limiter_name='superbee')
-    call sb_edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_superbee_values)
-    call sb_edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_superbee_values)
-    call sb_edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_superbee_values)
-    call sb_edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_superbee_values)
+    ! This is useful if e-MLP is used
+    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
-    call self%apply_reconstructed_bc(recon_rho=rho_interface_values, recon_u=u_interface_values, &
-                                     recon_v=v_interface_values, recon_p=p_interface_values, &
-                                     lbounds=lbounds, &
-                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
 
-    call self%apply_reconstructed_bc(recon_rho=rho_superbee_values, recon_u=u_superbee_values, &
-                                     recon_v=v_superbee_values, recon_p=p_superbee_values, &
-                                     lbounds=lbounds, &
-                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    !                   edge(3)
-    !                  jflux(i,j+1)  'R'
+    sb_edge_interpolator => muscl_interpolator_factory(self%input, limiter_name='superbee')
+    call sb_edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges_sb, j_edges=rho_j_edges_sb)
+    call sb_edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges_sb, j_edges=u_j_edges_sb)
+    call sb_edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges_sb, j_edges=v_j_edges_sb)
+    call sb_edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges_sb, j_edges=p_j_edges_sb)
+
+    !
+    !                    jflux(i,j)  'R'
     !               o--------------------o
     !               |                'L' |
     !               |                    |
-    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
-    !    edge(4)    |                    |  edge(2)
+    ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !               |                    |
     !               |                'L' | 'R'
     !               o--------------------o
-    !                  jflux(i,j)
-    !                   edge(1)
-    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
-    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
+    !                  jflux(i,j-1)
+    !
+    ! This is the numbering convention that this module uses
 
     ilo = grid%ilo_cell
     ihi = grid%ihi_cell
@@ -218,8 +226,6 @@ contains
     if(allocated(self%iflux)) deallocate(self%iflux)
     if(allocated(self%jflux)) deallocate(self%jflux)
 
-    ! allocate(self%iflux(4, ilo:ihi + 1, jlo:jhi))
-    ! allocate(self%jflux(4, ilo:ihi, jlo:jhi + 1))
     allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
     allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
 
@@ -272,23 +278,23 @@ contains
     ! !$omp end parallel
 
     call self%get_iflux(grid=grid, &
-                        lbounds=lbound(rho_interface_values), &
+                        lbounds=lbound(rho_i_edges), &
                         eflux_lbounds=lbound(self%iflux), &
                         rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
-                        rho=rho_interface_values, u=u_interface_values, &
-                        v=v_interface_values, p=p_interface_values, &
-                        rho_sb=rho_superbee_values, u_sb=u_superbee_values, &
-                        v_sb=v_superbee_values, p_sb=p_superbee_values, &
+                        rho_edge=rho_i_edges, u_edge=u_i_edges, &
+                        v_edge=v_i_edges, p_edge=p_i_edges, &
+                        rho_edge_sb=rho_i_edges_sb, u_edge_sb=u_i_edges_sb, &
+                        v_edge_sb=v_i_edges_sb, p_edge_sb=p_i_edges_sb, &
                         w2=w_2_xi, edge_flux=self%iflux)
 
     call self%get_jflux(grid=grid, &
-                        lbounds=lbound(rho_interface_values), &
+                        lbounds=lbound(rho_j_edges), &
                         eflux_lbounds=lbound(self%jflux), &
                         rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
-                        rho=rho_interface_values, u=u_interface_values, &
-                        v=v_interface_values, p=p_interface_values, &
-                        rho_sb=rho_superbee_values, u_sb=u_superbee_values, &
-                        v_sb=v_superbee_values, p_sb=p_superbee_values, &
+                        rho_edge=rho_j_edges, u_edge=u_j_edges, &
+                        v_edge=v_j_edges, p_edge=p_j_edges, &
+                        rho_edge_sb=rho_j_edges_sb, u_edge_sb=u_j_edges_sb, &
+                        v_edge_sb=v_j_edges_sb, p_edge_sb=p_j_edges_sb, &
                         w2=w_2_eta, edge_flux=self%jflux)
 
     ! Now flux the edges to get the next solution
@@ -299,15 +305,23 @@ contains
     deallocate(w_2_eta)
     deallocate(w_2_xi)
 
-    deallocate(rho_interface_values)
-    deallocate(u_interface_values)
-    deallocate(v_interface_values)
-    deallocate(p_interface_values)
+    deallocate(rho_i_edges   )
+    deallocate(rho_j_edges   )
+    deallocate(u_i_edges   )
+    deallocate(u_j_edges   )
+    deallocate(v_i_edges   )
+    deallocate(v_j_edges   )
+    deallocate(p_i_edges   )
+    deallocate(p_j_edges   )
+    deallocate(rho_i_edges_sb)
+    deallocate(rho_j_edges_sb)
+    deallocate(u_i_edges_sb)
+    deallocate(u_j_edges_sb)
+    deallocate(v_i_edges_sb)
+    deallocate(v_j_edges_sb)
+    deallocate(p_i_edges_sb)
+    deallocate(p_j_edges_sb)
 
-    deallocate(rho_superbee_values)
-    deallocate(u_superbee_values)
-    deallocate(v_superbee_values)
-    deallocate(p_superbee_values)
 
     deallocate(bc_plus_x)
     deallocate(bc_plus_y)
@@ -319,7 +333,9 @@ contains
   end subroutine solve_m_ausmpw_plus
 
   #:for DIR in DIRECTIONS
-  subroutine get_${DIR}$flux(self, grid, lbounds, rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, rho_ave, u_ave, v_ave, p_ave, w2, eflux_lbounds, edge_flux)
+  subroutine get_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, &
+                             rho_edge_sb, u_edge_sb, v_edge_sb, p_edge_sb, &
+                             rho_ave, u_ave, v_ave, p_ave, w2, eflux_lbounds, edge_flux)
     !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
@@ -328,14 +344,17 @@ contains
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho    !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for density
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for pressure
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_sb !< (1:4, i,j); interpolated w/superbee (L/R state) values for density
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_sb   !< (1:4, i,j); interpolated w/superbee (L/R state) values for pressure
+
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge_sb    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: w2 !< shock sensing function (determines if shock exists in transversal direction to the interface)
     integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
     real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux
@@ -458,63 +477,47 @@ contains
     !$omp private(u_LHS_fix, u_RHS_fix, v_LHS_fix, v_RHS_fix) &
     !$omp private(cs_L, cs_R, M_LHS, M_RHS, f_M) &
     !$omp shared(rho_ave, u_ave, v_ave, p_ave) &
-    !$omp shared(grid, w2, rho, u, v, p, rho_sb, u_sb, v_sb, p_sb, edge_flux)
+    !$omp shared(grid, w2, rho_edge, u_edge, v_edge, p_edge, rho_edge_sb, u_edge_sb, v_edge_sb, p_edge_sb, edge_flux)
     !$omp do
     do j = jlo, jhi
       !$omp simd __INTERP_ALIGN__
       !dir$ vector aligned
       do i = ilo, ihi
 
+        ! Left state
+        rho_L = rho_edge(1, i, j)
+        u_LHS =   u_edge(1, i, j)
+        v_LHS =   v_edge(1, i, j)
+        p_L =     p_edge(1, i, j)
+
+        ! Right state
+        rho_R = rho_edge(2, i, j)
+        u_RHS =   u_edge(2, i, j)
+        v_RHS =   v_edge(2, i, j)
+        p_R =     p_edge(2, i, j)
+
+        rho_L_sb = rho_edge_sb(1, i, j)
+        u_LHS_sb =   u_edge_sb(1, i, j)
+        v_LHS_sb =   v_edge_sb(1, i, j)
+        p_L_sb =     p_edge_sb(1, i, j)
+
+        rho_R_sb = rho_edge_sb(2, i, j)
+        u_RHS_sb =   u_edge_sb(2, i, j)
+        v_RHS_sb =   v_edge_sb(2, i, j)
+        p_R_sb =     p_edge_sb(2, i, j)
+
       #:if DIR == 'i'
         n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
         n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
-
-        rho_L = rho(RIGHT_IDX, i, j)
-        u_LHS = u(RIGHT_IDX, i, j)
-        v_LHS = v(RIGHT_IDX, i, j)
-        p_L = p(RIGHT_IDX, i, j)
-        rho_R = rho(LEFT_IDX, i + 1, j)
-        u_RHS = u(LEFT_IDX, i + 1, j)
-        v_RHS = v(LEFT_IDX, i + 1, j)
-        p_R = p(LEFT_IDX, i + 1, j)
-
-        ! Superbee values
-        rho_L_sb = rho_sb(RIGHT_IDX, i, j)
-        u_LHS_sb = u_sb(RIGHT_IDX, i, j)
-        v_LHS_sb = v_sb(RIGHT_IDX, i, j)
-        p_L_sb = p_sb(RIGHT_IDX, i, j)
-        rho_R_sb = rho_sb(LEFT_IDX, i + 1, j)
-        u_RHS_sb = u_sb(LEFT_IDX, i + 1, j)
-        v_RHS_sb = v_sb(LEFT_IDX, i + 1, j)
-        p_R_sb = p_sb(LEFT_IDX, i + 1, j)
 
         U_L = u_LHS
         U_R = u_RHS
         V_L = v_LHS
         V_R = v_RHS
 
-      #:else
+      #:elif DIR == 'j'
         n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
         n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
-
-        rho_L = rho(TOP_IDX, i, j)
-        u_LHS = u(TOP_IDX, i, j)
-        v_LHS = v(TOP_IDX, i, j)
-        p_L = p(TOP_IDX, i, j)
-        rho_R = rho(BOTTOM_IDX, i, j + 1)
-        u_RHS = u(BOTTOM_IDX, i, j + 1)
-        v_RHS = v(BOTTOM_IDX, i, j + 1)
-        p_R = p(BOTTOM_IDX, i, j + 1)
-
-        ! Superbee values
-        rho_L_sb = rho_sb(TOP_IDX, i, j)
-        u_LHS_sb = u_sb(TOP_IDX, i, j)
-        v_LHS_sb = v_sb(TOP_IDX, i, j)
-        p_L_sb = p_sb(TOP_IDX, i, j)
-        rho_R_sb = rho_sb(BOTTOM_IDX, i, j + 1)
-        u_RHS_sb = u_sb(BOTTOM_IDX, i, j + 1)
-        v_RHS_sb = v_sb(BOTTOM_IDX, i, j + 1)
-        p_R_sb = p_sb(BOTTOM_IDX, i, j + 1)
 
         U_L = v_LHS
         U_R = v_RHS

@@ -533,7 +533,7 @@ def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1), n_ghost_layers=1):
 
     # cell center locations
     xc = x_2d[:-1, :-1] + dx / 2.0
-    yc = y_2d[:-1, :-1] + dy / 2.0
+    yc = y_2d[:-1, :-1] + dx / 2.0
 
     return {
         "x": x_2d * ureg("cm"),
