@@ -42,6 +42,7 @@ target_link_libraries(geometry PUBLIC globals io eos functional)
 
 # Create a list of the files to be preprocessed
 set(fyppFiles
+    lib/spatial_reconstruction/muscl_tvd2.fypp
     lib/boundary_conditions/periodic_bc.fypp
     lib/limiters/e_mlp_distinguisher.fypp
     lib/flux_solvers/m_ausmpw_plus_solver.fypp
@@ -108,6 +109,7 @@ add_library(
   lib/spatial_reconstruction/mlp_3rd_order.f90
   lib/spatial_reconstruction/mlp_5th_order.f90
   lib/spatial_reconstruction/reconstruction_factory.f90
+  lib/spatial_reconstruction/muscl_interpolation.f90
   lib/master_puppeteer/master_puppeteer.f90)
 
 # target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
