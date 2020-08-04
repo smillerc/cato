@@ -75,7 +75,7 @@ contains
     self%y = y_coords
 
     ! round-off checks
-    associate(y=>self%y, x=>self%x)
+    associate(y => self%y, x => self%x)
       if(abs(y(2) - y(1)) < epsilon(1.0_rk)) then
         y(2) = y(1)
       end if
@@ -101,7 +101,7 @@ contains
     !< Find the edge lengths and midpoints of those edges
     class(quad_cell_t), intent(inout) :: self
 
-    associate(x=>self%x, y=>self%y)
+    associate(x => self%x, y => self%y)
       self%edge_lengths(1) = sqrt((x(2) - x(1))**2 + (y(2) - y(1))**2)
       self%edge_lengths(2) = sqrt((x(3) - x(2))**2 + (y(3) - y(2))**2)
       self%edge_lengths(3) = sqrt((x(4) - x(3))**2 + (y(4) - y(3))**2)
@@ -141,7 +141,7 @@ contains
 
     ! self%centroid = 0.0_rk
 
-    associate(x=>self%x, y=>self%y)
+    associate(x => self%x, y => self%y)
       self%centroid = [(x(2) + x(1)) / 2.0_rk,(y(3) + y(2)) / 2.0_rk]
     end associate
 
@@ -161,7 +161,7 @@ contains
     class(quad_cell_t), intent(inout) :: self
     real(rk) :: dx1, dy1, dx2, dy2
 
-    associate(v=>self%volume, x=>self%x, y=>self%y)
+    associate(v => self%volume, x => self%x, y => self%y)
       dx1 = x(2) - x(1)
       dy1 = y(4) - y(1)
       dx2 = x(4) - x(1)
@@ -204,13 +204,13 @@ contains
 
     do i = 1, 4
 
-      associate(x_tail=>self%x(tail_idx(i)), &
-                x_mid=>self%edge_midpoints(1, i), &
-                y_mid=>self%edge_midpoints(2, i), &
-                x_head=>self%x(head_idx(i)), &
-                y_tail=>self%y(tail_idx(i)), &
-                y_head=>self%y(head_idx(i)), &
-                n=>self%edge_norm_vectors)
+      associate(x_tail => self%x(tail_idx(i)), &
+                x_mid => self%edge_midpoints(1, i), &
+                y_mid => self%edge_midpoints(2, i), &
+                x_head => self%x(head_idx(i)), &
+                y_tail => self%y(tail_idx(i)), &
+                y_head => self%y(head_idx(i)), &
+                n => self%edge_norm_vectors)
 
         dx = x_head - x_mid
         dy = y_head - y_mid

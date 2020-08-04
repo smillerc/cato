@@ -58,7 +58,9 @@ contains
 
     real(rk) :: d_ij_i, d_ij_j
 
-    real(rk), parameter :: EPS = 0.0025_rk
+    real(rk), parameter :: EPS = 0.01_rk
+    ! Ref [1] Recommends 0.001 for steady problems and 0.01 for other cases...
+
     real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
     real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
 
@@ -84,7 +86,7 @@ contains
       do i = ilo + n_ghost_layers, ihi - n_ghost_layers
         d_ij_i = 0.0_rk
         d_ij_j = 0.0_rk
-        if (abs(${F}$(i,j)) > 0.0_rk) then
+        if(abs(${F}$(i, j)) > 0.0_rk) then
           ! Eq 11a
           d_ij_i = abs(((-one_sixth * ${F}$(i - 2, j) + two_thirds * ${F}$(i - 1, j) + two_thirds * ${F}$(i + 1, j) - one_sixth * ${F}$(i + 2, j))/${F}$(i,j)) - 1.0_rk)
 
@@ -102,15 +104,11 @@ contains
       do i = ilo, ihi
         if(d_bar_rho(i, j) > EPS) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
 
-        ! if(abs(u(i, j)) < abs(v(i, j))) then
-
-        !   if(d_bar_v(i, j) > EPS .and. abs(v(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
-
-        ! else ! abs(u(i,j)) >= abs(v(i,j))
-
-        !   if(d_bar_u(i, j) > EPS .and. abs(u(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
-
-        ! end if
+        if(abs(u(i, j)) < abs(v(i, j))) then
+          if(d_bar_v(i, j) > EPS .and. abs(v(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+        else ! abs(u(i,j)) >= abs(v(i,j))
+          if(d_bar_u(i, j) > EPS .and. abs(u(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+        end if
 
         if(d_bar_p(i, j) > EPS) continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
       end do

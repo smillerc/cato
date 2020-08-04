@@ -166,8 +166,8 @@ contains
 
     call debug_print('Running fvleg_t%solve_fvleg()', __FILE__, __LINE__)
 
-    associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
-              jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
+    associate(imin => grid%ilo_bc_cell, imax => grid%ihi_bc_cell, &
+              jmin => grid%jlo_bc_cell, jmax => grid%jhi_bc_cell)
 
       allocate(rho_recon_state(1:8, imin:imax, jmin:jmax))
       allocate(u_recon_state(1:8, imin:imax, jmin:jmax))
@@ -175,10 +175,10 @@ contains
       allocate(p_recon_state(1:8, imin:imax, jmin:jmax))
     end associate
 
-    associate(imin_node=>grid%ilo_node, imax_node=>grid%ihi_node, &
-              jmin_node=>grid%jlo_node, jmax_node=>grid%jhi_node, &
-              imin_cell=>grid%ilo_cell, imax_cell=>grid%ihi_cell, &
-              jmin_cell=>grid%jlo_cell, jmax_cell=>grid%jhi_cell)
+    associate(imin_node => grid%ilo_node, imax_node => grid%ihi_node, &
+              jmin_node => grid%jlo_node, jmax_node => grid%jhi_node, &
+              imin_cell => grid%ilo_cell, imax_cell => grid%ihi_cell, &
+              jmin_cell => grid%jlo_cell, jmax_cell => grid%jhi_cell)
 
       allocate(evolved_corner_rho(imin_node:imax_node, jmin_node:jmax_node))
       allocate(evolved_corner_u(imin_node:imax_node, jmin_node:jmax_node))
@@ -473,26 +473,26 @@ contains
           end do
         end do
 
-        associate(F_c1=>corner_fluxes%F(:, i, j), &
-                  G_c1=>corner_fluxes%G(:, i, j), &
-                  F_c2=>corner_fluxes%F(:, i + 1, j), &
-                  G_c2=>corner_fluxes%G(:, i + 1, j), &
-                  F_c3=>corner_fluxes%F(:, i + 1, j + 1), &
-                  G_c3=>corner_fluxes%G(:, i + 1, j + 1), &
-                  F_c4=>corner_fluxes%F(:, i, j + 1), &
-                  G_c4=>corner_fluxes%G(:, i, j + 1), &
-                  F_m1=>leftright_mid_fluxes%F(:, i, j), &
-                  G_m1=>leftright_mid_fluxes%G(:, i, j), &
-                  F_m2=>downup_mid_fluxes%F(:, i + 1, j), &
-                  G_m2=>downup_mid_fluxes%G(:, i + 1, j), &
-                  F_m3=>leftright_mid_fluxes%F(:, i, j + 1), &
-                  G_m3=>leftright_mid_fluxes%G(:, i, j + 1), &
-                  G_m4=>downup_mid_fluxes%G(:, i, j), &
-                  F_m4=>downup_mid_fluxes%F(:, i, j), &
-                  n_hat_1=>grid%cell_edge_norm_vectors(:, 1, i, j), &
-                  n_hat_2=>grid%cell_edge_norm_vectors(:, 2, i, j), &
-                  n_hat_3=>grid%cell_edge_norm_vectors(:, 3, i, j), &
-                  n_hat_4=>grid%cell_edge_norm_vectors(:, 4, i, j))
+        associate(F_c1 => corner_fluxes%F(:, i, j), &
+                  G_c1 => corner_fluxes%G(:, i, j), &
+                  F_c2 => corner_fluxes%F(:, i + 1, j), &
+                  G_c2 => corner_fluxes%G(:, i + 1, j), &
+                  F_c3 => corner_fluxes%F(:, i + 1, j + 1), &
+                  G_c3 => corner_fluxes%G(:, i + 1, j + 1), &
+                  F_c4 => corner_fluxes%F(:, i, j + 1), &
+                  G_c4 => corner_fluxes%G(:, i, j + 1), &
+                  F_m1 => leftright_mid_fluxes%F(:, i, j), &
+                  G_m1 => leftright_mid_fluxes%G(:, i, j), &
+                  F_m2 => downup_mid_fluxes%F(:, i + 1, j), &
+                  G_m2 => downup_mid_fluxes%G(:, i + 1, j), &
+                  F_m3 => leftright_mid_fluxes%F(:, i, j + 1), &
+                  G_m3 => leftright_mid_fluxes%G(:, i, j + 1), &
+                  G_m4 => downup_mid_fluxes%G(:, i, j), &
+                  F_m4 => downup_mid_fluxes%F(:, i, j), &
+                  n_hat_1 => grid%cell_edge_norm_vectors(:, 1, i, j), &
+                  n_hat_2 => grid%cell_edge_norm_vectors(:, 2, i, j), &
+                  n_hat_3 => grid%cell_edge_norm_vectors(:, 3, i, j), &
+                  n_hat_4 => grid%cell_edge_norm_vectors(:, 4, i, j))
 
           ! Bottom
           ! bottom_flux (rho, rhou, rhov, rhoE)

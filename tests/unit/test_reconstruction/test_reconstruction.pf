@@ -107,29 +107,28 @@ contains
     ! print*, lbound(edge_vars)
     ! print*, ubound(edge_vars)
 
-
     i = 2
     j = 2
-    associate(cell_ave=>rho(i, j), &
-              E1=>edge_vars(1, i, j), &
-              E2=>edge_vars(2, i, j), &
-              E3=>edge_vars(3, i, j), &
-              E4=>edge_vars(4, i, j))
+    associate(cell_ave => rho(i, j), &
+              E1 => edge_vars(1, i, j), &
+              E2 => edge_vars(2, i, j), &
+              E3 => edge_vars(3, i, j), &
+              E4 => edge_vars(4, i, j))
       write(*, '(a)') "*********************************************"
       write(*, '(a)') "Interpolated edge state for: rho"
       write(*, '(a)') "*********************************************"
       write(*, *)
-      write(*, '(16x,es11.3)')                  E3
-      write(*, *)         "           C---------E3---------C"
-      write(*, *)         "           |                    |"
-      write(*, *)         "           |                    |"
+      write(*, '(16x,es11.3)') E3
+      write(*, *) "           C---------E3---------C"
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
       write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
       write(*, '(2(es11.3,a))') E4, " E4       (i,j)      E2", E2
-      write(*, *)         "           |                    |"
-      write(*, *)         "           |                    |"
-      write(*, *)         "           |                    |"
-      write(*, *)         "           C---------E1---------C"
-      write(*, '(16x,es11.3)')                  E1
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, *) "           C---------E1---------C"
+      write(*, '(16x,es11.3)') E1
       write(*, *)
 
     end associate
@@ -184,11 +183,11 @@ contains
 
     i = 2
     j = 2
-    associate(cell_ave=>rho(i, j), &
-              E1=>edge_vars(1, i, j), &
-              E2=>edge_vars(2, i, j), &
-              E3=>edge_vars(3, i, j), &
-              E4=>edge_vars(4, i, j))
+    associate(cell_ave => rho(i, j), &
+              E1 => edge_vars(1, i, j), &
+              E2 => edge_vars(2, i, j), &
+              E3 => edge_vars(3, i, j), &
+              E4 => edge_vars(4, i, j))
       write(*, '(a)') "*********************************************"
       write(*, '(a)') "Interpolated edge state for: rho"
       write(*, '(a)') "*********************************************"
@@ -248,11 +247,11 @@ contains
 
     i = 2
     j = 2
-    associate(cell_ave=>rho(i, j), &
-              E1=>edge_vars(1, i, j), &
-              E2=>edge_vars(2, i, j), &
-              E3=>edge_vars(3, i, j), &
-              E4=>edge_vars(4, i, j))
+    associate(cell_ave => rho(i, j), &
+              E1 => edge_vars(1, i, j), &
+              E2 => edge_vars(2, i, j), &
+              E3 => edge_vars(3, i, j), &
+              E4 => edge_vars(4, i, j))
       write(*, '(a)') "*********************************************"
       write(*, '(a)') "Interpolated edge state for: rho"
       write(*, '(a)') "*********************************************"

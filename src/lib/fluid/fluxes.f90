@@ -66,11 +66,11 @@ contains
     real(rk) :: total_energy !< total energy
 
     ! The flux tensor is H = Fi + Gj
-    associate(rho=>primitive_variables(1), &
-              u=>primitive_variables(2), &
-              v=>primitive_variables(3), &
-              p=>primitive_variables(4), &
-              H=>flux_tensor%state)
+    associate(rho => primitive_variables(1), &
+              u => primitive_variables(2), &
+              v => primitive_variables(3), &
+              p => primitive_variables(4), &
+              H => flux_tensor%state)
 
       call eos%total_energy(p=p, rho=rho, u=u, v=v, E=total_energy)
 

@@ -193,8 +193,8 @@ contains
     integer(ik), dimension(3), intent(in) :: ubounds
     integer(ik), dimension(4) :: ranges !< [ilo, ihi, jlo, jhi]
 
-    associate(ilo=>ranges(1), ihi=>ranges(2), &
-              jlo=>ranges(3), jhi=>ranges(4))
+    associate(ilo => ranges(1), ihi => ranges(2), &
+              jlo => ranges(3), jhi => ranges(4))
 
       ilo = self%ilo
       ihi = self%ihi

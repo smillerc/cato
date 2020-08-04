@@ -420,17 +420,17 @@ contains
 
     allocate(rho_a_tilde, mold=cones%reference_density)
 
-    associate(a_tilde=>cones%reference_sound_speed, &
-              dtheta=>cones%dtheta, &
-              sin_dtheta=>cones%sin_dtheta, &
-              cos_dtheta=>cones%cos_dtheta, &
-              sin_d2theta=>cones%sin_d2theta, &
-              cos_d2theta=>cones%cos_d2theta, &
-              rho_p_prime=>cones%density_p_prime, &
-              pressure_p_prime=>cones%pressure_p_prime, &
-              u_i=>cones%u, &
-              v_i=>cones%v, &
-              p_i=>cones%p)
+    associate(a_tilde => cones%reference_sound_speed, &
+              dtheta => cones%dtheta, &
+              sin_dtheta => cones%sin_dtheta, &
+              cos_dtheta => cones%cos_dtheta, &
+              sin_d2theta => cones%sin_d2theta, &
+              cos_d2theta => cones%cos_d2theta, &
+              rho_p_prime => cones%density_p_prime, &
+              pressure_p_prime => cones%pressure_p_prime, &
+              u_i => cones%u, &
+              v_i => cones%v, &
+              p_i => cones%p)
 
       !$omp parallel default(none) &
       !$omp shared(cones, p, rho, u, v, rho_a_tilde) &

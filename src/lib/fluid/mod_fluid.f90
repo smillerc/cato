@@ -164,8 +164,9 @@ contains
     call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
 
     if(.not. scale_factors_set) then
-      error stop "Error in fluid_t%initialize()"//AT_LINE_LOC//" global non-dimensional "// &
-        "scale factors haven't been set yet. These need to be set before fluid initialization"
+      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
+            message="Global non-dimensional scale factors haven't been set yet. These need to be set before fluid initialization", &
+                     file_name=__FILE__, line_number=__LINE__)
     end if
 
     associate(imin => grid%ilo_bc_cell, &
@@ -540,7 +541,7 @@ contains
     !< or discontinuous (linear or non-linear)
     class(fluid_t), intent(inout) :: self
 
-    ! call distinguish(rho=self%rho, u=self%u, v=self%v, p=self%p, continuity_sensor=self%continuous_sensor)
+    call distinguish(rho=self%rho, u=self%u, v=self%v, p=self%p, continuity_sensor=self%continuous_sensor)
   end subroutine get_continuity_sensor
 
   subroutine residual_smoother(self)

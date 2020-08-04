@@ -536,12 +536,12 @@ contains
     gamma_factor = ((2.0_rk * (gamma - 1.0_rk)) / (gamma + 1.0_rk))
     f_a = 0.0_rk
 
-    associate(n_x=>n(1), n_y=>n(2), &
-              rho_L=>rho(1), rho_R=>rho(2), &
-              u_L=>u(1), u_R=>u(2), &
-              v_L=>v(1), v_R=>v(2), &
-              p_L=>p(1), p_R=>p(2), &
-              H_L=>H(1), H_R=>H(2))
+    associate(n_x => n(1), n_y => n(2), &
+              rho_L => rho(1), rho_R => rho(2), &
+              u_L => u(1), u_R => u(2), &
+              v_L => v(1), v_R => v(2), &
+              p_L => p(1), p_R => p(2), &
+              H_L => H(1), H_R => H(2))
       ! Dot-product to get total velocity based on the edge normals
       vel_L = u_L * n_x + v_L * n_y
       vel_R = u_R * n_x + v_R * n_y
@@ -590,8 +590,8 @@ contains
 
     ! The pressure diffusion term, Mp, as defined in Eq. 21 in Ref [1]
     ! This is the "p" in AUSM+-up
-    associate(K_p=>self%pressure_diffusion_coeff, sigma=>self%sigma, &
-              p_L=>p(1), p_R=>p(2))
+    associate(K_p => self%pressure_diffusion_coeff, sigma => self%sigma, &
+              p_L => p(1), p_R => p(2))
 
       if(abs(p_R - p_L) < epsilon(1.0_rk)) then
         M_p = 0.0_rk
@@ -617,7 +617,7 @@ contains
 
     ! Velocity difference (diffusion) term p_u, NOT, Eq. 26, but rather the last term in Eq 75
     ! This is the "u" in the AUSM+-u and AUSM+-up schemes
-    associate(K_u=>self%pressure_flux_coeff, rho_L=>rho(1), rho_R=>rho(2))
+    associate(K_u => self%pressure_flux_coeff, rho_L => rho(1), rho_R => rho(2))
 
       if(abs(vel_R - vel_L) < epsilon(1.0_rk)) then
         p_u = 0.0_rk
@@ -631,7 +631,7 @@ contains
     end associate
 
     ! Interface pressure, Eq. 75
-    associate(p_L=>p(1), p_R=>p(2))
+    associate(p_L => p(1), p_R => p(2))
       p_half = P_plus * p_L + P_minus * p_R + p_u
     end associate
 

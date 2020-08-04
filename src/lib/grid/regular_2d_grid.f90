@@ -188,7 +188,7 @@ contains
     call self%get_midpoint_persistent_vectors(edge='left', scale=.false., shift=.false.)
     call self%get_midpoint_persistent_vectors(edge='bottom', scale=.false., shift=.false.)
 
-    call self%print_grid_stats()
+    ! call self%print_grid_stats()
   end subroutine initialize
 
   subroutine copy(out_grid, in_grid)

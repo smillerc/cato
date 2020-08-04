@@ -262,8 +262,8 @@ contains
 
     !$omp single
     if(.not. self%is_initialized) then
-      associate(nc=>self%n_neighbor_cells, &
-                ilo=>self%ilo, ihi=>self%ihi, jlo=>self%jlo, jhi=>self%jhi)
+      associate(nc => self%n_neighbor_cells, &
+                ilo => self%ilo, ihi => self%ihi, jlo => self%jlo, jhi => self%jhi)
 
         if(.not. allocated(self%edge_vectors)) then
           allocate(self%edge_vectors(2, 0:nc, self%ilo:self%ihi, self%jlo:self%jhi))
@@ -849,7 +849,7 @@ contains
 
     idx_max = 2 * self%n_neighbor_cells
 
-    associate(ilo=>self%ilo, ihi=>self%ihi, jlo=>self%jlo, jhi=>self%jhi)
+    associate(ilo => self%ilo, ihi => self%ihi, jlo => self%jlo, jhi => self%jhi)
       allocate(sin_theta_ib(idx_max, ilo:ihi, jlo:jhi))
       allocate(cos_theta_ib(idx_max, ilo:ihi, jlo:jhi))
       allocate(sin_theta_ie(idx_max, ilo:ihi, jlo:jhi))
@@ -1026,7 +1026,7 @@ contains
     real(rk) :: p_prime_cross_vec_1
     real(rk) :: vec_2_cross_p_prime
 
-    associate(ilo=>self%ilo, ihi=>self%ihi, jlo=>self%jlo, jhi=>self%jhi)
+    associate(ilo => self%ilo, ihi => self%ihi, jlo => self%jlo, jhi => self%jhi)
       allocate(theta_ib(2 * self%n_neighbor_cells, ilo:ihi, jlo:jhi))
       allocate(theta_ie(2 * self%n_neighbor_cells, ilo:ihi, jlo:jhi))
       allocate(n_arcs_per_cell(self%n_neighbor_cells, ilo:ihi, jlo:jhi))
@@ -1088,7 +1088,7 @@ contains
               second_vector = corner_vector_set(:, 4)
             end select
 
-            associate(x0=>self%p0_x(i, j), y0=>self%p0_y(i, j))
+            associate(x0 => self%p0_x(i, j), y0 => self%p0_y(i, j))
               ! Determine if P' is in this cell
               p_prime_cross_vec_1 = ((self%p_prime_x(i, j) - x0) * (first_vector(2) - y0)) - &
                                     ((self%p_prime_y(i, j) - y0) * (first_vector(1) - x0))
@@ -1181,7 +1181,7 @@ contains
               second_vector = midpoint_vector_set(:, 2)
             end select
 
-            associate(x0=>self%p0_x(i, j), y0=>self%p0_y(i, j))
+            associate(x0 => self%p0_x(i, j), y0 => self%p0_y(i, j))
               ! Determine if P' is in this cell
               p_prime_cross_vec_1 = ((self%p_prime_x(i, j) - x0) * (first_vector(2) - y0)) - &
                                     ((self%p_prime_y(i, j) - y0) * (first_vector(1) - x0))

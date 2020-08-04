@@ -136,7 +136,7 @@ contains
     jhi = master%grid%jhi_cell
 
     if(.not. master%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
-    associate(dx=>master%grid%cell_dx, dy=>master%grid%cell_dy)
+    associate(dx => master%grid%cell_dx, dy => master%grid%cell_dy)
 
       delta_t = minval(cfl / &
                        (((abs(master%fluid%u(ilo:ihi, jlo:jhi)) + master%fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &

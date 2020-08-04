@@ -42,8 +42,8 @@ contains
     real(rk), intent(out) :: radius      !< radius of the cone/circle
     real(rk) :: dx, dy
 
-    associate(x=>xy(1), y=>xy(2), &
-              u=>vel(1), v=>vel(2))
+    associate(x => xy(1), y => xy(2), &
+              u => vel(1), v => vel(2))
       origin = [x - tau * u, y - tau * v]
       radius = sound_speed * tau
 

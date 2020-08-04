@@ -284,9 +284,9 @@ contains
                                     description='Cell j Index', units='dimensionless')
     deallocate(int_data_buffer)
 
-    ! call self%write_2d_integer_data(data=master%fluid%continuous_sensor, name='/continuity_sensor', &
-    !                             description='Continuity Sensor [0=continuous, 1=linear discontinuity, 2=non-linear discontinuity', &
-    !                                 units='dimensionless')
+    call self%write_2d_integer_data(data=master%fluid%continuous_sensor, name='/continuity_sensor', &
+                                description='Continuity Sensor [0=continuous, 1=linear discontinuity, 2=non-linear discontinuity', &
+                                    units='dimensionless')
 
     ! Primitive Variables
     dataset_name = '/density'
@@ -433,11 +433,10 @@ contains
       write(xdmf_unit, '(a)') '      </Attribute>'
     endif
 
-    ! unit_label = ""
-    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Continuity Sensor '//trim(unit_label)//'">'
-    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-    !   '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/continuity_sensor</DataItem>'
-    ! write(xdmf_unit, '(a)') '      </Attribute>'
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Continuity Sensor">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/continuity_sensor</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &

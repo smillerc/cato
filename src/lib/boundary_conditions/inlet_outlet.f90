@@ -75,15 +75,15 @@ contains
     if(inlet_density < 0.0_rk) error stop "Error in subsonic_inlet, inlet density < 0"
     if(inlet_total_press < 0.0_rk) error stop "Error in subsonic_inlet, inlet pressure < 0"
 
-    associate(rho=>domain_prim_vars(1), u=>domain_prim_vars(2), &
-              v=>domain_prim_vars(3), p=>domain_prim_vars(4), &
-              n_x=>boundary_norm(1), n_y=>boundary_norm(2), &
+    associate(rho => domain_prim_vars(1), u => domain_prim_vars(2), &
+              v => domain_prim_vars(3), p => domain_prim_vars(4), &
+              n_x => boundary_norm(1), n_y => boundary_norm(2), &
               ! T_0=>inlet_total_temp,
-              rho_0=>inlet_density, &
-              p_0=>inlet_total_press, &
-              theta=>inlet_flow_angle, &
-              R_minus=>outgoing_riemann_inv, R_plus=>incoming_riemann_inv, &
-              R=>universal_gas_constant)
+              rho_0 => inlet_density, &
+              p_0 => inlet_total_press, &
+              theta => inlet_flow_angle, &
+              R_minus => outgoing_riemann_inv, R_plus => incoming_riemann_inv, &
+              R => universal_gas_constant)
 
       ! The (-) sign in n_x and n_y is b/c the boundary condition gives the outward
       ! normal vector respective to the domain, e.g. @ the "+x" bc n=[1,0], but here
@@ -148,9 +148,9 @@ contains
 
     p_b = exit_pressure
 
-    associate(rho_d=>domain_prim_vars(1), u_d=>domain_prim_vars(2), &
-              n_x=>boundary_norm(1), n_y=>boundary_norm(2), &
-              v_d=>domain_prim_vars(3), p_d=>domain_prim_vars(4))
+    associate(rho_d => domain_prim_vars(1), u_d => domain_prim_vars(2), &
+              n_x => boundary_norm(1), n_y => boundary_norm(2), &
+              v_d => domain_prim_vars(3), p_d => domain_prim_vars(4))
 
       call eos%sound_speed(p=p_d, rho=rho_d, cs=cs_d)
 

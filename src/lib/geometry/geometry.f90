@@ -146,8 +146,8 @@ contains
     n_arcs = 0
     theta_start_end = 0.0_rk
 
-    associate(theta_ib=>theta_start_end(1, :), theta_ie=>theta_start_end(2, :), &
-              n1=>n_intersections(1), n2=>n_intersections(2))
+    associate(theta_ib => theta_start_end(1, :), theta_ie => theta_start_end(2, :), &
+              n1 => n_intersections(1), n2 => n_intersections(2))
 
       if(origin_in_cell) then
         if(n1 == 0 .and. n2 == 0) then
@@ -228,8 +228,8 @@ contains
       new_origin = origins(:, largest_circle_idx)
       new_radius = radii(largest_circle_idx)
     else
-      associate(x2=>origins(:, 2), x1=>origins(:, 1), &
-                r2=>radii(2), r1=>radii(1))
+      associate(x2 => origins(:, 2), x1 => origins(:, 1), &
+                r2 => radii(2), r1 => radii(1))
         d = norm2(x2 - x1)
         new_radius = ((r1 + r2 + d) / 2.0_rk)
         new_origin = x1 + (new_radius - r1) * (x2 - x1) / d
@@ -256,9 +256,9 @@ contains
       smaller_circle = 1
     end if
 
-    associate(x1=>origins(1, larger_circle), y1=>origins(2, larger_circle), &
-              x2=>origins(1, smaller_circle), y2=>origins(2, smaller_circle), &
-              r2=>radii(smaller_circle), r1=>radii(larger_circle))
+    associate(x1 => origins(1, larger_circle), y1 => origins(2, larger_circle), &
+              x2 => origins(1, smaller_circle), y2 => origins(2, smaller_circle), &
+              r2 => radii(smaller_circle), r1 => radii(larger_circle))
 
       if(equal(r1, r2) .and. all(equal(origins(:, 1), origins(:, 2)))) then
         ! If the origin and radius are the same (to w/in a small tolerance)
