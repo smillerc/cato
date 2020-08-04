@@ -77,9 +77,9 @@ contains
     integer(ik) :: donor_istart, donor_iend, receiver_istart, receiver_iend
     integer(ik) :: donor_j, receiver_j
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
@@ -120,107 +120,107 @@ contains
       case('-x')
         call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() -x', __FILE__, __LINE__)
 
-          do i = 1, self%n_ghost_layers
+        do i = 1, self%n_ghost_layers
             #:for f in ['rho','u','v','p']
-            ${f}$(left_ghost(i), bottom:top) = ${f}$(right - (i - 1), bottom:top)
+          ${f}$(left_ghost(i), bottom:top) = ${f}$(right - (i - 1), bottom:top)
             #:endfor
+        end do
+
+        if(self%do_corners) then
+          ! Values for the donor and reciever indices
+          donor_istart = right - self%n_ghost_layers + 1
+          donor_iend = right
+          receiver_istart = left_ghost(1) - self%n_ghost_layers + 1
+          receiver_iend = left_ghost(1)
+
+          ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
+          ! assigns them one j layer at a time
+          do j = 1, self%n_ghost_layers
+            donor_j = bottom + (j - 1)
+            receiver_j = top_ghost(j)
+
+              #:for f in ['rho','u','v','p']
+            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+              #:endfor
+
+            donor_j = top - (j - 1)
+            receiver_j = bottom_ghost(j)
+
+              #:for f in ['rho','u','v','p']
+            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+              #:endfor
           end do
-
-          if(self%do_corners) then
-            ! Values for the donor and reciever indices
-            donor_istart = right - self%n_ghost_layers + 1
-            donor_iend = right
-            receiver_istart = left_ghost(1) - self%n_ghost_layers + 1
-            receiver_iend = left_ghost(1)
-
-            ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
-            ! assigns them one j layer at a time
-            do j = 1, self%n_ghost_layers
-              donor_j = bottom + (j - 1)
-              receiver_j = top_ghost(j)
-
-              #:for f in ['rho','u','v','p']
-              ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
-              #:endfor
-
-              donor_j = top - (j - 1)
-              receiver_j = bottom_ghost(j)
-
-              #:for f in ['rho','u','v','p']
-              ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
-              #:endfor
-            end do
-          end if
+        end if
 
       case('+y')
         call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() +y', __FILE__, __LINE__)
 
-            do i = 1, self%n_ghost_layers
+        do i = 1, self%n_ghost_layers
               #:for f in ['rho','u','v','p']
-              ${f}$(left:right, top_ghost(i)) = ${f}$(left:right, bottom + (i - 1))
+          ${f}$(left:right, top_ghost(i)) = ${f}$(left:right, bottom + (i - 1))
               #:endfor
-            end do
+        end do
 
-            if(self%do_corners) then
-              ! Values for the donor and reciever indices
-              donor_istart = left
-              donor_iend = left + self%n_ghost_layers - 1
-              receiver_istart = right_ghost(1)
-              receiver_iend = receiver_istart + self%n_ghost_layers - 1
+        if(self%do_corners) then
+          ! Values for the donor and reciever indices
+          donor_istart = left
+          donor_iend = left + self%n_ghost_layers - 1
+          receiver_istart = right_ghost(1)
+          receiver_iend = receiver_istart + self%n_ghost_layers - 1
 
-              ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
-              ! assigns them one j layer at a time
-              do j = 1, self%n_ghost_layers
-                donor_j = bottom + (j - 1)
-                receiver_j = top_ghost(j)
-
-                #:for f in ['rho','u','v','p']
-                ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
-                #:endfor
-
-                donor_j = top - (j - 1)
-                receiver_j = bottom_ghost(j)
+          ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
+          ! assigns them one j layer at a time
+          do j = 1, self%n_ghost_layers
+            donor_j = bottom + (j - 1)
+            receiver_j = top_ghost(j)
 
                 #:for f in ['rho','u','v','p']
-                ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
                 #:endfor
-              end do
-            end if
+
+            donor_j = top - (j - 1)
+            receiver_j = bottom_ghost(j)
+
+                #:for f in ['rho','u','v','p']
+            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+                #:endfor
+          end do
+        end if
 
       case('-y')
         call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() -y', __FILE__, __LINE__)
 
-            do i = 1, self%n_ghost_layers
-              #:for f in ['rho','u','v','p']
-              ${f}$(left:right, bottom_ghost(i)) = ${f}$(left:right, top - (i - 1))
-              #:endfor
-            end do
+        do i = 1, self%n_ghost_layers
+          #:for f in ['rho','u','v','p']
+            ${f}$(left:right, bottom_ghost(i)) = ${f}$(left:right, top - (i - 1))
+          #:endfor
+        end do
 
-            if(self%do_corners) then
-              ! Values for the donor and reciever indices
-              donor_istart = right - self%n_ghost_layers + 1
-              donor_iend = right
-              receiver_istart = left_ghost(1) - self%n_ghost_layers + 1
-              receiver_iend = left_ghost(1)
+        if(self%do_corners) then
+          ! Values for the donor and reciever indices
+          donor_istart = right - self%n_ghost_layers + 1
+          donor_iend = right
+          receiver_istart = left_ghost(1) - self%n_ghost_layers + 1
+          receiver_iend = left_ghost(1)
 
-              ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
-              ! assigns them one j layer at a time
-              do j = 1, self%n_ghost_layers
-                donor_j = bottom + (j - 1)
-                receiver_j = top_ghost(j)
-
-                #:for f in ['rho','u','v','p']
-                ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
-                #:endfor
-
-                donor_j = top - (j - 1)
-                receiver_j = bottom_ghost(j)
+          ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
+          ! assigns them one j layer at a time
+          do j = 1, self%n_ghost_layers
+            donor_j = bottom + (j - 1)
+            receiver_j = top_ghost(j)
 
                 #:for f in ['rho','u','v','p']
-                ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
                 #:endfor
-              end do
-            end if
+
+            donor_j = top - (j - 1)
+            receiver_j = bottom_ghost(j)
+
+                #:for f in ['rho','u','v','p']
+            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+                #:endfor
+          end do
+        end if
 
       case default
         error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_cell_gradient_bc()"
@@ -244,9 +244,9 @@ contains
     integer(ik) :: donor_istart, donor_iend, receiver_istart, receiver_iend
     integer(ik) :: donor_j, receiver_j
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
@@ -374,14 +374,14 @@ contains
             receiver_j = top_ghost(j)
 
             #:for f in ['rho','u','v','p']
-            recon_${f}$(:,receiver_istart:receiver_iend, receiver_j) = recon_${f}$(:,donor_istart:donor_iend, donor_j)
+            recon_${f}$(:, receiver_istart:receiver_iend, receiver_j) = recon_${f}$(:, donor_istart:donor_iend, donor_j)
             #:endfor
 
             donor_j = top - (j - 1)
             receiver_j = bottom_ghost(j)
 
             #:for f in ['rho','u','v','p']
-            recon_${f}$(:,receiver_istart:receiver_iend, receiver_j) = recon_${f}$(:,donor_istart:donor_iend, donor_j)
+            recon_${f}$(:, receiver_istart:receiver_iend, receiver_j) = recon_${f}$(:, donor_istart:donor_iend, donor_j)
             #:endfor
           end do
         end if
@@ -423,9 +423,9 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
     integer(ik)  :: i
 
-    associate(left=>self%ilo, right=>self%ihi, bottom=>self%jlo, top=>self%jhi, &
-              left_ghost=>self%ilo_ghost, right_ghost=>self%ihi_ghost, &
-              bottom_ghost=>self%jlo_ghost, top_ghost=>self%jhi_ghost)
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
