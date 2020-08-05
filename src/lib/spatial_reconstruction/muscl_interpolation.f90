@@ -48,12 +48,12 @@ module mod_muscl_interpolation
 
     subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
       import :: muscl_interpolation_t, ik, rk
-      class(muscl_interpolation_t), intent(in) :: self
+      class(muscl_interpolation_t), intent(inout) :: self
       integer(ik), dimension(2), intent(in) :: lbounds
       real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); density
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); density
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); density
+      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); x-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); y-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); pressure
     end subroutine distinguish_continuous_regions
   end interface
 

@@ -1,5 +1,5 @@
 ! MIT License
-! Copyright (c) 2019 Sam Miller
+! Copyright (c) 2020 Sam Miller
 ! Permission is hereby granted, free of charge, to any person obtaining a copy
 ! of this software and associated documentation files (the "Software"), to deal
 ! in the Software without restriction, including without limitation the rights
@@ -37,6 +37,7 @@ module mod_muscl_interpolator_factory
   use mod_input, only: input_t
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_muscl_tvd2, only: muscl_tvd2_t, new_muscl_tvd2
+  use mod_muscl_e_mlp, only: muscl_e_mlp_t, new_muscl_e_mlp
 
   use mod_grid, only: grid_t
 
@@ -65,6 +66,11 @@ contains
     select case(trim(input%edge_interpolation_scheme))
     case('TVD2')
       interpolator => new_muscl_tvd2(limiter=limiter)
+      ! call interpolator%initialize(limiter=limiter)
+    case('e-MLP3')
+      interpolator => new_muscl_e_mlp(limiter=limiter, order=3)
+    case('e-MLP5')
+      interpolator => new_muscl_e_mlp(limiter=limiter, order=5)
     case default
       call error_msg(module='mod_muscl_interpolator_factory', procedure='muscl_interpolator_factory', &
                      message="Unknown edge interpolation scheme, must be one of the following: "// &
@@ -73,7 +79,6 @@ contains
                      file_name=__FILE__, line_number=__LINE__)
     end select
 
-    call interpolator%initialize(limiter=limiter)
     deallocate(limiter)
 
   end function

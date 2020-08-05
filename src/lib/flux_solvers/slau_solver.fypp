@@ -1,5 +1,5 @@
 ! MIT License
-! Copyright (c) 2019 Sam Miller
+! Copyright (c) 2020 Sam Miller
 ! Permission is hereby granted, free of charge, to any person obtaining a copy
 ! of this software and associated documentation files (the "Software"), to deal
 ! in the Software without restriction, including without limitation the rights
@@ -24,7 +24,7 @@
 #:set VARIANTS = ['SLAU','SLAU2','SD-SLAU','SD-SLAU2']
 
 #ifdef __SIMD_ALIGN_OMP__
-#define __INTERP_ALIGN__ aligned(rho, u, v, p, edge_flux:__ALIGNBYTES__)
+#define __INTERP_ALIGN__ aligned(rho_edge, u_edge, v_edge, p_edge, edge_flux:__ALIGNBYTES__)
 #else
 #define __INTERP_ALIGN__
 #endif
@@ -44,10 +44,11 @@ module mod_slau_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_globals, only: debug_print
+  use mod_error, only: error_msg
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
-  use mod_edge_interpolator_factory, only: edge_interpolator_factory
-  use mod_edge_interpolator, only: edge_iterpolator_t
+  use mod_muscl_interpolator_factory, only: muscl_interpolator_factory
+  use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
   use mod_grid, only: grid_t
@@ -132,7 +133,7 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
-    class(edge_iterpolator_t), pointer :: edge_interpolator => null()
+    class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x
     class(boundary_condition_t), allocatable:: bc_plus_y
     class(boundary_condition_t), allocatable:: bc_minus_x
@@ -142,54 +143,58 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
 
-    real(rk), dimension(:, :, :), allocatable :: rho_interface_values !< interface (L/R state) values for density
-    real(rk), dimension(:, :, :), allocatable :: u_interface_values   !< interface (L/R state) values for x-velocity
-    real(rk), dimension(:, :, :), allocatable :: v_interface_values   !< interface (L/R state) values for y-velocity
-    real(rk), dimension(:, :, :), allocatable :: p_interface_values   !< interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable :: rho_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for density
+    real(rk), dimension(:, :, :), allocatable :: rho_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for density
 
-    call debug_print('Running slau_solver_t%solve_slau()', __FILE__, __LINE__)
+    real(rk), dimension(:, :, :), allocatable ::   u_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), allocatable ::   u_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for x-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   v_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), allocatable ::   v_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for y-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   p_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable ::   p_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for pressure
+
+    call debug_print('Running ausmpw_plus_solver_t%solve_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
-      write(std_err, '(a, es16.6)') "Error in slau_solver_t%solve_slau(), "// &
-        "the timestep dt is < tiny(1.0_rk): dt = ", dt
-      error stop "Error in slau_solver_t%solve_slau(), the timestep dt is < tiny(1.0_rk)"
+      call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
+                   message="The timestep dt is < tiny(1.0_rk)", &
+                   file_name=__FILE__, line_number=__LINE__)
     end if
+
     self%time = self%time + dt
     self%dt = dt
     self%iteration = self%iteration + 1
 
-    call self%init_boundary_conditions(grid, &
-                                       bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+    call self%init_boundary_conditions(grid, bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                        bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
     call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    edge_interpolator => edge_interpolator_factory(self%input)
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
+    edge_interpolator => muscl_interpolator_factory(self%input)
 
-    call self%apply_reconstructed_bc(recon_rho=rho_interface_values, recon_u=u_interface_values, &
-                                     recon_v=v_interface_values, recon_p=p_interface_values, &
-                                     lbounds=lbounds, &
-                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    ! This is useful if e-MLP is used
+    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
-    !                   edge(3)
-    !                  jflux(i,j+1)  'R'
+    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
+
+    !
+    !                    jflux(i,j)  'R'
     !               o--------------------o
     !               |                'L' |
     !               |                    |
-    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
-    !    edge(4)    |                    |  edge(2)
+    ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !               |                    |
     !               |                'L' | 'R'
     !               o--------------------o
-    !                  jflux(i,j)
-    !                   edge(1)
-    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
-    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
+    !                  jflux(i,j-1)
+    !
+    ! This is the numbering convention that this module uses
 
     ilo = grid%ilo_cell
     ihi = grid%ihi_cell
@@ -207,34 +212,37 @@ contains
     jlo_bc = grid%jlo_bc_cell
     jhi_bc = grid%jhi_bc_cell
 
+
     select case(trim(self%variant))
     #:for VARIANT in VARIANTS
     case("${VARIANT}$")
     #:for DIR in DIRECTIONS
-      call self%get_${VARIANT.replace('-', '_')}$_${DIR}$flux(grid=grid, &
-                                                              lbounds=lbound(rho_interface_values), &
-                                                              rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
-                                                              rho=rho_interface_values, u=u_interface_values, &
-                                                              v=v_interface_values, p=p_interface_values, &
+      call self%get_${VARIANT.replace('-', '_')}$_${DIR}$flux(grid=grid, lbounds=lbound(rho_${DIR}$_edges), &
                                                               eflux_lbounds=lbound(self%${DIR}$flux), &
-                                                              edge_flux=self%${DIR}$flux)
+                                                              rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
+                                                              rho_edge=rho_${DIR}$_edges, u_edge=u_${DIR}$_edges, &
+                                                              v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
     #:endfor
     #:endfor
     case default
-      write(std_err, "(a)") "Unknown SLAU variant '"//trim(self%variant)// &
-        "'in slau_solver_t%solve_SLAU(), must be one of "// &
-        "${VARIANTS}$"
-      error stop "Unknown SLAU variant in slau_solver_t%solve_SLAU(), must be one of "// &
-        "${VARIANTS}$"
+      call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
+                     message="Unknown SLAU variant '"//trim(self%variant)// &
+                             "'in slau_solver_t%solve_SLAU(), must be one of "// &
+                             "${VARIANTS}$", &
+                     file_name=__FILE__, line_number=__LINE__)
     end select
 
     ! Now flux the edges to get the next solution
     call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
 
-    deallocate(rho_interface_values)
-    deallocate(u_interface_values)
-    deallocate(v_interface_values)
-    deallocate(p_interface_values)
+    deallocate(rho_i_edges)
+    deallocate(rho_j_edges)
+    deallocate(u_i_edges)
+    deallocate(u_j_edges)
+    deallocate(v_i_edges)
+    deallocate(v_j_edges)
+    deallocate(p_i_edges)
+    deallocate(p_j_edges)
 
     deallocate(bc_plus_x)
     deallocate(bc_plus_y)
@@ -247,7 +255,7 @@ contains
 
   #:for VARIANT in VARIANTS
   #:for DIR in DIRECTIONS
-  subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux(self, grid, lbounds, rho, u, v, p, rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
+  subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
     !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(slau_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
@@ -256,10 +264,10 @@ contains
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho    !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for density
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p      !< (1:4, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
     integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
     real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux
 
@@ -299,11 +307,11 @@ contains
 
     real(rk), parameter :: THRESHOLD = 5e-3_rk
 
-    ! assume_aligned rho: __ALIGNBYTES__
-    ! assume_aligned u: __ALIGNBYTES__
-    ! assume_aligned v: __ALIGNBYTES__
-    ! assume_aligned p: __ALIGNBYTES__
-    ! assume_aligned edge_flux: __ALIGNBYTES__
+    !dir$ assume_aligned rho_edge: __ALIGNBYTES__
+    !dir$ assume_aligned u_edge: __ALIGNBYTES__
+    !dir$ assume_aligned v_edge: __ALIGNBYTES__
+    !dir$ assume_aligned p_edge: __ALIGNBYTES__
+    !dir$ assume_aligned edge_flux: __ALIGNBYTES__
 
     gamma = self%gamma
 
@@ -312,19 +320,18 @@ contains
     jlo = lbound(edge_flux, dim=3)
     jhi = ubound(edge_flux, dim=3)
 
-    !                   edge(3)
-    !                  jflux(i,j+1) 'R, -'
+    !
+    !                    jflux(i,j)  'R'
     !               o--------------------o
-    !               |              'L, +'|
+    !               |                'L' |
     !               |                    |
-    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
-    !    edge(4)    |                    |  edge(2)
-    !               |             'L, +' | 'R, -'
+    ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !               |                    |
+    !               |                'L' | 'R'
     !               o--------------------o
-    !                  jflux(i,j)
-    !                   edge(1)
-    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
-    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
+    !                  jflux(i,j-1)
+    !
+    ! This is the numbering convention that this module uses
 
     !$omp parallel default(none), &
     !$omp firstprivate(gamma, ilo, ihi, jlo, jhi) &
@@ -337,37 +344,29 @@ contains
     !$omp private(delta_p, delta_Beta, p_L_minus_R, mass_flux, mass_flux_L, mass_flux_R, n_x, n_y) &
     !$omp private(delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6, delta_p_max, theta, M_bar, p_bar, rho_bar, delta_rho) &
     !$omp shared(rho_ave, u_ave, v_ave, p_ave) &
-    !$omp shared(grid, rho, u, v, p, edge_flux)
+    !$omp shared(grid, rho_edge, u_edge, v_edge, p_edge, edge_flux)
     !$omp do
     do j = jlo, jhi
       !$omp simd __INTERP_ALIGN__
-      ! vector aligned
+      !dir$ vector aligned
       do i = ilo, ihi
+
+        rho_L = rho_edge(1, i, j)
+        u_L =     u_edge(1, i, j)
+        v_L =     v_edge(1, i, j)
+        p_L =     p_edge(1, i, j)
+
+        rho_R = rho_edge(2, i, j)
+        u_R =     u_edge(2, i, j)
+        v_R =     v_edge(2, i, j)
+        p_R =     p_edge(2, i, j)
 
       #:if DIR == 'i'
         n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
         n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
-
-        rho_L = rho(RIGHT_IDX, i, j)
-        u_L = u(RIGHT_IDX, i, j)
-        v_L = v(RIGHT_IDX, i, j)
-        p_L = p(RIGHT_IDX, i, j)
-        rho_R = rho(LEFT_IDX, i + 1, j)
-        u_R = u(LEFT_IDX, i + 1, j)
-        v_R = v(LEFT_IDX, i + 1, j)
-        p_R = p(LEFT_IDX, i + 1, j)
       #:else
         n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
         n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
-
-        rho_L = rho(TOP_IDX, i, j)
-        u_L = u(TOP_IDX, i, j)
-        v_L = v(TOP_IDX, i, j)
-        p_L = p(TOP_IDX, i, j)
-        rho_R = rho(BOTTOM_IDX, i, j + 1)
-        u_R = u(BOTTOM_IDX, i, j + 1)
-        v_R = v(BOTTOM_IDX, i, j + 1)
-        p_R = p(BOTTOM_IDX, i, j + 1)
       #:endif
 
         ! Normal velocity

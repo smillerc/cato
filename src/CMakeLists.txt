@@ -44,6 +44,7 @@ target_link_libraries(geometry PUBLIC globals io eos functional)
 set(fyppFiles
     lib/spatial_reconstruction/muscl_tvd2.fypp
     lib/spatial_reconstruction/muscl_e_mlp.fypp
+    lib/spatial_reconstruction/muscl_mlp.fypp
     lib/boundary_conditions/periodic_bc.fypp
     lib/limiters/e_mlp_distinguisher.fypp
     lib/flux_solvers/m_ausmpw_plus_solver.fypp
