@@ -109,12 +109,25 @@ def load_dataset(folder, use_dask=False, drop_ghost=True):
     )
 
     if use_dask:
+        import dask as d
         import dask.array as da
 
         for v in var_list:
             chunk_size = h5_files[0][f"/{v}"].shape
-            datasets = [h5[f"/{v}"][()] for h5 in h5_files]
-            arrays = [da.from_array(dataset, chunks=chunk_size) for dataset in datasets]
+            arrays = [da.from_array(h5[f"/{v}"], chunks=chunk_size) for h5 in h5_files]
+
+            # Trying dask delayed...
+            # arrays = [
+            #     da.from_delayed(
+            #         d.delayed(
+            #             h5py.File(name=f, mode="r").get(f"/{v}")[()]
+            #         ),
+            #         dtype="float32",
+            #         shape=chunk_size,
+            #     )
+            #     for f in step_files
+            # ]
+
             data_array = da.transpose(da.stack(arrays, axis=0), axes=[0, 2, 1])
 
             data_vars[f"{v}"] = xr.Variable(
@@ -185,6 +198,87 @@ def load_dataset(folder, use_dask=False, drop_ghost=True):
         return ds.where(ds["ghost_cell"] == 0, drop=True)
     else:
         return ds
+
+
+def load_single_step(file, drop_ghost=True):
+
+    var_list = [
+        "density",
+        "pressure",
+        "sound_speed",
+        "x_velocity",
+        "y_velocity",
+    ]
+
+    data_vars = {}
+    space_dims = ("t", "x", "y")
+
+    h5 = h5py.File(file, "r")
+
+    # # The ghost cell array is a special case
+    # data_vars[f"ghost_cell"] = xr.Variable(
+    #     ("x", "y"),
+    #     np.array(h5["/ghost_cell"][()].T, dtype=np.int8),
+    #     attrs={"units": h5["/ghost_cell"].attrs["units"].decode("utf-8")},
+    # )
+
+    for v in var_list:
+        data = h5[f"/{v}"][()].T.astype(np.float32)
+        data_vars[f"{v}"] = xr.Variable(
+            {"x", "y"},
+            h5[f"/{v}"][()].T.astype(np.float32),
+            attrs={"units": h5[f"/{v}"].attrs["units"].decode("utf-8")},
+        )
+
+    x = h5[f"/x"][()].T.astype(np.float32)
+    x_units = h5[f"/x"].attrs["units"].decode("utf-8")
+    y = h5[f"/y"][()].T.astype(np.float32)
+
+    # Get the cell centers
+    dy = (np.diff(x[0, :]) / 2.0)[0]
+    dx = (np.diff(y[:, 0]) / 2.0)[0]
+
+    # cell center locations
+    xc = x[:-1, 0] + dx
+    yc = y[0, :-1] + dy
+
+    coords = {
+        "t": h5[f"/time"][()].astype(np.float32),
+        "x": xc,
+        "y": yc,
+    }
+    time_units = h5[f"/time"].attrs["units"].decode("utf-8")
+
+    # Get the details about the CATO build
+    info_attr = {}
+    info = [
+        "build_type",
+        "compile_hostname",
+        "compile_os",
+        "compiler_flags",
+        "compiler_version",
+        "git_changes",
+        "git_hash",
+        "git_ref",
+        "version",
+    ]
+    for v in info:
+        try:
+            info_attr[v] = h5["/cato_info"].attrs[f"{v}"].decode("utf-8")
+        except Exception:
+            pass
+
+    attr_dict = info_attr
+    attr_dict["time_units"] = time_units
+    attr_dict["x_units"] = x_units
+
+    ds = xr.Dataset(data_vars=data_vars, coords=coords, attrs=attr_dict)
+
+    # if drop_ghost:
+    #     return ds.where(ds["ghost_cell"] == 0, drop=True)
+    # else:
+    #
+    return ds
 
 
 def serialize_dataset(dataset):
