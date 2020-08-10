@@ -284,8 +284,8 @@ contains
                                     description='Cell j Index', units='dimensionless')
     deallocate(int_data_buffer)
 
-    call self%write_2d_integer_data(data=master%fluid%continuous_sensor, name='/continuity_sensor', &
-                                description='Continuity Sensor [0=continuous, 1=linear discontinuity, 2=non-linear discontinuity', &
+    call self%write_2d_integer_data(data=master%fluid%continuous_sensor(ilo:ihi, jlo:jhi), name='/continuity_sensor', &
+                               description='Continuity Sensor [0=continuous, 1=linear discontinuity, 2=non-linear discontinuity]', &
                                     units='dimensionless')
 
     ! Primitive Variables

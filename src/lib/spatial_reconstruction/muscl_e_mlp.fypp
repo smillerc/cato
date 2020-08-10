@@ -146,7 +146,7 @@ subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
 
   real(rk) :: d_ij_i, d_ij_j
 
-  real(rk), parameter :: EPS = 0.01_rk
+  real(rk), parameter :: EPS = 0.005_rk
   ! Ref [1] Recommends 0.001 for steady problems and 0.01 for other cases...
 
   real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
@@ -231,6 +231,8 @@ subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
   deallocate(d_bar_v)
   deallocate(d_bar_p)
 
+  self%continuity_sensor = LINEAR_DISCONT_REGION
+
 end subroutine distinguish_continuous_regions
 
 subroutine finalize(self)
@@ -255,22 +257,22 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
   integer(ik) :: i, j, m, n
   integer(ik) :: ilo, ihi, jlo, jhi
 
-  real(rk) :: delta_i_minus_half      !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
-  real(rk) :: delta_i_plus_half       !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
-  real(rk) :: delta_i_plus_three_half !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
+  real(rk) :: delta_ij_minus_half      !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
+  real(rk) :: delta_ij_plus_half       !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
+  real(rk) :: delta_ij_plus_three_half !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
   real(rk) :: r_R !< smoothness parameter
   real(rk) :: r_L !< smoothness parameter
 
-  real(rk) :: tan_theta_i   !< the tan(theta), i term
-  real(rk) :: tan_theta_ip1 !< the tan(theta), i+1 term
+  real(rk) :: tan_theta_ij   !< the tan(theta), i term
+  real(rk) :: tan_theta_ijp1 !< the tan(theta), i+1 term
 
   real(rk) :: phi_ML, phi_MR
   real(rk), dimension(6) :: phi_MN
   real(rk) :: min_phi_MN, max_phi_MN
   real(rk) :: alpha_L, alpha_R
   real(rk) :: alpha_L_term, alpha_R_term
-  real(rk) :: beta_L_delta_i_minus_half
-  real(rk) :: beta_R_delta_i_plus_three_half
+  real(rk) :: beta_L_delta_ij_minus_half
+  real(rk) :: beta_R_delta_ij_plus_three_half
 
   real(rk), parameter :: f_1_over_3 = 1.0_rk / 3.0_rk     !< paramater for 1/3 used to save extra divisions
   real(rk), parameter :: f_2_over_3 = 2.0_rk / 3.0_rk     !< paramater for 2/3 used to save extra divisions
@@ -314,11 +316,11 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
 
   !$omp parallel default(none), &
   !$omp firstprivate(ilo, ihi, jlo, jhi) &
-  !$omp private(i, j, m, n, delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half) &
+  !$omp private(i, j, m, n, delta_ij_minus_half, delta_ij_plus_half, delta_ij_plus_three_half) &
   !$omp private(r_L, r_R) &
-  !$omp private(tan_theta_i, tan_theta_ip1,  alpha_L, alpha_R, alpha_L_term, alpha_R_term) &
+  !$omp private(tan_theta_ij, tan_theta_ijp1,  alpha_L, alpha_R, alpha_L_term, alpha_R_term) &
   !$omp private(phi_ML, phi_MR) &
-  !$omp private(beta_L_delta_i_minus_half, beta_R_delta_i_plus_three_half, phi_MN, min_phi_MN, max_phi_MN) &
+  !$omp private(beta_L_delta_ij_minus_half, beta_R_delta_ij_plus_three_half, phi_MN, min_phi_MN, max_phi_MN) &
   !$omp shared(q, edge_values, self)
   !$omp do
   do j = jlo, jhi
@@ -329,36 +331,36 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
         ! 3rd order interpolation
         #:if DIR == 'i'
           ! Eq 23a in Ref [1]
-          beta_L_delta_i_minus_half = -f_1_over_3 * q(i - 1, j) - f_1_over_3 * q(i,j) + f_2_over_3 * q(i + 1, j)
+          beta_L_delta_ij_minus_half = -f_1_over_3 * q(i - 1, j) - f_1_over_3 * q(i,j) + f_2_over_3 * q(i + 1, j)
 
           ! Eq 23b in Ref [1]
-          beta_R_delta_i_plus_three_half = f_1_over_3 * q(i + 2, j) + f_1_over_3 * q(i + 1,j) - f_2_over_3 * q(i, j)
+          beta_R_delta_ij_plus_three_half = f_1_over_3 * q(i + 2, j) + f_1_over_3 * q(i + 1, j) - f_2_over_3 * q(i, j)
         #:elif DIR == 'j'
           ! Eq 23a in Ref [1]
-          beta_L_delta_i_minus_half = -f_1_over_3 * q(i, j - 1) - f_1_over_3 * q(i,j) + f_2_over_3 * q(i, j + 1)
+          beta_L_delta_ij_minus_half = -f_1_over_3 * q(i, j - 1) - f_1_over_3 * q(i,j) + f_2_over_3 * q(i, j + 1)
 
           ! Eq 23b in Ref [1]
-          beta_R_delta_i_plus_three_half = f_1_over_3 * q(i, j + 2) + f_1_over_3 * q(i,j + 1) - f_2_over_3 * q(i, j)
+          beta_R_delta_ij_plus_three_half = f_1_over_3 * q(i, j + 2) + f_1_over_3 * q(i, j + 1) - f_2_over_3 * q(i, j)
         #:endif
 
       #:elif ORDER == 5
         ! 5th order interpolation
         #:if DIR == 'i'
           ! Eq 24a in Ref [1]
-          beta_L_delta_i_minus_half = f_2_over_30 * q(i - 2, j) - f_13_over_30 * q(i - 1,j) &
+          beta_L_delta_ij_minus_half = f_2_over_30 * q(i - 2, j) - f_13_over_30 * q(i - 1,j) &
                                       - f_13_over_30 * q(i, j) + f_27_over_30 * q(i + 1, j) - f_3_over_30 * q(i + 2, j)
 
           ! Eq 24b in Ref [1]
-          beta_R_delta_i_plus_three_half = f_2_over_30 * q(i - 2, j) - f_13_over_30 * q(i - 1,j) &
-                                          - f_13_over_30 * q(i, j) + f_27_over_30 * q(i + 1, j) - f_3_over_30 * q(i + 2, j)
+          beta_R_delta_ij_plus_three_half = -f_2_over_30 * q(i + 3, j) + f_13_over_30 * q(i + 2,j) &
+                                          + f_13_over_30 * q(i + 1, j) - f_27_over_30 * q(i, j) + f_3_over_30 * q(i - 1, j)
         #:elif DIR == 'j'
           ! Eq 24a in Ref [1]
-          beta_L_delta_i_minus_half = f_2_over_30 * q(i, j - 2) - f_13_over_30 * q(i,j - 1) &
+          beta_L_delta_ij_minus_half = f_2_over_30 * q(i, j - 2) - f_13_over_30 * q(i, j - 1) &
                                       - f_13_over_30 * q(i, j) + f_27_over_30 * q(i, j + 1) - f_3_over_30 * q(i, j + 2)
 
           ! Eq 24b in Ref [1]
-          beta_R_delta_i_plus_three_half = f_2_over_30 * q(i, j - 2) - f_13_over_30 * q(i,j - 1) &
-                                          - f_13_over_30 * q(i, j) + f_27_over_30 * q(i, j + 1) - f_3_over_30 * q(i, j + 2)
+          beta_R_delta_ij_plus_three_half = -f_2_over_30 * q(i, j + 3) + f_13_over_30 * q(i,j + 2) &
+                                           + f_13_over_30 * q(i, j + 1) - f_27_over_30 * q(i, j) + f_3_over_30 * q(i, j - 1)
         #:endif
       #:endif
 
@@ -368,103 +370,106 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
         ! No limiting function enabled, since it's a continuous region
 
         ! Phi L, e.g. left state
-        edge_values(1, i, j) = q(i, j) + 0.5_rk * beta_L_delta_i_minus_half
+        edge_values(1, i, j) = q(i, j) + 0.5_rk * beta_L_delta_ij_minus_half
 
         #:if DIR == 'i'
           ! Phi R, e.g. right state
-          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * beta_R_delta_i_plus_three_half
+          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * beta_R_delta_ij_plus_three_half
         #:elif DIR == 'j'
           ! Phi R, e.g. right state
-          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * beta_R_delta_i_plus_three_half
+          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * beta_R_delta_ij_plus_three_half
         #:endif
 
       case(LINEAR_DISCONT_REGION)
         ! For a linear discontinuity, use TVD limiting
 
         #:if DIR == 'i'
-          delta_i_minus_half = q(i, j) - q(i - 1, j)
-          delta_i_plus_half = q(i + 1, j) - q(i, j)
-          delta_i_plus_three_half = q(i + 2, j) - q(i + 1, j)
+          delta_ij_minus_half = q(i, j) - q(i - 1, j)
+          delta_ij_plus_half = q(i + 1, j) - q(i, j)
+          delta_ij_plus_three_half = q(i + 2, j) - q(i + 1, j)
         #:elif DIR == 'j'
-          delta_i_minus_half = q(i, j) - q(i, j - 1)
-          delta_i_plus_half = q(i, j + 1) - q(i, j)
-          delta_i_plus_three_half = q(i, j + 2) - q(i, j + 1)
+          delta_ij_minus_half = q(i, j) - q(i, j - 1)
+          delta_ij_plus_half = q(i, j + 1) - q(i, j)
+          delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
         #:endif
 
-        if (abs(delta_i_minus_half) < epsilon(1.0_rk)) delta_i_minus_half = 0.0_rk
-        if (abs(delta_i_plus_half) < epsilon(1.0_rk)) delta_i_plus_half = 0.0_rk
-        if (abs(delta_i_plus_three_half) < epsilon(1.0_rk)) delta_i_plus_three_half = 0.0_rk
+        if (abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
+        if (abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
+        if (abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
 
         ! Phi L, e.g. left state
-        edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(2.0_rk * delta_i_plus_half, &
-                                                                  2.0_rk * delta_i_minus_half, &
-                                                                  beta_L_delta_i_minus_half))
+        edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(2.0_rk * delta_ij_plus_half, &
+                                                                  2.0_rk * delta_ij_minus_half, &
+                                                                  beta_L_delta_ij_minus_half))
         ! Phi R, e.g. right state
         #:if DIR == 'i'
-          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(2.0_rk * delta_i_plus_half, &
-                                                                        2.0_rk * delta_i_plus_three_half, &
-                                                                        beta_R_delta_i_plus_three_half))
+          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(2.0_rk * delta_ij_plus_half, &
+                                                                        2.0_rk * delta_ij_plus_three_half, &
+                                                                        beta_R_delta_ij_plus_three_half))
         #:elif DIR == 'j'
-          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(2.0_rk * delta_i_plus_half, &
-                                                                        2.0_rk * delta_i_plus_three_half, &
-                                                                        beta_R_delta_i_plus_three_half))
+          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(2.0_rk * delta_ij_plus_half, &
+                                                                        2.0_rk * delta_ij_plus_three_half, &
+                                                                        beta_R_delta_ij_plus_three_half))
         #:endif
 
       case(NONLINEAR_DISCONT_REGION)
         ! For non-linear discontinuity, use MLP limiting
 
         #:if DIR == 'i'
-          delta_i_minus_half = q(i, j) - q(i - 1, j)
-          delta_i_plus_half = q(i + 1, j) - q(i, j)
-          delta_i_plus_three_half = q(i + 2, j) - q(i + 1, j)
+          delta_ij_minus_half = q(i, j) - q(i - 1, j)
+          delta_ij_plus_half = q(i + 1, j) - q(i, j)
+          delta_ij_plus_three_half = q(i + 2, j) - q(i + 1, j)
         #:elif DIR == 'j'
-          delta_i_minus_half = q(i, j) - q(i, j - 1)
-          delta_i_plus_half = q(i, j + 1) - q(i, j)
-          delta_i_plus_three_half = q(i, j + 2) - q(i, j + 1)
+          delta_ij_minus_half = q(i, j) - q(i, j - 1)
+          delta_ij_plus_half = q(i, j + 1) - q(i, j)
+          delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
         #:endif
 
-        if (abs(delta_i_minus_half) < epsilon(1.0_rk)) delta_i_minus_half = 0.0_rk
-        if (abs(delta_i_plus_half) < epsilon(1.0_rk)) delta_i_plus_half = 0.0_rk
-        if (abs(delta_i_plus_three_half) < epsilon(1.0_rk)) delta_i_plus_three_half = 0.0_rk
+        if (abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
+        if (abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
+        if (abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
 
-        r_L = delta_i_plus_half / (delta_i_minus_half + 1e-16_rk)
-        r_R = delta_i_plus_half / (delta_i_plus_three_half + 1e-16_rk)
+        r_L = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
+        r_R = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
 
         ! Inner term of alpha in Eq. 17 in Ref [1]
         #:if DIR == 'i'
           ! Xi variant, Eq 18a. Xi is used for the i-direction
-          tan_theta_i   = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
-          tan_theta_ip1 = abs(q(i + 1, j + 1) - q(i + 1, j - 1)) / (abs(q(i + 2, j) - q(i, j)) + 1e-16_rk)
+          tan_theta_ij   = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
+          tan_theta_ijp1 = abs(q(i + 1, j + 1) - q(i + 1, j - 1)) / (abs(q(i + 2, j) - q(i, j)) + 1e-16_rk)
 
-          ! phi_MN = [q(i,j+1), q(i+1,j+1), q(i,j), q(i+1,j), q(i,j-1), q(i+1,j+1)]
+          phi_MN = [q(i,j+1), q(i+1,j+1), q(i,j), q(i+1,j), q(i,j-1), q(i+1,j+1)]
 
-          min_phi_MN = huge(1.0_rk)
-          max_phi_MN = -huge(1.0_rk)
-          do n = j - 1, j + 1
-            do m = i, i + 1
-              if (q(m,n) < min_phi_MN) min_phi_MN = q(m,n)
-              if (q(m,n) > max_phi_MN) max_phi_MN = q(m,n)
-            end do
-          end do
+          ! min_phi_MN = huge(1.0_rk)
+          ! max_phi_MN = -huge(1.0_rk)
+          ! do n = j - 1, j + 1
+          !   do m = i, i + 1
+          !     if (q(m,n) < min_phi_MN) min_phi_MN = q(m,n)
+          !     if (q(m,n) > max_phi_MN) max_phi_MN = q(m,n)
+          !   end do
+          ! end do
 
         #:elif DIR == 'j'
           ! Eta variant, Eq 18b. Xi is used for the j-direction
-          tan_theta_i   = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
-          tan_theta_ip1 = abs(q(i + 1, j + 1) - q(i - 1, j + 1)) / (abs(q(i, j + 2) - q(i, j)) + 1e-16_rk)
+          tan_theta_ij   = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
+          tan_theta_ijp1 = abs(q(i + 1, j + 1) - q(i - 1, j + 1)) / (abs(q(i, j + 2) - q(i, j)) + 1e-16_rk)
 
-          ! phi_MN = [q(i-1,j+1), q(i,j+1), q(i+1,j+1), q(i-1,j), q(i,j), q(i+1,j)]
+          phi_MN = [q(i-1,j+1), q(i,j+1), q(i+1,j+1), q(i-1,j), q(i,j), q(i+1,j)]
 
-          min_phi_MN = huge(1.0_rk)
-          max_phi_MN = -huge(1.0_rk)
-          do n = j, j + 1
-            do m = i - 1, i + 1
-              if (q(m,n) < min_phi_MN) min_phi_MN = q(m,n)
-              if (q(m,n) > max_phi_MN) max_phi_MN = q(m,n)
-            end do
-          end do
+          ! min_phi_MN = huge(1.0_rk)
+          ! max_phi_MN = -huge(1.0_rk)
+          ! do n = j, j + 1
+          !   do m = i - 1, i + 1
+          !     if (q(m,n) < min_phi_MN) min_phi_MN = q(m,n)
+          !     if (q(m,n) > max_phi_MN) max_phi_MN = q(m,n)
+          !   end do
+          ! end do
         #:endif
 
-        if (delta_i_plus_half > 0.0_rk) then
+        min_phi_MN = minval(phi_MN)
+        max_phi_MN = maxval(phi_MN)
+
+        if (delta_ij_plus_half > 0.0_rk) then
           phi_ML = max_phi_MN
           phi_MR = min_phi_MN
         else ! <= 0
@@ -473,33 +478,34 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
         end if
 
         ! Term inside the [..] in Eq 16a/17a in Ref [1]
-        alpha_L_term = (2.0_rk * max(1.0_rk, abs(r_L)) * abs((phi_ML - q(i, j)) / delta_i_plus_half)) / (1.0_rk + max(0.0_rk, tan_theta_i))
+        alpha_L_term = (2.0_rk * max(1.0_rk, abs(r_L)) * abs((phi_ML - q(i, j)) / (delta_ij_plus_half + 1e-16_rk))) / (1.0_rk + max(0.0_rk, tan_theta_ij))
 
         #:if DIR == 'i'
           ! Term inside the [..] in Eq 16b in Ref [1]
-          alpha_R_term = (2.0_rk * max(1.0_rk, abs(r_R)) * abs((q(i + 1, j) - phi_MR) / delta_i_plus_half)) / (1.0_rk + max(0.0_rk, tan_theta_ip1))
+          alpha_R_term = (2.0_rk * max(1.0_rk, abs(r_R)) * abs((q(i + 1, j) - phi_MR) / (delta_ij_plus_half + 1e-16_rk))) / (1.0_rk + max(0.0_rk, tan_theta_ijp1))
         #:elif DIR == 'j'
           ! Term inside the [..] in Eq 17b in Ref [1], there's a typo in the formula in the paper on the q(i + 1, j) term which should be q(i, j + 1)
-          alpha_R_term = (2.0_rk * max(1.0_rk, abs(r_R)) * abs((q(i, j + 1) - phi_MR) / delta_i_plus_half)) / (1.0_rk + max(0.0_rk, tan_theta_ip1))
+          alpha_R_term = (2.0_rk * max(1.0_rk, abs(r_R)) * abs((q(i, j + 1) - phi_MR) / (delta_ij_plus_half + 1e-16_rk))) / (1.0_rk + max(0.0_rk, tan_theta_ijp1))
         #:endif
 
         ! This is the g(x) = max(1, min(2, alpha)) function
         alpha_L = max(1.0_rk, min(2.0_rk, alpha_L_term))
         alpha_R = max(1.0_rk, min(2.0_rk, alpha_R_term))
+        ! write(*, '(a, 10(es16.6))') '${DIR}$, ', alpha_L_term, alpha_R_term, alpha_L, alpha_R
 
         ! Phi L, e.g. left state
-        edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(alpha_L * delta_i_plus_half, &
-                                                                  alpha_L * delta_i_minus_half, &
-                                                                  beta_L_delta_i_minus_half))
+        edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(alpha_L * delta_ij_plus_half, &
+                                                                  alpha_L * delta_ij_minus_half, &
+                                                                  beta_L_delta_ij_minus_half))
         ! Phi R, e.g. right state
         #:if DIR == 'i'
-          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(alpha_R * delta_i_plus_half, &
-                                                                        alpha_R * delta_i_plus_three_half, &
-                                                                        beta_R_delta_i_plus_three_half))
+          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(alpha_R * delta_ij_plus_half, &
+                                                                        alpha_R * delta_ij_plus_three_half, &
+                                                                        beta_R_delta_ij_plus_three_half))
         #:elif DIR == 'j'
-          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(alpha_R * delta_i_plus_half, &
-                                                                        alpha_R * delta_i_plus_three_half, &
-                                                                        beta_R_delta_i_plus_three_half))
+          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(alpha_R * delta_ij_plus_half, &
+                                                                        alpha_R * delta_ij_plus_three_half, &
+                                                                        beta_R_delta_ij_plus_three_half))
         #:endif
       end select
 

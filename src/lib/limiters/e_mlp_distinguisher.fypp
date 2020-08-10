@@ -18,6 +18,12 @@
 ! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ! SOFTWARE.
 
+#ifdef __SIMD_ALIGN_OMP__
+#define __CONT_ALIGN__ aligned(rho, u, v, p, d_bar_rho, d_bar_u, d_bar_v, d_bar_p:__ALIGNBYTES__)
+#else
+#define __CONT_ALIGN__
+#endif
+
 module mod_distinguisher
   !< Summary: Provide the procedures to conduct the "distinguisher" step in e-MLP. This process
   !<          scans the domain and finds the regions of linear/non-linear discontinuities as well
@@ -39,12 +45,14 @@ module mod_distinguisher
 
 contains
 
-  subroutine distinguish(rho, u, v, p, continuity_sensor)
+  subroutine distinguish(lbounds, rho, u, v, p, continuity_sensor)
     !< Scan the domain for continuous and discontinuous regions
-    real(rk), dimension(:, :), contiguous, intent(in) :: rho !< (i,j); cell-centered density
-    real(rk), dimension(:, :), contiguous, intent(in) :: u   !< (i,j); cell-centered x-velocity
-    real(rk), dimension(:, :), contiguous, intent(in) :: v   !< (i,j); cell-centered y-velocity
-    real(rk), dimension(:, :), contiguous, intent(in) :: p   !< (i,j); cell-centered pressure
+
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); cell-centered density
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u   !< (i,j); cell-centered x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v   !< (i,j); cell-centered y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p   !< (i,j); cell-centered pressure
 
     integer(ik), dimension(:, :), allocatable, intent(out) :: continuity_sensor
     !< (i,j); sensor value to tag wheter it is continuous, linear discontinuous, or non-linear discontinuous
@@ -70,12 +78,18 @@ contains
     jhi = ubound(rho, dim=2)
 
     allocate(continuity_sensor(ilo:ihi, jlo:jhi))
+
     continuity_sensor = CONTINUOUS_REGION
 
     allocate(d_bar_rho(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_rho: __ALIGNBYTES__
     allocate(d_bar_u(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_u: __ALIGNBYTES__
     allocate(d_bar_v(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_v: __ALIGNBYTES__
     allocate(d_bar_p(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_p: __ALIGNBYTES__
+
     d_bar_rho = 0.0_rk
     d_bar_u = 0.0_rk
     d_bar_v = 0.0_rk
@@ -89,18 +103,17 @@ contains
         if(abs(${F}$(i, j)) > 0.0_rk) then
           ! Eq 11a
           d_ij_i = abs(((-one_sixth * ${F}$(i - 2, j) + two_thirds * ${F}$(i - 1, j) + two_thirds * ${F}$(i + 1, j) - one_sixth * ${F}$(i + 2, j)) &
-                        / ${F}$(i,j)) &
-                        - 1.0_rk)
+                        / ${F}$(i,j)) - 1.0_rk)
 
           ! Eq 11b
           d_ij_j = abs(((-one_sixth * ${F}$(i, j - 2) + two_thirds * ${F}$(i, j - 1) + two_thirds * ${F}$(i, j + 1) - one_sixth * ${F}$(i, j + 2)) &
-                         / ${F}$(i,j)) &
-                         - 1.0_rk)
+                        / ${F}$(i,j)) - 1.0_rk)
         end if
-        d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
         ! Eq 11c
+        d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
       end do
     end do
+
     #:endfor
 
     ! Assign contiuous sensor based on the approximate values, e.g. d_bar_rho
@@ -108,15 +121,17 @@ contains
       do i = ilo, ihi
         if(abs(d_bar_rho(i, j)) > EPS) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
 
-        if(abs(u(i, j)) < abs(v(i, j))) then
-          if(abs(d_bar_v(i, j)) > EPS .and. abs(v(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
-        else ! abs(u(i,j)) >= abs(v(i,j))
+        if(abs(u(i, j)) > abs(v(i, j)) .or.  abs(u(i, j) - v(i, j)) < epsilon(1.0_rk)) then
           if(abs(d_bar_u(i, j)) > EPS .and. abs(u(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+
+        else if(abs(u(i, j)) < abs(v(i, j))) then
+          if(abs(d_bar_v(i, j)) > EPS .and. abs(v(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
         end if
 
         if(abs(d_bar_p(i, j)) > EPS) continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
       end do
     end do
+
 
     deallocate(d_bar_rho)
     deallocate(d_bar_u)

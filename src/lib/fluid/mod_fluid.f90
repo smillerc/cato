@@ -1,5 +1,5 @@
 ! MIT License
-! Copyright (c) 2019 Sam Miller
+! Copyright (c) 2020 Sam Miller
 ! Permission is hereby granted, free of charge, to any person obtaining a copy
 ! of this software and associated documentation files (the "Software"), to deal
 ! in the Software without restriction, including without limitation the rights
@@ -541,7 +541,7 @@ contains
     !< or discontinuous (linear or non-linear)
     class(fluid_t), intent(inout) :: self
 
-    call distinguish(rho=self%rho, u=self%u, v=self%v, p=self%p, continuity_sensor=self%continuous_sensor)
+    call distinguish(lbounds=lbound(self%rho), rho=self%rho, u=self%u, v=self%v, p=self%p, continuity_sensor=self%continuous_sensor)
   end subroutine get_continuity_sensor
 
   subroutine residual_smoother(self)

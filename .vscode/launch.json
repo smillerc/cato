@@ -43,5 +43,19 @@
             "externalConsole": false,
             "MIMode": "gdb",
         },
+        {
+            "name": "(gdb) Sedov 2D",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/cato.x",
+            "args": [
+                "input.ini"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/tests/integrated/sedov",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+        },
     ]
 }

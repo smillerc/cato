@@ -25,8 +25,10 @@
 
 #ifdef __SIMD_ALIGN_OMP__
 #define __INTERP_ALIGN__ aligned(q, edge_values:__ALIGNBYTES__)
+#define __CONT_ALIGN__ aligned(rho, u, v, p, d_bar_rho, d_bar_u, d_bar_v, d_bar_p:__ALIGNBYTES__)
 #else
 #define __INTERP_ALIGN__
+#define __CONT_ALIGN__
 #endif
 
 module mod_muscl_mlp
@@ -47,7 +49,6 @@ module mod_muscl_mlp
   public :: muscl_mlp_t, new_muscl_mlp
 
   type, extends(muscl_interpolation_t) :: muscl_mlp_t
-    integer(ik), dimension(:,:), allocatable :: continuity_sensor !< (i,j); flag for continuous and linear/non-linear discontinuity regions
   contains
     procedure, public :: initialize => init_muscl_mlp
     procedure, public :: interpolate_edge_values
@@ -64,20 +65,35 @@ module mod_muscl_mlp
 
 contains
 
-function new_muscl_mlp(limiter) result(interpolator)
+function new_muscl_mlp(limiter, order) result(interpolator)
   type(muscl_mlp_t), pointer :: interpolator
   character(len=*), intent(in) :: limiter
+  integer(ik), intent(in) :: order
 
   allocate(interpolator)
-  interpolator%limiter_name = trim(limiter)
-  interpolator%order = 2
+  write(interpolator%limiter_name, '(a, i0)') 'MLP', order
+  interpolator%order = order
+
 end function
 
 subroutine init_muscl_mlp(self, limiter)
   class(muscl_mlp_t), intent(inout) :: self
   character(len=*), intent(in) :: limiter
-  self%limiter_name = trim(limiter)
-  self%order = 2
+
+
+  select case(trim(limiter))
+  case('MLP3')
+    self%limiter_name = 'MLP3'
+    self%order = 3
+  case('MLP5')
+    self%limiter_name = 'MLP5'
+    self%order = 5
+  case default
+    call error_msg(module='mod_muscl_mlp', class='muscl_mlp_t', procedure='init_muscl_mlp', &
+                   message="Unknown limiter type: '" // trim(limiter) // "'", &
+                   file_name=__FILE__, line_number=__LINE__)
+  end select
+
 end subroutine init_muscl_mlp
 
 subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
@@ -90,28 +106,36 @@ subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
   real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
   real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
 
-  ! #:for DIR in DIRECTIONS
-  ! call self%interp_muscl_mlp_${DIR}$_edge(q, lbounds, ${DIR}$_edges)
-  ! #:endfor
+  select case(self%order)
+    #:for ORDER in SPATIAL_ORDER
+  case(${ORDER}$)
+    #:for DIR in DIRECTIONS
+    call self%interp_muscl_mlp_${DIR}$_edge_${ORDER}$_order(q, lbounds, ${DIR}$_edges)
+    #:endfor
+    #:endfor
+  case default
+    call error_msg(module='mod_muscl_mlp', class='muscl_mlp_t', procedure='interpolate_edge_values', &
+                   message="Unknown limiter type: '" // trim(self%limiter_name) // "'", &
+                   file_name=__FILE__, line_number=__LINE__)
+  end select
 
 end subroutine interpolate_edge_values
 
 subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
-  !< For plain-jane TVD2, there is no need to distinguish the regions which are continuous or linear/non-linear discontinuity regions. This
-  !< is required by the parent class, but is really only implemented in the e-MLP classes.
+  !< Find the continuous and discontinuous regions
   class(muscl_mlp_t), intent(inout) :: self
   integer(ik), dimension(2), intent(in) :: lbounds
   real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); density
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); density
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); density
+  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); x-velocity
+  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); y-velocity
+  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); pressure
 end subroutine distinguish_continuous_regions
 
 subroutine finalize(self)
   !< Finalizer routine to clean up allocated data
   type(muscl_mlp_t), intent(inout) :: self
-  if (allocated(self%continuity_sensor)) deallocate(self%continuity_sensor)
 end subroutine finalize
+
 
 #:for DIR in DIRECTIONS
 #:for ORDER in SPATIAL_ORDER
@@ -125,17 +149,27 @@ subroutine interp_muscl_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edge_
   real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
   !<((L,R), i, j); L/R state for each edge
 
-  integer(ik) :: i, j
+  integer(ik) :: i, j, m, n
   integer(ik) :: ilo, ihi, jlo, jhi
 
-  real(rk) :: delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half
-  real(rk) :: r_R, r_L, phi_limit
+  real(rk) :: delta_ij_minus_half      !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
+  real(rk) :: delta_ij_plus_half       !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
+  real(rk) :: delta_ij_plus_three_half !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
 
+
+  real(rk) :: r_L_ij, r_R_ij_p1, r_L_ij_p1, r_L_ij_m1, r_R_ij, r_R_ij_p2
+
+  real(rk) :: tan_theta_ij   !< the tan(theta), i term
+  real(rk) :: tan_theta_ij_p1 !< the tan(theta), i+1 term
+
+  real(rk) :: beta_L, beta_R
+  real(rk) :: alpha_L, alpha_R
+  real(rk) :: alpha_L_term, alpha_R_term
 
   !dir$ assume_aligned q: __ALIGNBYTES__
   !dir$ assume_aligned edge_values: __ALIGNBYTES__
 
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_mlp_${DIR}$_edge()', __FILE__, __LINE__)
+  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_mlp_${DIR}$_edge_${ORDER}$_order()', __FILE__, __LINE__)
 
   ! Because this is an edge-based array, the indexing is # cells + 1, and
   ! only goes into the single nearest ghost layer
@@ -145,9 +179,9 @@ subroutine interp_muscl_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edge_
   jhi = ubound(q, dim=2) - n_ghost_layers
 
   #:if DIR == 'i'
-    allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
+  allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
   #:elif DIR == 'j'
-    allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
+  allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
   #:endif
 
   edge_values = 0.0_rk
@@ -164,78 +198,118 @@ subroutine interp_muscl_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edge_
     !
     ! This is the numbering convention that this module uses
 
-  !$omp parallel default(none), &
-  !$omp firstprivate(ilo, ihi, jlo, jhi) &
-  !$omp private(i, j, phi_limit, delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half) &
-  !$omp private(r_L, r_R) &
-  !$omp shared(q, edge_values)
-  !$omp do
-  do j = jlo, jhi
-    !$omp simd __INTERP_ALIGN__
-    !dir$ vector aligned
-    do i = ilo, ihi
+  ! !$omp parallel default(none), &
+  ! !$omp firstprivate(ilo, ihi, jlo, jhi) &
+  ! !$omp private(i, j) &
+  ! !$omp private(delta_ij_minus_half, delta_ij_plus_half, delta_ij_plus_three_half ) &
+  ! !$omp private(r_L_ij, r_R_ij_p1, r_L_ij_p1, r_L_ij_m1, r_R_ij, r_R_ij_p2) &
+  ! !$omp private(tan_theta_ij, tan_theta_ij_p1, beta_L, beta_R, alpha_L, alpha_R, alpha_L_term, alpha_R_term) &
+  ! !$omp shared(q, edge_values, self)
+  ! !$omp do
+  ! do j = jlo, jhi
+  !   !! $omp simd __INTERP_ALIGN__
+  !   !! dir$ vector aligned
+  !   do i = ilo, ihi
 
-    #:if DIR == 'i'
-      delta_i_minus_half = q(i, j) - q(i - 1, j)
-      delta_i_plus_half = q(i + 1, j) - q(i, j)
-      delta_i_plus_three_half = q(i + 2, j) - q(i + 1, j)
-    #:elif DIR == 'j'
-      delta_i_minus_half = q(i, j) - q(i, j - 1)
-      delta_i_plus_half = q(i, j + 1) - q(i, j)
-      delta_i_plus_three_half = q(i, j + 2) - q(i, j + 1)
-    #:endif
+  !     #:if DIR == 'i'
+  !       delta_ij_minus_half = q(i, j) - q(i - 1, j)
+  !       delta_ij_plus_half = q(i + 1, j) - q(i, j)
+  !       delta_ij_plus_three_half = q(i + 2, j) - q(i + 1, j)
+  !     #:elif DIR == 'j'
+  !       delta_ij_minus_half = q(i, j) - q(i, j - 1)
+  !       delta_ij_plus_half = q(i, j + 1) - q(i, j)
+  !       delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
+  !     #:endif
 
-      if (abs(delta_i_minus_half) < epsilon(1.0_rk)) delta_i_minus_half = 0.0_rk
-      if (abs(delta_i_plus_half) < epsilon(1.0_rk)) delta_i_plus_half = 0.0_rk
-      if (abs(delta_i_plus_three_half) < epsilon(1.0_rk)) delta_i_plus_three_half = 0.0_rk
+  !     if (abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
+  !     if (abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
+  !     if (abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
 
-      r_L = delta_i_plus_half / (delta_i_minus_half + 1e-16_rk)
-      r_R = delta_i_plus_half / (delta_i_plus_three_half + 1e-16_rk)
+  !     r_L_ij = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
+  !     r_R_ij_p1 = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
 
+  !     #:if ORDER == 3
+  !       ! 3rd order interpolation
+  !       ! Eq 65a in Ref [1]
+  !       beta_L = (1.0_rk + 2.0_rk * r_L_ij) / 3.0_rk
 
-    ! #:if ORDER == 3
-    !   ! 3rd order interpolation
-    !   beta_L = (1.0_rk + 2.0_rk * r_L_i) / 3.0_rk
-    !   beta_R = (1.0_rk + 2.0_rk * r_R_ip1) / 3.0_rk
-    ! #:elif ORDER == 5
-    !   ! 5th order interpolation
-    !   beta_L = ((-2.0_rk / r_L_im1) + 11.0_rk + (24.0_rk * r_L_i) - (3.0_rk * r_L_i * r_L_ip1)) / 30.0_rk
-    !   beta_R = ((-2.0_rk / r_R_ip2) + 11.0_rk + (24.0_rk * r_R_ip1) - (3.0_rk * r_R_ip1 * r_R_i)) / 30.0_rk
-    ! #:endif
+  !       ! Eq 65b in Ref [1]
+  !       beta_R = (1.0_rk + 2.0_rk * r_R_ij_p1) / 3.0_rk
+  !     #:elif ORDER == 5
+  !       error stop "5th order not working yet"
+  !       r_L_ij_p1 = 0
+  !       r_L_ij_m1 = 0
+  !       r_R_ij    = 0
+  !       r_R_ij_p2 = 0
 
+  !       ! Eq 23a in Ref [1]
+  !       beta_L = ((-2.0_rk / r_L_ij_m1) &
+  !                 + 11.0_rk &
+  !                 + (24.0_rk * r_L_ij) &
+  !                 - (3.0_rk * r_L_ij * r_L_ij_p1)) / 30.0_rk
 
-    !   ! Apply the limiter
-    ! #:if LIMITER == 'minmod'
-    !   phi_limit = max(0.0_rk, min(r_L, 1.0_rk))
-    ! #:elif LIMITER == 'superbee'
-    !   phi_limit = max(0.0_rk, min(2.0_rk * r_L, 1.0_rk), min(r_L, 2.0_rk))
-    ! #:elif LIMITER == 'vanleer'
-    !   phi_limit = (r_L + abs(r_L)) / (1.0_rk + abs(r_L))
-    ! #:endif
+  !       ! Eq 23b in Ref [1]
+  !       beta_R = ((-2.0_rk / r_R_ij_p2) &
+  !                 + 11.0_rk &
+  !                 + (24.0_rk * r_R_ij_p1) &
+  !                 - (3.0_rk * r_R_ij_p1 * r_R_ij)) / 30.0_rk
+  !     #:endif
 
-    !   ! Phi L, e.g. left state
-    !   edge_values(1, i, j) = q(i, j) + 0.5_rk * phi_limit * delta_i_minus_half
+  !     ! Inner term of alpha in Eq. 17 in Ref [1]
+  !     #:if DIR == 'i'
+  !       ! Xi variant, Eq 18a. Xi is used for the i-direction
+  !       tan_theta_ij   = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
+  !       tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i + 1, j - 1)) / (abs(q(i + 2, j) - q(i, j)) + 1e-16_rk)
+  !     #:elif DIR == 'j'
+  !       ! Eta variant, Eq 18b. Xi is used for the j-direction
+  !       tan_theta_ij   = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
+  !       tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i - 1, j + 1)) / (abs(q(i, j + 2) - q(i, j)) + 1e-16_rk)
+  !     #:endif
 
-    !   ! Apply the limiter
-    ! #:if LIMITER == 'minmod'
-    !   phi_limit = max(0.0_rk, min(r_R, 1.0_rk))
-    ! #:elif LIMITER == 'superbee'
-    !   phi_limit = max(0.0_rk, min(2.0_rk * r_R, 1.0_rk), min(r_R, 2.0_rk))
-    ! #:elif LIMITER == 'vanleer'
-    !   phi_limit = (r_R + abs(r_R)) / (1.0_rk + abs(r_R))
-    ! #:endif
+  !     #:if DIR == 'i'
+  !       ! Term inside the [..] in Eq 64a
+  !       alpha_L_term = (2.0_rk * max(1.0_rk, r_L_ij) * &
+  !                       (1.0_rk + max(0.0_rk, (tan_theta_ij_p1 / r_R_ij_p1)))) / &
+  !                       (1.0_rk + tan_theta_ij)
 
-    !   ! Phi R, e.g. right state
-    ! #:if DIR == 'i'
-    !   edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * phi_limit * delta_i_plus_three_half
-    ! #:elif DIR == 'j'
-    !   edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * phi_limit * delta_i_plus_three_half
-    ! #:endif
+  !       alpha_R_term = (2.0_rk * max(1.0_rk, r_R_ij_p1) * &
+  !                       (1.0_rk + max(0.0_rk, (tan_theta_ij / r_L_ij)))) / &
+  !                       (1.0_rk + tan_theta_ij_p1)
+  !     #:elif DIR == 'j'
+  !       ! Term inside the [..] in Eq 64b
+  !       alpha_L_term = (2.0_rk * max(1.0_rk, r_L_ij) * &
+  !                       (1.0_rk + max(0.0_rk, (tan_theta_ij_p1 / r_R_ij_p1)))) / &
+  !                       (1.0_rk + tan_theta_ij)
 
-    end do
-  end do
-  !$omp end do
-  !$omp end parallel
+  !       alpha_R_term = (2.0_rk * max(1.0_rk, r_R_ij_p1) * &
+  !                       (1.0_rk + max(0.0_rk, (tan_theta_ij / r_L_ij)))) / &
+  !                       (1.0_rk + tan_theta_ij_p1)
+  !     #:endif
+
+  !     ! This is the g(x) = max(1, min(2, alpha)) function
+  !     alpha_L = max(1.0_rk, min(2.0_rk, alpha_L_term))
+  !     alpha_R = max(1.0_rk, min(2.0_rk, alpha_R_term))
+  !     ! write(*, '(a, 10(es16.6))') '${DIR}$, ', alpha_L_term, alpha_R_term, alpha_L, alpha_R
+
+  !     ! Phi L, e.g. left state
+  !     edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(alpha_L * delta_ij_plus_half, &
+  !                                                               alpha_L * delta_ij_minus_half, &
+  !                                                               beta_L_delta_ij_minus_half))
+  !     ! Phi R, e.g. right state
+  !     #:if DIR == 'i'
+  !       edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ip1, &
+  !                                                                     alpha_R, &
+  !                                                                     beta_R)) * delta_ij_plus_three_half
+  !     #:elif DIR == 'j'
+  !       edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ip1, &
+  !                                                                     alpha_R, &
+  !                                                                     beta_R)) * delta_ij_plus_three_half
+  !     #:endif
+
+  !   end do
+  ! end do
+  ! !$omp end do
+  ! !$omp end parallel
 
 end subroutine interp_muscl_mlp_${DIR}$_edge_${ORDER}$_order
 
