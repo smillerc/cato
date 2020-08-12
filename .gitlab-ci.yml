@@ -8,7 +8,7 @@ variables:
 before_script:
   - /bin/bash
   - eval `spack load --sh hdf5`
-  - pip install fypp dask --user
+  - pip install fypp "dask[complete]" --user
 
 stages:
   - build
