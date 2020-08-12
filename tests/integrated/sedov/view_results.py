@@ -49,14 +49,15 @@ except Exception:
     walltime_sec = "N/A"
 
 # Load cato results
-ds = load_dataset(".")
+from dask.diagnostics import ProgressBar
+
+with ProgressBar():
+    ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 
 try:
     scheme = f"{ds.attrs['scheme.flux_solver']} + {ds.attrs['scheme.limiter']}"
 except Exception:
     scheme = None
-
-ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
 df = pd.read_csv("residual_hist.csv", index_col=False)
 
@@ -91,7 +92,7 @@ resid_ax.set_ylabel("residual")
 resid_ax.set_xlabel("time")
 resid_ax.set_ylim(1e-16, 0.1)
 
-t = ds.t[-1].data
+t = ds.time[-1].data
 contour_ax.set_title(
     f"Sedov Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}"
 )

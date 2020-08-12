@@ -49,7 +49,10 @@ except Exception:
     walltime_sec = "N/A"
 
 # Load cato results
-ds = load_dataset(".")
+from dask.diagnostics import ProgressBar
+
+with ProgressBar():
+    ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 
 try:
     scheme = f"{ds.attrs['scheme.flux_solver']} + {ds.attrs['scheme.limiter']}"

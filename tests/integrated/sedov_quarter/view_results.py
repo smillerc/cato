@@ -48,7 +48,10 @@ except Exception:
     walltime_sec = "N/A"
 
 # # Load cato results
-ds = load_dataset(".")
+from dask.diagnostics import ProgressBar
+
+with ProgressBar():
+    ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 ds = ds.where(ds["ghost_cell"] == 0, drop=True)
 
 plt.figure(figsize=(12, 12))
@@ -62,7 +65,7 @@ ds.density[-1].plot.pcolormesh(
     vmin=0.0,
     vmax=2.4e-3,
 )
-t = ds.t[-1].data
+t = ds.time[-1].data
 plt.title(
     f"Sedov Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
 )

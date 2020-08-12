@@ -226,7 +226,7 @@ def load_single(file, drop_ghost=True, var_list="all", ini_file=None):
         return ds
 
 
-def load_multiple(paths, **kwargs):
+def load_multiple_steps(paths, **kwargs):
     """Load multiple datasets and concatenate them together. This is very similar
     to xarray's open_mfdataset
 

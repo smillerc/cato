@@ -48,7 +48,10 @@ except Exception:
     walltime_sec = "N/A"
 
 # Load cato results
-ds = load_dataset(".")
+from dask.diagnostics import ProgressBar
+
+with ProgressBar():
+    ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 
 # Remove the ghost layers (bc's)
 ds = ds.where(ds["ghost_cell"] == 0, drop=True)
