@@ -32,11 +32,11 @@ t_range = np.arange(0, 4.1, 0.1)
 
 for t in t_range:
     fig, (dens_ax, mach_ax) = plt.subplots(ncols=1, nrows=2, figsize=(24, 12))
-    ds.density.sel(t=t, method="nearest").plot.pcolormesh(
+    ds.density.sel(time=t, method="nearest").plot.pcolormesh(
         x="x", y="y", antialiased=True, cmap="viridis", ax=dens_ax,
     )
 
-    ds.density.sel(t=t, method="nearest").plot.contour(
+    ds.density.sel(time=t, method="nearest").plot.contour(
         x="x",
         y="y",
         colors="k",
@@ -46,11 +46,11 @@ for t in t_range:
         ax=dens_ax,
     )
 
-    ds.mach_y.sel(t=t, method="nearest").plot.pcolormesh(
+    ds.mach_y.sel(time=t, method="nearest").plot.pcolormesh(
         x="x", y="y", antialiased=True, cmap="RdBu_r", ax=mach_ax,
     )
 
-    ds.mach_y.sel(t=t, method="nearest").plot.contour(
+    ds.mach_y.sel(time=t, method="nearest").plot.contour(
         x="x",
         y="y",
         colors="k",

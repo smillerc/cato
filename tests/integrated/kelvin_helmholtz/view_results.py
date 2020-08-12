@@ -53,7 +53,7 @@ from dask.diagnostics import ProgressBar
 
 with ProgressBar():
     ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
-ds = ds.where(ds["ghost_cell"] == 0, drop=True)
+
 
 df = pd.read_csv("residual_hist.csv", index_col=False)
 

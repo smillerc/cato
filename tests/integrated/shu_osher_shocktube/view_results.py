@@ -54,14 +54,14 @@ with ProgressBar():
     ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 
 # Remove the ghost layers (bc's)
-ds = ds.where(ds["ghost_cell"] == 0, drop=True)
+
 serialize_dataset(ds)
 
 t = 0.17
-actual_time = ds.density.sel(t=t, method="nearest").t.data
+actual_time = ds.density.sel(time=t, method="nearest").t.data
 
 plt.figure(figsize=(12, 6))
-ds.density.sel(t=t, method="nearest").plot(x="x")
+ds.density.sel(time=t, method="nearest").plot(x="x")
 
 plt.title(
     f"Shu-Osher 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"

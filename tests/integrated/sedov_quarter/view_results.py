@@ -52,7 +52,7 @@ from dask.diagnostics import ProgressBar
 
 with ProgressBar():
     ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
-ds = ds.where(ds["ghost_cell"] == 0, drop=True)
+
 
 plt.figure(figsize=(12, 12))
 ds.density[-1].plot.pcolormesh(

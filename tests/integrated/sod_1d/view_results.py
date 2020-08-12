@@ -59,11 +59,8 @@ try:
 except Exception:
     scheme = None
 
-# Remove the ghost layers (bc's)
-ds = ds.where(ds["ghost_cell"] == 0, drop=True)
-
 t = 0.2
-actual_time = ds.density.sel(t=t, method="nearest").t.data
+actual_time = ds.density.sel(time=t, method="nearest").t.data
 
 gamma = 1.4
 npts = 500
@@ -84,13 +81,13 @@ u = values["u"]
 
 plt.figure(figsize=(12, 6))
 
-ds.density.sel(t=t, method="nearest").plot(x="x", label="CATO Density")
+ds.density.sel(time=t, method="nearest").plot(x="x", label="CATO Density")
 plt.plot(values["x"], rho, label="Exact Density")
 
-ds.x_velocity.sel(t=t, method="nearest").plot(x="x", label="CATO Velocity")
+ds.x_velocity.sel(time=t, method="nearest").plot(x="x", label="CATO Velocity")
 plt.plot(values["x"], u, label="Exact Velocity")
 
-ds.pressure.sel(t=t, method="nearest").plot(x="x", label="CATO Pressure")
+ds.pressure.sel(time=t, method="nearest").plot(x="x", label="CATO Pressure")
 plt.plot(values["x"], p, label="Exact Pressure")
 
 plt.title(
