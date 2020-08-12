@@ -7,9 +7,21 @@ import h5py
 import numpy as np
 import pint
 import xarray as xr
+import dask
+import dask.array as da
+from glob import glob
+from pathlib import Path
 
 
 from .unit_registry import ureg
+
+var_dict = {
+    "density": {"long_name": "Density", "standard_name": "rho"},
+    "pressure": {"long_name": "Pressure", "standard_name": "p"},
+    "x_velocity": {"long_name": "X-Velocity", "standard_name": "u"},
+    "y_velocity": {"long_name": "Y-Velocity", "standard_name": "v"},
+    "sound_speed": {"long_name": "Sound Speed", "standard_name": "cs"},
+}
 
 
 def as_dict(config):
@@ -31,7 +43,7 @@ def as_dict(config):
     return the_dict
 
 
-def flatten_dict(dd, separator=".", prefix=""):
+def flatten_dict(dd, separator="_", prefix=""):
     """Flatten a dictionary"""
     return (
         {
@@ -61,173 +73,93 @@ def read_ini(filename):
 
     config = ConfigParser()
     config.read(filename)
-    return flatten_dict(as_dict(config))
+    flattened_dict = flatten_dict(as_dict(config))
+    for k, v in flattened_dict.items():
+        if isinstance(v, str):
+            flattened_dict[k] = v.replace("'", "").replace('"', "")
+    return flattened_dict
 
 
-def load_dataset(folder, use_dask=False, drop_ghost=True):
-    """Read the dataset info
+class _MultiFileCloser:
+    __slots__ = ("file_objs",)
+
+    def __init__(self, file_objs):
+        self.file_objs = file_objs
+
+    def close(self):
+        for f in self.file_objs:
+            f.close()
+
+
+def load_single(file, drop_ghost=True, var_list="all", ini_file=None):
+    """Load a single step file and generate an xarray Dataset
 
     Parameters
     ----------
-    folder : [type]
-        [description]
+    file : str or Path
+        Location of the file to load
+    drop_ghost : bool, optional
+        Drop all of the ghost cells, by default True
+    var_list : List, optional
+        Load only a specific set of variables, by default 'all'
+
+    Returns
+    -------
+    xarray Dataset
     """
 
-    results_folder = os.path.join(folder, "results")
-
-    # Read the input file
-    input_dict = read_ini(os.path.join(folder, "input.ini"))
-
-    step_files = sorted(
-        [
-            os.path.join(results_folder, f)
-            for f in os.listdir(results_folder)
-            if f.endswith(".h5") and f.startswith("step")
+    if var_list == "all":
+        var_list = [
+            "density",
+            "pressure",
+            "sound_speed",
+            "x_velocity",
+            "y_velocity",
+            "ghost_cell",
         ]
-    )
-    h5_files = [h5py.File(f, "r") for f in step_files]
-    h5_files
-
-    var_list = [
-        # "ghost_cell",
-        "density",
-        "pressure",
-        "sound_speed",
-        # "temperature",
-        "x_velocity",
-        "y_velocity",
-    ]
 
     data_vars = {}
-    space_dims = ("t", "x", "y")
+    space_dims = ("i", "j")
 
-    # The ghost cell array is a special case
-    data_vars[f"ghost_cell"] = xr.Variable(
-        ("x", "y"),
-        np.array(h5_files[0]["/ghost_cell"][()].T, dtype=np.int8),
-        attrs={"units": h5_files[0]["/ghost_cell"].attrs["units"].decode("utf-8")},
-    )
-
-    if use_dask:
-        import dask as d
-        import dask.array as da
-
-        for v in var_list:
-            chunk_size = h5_files[0][f"/{v}"].shape
-            arrays = [da.from_array(h5[f"/{v}"], chunks=chunk_size) for h5 in h5_files]
-
-            # Trying dask delayed...
-            # arrays = [
-            #     da.from_delayed(
-            #         d.delayed(
-            #             h5py.File(name=f, mode="r").get(f"/{v}")[()]
-            #         ),
-            #         dtype="float32",
-            #         shape=chunk_size,
-            #     )
-            #     for f in step_files
-            # ]
-
-            data_array = da.transpose(da.stack(arrays, axis=0), axes=[0, 2, 1])
-
-            data_vars[f"{v}"] = xr.Variable(
-                space_dims,
-                data_array,
-                attrs={"units": h5_files[0][f"/{v}"].attrs["units"].decode("utf-8")},
-            )
-
-    else:
-
-        for v in var_list:
-            data_vars[f"{v}"] = xr.Variable(
-                space_dims,
-                np.array([h5[f"/{v}"][()].T for h5 in h5_files], dtype=np.float32),
-                attrs={"units": h5_files[0][f"/{v}"].attrs["units"].decode("utf-8")},
-            )
-
-    x = np.array(h5_files[0][f"/x"][()].T, dtype=np.float32)
-    x_units = h5_files[0][f"/x"].attrs["units"].decode("utf-8")
-    y = np.array(h5_files[0][f"/y"][()].T, dtype=np.float32)
-
-    # Get the cell centers
-    dy = (np.diff(x[0, :]) / 2.0)[0]
-    dx = (np.diff(y[:, 0]) / 2.0)[0]
-
-    # cell center locations
-    xc = x[:-1, 0] + dx
-    yc = y[0, :-1] + dy
-
-    coords = {
-        "t": np.array([h5[f"/time"][()] for h5 in h5_files], dtype=np.float32),
-        "x": xc,
-        "y": yc,
-    }
-    time_units = h5_files[0][f"/time"].attrs["units"].decode("utf-8")
-
-    # Get the details about the CATO build
-    info_attr = {}
-    info = [
-        "build_type",
-        "compile_hostname",
-        "compile_os",
-        "compiler_flags",
-        "compiler_version",
-        "git_changes",
-        "git_hash",
-        "git_ref",
-        "version",
-    ]
-    for v in info:
-        try:
-            info_attr[v] = h5_files[0]["/cato_info"].attrs[f"{v}"].decode("utf-8")
-        except Exception:
-            pass
-
-    attr_dict = info_attr
-    attr_dict.update(input_dict)
-    attr_dict["time_units"] = time_units
-    attr_dict["x_units"] = x_units
-
-    ds = xr.Dataset(data_vars=data_vars, coords=coords, attrs=attr_dict)
-
-    # Compute a few variables
-    ds["mach_x"] = ds.x_velocity / ds.sound_speed
-    ds["mach_y"] = ds.y_velocity / ds.sound_speed
-
-    if drop_ghost:
-        return ds.where(ds["ghost_cell"] == 0, drop=True)
-    else:
-        return ds
-
-
-def load_single_step(file, drop_ghost=True):
-
-    var_list = [
-        "density",
-        "pressure",
-        "sound_speed",
-        "x_velocity",
-        "y_velocity",
-    ]
-
-    data_vars = {}
-    space_dims = ("t", "x", "y")
+    if not file.endswith(".h5"):
+        raise Exception("Step files must be .h5 files")
 
     h5 = h5py.File(file, "r")
 
-    # # The ghost cell array is a special case
-    # data_vars[f"ghost_cell"] = xr.Variable(
-    #     ("x", "y"),
-    #     np.array(h5["/ghost_cell"][()].T, dtype=np.int8),
-    #     attrs={"units": h5["/ghost_cell"].attrs["units"].decode("utf-8")},
-    # )
-
     for v in var_list:
-        data = h5[f"/{v}"][()].T.astype(np.float32)
+        chunk_size = h5[f"/{v}"].shape
+        array = da.from_array(h5[f"/{v}"], chunks=chunk_size)
+        array = da.transpose(array)
+
+        try:
+            long_name = var_dict[v]["long_name"]
+        except Exception:
+            long_name = ""
+
+        try:
+            description = h5[f"/{v}"].attrs["description"].decode("utf-8")
+        except Exception:
+            description = ""
+
+        try:
+            standard_name = var_dict[v]["standard_name"]
+        except Exception:
+            standard_name = ""
+
+        try:
+            units = h5[f"/{v}"].attrs["units"].decode("utf-8")
+        except Exception:
+            units = ""
+
         data_vars[f"{v}"] = xr.Variable(
-            {"x", "y"},
-            h5[f"/{v}"][()].T.astype(np.float32),
-            attrs={"units": h5[f"/{v}"].attrs["units"].decode("utf-8")},
+            space_dims,
+            array,
+            attrs={
+                "units": units,
+                "description": description,
+                "long_name": long_name,
+                "standard_name": standard_name,
+            },
         )
 
     x = h5[f"/x"][()].T.astype(np.float32)
@@ -243,10 +175,11 @@ def load_single_step(file, drop_ghost=True):
     yc = y[0, :-1] + dy
 
     coords = {
-        "t": h5[f"/time"][()].astype(np.float32),
-        "x": xc,
-        "y": yc,
+        "time": h5[f"/time"][()].astype(np.float32),
+        "x": (["i"], xc),
+        "y": (["j"], yc),
     }
+
     time_units = h5[f"/time"].attrs["units"].decode("utf-8")
 
     # Get the details about the CATO build
@@ -270,26 +203,74 @@ def load_single_step(file, drop_ghost=True):
 
     attr_dict = info_attr
     attr_dict["time_units"] = time_units
-    attr_dict["x_units"] = x_units
+    attr_dict["space_units"] = x_units
+
+    if ini_file:
+        input_dict = read_ini(ini_file)
+        attr_dict.update(input_dict)
 
     ds = xr.Dataset(data_vars=data_vars, coords=coords, attrs=attr_dict)
+    if ini_file:
+        try:
+            ds.attrs["title"] = ds.attrs["general_title"]
+        except Exception:
+            pass
 
-    # if drop_ghost:
-    #     return ds.where(ds["ghost_cell"] == 0, drop=True)
-    # else:
-    #
-    return ds
+    if drop_ghost:
+        try:
+            ds = ds.where(ds["ghost_cell"] == 0, drop=True)
+            return ds.drop("ghost_cell")
+        except KeyError:
+            return ds
+    else:
+        return ds
 
 
-def serialize_dataset(dataset):
+def load_multiple(paths, **kwargs):
+    """Load multiple datasets and concatenate them together. This is very similar
+    to xarray's open_mfdataset
+
+    Parameters
+    ----------
+    paths : str or List
+        Either a string glob in the form ``"path/to/my/files/*.h5"`` or an explicit list of
+        files to open. Paths can be given as strings or as pathlib Paths.
+
+    Returns
+    -------
+    xarray.Dataset
+    """
+
+    if isinstance(paths, str):
+        paths = sorted(glob(paths))
+    else:
+        paths = [str(p) if isinstance(p, Path) else p for p in paths]
+
+    # Use dask's delayed function on loading single step files
+    open_ = dask.delayed(load_single)
+    getattr_ = dask.delayed(getattr)
+    datasets = [open_(f, **kwargs) for f in paths]
+
+    file_objs = [getattr_(ds, "_file_obj") for ds in datasets]
+    datasets, file_objs = dask.compute(datasets, file_objs)
+
+    # Concatenate all of the datasets together based on the time dimension
+    combined = xr.concat(datasets, dim="time")
+    combined._file_obj = _MultiFileCloser(file_objs)
+    return combined
+
+
+def serialize_compressed_dataset(dataset, filename="dataset.nc", lvl=6):
     """Serialize the xarray dataset to file
 
     Parameters
     ----------
     dataset : xr.Dataset
+    filename : str
+    lvl : int
+        Level of compression to use
     """
-    comp = dict(zlib=True, complevel=9)
+    comp = dict(zlib=True, complevel=lvl)
     encoding = {var: comp for var in dataset.data_vars}
-    filename = "dataset.nc"
     print(f"Saving dataset to: {os.path.abspath(filename)}")
     dataset.to_netcdf(filename, engine="h5netcdf", encoding=encoding)
