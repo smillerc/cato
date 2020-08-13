@@ -60,7 +60,7 @@ except Exception:
     scheme = None
 
 t = 0.2
-actual_time = ds.density.sel(time=t, method="nearest").t.data
+actual_time = ds.density.sel(time=t, method="nearest").time.data
 
 gamma = 1.4
 npts = 500

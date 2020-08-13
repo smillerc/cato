@@ -236,11 +236,7 @@ contains
     call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
     call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
 
-    call self%apply_reconstructed_bc(recon_rho=rho_interface_values, recon_u=u_interface_values, &
-                                     recon_v=v_interface_values, recon_p=p_interface_values, &
-                                     lbounds=lbounds, &
-                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    error stop "Update to use new TVD methods"
 
     !                   edge(3)
     !                  jflux(i,j+1)  'R'

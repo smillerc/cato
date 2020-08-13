@@ -32,9 +32,7 @@ module mod_zero_gradient_bc
 
   type, extends(boundary_condition_t) :: zero_gradient_bc_t
   contains
-    procedure, public :: apply_primitive_var_bc => apply_zero_gradient_primitive_var_bc
-    procedure, public :: apply_reconstructed_state_bc => apply_zero_gradient_reconstructed_state_bc
-    procedure, public :: apply_gradient_bc
+    procedure, public :: apply => apply_zero_gradient_primitive_var_bc
     final :: finalize
   end type
 contains
@@ -107,110 +105,6 @@ contains
     end associate
 
   end subroutine apply_zero_gradient_primitive_var_bc
-
-  subroutine apply_zero_gradient_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
-    !< Apply zero gradient boundary conditions to the reconstructed state vector field
-
-    class(zero_gradient_bc_t), intent(inout) :: self
-
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
-
-    integer(ik) :: i
-
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
-              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
-
-      select case(self%location)
-      case('+x')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() +x', __FILE__, __LINE__)
-
-        do i = 1, self%n_ghost_layers
-          recon_rho(:, right_ghost(i), :) = recon_rho(:, right - (i - 1), :)
-          recon_u(:, right_ghost(i), :) = recon_u(:, right - (i - 1), :)
-          recon_v(:, right_ghost(i), :) = recon_v(:, right - (i - 1), :)
-          recon_p(:, right_ghost(i), :) = recon_p(:, right - (i - 1), :)
-        end do
-
-      case('-x')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() -x', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          recon_rho(:, left_ghost(i), :) = recon_rho(:, left + (i - 1), :)
-          recon_u(:, left_ghost(i), :) = recon_u(:, left + (i - 1), :)
-          recon_v(:, left_ghost(i), :) = recon_v(:, left + (i - 1), :)
-          recon_p(:, left_ghost(i), :) = recon_p(:, left + (i - 1), :)
-        end do
-      case('+y')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() +y', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          recon_rho(:, :, top_ghost(i)) = recon_rho(:, :, top - (i - 1))
-          recon_u(:, :, top_ghost(i)) = recon_u(:, :, top - (i - 1))
-          recon_v(:, :, top_ghost(i)) = recon_v(:, :, top - (i - 1))
-          recon_p(:, :, top_ghost(i)) = recon_p(:, :, top - (i - 1))
-        end do
-      case('-y')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc() -y', __FILE__, __LINE__)
-
-        do i = 1, self%n_ghost_layers
-          recon_rho(:, :, bottom_ghost(i)) = recon_rho(:, :, bottom + (i - 1))
-          recon_u(:, :, bottom_ghost(i)) = recon_u(:, :, bottom + (i - 1))
-          recon_v(:, :, bottom_ghost(i)) = recon_v(:, :, bottom + (i - 1))
-          recon_p(:, :, bottom_ghost(i)) = recon_p(:, :, bottom + (i - 1))
-        end do
-      case default
-        error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_reconstructed_state_bc()"
-      end select
-    end associate
-
-  end subroutine apply_zero_gradient_reconstructed_state_bc
-
-  subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
-    class(zero_gradient_bc_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
-    integer(ik) :: i
-
-    associate(left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
-
-      select case(self%location)
-      case('+x')
-        call debug_print('Running zero_gradient_bc_t%apply_gradient_bc() +x', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          grad_x(right_ghost(i), :) = 0.0_rk
-          grad_y(right_ghost(i), :) = 0.0_rk
-        end do
-
-      case('-x')
-        call debug_print('Running zero_gradient_bc_t%apply_gradient_bc() -x', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          grad_x(left_ghost(i), :) = 0.0_rk
-          grad_y(left_ghost(i), :) = 0.0_rk
-        end do
-
-      case('+y')
-        call debug_print('Running zero_gradient_bc_t%apply_gradient_bc() +y', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          grad_x(:, top_ghost(i)) = 0.0_rk
-          grad_y(:, top_ghost(i)) = 0.0_rk
-        end do
-      case('-y')
-        call debug_print('Running zero_gradient_bc_t%apply_gradient_bc() -y', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          grad_x(:, bottom_ghost(i)) = 0.0_rk
-          grad_y(:, bottom_ghost(i)) = 0.0_rk
-        end do
-      case default
-        error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_gradient_bc()"
-      end select
-    end associate
-
-  end subroutine apply_gradient_bc
 
   subroutine finalize(self)
     type(zero_gradient_bc_t), intent(inout) :: self

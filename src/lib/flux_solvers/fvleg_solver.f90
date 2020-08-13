@@ -59,7 +59,6 @@ module mod_fvleg_solver
 
     ! Private methods
     procedure, private, nopass :: flux_edges
-    procedure, private :: apply_gradient_bc
     final :: finalize
 
     ! Operators
@@ -223,15 +222,16 @@ contains
 
     ! The gradients have to be applied to the boundaries as well, since reconstructing
     ! at P'(x,y) requires the cell gradient
-    call self%apply_gradient_bc(reconstructor, &
-                                bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    error stop "Update to use new TVD methods and reconstruct AFTER the primitive var bc"
+    ! call self%apply_gradient_bc(reconstructor, &
+    !                             bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+    !                             bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    ! Apply the reconstructed state to the ghost layers
-    call self%apply_reconstructed_bc(recon_rho=rho_recon_state, recon_u=u_recon_state, &
-                                     recon_v=v_recon_state, recon_p=p_recon_state, lbounds=lbounds, &
-                                     bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    ! ! Apply the reconstructed state to the ghost layers
+    ! call self%apply_reconstructed_bc(recon_rho=rho_recon_state, recon_u=u_recon_state, &
+    !                                  recon_v=v_recon_state, recon_p=p_recon_state, lbounds=lbounds, &
+    !                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+    !                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
     E0%reconstructed_rho => rho_recon_state
     E0%reconstructed_u => u_recon_state
@@ -318,67 +318,6 @@ contains
     deallocate(p_recon_state)
 
   end subroutine solve_fvleg
-
-  subroutine apply_gradient_bc(self, reconstructor, bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
-
-    class(fvleg_solver_t), intent(inout) :: self
-    class(abstract_reconstruction_t), intent(inout) :: reconstructor
-    class(boundary_condition_t), intent(inout):: bc_plus_x
-    class(boundary_condition_t), intent(inout):: bc_plus_y
-    class(boundary_condition_t), intent(inout):: bc_minus_x
-    class(boundary_condition_t), intent(inout):: bc_minus_y
-
-    integer(ik) :: priority
-    integer(ik) :: max_priority_bc !< highest goes first
-    integer(ik), dimension(2) :: lbounds
-
-    call debug_print('Running fvleg_solver_t%apply_gradient_bc()', __FILE__, __LINE__)
-
-    lbounds = lbound(reconstructor%grad_x_rho)
-    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
-                          bc_minus_x%priority, bc_minus_y%priority)
-
-    do priority = max_priority_bc, 0, -1
-
-      if(bc_plus_x%priority == priority) then
-        call bc_plus_x%apply_gradient_bc(grad_x=reconstructor%grad_x_rho, &
-                                         grad_y=reconstructor%grad_y_rho, &
-                                         lbounds=lbounds)
-        call bc_plus_x%apply_gradient_bc(grad_x=reconstructor%grad_x_p, &
-                                         grad_y=reconstructor%grad_y_p, &
-                                         lbounds=lbounds)
-      end if
-
-      if(bc_plus_y%priority == priority) then
-        call bc_plus_y%apply_gradient_bc(grad_x=reconstructor%grad_x_rho, &
-                                         grad_y=reconstructor%grad_y_rho, &
-                                         lbounds=lbounds)
-        call bc_plus_y%apply_gradient_bc(grad_x=reconstructor%grad_x_p, &
-                                         grad_y=reconstructor%grad_y_p, &
-                                         lbounds=lbounds)
-      end if
-
-      if(bc_minus_x%priority == priority) then
-        call bc_minus_x%apply_gradient_bc(grad_x=reconstructor%grad_x_rho, &
-                                          grad_y=reconstructor%grad_y_rho, &
-                                          lbounds=lbounds)
-        call bc_minus_x%apply_gradient_bc(grad_x=reconstructor%grad_x_p, &
-                                          grad_y=reconstructor%grad_y_p, &
-                                          lbounds=lbounds)
-      end if
-
-      if(bc_minus_y%priority == priority) then
-        call bc_minus_y%apply_gradient_bc(grad_x=reconstructor%grad_x_rho, &
-                                          grad_y=reconstructor%grad_y_rho, &
-                                          lbounds=lbounds)
-        call bc_minus_y%apply_gradient_bc(grad_x=reconstructor%grad_x_p, &
-                                          grad_y=reconstructor%grad_y_p, &
-                                          lbounds=lbounds)
-      end if
-
-    end do
-
-  end subroutine apply_gradient_bc
 
   subroutine flux_edges(grid, &
                         evolved_corner_rho, evolved_corner_u, evolved_corner_v, evolved_corner_p, &

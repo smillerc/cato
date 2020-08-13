@@ -40,10 +40,10 @@ module mod_boundary_conditions
     integer(ik) :: io_unit = 0
 
     integer(ik) :: n_ghost_layers = 0
-    integer(ik), dimension(:), allocatable :: ilo_ghost !< ilo ghost boundary cell indices
-    integer(ik), dimension(:), allocatable :: ihi_ghost !< ihi ghost boundary cell indices
-    integer(ik), dimension(:), allocatable :: jlo_ghost !< jlo ghost boundary cell indices
-    integer(ik), dimension(:), allocatable :: jhi_ghost !< jhi ghost boundary cell indices
+    integer(ik), dimension(:), allocatable :: ilo_ghost !< (innermost:outermost ghost_layer); ghost layer indices; note: innermost (closest to real domain) layer is always first
+    integer(ik), dimension(:), allocatable :: ihi_ghost !< (innermost:outermost ghost_layer); ghost layer indices; note: innermost (closest to real domain) layer is always first
+    integer(ik), dimension(:), allocatable :: jlo_ghost !< (innermost:outermost ghost_layer); ghost layer indices; note: innermost (closest to real domain) layer is always first
+    integer(ik), dimension(:), allocatable :: jhi_ghost !< (innermost:outermost ghost_layer); ghost layer indices; note: innermost (closest to real domain) layer is always first
     integer(ik) :: ilo = 0 !< ilo real domain cell index
     integer(ik) :: ihi = 0 !< ihi real domain cell index
     integer(ik) :: jlo = 0 !< jlo real domain cell index
@@ -52,13 +52,12 @@ module mod_boundary_conditions
     procedure, public :: set_time
     procedure, public :: get_time
     procedure, public :: set_indices
-    procedure(apply_primitive_var_bc), public, deferred :: apply_primitive_var_bc
-    procedure(apply_gradient_bc), public, deferred :: apply_gradient_bc
-    procedure(apply_reconstructed_state_bc), public, deferred :: apply_reconstructed_state_bc
+    procedure(apply), public, deferred :: apply
+
   end type boundary_condition_t
 
   abstract interface
-    subroutine apply_primitive_var_bc(self, rho, u, v, p, lbounds)
+    subroutine apply(self, rho, u, v, p, lbounds)
       import :: boundary_condition_t
       import :: ik, rk
       class(boundary_condition_t), intent(inout) :: self
@@ -67,28 +66,7 @@ module mod_boundary_conditions
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
       real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
-    end subroutine apply_primitive_var_bc
-
-    subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
-      import :: boundary_condition_t
-      import :: ik, rk
-      class(boundary_condition_t), intent(inout) :: self
-      integer(ik), dimension(2), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
-    end subroutine apply_gradient_bc
-
-    subroutine apply_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
-      import :: boundary_condition_t
-      import :: ik, rk
-      class(boundary_condition_t), intent(inout) :: self
-      integer(ik), dimension(2), intent(in) :: lbounds
-      real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
-      real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
-      real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
-      real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
-    end subroutine apply_reconstructed_state_bc
-
+    end subroutine apply
   end interface
 contains
   pure subroutine set_time(self, time)

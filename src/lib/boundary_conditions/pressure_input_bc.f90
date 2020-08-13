@@ -52,9 +52,7 @@ module mod_pressure_input_bc
   contains
     procedure, private :: read_pressure_input
     procedure, private :: get_desired_pressure
-    procedure, public :: apply_primitive_var_bc => apply_pressure_input_primitive_var_bc
-    procedure, public :: apply_reconstructed_state_bc => apply_pressure_input_reconstructed_state_bc
-    procedure, public :: apply_gradient_bc
+    procedure, public :: apply => apply_pressure_input_primitive_var_bc
     final :: finalize
   end type
 contains
@@ -302,114 +300,6 @@ contains
     if(allocated(edge_pressure)) deallocate(edge_pressure)
 
   end subroutine apply_pressure_input_primitive_var_bc
-
-  subroutine apply_pressure_input_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
-    !< Apply pressure boundary conditions to the reconstructed state vector field
-
-    class(pressure_input_bc_t), intent(inout) :: self
-
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
-
-    integer(ik) :: i, p
-
-    if(.not. allocated(self%edge_rho)) then
-      write(std_err, *) "Error: pressure_input_bc_t%edge_rho should be allocated, but isn't"
-      error stop 10
-    end if
-    if(.not. allocated(self%edge_u)) then
-      write(std_err, *) "Error: pressure_input_bc_t%edge_u should be allocated, but isn't"
-      error stop 10
-    end if
-    if(.not. allocated(self%edge_v)) then
-      write(std_err, *) "Error: pressure_input_bc_t%edge_v should be allocated, but isn't"
-      error stop 10
-    end if
-    if(.not. allocated(self%edge_p)) then
-      write(std_err, *) "Error: pressure_input_bc_t%edge_p should be allocated, but isn't"
-      error stop 10
-    end if
-
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
-              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
-      select case(self%location)
-      case('+x')
-        call debug_print('Running pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc() +x', __FILE__, __LINE__)
-
-        do i = 1, self%n_ghost_layers
-          do p = lbound(recon_rho, dim=1), ubound(recon_rho, dim=1)
-            recon_rho(p, right_ghost(i), :) = self%edge_rho
-            recon_u(p, right_ghost(i), :) = self%edge_u
-            recon_v(p, right_ghost(i), :) = self%edge_v
-            recon_p(p, right_ghost(i), :) = self%edge_p
-          end do
-        end do
-
-        ! case('-x')
-        !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-        !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-        !   reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
-        ! case('+y')
-        !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-        !   reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-        !   reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
-        ! case('-y')
-        !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-        !   reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-        !   reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
-      case default
-        error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
-      end select
-    end associate
-  end subroutine apply_pressure_input_reconstructed_state_bc
-
-  subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
-    class(pressure_input_bc_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
-    integer(ik) :: i
-
-    associate(left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
-
-      select case(self%location)
-      case('+x')
-        call debug_print('Running pressure_input_bc_t%apply_gradient_bc() +x', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          grad_x(right_ghost(i), :) = 0.0_rk
-          grad_y(right_ghost(i), :) = 0.0_rk
-        end do
-
-      case('-x')
-        call debug_print('Running pressure_input_bc_t%apply_gradient_bc() -x', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          grad_x(left_ghost(i), :) = 0.0_rk
-          grad_y(left_ghost(i), :) = 0.0_rk
-        end do
-
-      case('+y')
-        call debug_print('Running pressure_input_bc_t%apply_gradient_bc() +y', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          grad_x(:, top_ghost(i)) = 0.0_rk
-          grad_y(:, top_ghost(i)) = 0.0_rk
-        end do
-      case('-y')
-        call debug_print('Running pressure_input_bc_t%apply_gradient_bc() -y', __FILE__, __LINE__)
-        do i = 1, self%n_ghost_layers
-          grad_x(:, bottom_ghost(i)) = 0.0_rk
-          grad_y(:, bottom_ghost(i)) = 0.0_rk
-        end do
-      case default
-        error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_gradient_bc()"
-      end select
-    end associate
-
-  end subroutine apply_gradient_bc
 
   subroutine finalize(self)
     type(pressure_input_bc_t), intent(inout) :: self

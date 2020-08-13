@@ -21,6 +21,7 @@
 module mod_symmetry_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
+  use mod_error, only: error_msg
   use mod_grid, only: grid_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
@@ -32,9 +33,7 @@ module mod_symmetry_bc
 
   type, extends(boundary_condition_t) :: symmetry_bc_t
   contains
-    procedure, public :: apply_primitive_var_bc => apply_symmetry_primitive_var_bc
-    procedure, public :: apply_reconstructed_state_bc => apply_symmetry_reconstructed_state_bc
-    procedure, public :: apply_gradient_bc
+    procedure, public :: apply => apply_symmetry_primitive_var_bc
     final :: finalize
   end type
 
@@ -202,8 +201,6 @@ contains
 
     integer(ik) :: g
 
-    ! error stop "FixME symmetry_bc_t"
-
     associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
               left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
               bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
@@ -212,16 +209,18 @@ contains
       case('+x')
         call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
 
+        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
         do g = 1, self%n_ghost_layers
-          rho(right_ghost(g), :) = rho(right + (g - 1), :)
-          u(right_ghost(g), :) = -u(right + (g - 1), :)
-          v(right_ghost(g), :) = v(right + (g - 1), :)
-          p(right_ghost(g), :) = p(right + (g - 1), :)
+          rho(right_ghost(g), :) = rho(right - (g - 1), :)
+          u(right_ghost(g), :) = -u(right - (g - 1), :)
+          v(right_ghost(g), :) = v(right - (g - 1), :)
+          p(right_ghost(g), :) = p(right - (g - 1), :)
         end do
 
       case('-x')
         call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
 
+        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
         do g = 1, self%n_ghost_layers
           rho(left_ghost(g), :) = rho(left + (g - 1), :)
           u(left_ghost(g), :) = -u(left + (g - 1), :)
@@ -232,15 +231,18 @@ contains
       case('+y')
         call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
 
+        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
         do g = 1, self%n_ghost_layers
-          rho(:, top_ghost(g)) = rho(:, top + (g - 1))
-          u(:, top_ghost(g)) = u(:, top + (g - 1))
-          v(:, top_ghost(g)) = -v(:, top + (g - 1))
-          p(:, top_ghost(g)) = p(:, top + (g - 1))
+          rho(:, top_ghost(g)) = rho(:, top - (g - 1))
+          u(:, top_ghost(g)) = u(:, top - (g - 1))
+          v(:, top_ghost(g)) = -v(:, top - (g - 1))
+          p(:, top_ghost(g)) = p(:, top - (g - 1))
         end do
 
       case('-y')
         call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
+
+        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
         do g = 1, self%n_ghost_layers
           rho(:, bottom_ghost(g)) = rho(:, bottom + (g - 1))
           u(:, bottom_ghost(g)) = u(:, bottom + (g - 1))
@@ -249,123 +251,13 @@ contains
         end do
 
       case default
-        error stop "Unsupported location to apply the bc at in symmetry_bc_t%apply_symmetry_primitive_var_bc()"
+        call error_msg(module='mod_symmetry_bc', class='symmetry_bc_t', procedure='apply_symmetry_primitive_var_bc', &
+                       message="Unsupported BC location", &
+                       file_name=__FILE__, line_number=__LINE__)
       end select
     end associate
 
   end subroutine apply_symmetry_primitive_var_bc
-
-  subroutine apply_symmetry_reconstructed_state_bc(self, recon_rho, recon_u, recon_v, recon_p, lbounds)
-    !< Apply zero gradient boundary conditions to the reconstructed state vector field
-
-    class(symmetry_bc_t), intent(inout) :: self
-
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_rho
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_u
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_v
-    real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(inout) :: recon_p
-
-    integer(ik) :: i, j, g
-
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
-              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
-
-      select case(self%location)
-      case('+x')
-        call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() +x', __FILE__, __LINE__)
-
-        do j = self%jlo, self%jhi
-          do g = 1, self%n_ghost_layers
-            recon_rho(:, right_ghost(g), j) = .iflip.recon_rho(:, right + (g - 1), j)
-            recon_u(:, right_ghost(g), j) = -.iflip.recon_u(:, right + (g - 1), j)
-            recon_v(:, right_ghost(g), j) = .iflip.recon_v(:, right + (g - 1), j)
-            recon_p(:, right_ghost(g), j) = .iflip.recon_p(:, right + (g - 1), j)
-          end do
-        end do
-
-      case('-x')
-        call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() -x', __FILE__, __LINE__)
-
-        do j = self%jlo, self%jhi
-          do g = 1, self%n_ghost_layers
-            recon_rho(:, left_ghost(g), j) = .iflip.recon_rho(:, left + (g - 1), j)
-            recon_u(:, left_ghost(g), j) = -.iflip.recon_u(:, left + (g - 1), j)
-            recon_v(:, left_ghost(g), j) = .iflip.recon_v(:, left + (g - 1), j)
-            recon_p(:, left_ghost(g), j) = .iflip.recon_p(:, left + (g - 1), j)
-          end do
-        end do
-      case('+y')
-        call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() +y', __FILE__, __LINE__)
-
-        do i = self%ilo, self%ihi
-          do g = 1, self%n_ghost_layers
-            recon_rho(:, i, top_ghost(g)) = .jflip.recon_rho(:, i, top + (g - 1))
-            recon_u(:, i, top_ghost(g)) = .jflip.recon_u(:, i, top + (g - 1))
-            recon_v(:, i, top_ghost(g)) = -.jflip.recon_v(:, i, top + (g - 1))
-            recon_p(:, i, top_ghost(g)) = .jflip.recon_p(:, i, top + (g - 1))
-          end do
-        end do
-      case('-y')
-        call debug_print('Running periodic_bc_t%apply_periodic_reconstructed_state_bc() -y', __FILE__, __LINE__)
-
-        do i = self%ilo, self%ihi
-          do g = 1, self%n_ghost_layers
-            recon_rho(:, i, bottom_ghost(g)) = .jflip.recon_rho(:, i, bottom + (g - 1))
-            recon_u(:, i, bottom_ghost(g)) = .jflip.recon_u(:, i, bottom + (g - 1))
-            recon_v(:, i, bottom_ghost(g)) = -.jflip.recon_v(:, i, bottom + (g - 1))
-            recon_p(:, i, bottom_ghost(g)) = .jflip.recon_p(:, i, bottom + (g - 1))
-          end do
-        end do
-      case default
-        error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_reconstructed_state_bc()"
-      end select
-    end associate
-
-  end subroutine apply_symmetry_reconstructed_state_bc
-
-  subroutine apply_gradient_bc(self, grad_x, grad_y, lbounds)
-    class(symmetry_bc_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_x
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: grad_y
-    integer(ik) :: g
-
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
-              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
-
-      select case(self%location)
-      case('+x')
-        call debug_print('Running periodic_bc_t%apply_gradient_bc() +x', __FILE__, __LINE__)
-        do g = 1, self%n_ghost_layers
-          grad_x(right_ghost(g), :) = -grad_x(left + (g - 1), :)
-          grad_y(right_ghost(g), :) = grad_y(left + (g - 1), :)
-        end do
-      case('-x')
-        call debug_print('Running periodic_bc_t%apply_gradient_bc() -x', __FILE__, __LINE__)
-        do g = 1, self%n_ghost_layers
-          grad_x(left_ghost(g), :) = -grad_x(right + (g - 1), :)
-          grad_y(left_ghost(g), :) = grad_y(right + (g - 1), :)
-        end do
-      case('+y')
-        call debug_print('Running periodic_bc_t%apply_gradient_bc() +y', __FILE__, __LINE__)
-        do g = 1, self%n_ghost_layers
-          grad_x(:, top_ghost(g)) = grad_x(:, bottom + (g - 1))
-          grad_y(:, top_ghost(g)) = -grad_y(:, bottom + (g - 1))
-        end do
-      case('-y')
-        call debug_print('Running periodic_bc_t%apply_gradient_bc() -y', __FILE__, __LINE__)
-        do g = 1, self%n_ghost_layers
-          grad_x(:, bottom_ghost(g)) = grad_x(:, top + (g - 1))
-          grad_y(:, bottom_ghost(g)) = -grad_y(:, top + (g - 1))
-        end do
-      case default
-        error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_gradient_bc()"
-      end select
-    end associate
-  end subroutine apply_gradient_bc
 
   subroutine finalize(self)
     type(symmetry_bc_t), intent(inout) :: self
