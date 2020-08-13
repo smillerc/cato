@@ -1,8 +1,9 @@
 ---
-project: FVLEG
-summary: Finite Volume Local Evolution Galerkin Fluid Solver
+project: CATO
+summary: A 2D structured Euler solver
 author: Sam Miller
 src_dir: ./src
+         ./build/generated
 output_dir: ./doc
 media_dir: ./media
 exclude_dir: ./src/tests
@@ -31,4 +32,4 @@ md_extensions: markdown.extensions.toc
 Brief description
 -----------------
 
-A modern Fortran code that solves the Euler equations using the Finite Volume Local Evolution Galerkin method
+A flexible modern fortran code that solves the Euler fluid equations using the following flux solvers [AUSM+-up, (M-)AUSMPW+, SLAU(2), FVLEG]
