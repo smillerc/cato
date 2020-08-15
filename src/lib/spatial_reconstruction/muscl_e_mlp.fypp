@@ -177,7 +177,7 @@ subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
 
 
   !$omp parallel default(none), &
-  !$omp firstprivate(ilo, ihi, jlo, jhi) &
+  !$omp firstprivate(ilo, ihi, jlo, jhi, n_ghost_layers) &
   !$omp private(i, j) &
   !$omp private(d_ij_i, d_ij_j) &
   !$omp shared(rho, u, v, p, d_bar_rho, d_bar_u, d_bar_v, d_bar_p, self)

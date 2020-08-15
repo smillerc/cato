@@ -126,7 +126,6 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
 
     real(rk) :: delta_ij_minus_half       !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
-
     real(rk) :: delta_ij_plus_half        !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
     real(rk) :: delta_ij_plus_three_half  !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
     real(rk) :: delta_ij_minus_three_half !< Delta Phi_{i-3/2, j} = q(i - 1, j) - q(i - 2, j) (or j-3/2 depending on direction)
@@ -211,8 +210,8 @@ contains
           r_R_ij    = delta_ij_minus_half / (delta_ij_plus_half + 1e-16_rk)
 
           ! 3rd order interpolation. Eq 33 in Ref [1]
-          beta_L = ((-2.0_rk/r_L_ij_m1) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
-          beta_R = ((-2.0_rk/r_R_ij_p2) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
+          beta_L = ((-2.0_rk/(r_L_ij_m1 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
+          beta_R = ((-2.0_rk/(r_R_ij_p2 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
 
           ! Phi L, e.g. left state
           edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(2.0_rk, &

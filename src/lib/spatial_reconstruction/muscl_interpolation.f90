@@ -21,7 +21,7 @@ module mod_muscl_interpolation
     character(len=32), public :: name = '' !< name of the interpolation scheme, e.g. 'TVD2'
     character(len=32), public :: limiter_name = '' !< Name of the TVD limiter, e.g. 'minmod'
   contains
-    procedure(initialize), deferred, public ::  initialize
+    ! procedure(initialize), deferred, public ::  initialize
     procedure(distinguish_continuous_regions), deferred, public :: distinguish_continuous_regions
     procedure(interpolate_edge_values), deferred, public :: interpolate_edge_values
   end type

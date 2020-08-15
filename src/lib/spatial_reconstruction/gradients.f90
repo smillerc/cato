@@ -73,7 +73,7 @@ contains
     jhi = ubound(edge_vars, dim=3)
 
     !$omp parallel default(none), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp firstprivate(ilo, ihi, jlo, jhi, n_ghost_layers) &
     !$omp private(i, j) &
     !$omp private(n_x, n_y, edge_lengths, d_dx, d_dy, diff) &
     !$omp shared(grad_x, grad_y, edge_vars, grid)
