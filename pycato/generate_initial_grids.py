@@ -29,6 +29,7 @@ def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=1):
         velocity, p), grid (x,y) points, and the cell center (xc,yc) points
     """
 
+    print(f"Generating grid with {n_ghost_layers} ghost layers")
     dx = float(xrange[1] - xrange[0]) / float(n_cells[0])
     dy = float(yrange[1] - yrange[0]) / float(n_cells[1])
 

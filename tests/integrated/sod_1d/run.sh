@@ -15,7 +15,7 @@ rm -rf results output
 python generate_ic.py
 
 if [ -f "cato.x" ]; then rm cato.x; fi
-if [ -f "cato.error" ]; then rm cato.error; fi
+if [ -f "std.err" ]; then rm std.err; fi
 rm -rf step*
 
 cd ${cato_dir} && make -j && \
@@ -23,9 +23,9 @@ cd ${cato_dir} && make -j && \
     cp ${cato_dir}/bin/cato.x . &&\
     ./cato.x input.ini 2>&1 | tee -a output
 
-if [ -f "cato.error" ]; then
+if [ -f "std.err" ]; then
     echo
     echo "Error(s) if any"
     echo
-    cat cato.error
+    cat std.err
 fi

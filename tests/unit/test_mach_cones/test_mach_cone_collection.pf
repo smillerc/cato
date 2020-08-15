@@ -80,9 +80,8 @@ contains
     integer(ik) :: i, j
 
     print *, 'Creating reconstruction_operator in test_mach_cone_collection before()'
-    input = input_t(spatial_reconstruction='MUSCL', &
+    input = input_t(spatial_reconstruction='green_gauss', &
                     limiter='none', &
-                    gradient_scheme='green_gauss', &
                     ni_nodes=ni_nodes - 2, nj_nodes=nj_nodes - 2, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
