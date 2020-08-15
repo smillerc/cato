@@ -38,9 +38,6 @@ module mod_edge_interpolator_factory
   use mod_tvd_2nd_order, only: tvd_2nd_order_t, new_tvd_2nd_order_t
   use mod_tvd_3rd_order, only: tvd_3rd_order_t, new_tvd_3rd_order_t
   use mod_tvd_5th_order, only: tvd_5th_order_t, new_tvd_5th_order_t
-  use mod_mlp_3rd_order, only: mlp_3rd_order_t
-  use mod_mlp_5th_order, only: mlp_5th_order_t
-
   use mod_grid, only: grid_t
 
   implicit none
@@ -72,10 +69,6 @@ contains
       interpolator => new_tvd_3rd_order_t(limiter=limiter)
     case('TVD5')
       interpolator => new_tvd_5th_order_t(limiter=limiter)
-      ! case('MLP3')
-      !   interpolator => new_mlp_3rd_order_t(limiter=limiter)
-      ! case('MLP5')
-      !   interpolator => new_mlp_5th_order_t(limiter=limiter)
     case default
       write(std_err, '(a)') "Unknown edge interpolation scheme, must be one of the following: "// &
         "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5', the input value was '"//trim(input%edge_interpolation_scheme)//"'"

@@ -8,8 +8,8 @@ module test_reconstruction
   use mod_tvd_2nd_order, only: tvd_2nd_order_t
   use mod_tvd_3rd_order, only: tvd_3rd_order_t
   use mod_tvd_5th_order, only: tvd_5th_order_t
-  use mod_mlp_3rd_order, only: mlp_3rd_order_t
-  use mod_mlp_5th_order, only: mlp_5th_order_t
+  ! use mod_mlp_3rd_order, only: mlp_3rd_order_t
+  ! use mod_mlp_5th_order, only: mlp_5th_order_t
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
   use mod_globals, only: n_ghost_layers
@@ -215,66 +215,66 @@ contains
   end subroutine test_tvd3
 
   ! @test
-  subroutine test_mlp3()
+  ! subroutine test_mlp3()
 
-    class(edge_iterpolator_t), allocatable :: edge_interpolator
-    real(rk), dimension(:, :, :), allocatable :: edge_vars
-    integer(ik) :: i, j
+  !   class(edge_iterpolator_t), allocatable :: edge_interpolator
+  !   real(rk), dimension(:, :, :), allocatable :: edge_vars
+  !   integer(ik) :: i, j
 
-    write(*, *) "Testing the MLP3 edge iterpolation"
-    allocate(mlp_3rd_order_t :: edge_interpolator)
-    call edge_interpolator%initialize(limiter='none')
+  !   write(*, *) "Testing the MLP3 edge iterpolation"
+  !   allocate(mlp_3rd_order_t :: edge_interpolator)
+  !   call edge_interpolator%initialize(limiter='none')
 
-    !                Domain           -->                Primitive Variable
-    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
-    ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   2   |   3   ||   4   |
-    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
-    ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   1   ||   2   |   3   ||   4   |
-    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
-    ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   1   ||   2   |   3   ||   4   |
-    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
-    ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   1   ||   2   |   3   ||   4   |
-    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+  !   !                Domain           -->                Primitive Variable
+  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+  !   ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   2   |   3   ||   4   |
+  !   ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+  !   ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   1   ||   2   |   3   ||   4   |
+  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+  !   ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   1   ||   2   |   3   ||   4   |
+  !   ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+  !   ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   1   ||   2   |   3   ||   4   |
+  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
 
-    rho(0, :) = 1.0_rk
-    rho(1, :) = 2.0_rk
-    rho(2, :) = 3.0_rk
-    rho(3, :) = 4.0_rk
+  !   rho(0, :) = 1.0_rk
+  !   rho(1, :) = 2.0_rk
+  !   rho(2, :) = 3.0_rk
+  !   rho(3, :) = 4.0_rk
 
-    call edge_interpolator%interpolate_edge_values(q=rho, &
-                                                   lbounds=lbound(rho), &
-                                                   edge_values=edge_vars)
+  !   call edge_interpolator%interpolate_edge_values(q=rho, &
+  !                                                  lbounds=lbound(rho), &
+  !                                                  edge_values=edge_vars)
 
-    i = 2
-    j = 2
-    associate(cell_ave => rho(i, j), &
-              E1 => edge_vars(1, i, j), &
-              E2 => edge_vars(2, i, j), &
-              E3 => edge_vars(3, i, j), &
-              E4 => edge_vars(4, i, j))
-      write(*, '(a)') "*********************************************"
-      write(*, '(a)') "Interpolated edge state for: rho"
-      write(*, '(a)') "*********************************************"
-      write(*, *)
-      write(*, '(16x,es11.3)') E3
-      write(*, *) "           C---------E3---------C"
-      write(*, *) "           |                    |"
-      write(*, *) "           |                    |"
-      write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
-      write(*, '(2(es11.3,a))') E4, " E4       (i,j)      E2", E2
-      write(*, *) "           |                    |"
-      write(*, *) "           |                    |"
-      write(*, *) "           |                    |"
-      write(*, *) "           C---------E1---------C"
-      write(*, '(16x,es11.3)') E1
-      write(*, *)
+  !   i = 2
+  !   j = 2
+  !   associate(cell_ave => rho(i, j), &
+  !             E1 => edge_vars(1, i, j), &
+  !             E2 => edge_vars(2, i, j), &
+  !             E3 => edge_vars(3, i, j), &
+  !             E4 => edge_vars(4, i, j))
+  !     write(*, '(a)') "*********************************************"
+  !     write(*, '(a)') "Interpolated edge state for: rho"
+  !     write(*, '(a)') "*********************************************"
+  !     write(*, *)
+  !     write(*, '(16x,es11.3)') E3
+  !     write(*, *) "           C---------E3---------C"
+  !     write(*, *) "           |                    |"
+  !     write(*, *) "           |                    |"
+  !     write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
+  !     write(*, '(2(es11.3,a))') E4, " E4       (i,j)      E2", E2
+  !     write(*, *) "           |                    |"
+  !     write(*, *) "           |                    |"
+  !     write(*, *) "           |                    |"
+  !     write(*, *) "           C---------E1---------C"
+  !     write(*, '(16x,es11.3)') E1
+  !     write(*, *)
 
-    end associate
+  !   end associate
 
-    @assertEqual(3.0_rk, edge_vars(1, i, j))
-    @assertEqual(3.5_rk, edge_vars(2, i, j))
-    @assertEqual(3.0_rk, edge_vars(3, i, j))
-    @assertEqual(2.5_rk, edge_vars(4, i, j))
+  !   @assertEqual(3.0_rk, edge_vars(1, i, j))
+  !   @assertEqual(3.5_rk, edge_vars(2, i, j))
+  !   @assertEqual(3.0_rk, edge_vars(3, i, j))
+  !   @assertEqual(2.5_rk, edge_vars(4, i, j))
 
-  end subroutine test_mlp3
+  ! end subroutine test_mlp3
 end module test_reconstruction

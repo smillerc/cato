@@ -43,6 +43,9 @@ target_link_libraries(geometry PUBLIC globals io eos functional)
 # Create a list of the files to be preprocessed
 set(fyppFiles
     lib/spatial_reconstruction/muscl_tvd2.fypp
+    lib/spatial_reconstruction/muscl_tvd3.fypp
+    lib/spatial_reconstruction/muscl_tvd5.fypp
+    lib/spatial_reconstruction/muscl_mlp3.fypp
     lib/spatial_reconstruction/muscl_e_mlp.fypp
     lib/spatial_reconstruction/muscl_mlp.fypp
     lib/boundary_conditions/periodic_bc.fypp
@@ -107,9 +110,6 @@ add_library(
   lib/spatial_reconstruction/tvd_2nd_order.f90
   lib/spatial_reconstruction/tvd_3rd_order.f90
   lib/spatial_reconstruction/tvd_5th_order.f90
-  lib/spatial_reconstruction/mlp_baseline.f90
-  lib/spatial_reconstruction/mlp_3rd_order.f90
-  lib/spatial_reconstruction/mlp_5th_order.f90
   lib/spatial_reconstruction/reconstruction_factory.f90
   lib/spatial_reconstruction/muscl_interpolation.f90
   lib/spatial_reconstruction/muscl_factory.f90

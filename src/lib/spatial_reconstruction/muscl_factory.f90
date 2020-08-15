@@ -37,6 +37,9 @@ module mod_muscl_interpolator_factory
   use mod_input, only: input_t
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_muscl_tvd2, only: muscl_tvd2_t, new_muscl_tvd2
+  use mod_muscl_tvd3, only: muscl_tvd3_t, new_muscl_tvd3
+  use mod_muscl_tvd5, only: muscl_tvd5_t, new_muscl_tvd5
+  use mod_muscl_mlp3, only: muscl_mlp3_t, new_muscl_mlp3
   use mod_muscl_e_mlp, only: muscl_e_mlp_t, new_muscl_e_mlp
 
   use mod_grid, only: grid_t
@@ -66,7 +69,12 @@ contains
     select case(trim(input%edge_interpolation_scheme))
     case('TVD2')
       interpolator => new_muscl_tvd2(limiter=limiter)
-      ! call interpolator%initialize(limiter=limiter)
+    case('TVD3')
+      interpolator => new_muscl_tvd3(limiter=limiter)
+    case('TVD5')
+      interpolator => new_muscl_tvd5(limiter=limiter)
+    case('MLP3')
+      interpolator => new_muscl_mlp3(limiter=limiter)
     case('e-MLP3')
       interpolator => new_muscl_e_mlp(limiter=limiter, order=3)
     case('e-MLP5')

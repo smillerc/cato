@@ -1,5 +1,5 @@
 ! MIT License
-! Copyright (c) 2019 Sam Miller
+! Copyright (c) 2020 Sam Miller
 ! Permission is hereby granted, free of charge, to any person obtaining a copy
 ! of this software and associated documentation files (the "Software"), to deal
 ! in the Software without restriction, including without limitation the rights
@@ -28,11 +28,12 @@ module mod_ausm_plus_solver
   !<         Journal of Computational Physics 214 (2006) 137–170, https://doi.org/10.1016/j.jcp.2005.09.020
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use mod_error, only: error_msg
   use mod_globals, only: debug_print
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
-  use mod_edge_interpolator_factory, only: edge_interpolator_factory
-  use mod_edge_interpolator, only: edge_iterpolator_t
+  use mod_muscl_interpolator_factory, only: muscl_interpolator_factory
+  use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
   use mod_grid, only: grid_t
@@ -132,11 +133,6 @@ contains
 
     call debug_print('Running ausm_plus_solver_t%copy()', __FILE__, __LINE__)
 
-    ! allocate(lhs%bc_plus_x, source=rhs%bc_plus_x)
-    ! allocate(lhs%bc_plus_y, source=rhs%bc_plus_y)
-    ! allocate(lhs%bc_minus_x, source=rhs%bc_minus_x)
-    ! allocate(lhs%bc_minus_y, source=rhs%bc_minus_y)
-
     lhs%iteration = rhs%iteration
     lhs%time = rhs%time
     lhs%dt = rhs%dt
@@ -161,12 +157,19 @@ contains
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
-    real(rk), dimension(:, :, :), allocatable :: rho_interface_values !< interface (L/R state) values for density
-    real(rk), dimension(:, :, :), allocatable :: u_interface_values   !< interface (L/R state) values for x-velocity
-    real(rk), dimension(:, :, :), allocatable :: v_interface_values   !< interface (L/R state) values for y-velocity
-    real(rk), dimension(:, :, :), allocatable :: p_interface_values   !< interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable :: rho_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for density
+    real(rk), dimension(:, :, :), allocatable :: rho_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for density
 
-    class(edge_iterpolator_t), pointer :: edge_interpolator => null()
+    real(rk), dimension(:, :, :), allocatable ::   u_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), allocatable ::   u_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for x-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   v_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), allocatable ::   v_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for y-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   p_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable ::   p_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for pressure
+
+    class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x
     class(boundary_condition_t), allocatable:: bc_plus_y
     class(boundary_condition_t), allocatable:: bc_minus_x
@@ -195,192 +198,195 @@ contains
     real(rk) :: n_x  !< normal vectors of each face
     real(rk) :: n_y  !< normal vectors of each face
 
-    ! Split the convective flux (F_c) into the convective part and the pressure part
-    !         [rho  ] + [0    ]
-    !         [rho u] + [n_x p]
-    ! F_c = V [rho v] + [n_y p]
-    !         [rho H] + [0    ]
-    !
-    ! Which becomes the following: (where a is sound speed, M is Mach number)
-    !                         [rho a  ]     +    [0    ]
-    !                         [rho a u]     +    [n_x p]
-    ! F_c_(i+1/2) = M_(i+1/2) [rho a v]     +    [n_y p]
-    !                         [rho a H]     +    [0    ]
-    !                                 (L/R)            (i+1/2)
-    !
-    ! with (L/R) = [L  if M_(i+1/2) >= 0]
-    !              [R  otherwise        ]
+    ! ! Split the convective flux (F_c) into the convective part and the pressure part
+    ! !         [rho  ] + [0    ]
+    ! !         [rho u] + [n_x p]
+    ! ! F_c = V [rho v] + [n_y p]
+    ! !         [rho H] + [0    ]
+    ! !
+    ! ! Which becomes the following: (where a is sound speed, M is Mach number)
+    ! !                         [rho a  ]     +    [0    ]
+    ! !                         [rho a u]     +    [n_x p]
+    ! ! F_c_(i+1/2) = M_(i+1/2) [rho a v]     +    [n_y p]
+    ! !                         [rho a H]     +    [0    ]
+    ! !                                 (L/R)            (i+1/2)
+    ! !
+    ! ! with (L/R) = [L  if M_(i+1/2) >= 0]
+    ! !              [R  otherwise        ]
 
-    call debug_print('Running ausm_plus_solver_t%solve_ausm_plus()', __FILE__, __LINE__)
+    ! call debug_print('Running ausm_plus_solver_t%solve_ausm_plus()', __FILE__, __LINE__)
 
-    if(dt < tiny(1.0_rk)) then
-      write(std_err, '(a, es16.6)') "Error in ausm_plus_solver_t%solve_ausm_plus(), the timestep dt is < tiny(1.0_rk): dt = ", dt
-      error stop "Error in ausm_plus_solver_t%solve_ausm_plus(), the timestep dt is < tiny(1.0_rk)"
-    end if
+    ! if(dt < tiny(1.0_rk)) then
+    !   call error_msg(module='mod_ausm_plus', class='ausm_plus_solver_t', procedure='solve_ausm_plus', &
+    !                  message="The timestep dt is < tiny(1.0_rk)", &
+    !                  file_name=__FILE__, line_number=__LINE__)
+    ! end if
 
-    self%time = self%time + dt
-    self%dt = dt
-    self%iteration = self%iteration + 1
+    ! self%time = self%time + dt
+    ! self%dt = dt
+    ! self%iteration = self%iteration + 1
 
-    call self%init_boundary_conditions(grid, &
-                                       bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                       bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
-                                 bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                 bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    ! call self%init_boundary_conditions(grid, bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+    !                                    bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    ! call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
+    !                              bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+    !                              bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    ! Get the edge values (left/right states for each edge)
-    edge_interpolator => edge_interpolator_factory(self%input)
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, edge_values=rho_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, edge_values=u_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, edge_values=v_interface_values)
-    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, edge_values=p_interface_values)
+    ! edge_interpolator => muscl_interpolator_factory(self%input)
 
-    error stop "Update to use new TVD methods"
+    ! ! This is useful if e-MLP is used
+    ! call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
-    !                   edge(3)
-    !                  jflux(i,j+1)  'R'
-    !               o--------------------o
-    !               |                'L' |
-    !               |                    |
-    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
-    !    edge(4)    |                    |  edge(2)
-    !               |                'L' | 'R'
-    !               o--------------------o
-    !                  jflux(i,j)
-    !                   edge(1)
-    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
-    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
+    ! call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
+    ! call edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
+    ! call edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
+    ! call edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
 
-    ilo = grid%ilo_cell
-    ihi = grid%ihi_cell
-    jlo = grid%jlo_cell
-    jhi = grid%jhi_cell
+    ! error stop "Update to use new TVD methods"
 
-    if(allocated(self%iflux)) deallocate(self%iflux)
-    if(allocated(self%jflux)) deallocate(self%jflux)
+    ! !                   edge(3)
+    ! !                  jflux(i,j+1)  'R'
+    ! !               o--------------------o
+    ! !               |                'L' |
+    ! !               |                    |
+    ! !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
+    ! !    edge(4)    |                    |  edge(2)
+    ! !               |                'L' | 'R'
+    ! !               o--------------------o
+    ! !                  jflux(i,j)
+    ! !                   edge(1)
+    ! !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
+    ! !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
 
-    allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
-    allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
+    ! ilo = grid%ilo_cell
+    ! ihi = grid%ihi_cell
+    ! jlo = grid%jlo_cell
+    ! jhi = grid%jhi_cell
 
-    !$omp parallel default(none), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi), &
-    !$omp shared(self, grid), &
-    !$omp shared(rho_interface_values, u_interface_values, v_interface_values, p_interface_values), &
-    !$omp private(i, j, n_x, n_y, mass_flux), &
-    !$omp private(rho_L, u_L, v_L, p_L), &
-    !$omp private(rho_R, u_R, v_R, p_R), &
-    !$omp private(a_half, p_half, M_half, H)
+    ! if(allocated(self%iflux)) deallocate(self%iflux)
+    ! if(allocated(self%jflux)) deallocate(self%jflux)
 
-    ! Find fluxes in the i-direction
-    !$omp do
-    do j = jlo, jhi       ! the iflux is the same size in the j direction as the cell quantities
-      do i = ilo - 1, ihi ! start at ilo-1 b/c of the first i edge, e.g. i = 0
+    ! allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
+    ! allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
 
-        ! use the normal vector of the right edge of the current cell
-        n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
+    ! !$omp parallel default(none), &
+    ! !$omp firstprivate(ilo, ihi, jlo, jhi), &
+    ! !$omp shared(self, grid), &
+    ! !$omp shared(rho_interface_values, u_interface_values, v_interface_values, p_interface_values), &
+    ! !$omp private(i, j, n_x, n_y, mass_flux), &
+    ! !$omp private(rho_L, u_L, v_L, p_L), &
+    ! !$omp private(rho_R, u_R, v_R, p_R), &
+    ! !$omp private(a_half, p_half, M_half, H)
 
-        ! right edge (i + 1/2)
-        rho_L = rho_interface_values(RIGHT_IDX, i, j)    ! right edge of the current cell
-        u_L = u_interface_values(RIGHT_IDX, i, j)
-        v_L = v_interface_values(RIGHT_IDX, i, j)
-        p_L = p_interface_values(RIGHT_IDX, i, j)
+    ! ! Find fluxes in the i-direction
+    ! !$omp do
+    ! do j = jlo, jhi       ! the iflux is the same size in the j direction as the cell quantities
+    !   do i = ilo - 1, ihi ! start at ilo-1 b/c of the first i edge, e.g. i = 0
 
-        rho_R = rho_interface_values(LEFT_IDX, i + 1, j) ! left edge of the cell to the right
-        u_R = u_interface_values(LEFT_IDX, i + 1, j)
-        v_R = v_interface_values(LEFT_IDX, i + 1, j)
-        p_R = p_interface_values(LEFT_IDX, i + 1, j)
+    !     ! use the normal vector of the right edge of the current cell
+    !     n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
+    !     n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
 
-        call self%interface_state(rho=[rho_L, rho_R], &
-                                  u=[u_L, u_R], &
-                                  v=[v_L, v_R], &
-                                  p=[p_L, p_R], &
-                                  n=[n_x, n_y], &
-                                  M_half=M_half, &
-                                  p_half=p_half, &
-                                  a_half=a_half, H=H)
+    !     ! right edge (i + 1/2)
+    !     rho_L = rho_interface_values(RIGHT_IDX, i, j)    ! right edge of the current cell
+    !     u_L = u_interface_values(RIGHT_IDX, i, j)
+    !     v_L = v_interface_values(RIGHT_IDX, i, j)
+    !     p_L = p_interface_values(RIGHT_IDX, i, j)
 
-        ! Edge flux values, via upwinding
-        if(M_half > 0.0_rk) then
-          mass_flux = M_half * a_half * rho_L
-          self%iflux(1, i, j) = mass_flux
-          self%iflux(2, i, j) = mass_flux * u_L + (n_x * p_half)
-          self%iflux(3, i, j) = mass_flux * v_L + (n_y * p_half)
-          self%iflux(4, i, j) = mass_flux * H(1)
-        else
-          mass_flux = M_half * a_half * rho_R
-          self%iflux(1, i, j) = mass_flux
-          self%iflux(2, i, j) = mass_flux * u_R + (n_x * p_half)
-          self%iflux(3, i, j) = mass_flux * v_R + (n_y * p_half)
-          self%iflux(4, i, j) = mass_flux * H(2)
-        end if
-      end do
-    end do
-    !$omp end do
+    !     rho_R = rho_interface_values(LEFT_IDX, i + 1, j) ! left edge of the cell to the right
+    !     u_R = u_interface_values(LEFT_IDX, i + 1, j)
+    !     v_R = v_interface_values(LEFT_IDX, i + 1, j)
+    !     p_R = p_interface_values(LEFT_IDX, i + 1, j)
 
-    !$omp do
-    ! Find fluxes in the j-direction
-    do j = jlo - 1, jhi
-      do i = ilo, ihi
-        n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
+    !     call self%interface_state(rho=[rho_L, rho_R], &
+    !                               u=[u_L, u_R], &
+    !                               v=[v_L, v_R], &
+    !                               p=[p_L, p_R], &
+    !                               n=[n_x, n_y], &
+    !                               M_half=M_half, &
+    !                               p_half=p_half, &
+    !                               a_half=a_half, H=H)
 
-        ! top edge (j + 1/2)
-        rho_L = rho_interface_values(TOP_IDX, i, j)        ! top edge of the current cell
-        u_L = u_interface_values(TOP_IDX, i, j)
-        v_L = v_interface_values(TOP_IDX, i, j)
-        p_L = p_interface_values(TOP_IDX, i, j)
+    !     ! Edge flux values, via upwinding
+    !     if(M_half > 0.0_rk) then
+    !       mass_flux = M_half * a_half * rho_L
+    !       self%iflux(1, i, j) = mass_flux
+    !       self%iflux(2, i, j) = mass_flux * u_L + (n_x * p_half)
+    !       self%iflux(3, i, j) = mass_flux * v_L + (n_y * p_half)
+    !       self%iflux(4, i, j) = mass_flux * H(1)
+    !     else
+    !       mass_flux = M_half * a_half * rho_R
+    !       self%iflux(1, i, j) = mass_flux
+    !       self%iflux(2, i, j) = mass_flux * u_R + (n_x * p_half)
+    !       self%iflux(3, i, j) = mass_flux * v_R + (n_y * p_half)
+    !       self%iflux(4, i, j) = mass_flux * H(2)
+    !     end if
+    !   end do
+    ! end do
+    ! !$omp end do
 
-        rho_R = rho_interface_values(BOTTOM_IDX, i, j + 1) ! bottom edge of the cell above
-        u_R = u_interface_values(BOTTOM_IDX, i, j + 1)
-        v_R = v_interface_values(BOTTOM_IDX, i, j + 1)
-        p_R = p_interface_values(BOTTOM_IDX, i, j + 1)
+    ! !$omp do
+    ! ! Find fluxes in the j-direction
+    ! do j = jlo - 1, jhi
+    !   do i = ilo, ihi
+    !     n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
+    !     n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
 
-        call self%interface_state(rho=[rho_L, rho_R], &
-                                  u=[u_L, u_R], &
-                                  v=[v_L, v_R], &
-                                  p=[p_L, p_R], &
-                                  n=[n_x, n_y], &
-                                  M_half=M_half, &
-                                  p_half=p_half, &
-                                  a_half=a_half, H=H)
+    !     ! top edge (j + 1/2)
+    !     rho_L = rho_interface_values(TOP_IDX, i, j)        ! top edge of the current cell
+    !     u_L = u_interface_values(TOP_IDX, i, j)
+    !     v_L = v_interface_values(TOP_IDX, i, j)
+    !     p_L = p_interface_values(TOP_IDX, i, j)
 
-        ! Edge flux values, via upwinding
-        if(M_half > 0.0_rk) then
-          mass_flux = M_half * a_half * rho_L
-          self%jflux(1, i, j) = mass_flux
-          self%jflux(2, i, j) = mass_flux * u_L + (n_x * p_half)
-          self%jflux(3, i, j) = mass_flux * v_L + (n_y * p_half)
-          self%jflux(4, i, j) = mass_flux * H(1)
-        else
-          mass_flux = M_half * a_half * rho_R
-          self%jflux(1, i, j) = mass_flux
-          self%jflux(2, i, j) = mass_flux * u_R + (n_x * p_half)
-          self%jflux(3, i, j) = mass_flux * v_R + (n_y * p_half)
-          self%jflux(4, i, j) = mass_flux * H(2)
-        end if
+    !     rho_R = rho_interface_values(BOTTOM_IDX, i, j + 1) ! bottom edge of the cell above
+    !     u_R = u_interface_values(BOTTOM_IDX, i, j + 1)
+    !     v_R = v_interface_values(BOTTOM_IDX, i, j + 1)
+    !     p_R = p_interface_values(BOTTOM_IDX, i, j + 1)
 
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
+    !     call self%interface_state(rho=[rho_L, rho_R], &
+    !                               u=[u_L, u_R], &
+    !                               v=[v_L, v_R], &
+    !                               p=[p_L, p_R], &
+    !                               n=[n_x, n_y], &
+    !                               M_half=M_half, &
+    !                               p_half=p_half, &
+    !                               a_half=a_half, H=H)
 
-    call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    !     ! Edge flux values, via upwinding
+    !     if(M_half > 0.0_rk) then
+    !       mass_flux = M_half * a_half * rho_L
+    !       self%jflux(1, i, j) = mass_flux
+    !       self%jflux(2, i, j) = mass_flux * u_L + (n_x * p_half)
+    !       self%jflux(3, i, j) = mass_flux * v_L + (n_y * p_half)
+    !       self%jflux(4, i, j) = mass_flux * H(1)
+    !     else
+    !       mass_flux = M_half * a_half * rho_R
+    !       self%jflux(1, i, j) = mass_flux
+    !       self%jflux(2, i, j) = mass_flux * u_R + (n_x * p_half)
+    !       self%jflux(3, i, j) = mass_flux * v_R + (n_y * p_half)
+    !       self%jflux(4, i, j) = mass_flux * H(2)
+    !     end if
 
-    deallocate(rho_interface_values)
-    deallocate(u_interface_values)
-    deallocate(v_interface_values)
-    deallocate(p_interface_values)
-    deallocate(edge_interpolator)
+    !   end do
+    ! end do
+    ! !$omp end do
+    ! !$omp end parallel
 
-    deallocate(bc_plus_x)
-    deallocate(bc_plus_y)
-    deallocate(bc_minus_x)
-    deallocate(bc_minus_y)
+    ! call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
 
-    if(allocated(self%iflux)) deallocate(self%iflux)
-    if(allocated(self%jflux)) deallocate(self%jflux)
+    ! deallocate(rho_interface_values)
+    ! deallocate(u_interface_values)
+    ! deallocate(v_interface_values)
+    ! deallocate(p_interface_values)
+    ! deallocate(edge_interpolator)
+
+    ! deallocate(bc_plus_x)
+    ! deallocate(bc_plus_y)
+    ! deallocate(bc_minus_x)
+    ! deallocate(bc_minus_y)
+
+    ! if(allocated(self%iflux)) deallocate(self%iflux)
+    ! if(allocated(self%jflux)) deallocate(self%jflux)
   end subroutine solve_ausm_plus
 
   pure function split_mach_deg_1(M, plus_or_minus) result(M_split)
