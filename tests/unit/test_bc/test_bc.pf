@@ -40,8 +40,7 @@ contains
 
   @before
   subroutine startup()
-    input = input_t(cell_reconstruction='piecewise_linear', &
-                    edge_interpolation_scheme='TVD2', &
+    input = input_t(spatial_reconstruction='MUSCL', &
                     flux_solver='AUSM+-up', &
                     n_ghost_layers=2, &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &

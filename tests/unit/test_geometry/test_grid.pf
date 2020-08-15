@@ -38,7 +38,7 @@ contains
     real(rk), dimension(2, 0:4) :: grid_corner_vectors
 
     print *, 'Testing test_corner_edge_vector_query()'
-    input = input_t(cell_reconstruction='piecewise_linear', &
+    input = input_t(spatial_reconstruction='MUSCL', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
@@ -67,7 +67,7 @@ contains
     real(rk), dimension(2, 0:2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
 
     print *, 'Testing test_leftright_midpoint_edge_vector_query()'
-    input = input_t(cell_reconstruction='piecewise_linear', &
+    input = input_t(spatial_reconstruction='MUSCL', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
@@ -95,7 +95,7 @@ contains
     real(rk), dimension(2, 0:2) :: grid_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
 
     print *, 'Testing test_downup_midpoint_edge_vector_query()'
-    input = input_t(cell_reconstruction='piecewise_linear', &
+    input = input_t(spatial_reconstruction='MUSCL', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
@@ -172,7 +172,7 @@ contains
     class(grid_t), pointer :: grid
     type(input_t) :: input
 
-    input = input_t(cell_reconstruction='piecewise_linear', &
+    input = input_t(spatial_reconstruction='MUSCL', &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.true., &
                     initial_condition_file='simple.h5', &

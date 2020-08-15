@@ -108,11 +108,10 @@ module mod_input
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
     ! finite volume scheme specifics
-    character(len=32) :: flux_solver = 'FVLEG'                    !< flux solver, one of ('FVLEG', 'AUSM+-up')
-    character(len=32) :: cell_reconstruction = 'piecewise_linear' !< How are the cells being reconstructed
-    character(len=32) :: gradient_scheme = 'green_gauss'          !< How is the gradient estimated?
-    character(len=32) :: edge_interpolation_scheme = 'TVD2'       !< How are the edge values interpolated?
-    logical :: apply_low_mach_fix = .true.                       !< some flux solvers have this option
+    character(len=32) :: flux_solver = 'AUSMPW+'          !< flux solver, ('FVLEG', 'AUSM+-up', etc.)
+    character(len=32) :: spatial_reconstruction = 'MUSCL' !< (MUSCL, green_gauss) How are the edge values interpolated?
+    logical :: apply_low_mach_fix = .true.                !< some flux solvers have this option
+    character(len=32) :: limiter = 'minmod'               !< Flux limiter, e.g. minmod, superbee, TVD3, MLP3, MLP5, etc.
 
     ! AUSM solver specifics, see the AUSM solver packages for more details.
     ! These are only read in if the flux solver is from the AUSM family
@@ -122,7 +121,6 @@ module mod_input
     real(rk) :: ausm_sonic_point_sigma = 1.0_rk         !< sigma; another pressure diffusion coefficient
 
     real(rk) :: tau = 1.0e-5_rk !< time increment for FVEG and FVLEG schemes
-    character(:), allocatable :: limiter
 
     ! debug
     logical :: plot_limiters = .false.
@@ -148,7 +146,7 @@ contains
     self%xmax = xmax
     self%ymin = ymin
     self%ymax = ymax
-    self%cell_reconstruction = 'piecewise_linear'
+    self%spatial_reconstruction = 'MUSCL'
     self%limiter = 'minmod'
 
     self%plus_x_bc = 'periodic'
@@ -162,7 +160,6 @@ contains
     type(input_t), intent(inout) :: self
 
     call debug_print('Running input_t%finalize()', __FILE__, __LINE__)
-    if(allocated(self%limiter)) deallocate(self%limiter)
     if(allocated(self%time_integration_strategy)) deallocate(self%time_integration_strategy)
     if(allocated(self%contour_io_format)) deallocate(self%contour_io_format)
     if(allocated(self%source_file)) deallocate(self%source_file)
@@ -233,18 +230,10 @@ contains
     end if
 
     call cfg%get("scheme", "smooth_residuals", self%smooth_residuals, .true.)
-    call cfg%get("scheme", "cell_reconstruction", char_buffer, 'piecewise_linear')
-    self%cell_reconstruction = trim(char_buffer)
 
-    call cfg%get("scheme", "gradient_scheme", char_buffer, 'green_gauss')
-    self%gradient_scheme = trim(char_buffer)
-
-    call cfg%get("scheme", "edge_interpolation_scheme", char_buffer, 'TVD2')
-    self%edge_interpolation_scheme = trim(char_buffer)
-
-    call cfg%get("scheme", "limiter", char_buffer, 'minmod')
-    self%limiter = trim(char_buffer)
-
+    ! Spatial reconstruction
+    call cfg%get("scheme", "spatial_reconstruction", self%spatial_reconstruction, 'MUSCL')
+    call cfg%get("scheme", "limiter", self%limiter, 'minmod')
     call cfg%get("scheme", "apply_low_mach_fix", self%apply_low_mach_fix, .true.)
 
     ! Restart files
@@ -288,7 +277,7 @@ contains
     end if
 
     ! ! Grid
-    ! select case(trim(self%edge_interpolation_scheme))
+    ! select case(trim(self%spatial_reconstruction))
     ! case('TVD2', 'TVD3', 'TVD5', 'MLP3', 'MLP5')
     !   required_n_ghost_layers = 2
     !   call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
@@ -478,10 +467,9 @@ contains
     write(*, '(a)') "[scheme]"
     write(*, '(a, l1)') "smooth_residuals = ", self%smooth_residuals
     write(*, '(a, a)') "flux_solver = ", self%flux_solver
-    write(*, '(a, a)') "cell_reconstruction = ", self%cell_reconstruction
-    write(*, '(a, a)') "edge_interpolation_scheme = ", self%edge_interpolation_scheme
-    write(*, '(a, es10.3)') "tau = ", self%tau
+    write(*, '(a, a)') "spatial_reconstruction = ", self%spatial_reconstruction
     write(*, '(a, a)') "limiter = ", self%limiter
+    write(*, '(a, es10.3)') "tau = ", self%tau
 
     write(*, *)
     write(*, '(a)') "[physics]"

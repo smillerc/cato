@@ -43,7 +43,7 @@ contains
 
     character(len=:), allocatable :: recon_type
 
-    recon_type = trim(input%cell_reconstruction)
+    recon_type = trim(input%spatial_reconstruction)
     call debug_print('Making a "'//recon_type//'" reconstruction operator', __FILE__, __LINE__)
 
     select case(recon_type)

@@ -62,7 +62,7 @@ contains
       limiter = input%limiter
     end if
 
-    select case(trim(input%edge_interpolation_scheme))
+    select case(trim(input%spatial_reconstruction))
     case('TVD2')
       interpolator => new_tvd_2nd_order_t(limiter=limiter)
     case('TVD3')
@@ -71,7 +71,7 @@ contains
       interpolator => new_tvd_5th_order_t(limiter=limiter)
     case default
       write(std_err, '(a)') "Unknown edge interpolation scheme, must be one of the following: "// &
-        "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5', the input value was '"//trim(input%edge_interpolation_scheme)//"'"
+        "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5', the input value was '"//trim(input%spatial_reconstruction)//"'"
 
       error stop "Unknown edge interpolation scheme, must be one of the following: "// &
         "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"

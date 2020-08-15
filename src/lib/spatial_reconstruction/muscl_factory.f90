@@ -66,7 +66,7 @@ contains
       limiter = input%limiter
     end if
 
-    select case(trim(input%edge_interpolation_scheme))
+    select case(trim(input%spatial_reconstruction))
     case('TVD2')
       interpolator => new_muscl_tvd2(limiter=limiter)
     case('TVD3')
@@ -83,7 +83,7 @@ contains
       call error_msg(module='mod_muscl_interpolator_factory', procedure='muscl_interpolator_factory', &
                      message="Unknown edge interpolation scheme, must be one of the following: "// &
                      "['TVD2', '(e-)MLP3', or '(e-)MLP5]', the input value was '"// &
-                     trim(input%edge_interpolation_scheme)//"'", &
+                     trim(input%spatial_reconstruction)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
 
