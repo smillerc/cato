@@ -20,6 +20,7 @@
 
 module mod_regular_2d_grid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit, std_error => error_unit
+  use mod_error, only: error_msg
   use mod_grid, only: grid_t, C1, M1, C2, M2, C3, M3, C4, M4
   use mod_units
   use mod_quad_cell, only: quad_cell_t
@@ -188,7 +189,7 @@ contains
     call self%get_midpoint_persistent_vectors(edge='left', scale=.false., shift=.false.)
     call self%get_midpoint_persistent_vectors(edge='bottom', scale=.false., shift=.false.)
 
-    ! call self%print_grid_stats()
+    call self%print_grid_stats()
   end subroutine initialize
 
   subroutine copy(out_grid, in_grid)
@@ -313,6 +314,7 @@ contains
     logical :: file_exists
     character(:), allocatable :: filename
     character(32) :: str_buff = ''
+    character(300) :: msg = ''
 
     real(rk), dimension(:, :), allocatable :: x
     real(rk), dimension(:, :), allocatable :: y
@@ -337,10 +339,13 @@ contains
     call h5%get('/n_ghost_layers', self%n_ghost_layers)
 
     if(self%n_ghost_layers /= input%n_ghost_layers) then
-      write(std_error, '(2(a, i0))') "regular_2d_grid_t%n_ghost_layers: ", &
-        self%n_ghost_layers, ", input%n_ghost_layers: ", input%n_ghost_layers
-      error stop "The number of ghost layers in the .hdf5 file does not match the"// &
-        " input requirement set by the edge interpolation scheme"
+      write(msg, '(2(a,i0),a)') "The number of ghost layers in the .hdf5 file (", self%n_ghost_layers, ") does not match the"// &
+        " input requirement set by the edge interpolation scheme (", input%n_ghost_layers, ")"
+
+      call error_msg(module='mod_regular_grid_2d', class='regular_2d_grid_t', &
+                     procedure='initialize_from_hdf5', &
+                     message=msg, &
+                     file_name=__FILE__, line_number=__LINE__)
     end if
 
     call h5%get('/x', x)

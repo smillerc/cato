@@ -37,7 +37,7 @@ module mod_globals
 
   logical :: globals_set = .false.
 
-  integer(ik), parameter :: n_ghost_layers = 2
+  integer(ik), protected :: n_ghost_layers = 2
 
   character(len=5), protected :: global_dimensionality
   logical, protected :: is_1d = .false.
@@ -86,7 +86,7 @@ contains
 
     grid_is_orthogonal = grid_orthogonality
 
-    ! n_ghost_layers = num_ghost_layers
+    n_ghost_layers = num_ghost_layers
 
     select case(trim(dimensionality))
     case('1D_X')

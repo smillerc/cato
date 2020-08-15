@@ -21,7 +21,6 @@ target_link_libraries(eos PUBLIC io)
 
 add_library(
   utilities lib/limiters/slope_limiter.f90 lib/limiters/flux_limiter.f90
-  # lib/limiters/gnoffo_aux_limiter.f90 lib/limiters/post_limiter.f90
 )
 target_link_libraries(utilities PUBLIC globals)
 
@@ -45,9 +44,8 @@ set(fyppFiles
     lib/spatial_reconstruction/muscl_tvd2.fypp
     lib/spatial_reconstruction/muscl_tvd3.fypp
     lib/spatial_reconstruction/muscl_tvd5.fypp
-    lib/spatial_reconstruction/muscl_mlp3.fypp
-    lib/spatial_reconstruction/muscl_e_mlp.fypp
     lib/spatial_reconstruction/muscl_mlp.fypp
+    lib/spatial_reconstruction/muscl_e_mlp.fypp
     lib/boundary_conditions/periodic_bc.fypp
     lib/limiters/e_mlp_distinguisher.fypp
     lib/flux_solvers/m_ausmpw_plus_solver.fypp

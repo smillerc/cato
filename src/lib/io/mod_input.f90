@@ -276,23 +276,26 @@ contains
       call cfg%get("initial_conditions", "init_pressure", self%init_pressure, 0.0_rk)
     end if
 
-    ! ! Grid
-    ! select case(trim(self%spatial_reconstruction))
-    ! case('TVD2', 'TVD3', 'TVD5', 'MLP3', 'MLP5')
-    !   required_n_ghost_layers = 2
-    !   call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
-    ! case default
-    !   call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
-    !                  message="Unknown edge interpolation scheme, must be one of the following: "// &
-    !                  "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'", &
-    !                  file_name=__FILE__, line_number=__LINE__)
-    ! end select
+    ! Grid
+    select case(trim(self%limiter))
+    case('minmod', 'superbee', 'van_leer', 'none', 'TVD2', 'TVD3', 'MLP3')
+      required_n_ghost_layers = 2
+      call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
+    case('TVD5', 'MLP5')
+      required_n_ghost_layers = 3
+      call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
+    case default
+      call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+                     message="Unknown edge interpolation scheme, must be one of the following: "// &
+                     "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'", &
+                     file_name=__FILE__, line_number=__LINE__)
+    end select
 
-    ! if(self%n_ghost_layers /= required_n_ghost_layers) then
-    !   call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
-    !                  message="The number of required ghost cell layers doesn't match the edge interpolation order", &
-    !                  file_name=__FILE__, line_number=__LINE__)
-    ! end if
+    if(self%n_ghost_layers /= required_n_ghost_layers) then
+      call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+                     message="The number of required ghost cell layers doesn't match the edge interpolation order", &
+                     file_name=__FILE__, line_number=__LINE__)
+    end if
 
     call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
     self%grid_type = trim(char_buffer)

@@ -26,7 +26,11 @@ contains
     end if
 
     ! Catch-all error code
-    if(.not. present(error_stop) .or. (present(error_stop) .and. error_stop)) error stop 1
+    if(present(error_stop)) then
+      if(error_stop) error stop 1
+    else
+      error stop 1
+    end if
   end subroutine
 
 end module mod_error

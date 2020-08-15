@@ -194,6 +194,7 @@ contains
     case('FVLEG')
       allocate(fvleg_solver_t :: solver)
     case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
+      error stop "There are issues in the AUSM+ solver for now; exiting..."
       allocate(ausm_plus_solver_t :: solver)
     case('M-AUSMPW+')
       allocate(m_ausmpw_plus_solver_t :: solver)
