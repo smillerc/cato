@@ -30,7 +30,7 @@ def show_deltav(pert_ds, sym_ds, xrange, trange, title):
     plt.figure(figsize=(14, 6))
 
     for t in range(trange[0], trange[1] + trange[2], trange[2]):
-        ds_cutoff[t].plot(label=f"t: {ds_cutoff[t].t.data:.2f} ns")
+        ds_cutoff[t].plot(label=f"t: {ds_cutoff[t].time.data:.2f} ns")
     plt.legend()
     plt.title(title)
     plt.savefig(f"{title}_slices.png")

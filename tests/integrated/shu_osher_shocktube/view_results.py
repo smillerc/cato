@@ -53,12 +53,8 @@ from dask.diagnostics import ProgressBar
 with ProgressBar():
     ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 
-# Remove the ghost layers (bc's)
-
-serialize_dataset(ds)
-
 t = 0.17
-actual_time = ds.density.sel(time=t, method="nearest").t.data
+actual_time = ds.density.sel(time=t, method="nearest").time.data
 
 plt.figure(figsize=(12, 6))
 ds.density.sel(time=t, method="nearest").plot(x="x")

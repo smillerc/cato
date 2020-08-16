@@ -1,13 +1,28 @@
 # -*- coding: utf-8 -*-
-import os
-import sys
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
 
-import matplotlib.pyplot as plt
+from configparser import ConfigParser
 import numpy as np
-import pint
+import sys
+import os
 
 sys.path.append(os.path.abspath("../../.."))
 from pycato import *
+
+# Read the input file and make sure the spatial order is consistent
+config = ConfigParser()
+config.read("input.ini")
+config.sections()
+edge_interp = config["scheme"]["limiter"]
+edge_interp = edge_interp.strip("'").strip('"')
+
+if edge_interp in ["TVD5", "MLP5"]:
+    n_ghost_layers = 3
+else:
+    n_ghost_layers = 2
 
 # Physics
 gamma = 5.0 / 3.0
@@ -16,7 +31,7 @@ ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
 
 vacuum_pressure = 7e12 * ureg("barye")
-vacuum_density = 0.005 * ureg("g/cc")
+vacuum_density = 0.01 * ureg("g/cc")
 vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s")
 
 # Mesh
@@ -25,14 +40,14 @@ wavelength = 2 * ureg("um")
 two_pi = (2 * np.pi) * ureg("radian")
 k = two_pi / wavelength
 print(f"k: {k}")
-y_thickness = two_pi / k
+y_thickness = (two_pi / k) / 2.0
 print(f"y_thickness: {y_thickness.to('um')}")
 dy = None  # will use smallest dx if None
 
-interface_loc = 10.0
+interface_loc = 15.0
 layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [20, 20, 20] * ureg("1/um")
+layer_resolution = [25, 25, 25] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
@@ -54,20 +69,21 @@ domain = make_2d_layered_grid(
     dy=dy,
     layer_spacing=layer_spacing,
     spacing_scale_factor=vacuum_feathering,
+    n_ghost_layers=n_ghost_layers,
 )
 
 x = domain["xc"].to("um")
 y = domain["yc"].to("um")
 
 # Perturbation
-x0 = interface_loc * ureg("um")  # perturbation location
+x0 = (interface_loc + 5) * ureg("um")  # perturbation location
 
 pert_x = np.exp(-k.m * ((x - x0).m) ** 2)
 pert_x[pert_x < 1e-4] = 0.0
 
 pert_y = -((1.0 - np.cos(k * y)) / 2.0).to_base_units().m
 perturbation_loc = pert_x * pert_y
-perturbation_frac = 0.01
+perturbation_frac = 0.5
 
 perturbation = np.abs(perturbation_loc * perturbation_frac)
 perturbation[perturbation < 1e-4] = 0.0

@@ -11,19 +11,19 @@ import sys
 import os
 
 sys.path.append(os.path.abspath("../../.."))
-from pycato import make_1d_in_x_uniform_grid, write_initial_hdf5, ureg
+from pycato import *
 
 # Read the input file and make sure the spatial order is consistent
 config = ConfigParser()
 config.read("input.ini")
 config.sections()
-edge_interp = config["scheme"]["edge_interpolation_scheme"]
+edge_interp = config["scheme"]["limiter"]
 edge_interp = edge_interp.strip("'").strip('"')
 
-if edge_interp in ["TVD3", "TVD5", "MLP3", "MLP5"]:
-    n_ghost_layers = 2
+if edge_interp in ["TVD5", "MLP5"]:
+    n_ghost_layers = 3
 else:
-    n_ghost_layers = 1
+    n_ghost_layers = 2
 
 # Make the empty grid
 shock_tube = make_1d_in_x_uniform_grid(

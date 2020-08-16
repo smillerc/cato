@@ -1,14 +1,30 @@
 # -*- coding: utf-8 -*-
 """Make a simple 1D planar layered target for ICF-like implosions
 and apply a perturbation at the ice-ablator interface"""
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
+
+from configparser import ConfigParser
 import numpy as np
 import sys
 import os
-import argparse
 
 sys.path.append(os.path.abspath("../../.."))
 from pycato import *
+
+# Read the input file and make sure the spatial order is consistent
+config = ConfigParser()
+config.read("input.ini")
+config.sections()
+edge_interp = config["scheme"]["limiter"]
+edge_interp = edge_interp.strip("'").strip('"')
+
+if edge_interp in ["TVD5", "MLP5"]:
+    n_ghost_layers = 3
+else:
+    n_ghost_layers = 2
 
 # Physics
 gamma = 5.0 / 3.0
@@ -43,7 +59,23 @@ domain = make_2d_layered_grid(
     layer_pressure,
     y_thickness=0,
     layer_spacing=layer_spacing,
-    n_ghost_layers=2,
+    n_ghost_layers=n_ghost_layers,
 )
 
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
+
+try:
+    plt.figure(figsize=(10, 2))
+    plt.pcolormesh(
+        domain["x"].m,
+        domain["y"].m,
+        domain["rho"].m,
+        ec="k",
+        lw=0.1,
+        antialiased=True,
+        cmap="viridis",
+    )
+    plt.axis("equal")
+    plt.show()
+except Exception:
+    pass
