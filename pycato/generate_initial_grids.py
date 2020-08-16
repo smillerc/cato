@@ -250,8 +250,19 @@ def make_2d_layered_grid(
             + [x[-1] + 2 * rdx],
             dtype=np.float64,
         )
+    elif n_ghost_layers == 3:
+        x = np.array(
+            [x[0] - 3 * ldx]
+            + [x[0] - 2 * ldx]
+            + [x[0] - ldx]
+            + list(x)
+            + [x[-1] + rdx]
+            + [x[-1] + 2 * rdx]
+            + [x[-1] + 3 * rdx],
+            dtype=np.float64,
+        )
     else:
-        raise Exception("Unable to work with n_ghost_layers that aren't 1 or 2")
+        raise Exception("Unable to work with n_ghost_layers that aren't 1 2, or 3")
     dx = np.diff(x) / 2.0
     xc = x[:-1] + dx / 2.0
 
@@ -304,6 +315,8 @@ def make_2d_layered_grid(
         ghost_layers = [0, -1]
     elif n_ghost_layers == 2:
         ghost_layers = [0, 1, -2, -1]
+    elif n_ghost_layers == 3:
+        ghost_layers = [0, 1, 2, -3, -2, -1]
     else:
         raise Exception("Unable to work with n_ghost_layers that aren't 1 or 2")
 
