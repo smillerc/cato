@@ -2,17 +2,16 @@
 // https://github.com/microsoft/vscode-dev-containers/tree/master/containers/alpine-3.10-git
 {
 	"name": "Fortran+MPI",
-	"image": "smillerc/ifort-mpi-dev",
+	"image": "smillerc/gfortran-dev:latest",
 	"settings": {
 		"terminal.integrated.shell.linux": "/bin/bash",
-		"fortran-ls.executablePath": "/miniconda/bin/fortls"
+		"fortran-ls.executablePath": "/usr/local/bin/fortls"
 	},
 	"extensions": [
 		"ms-vscode.cmake-tools",
 		"twxs.cmake",
-		"krvajalm.fortran",
+		"krvajalm.linter-gfortran",
 		"hansec.fortran-ls",
 		"eamodio.gitlens",
-		"gimly81.fortran"
 	]
 }

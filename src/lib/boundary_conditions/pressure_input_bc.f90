@@ -1,8 +1,31 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_pressure_input_bc
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_globals, only: debug_print
+  use mod_grid, only: grid_t
   use mod_boundary_conditions, only: boundary_condition_t
+  use mod_nondimensionalization, only: p_0, rho_0, t_0
   use mod_input, only: input_t
+  use mod_inlet_outlet, only: subsonic_inlet, subsonic_outlet, supersonic_inlet, supersonic_outlet
   use linear_interpolation_module, only: linear_interp_1d
   use mod_eos, only: eos
   implicit none
@@ -13,41 +36,46 @@ module mod_pressure_input_bc
   type, extends(boundary_condition_t) :: pressure_input_bc_t
     logical :: constant_pressure = .false.
     real(rk) :: pressure_input = 0.0_rk
+    real(rk) :: temperature_input = 273.0_rk ! K
+    real(rk) :: density_input = 5e-3_rk !< Boundary density g/cc
     real(rk) :: scale_factor = 1.0_rk !< scaling factor (e.g. 1x, 2x) to scale the input up/down
 
     ! Temporal inputs
     type(linear_interp_1d) :: temporal_pressure_input
     character(len=100) :: input_filename
 
-    real(rk), dimension(:, :), allocatable :: edge_primitive_vars
-    !< ((rho, u ,v, p), i); Conserved variables for the ghost cells along the boundary. This is saved b/c
-    !< it is reapplied to the reconstructed bc state for the ghost cells (besides for the conserved var bc)
+    real(rk), dimension(:), allocatable :: edge_rho !< boundary (ghost/edge/etc) density
+    real(rk), dimension(:), allocatable :: edge_u   !< boundary (ghost/edge/etc) x-velocity
+    real(rk), dimension(:), allocatable :: edge_v   !< boundary (ghost/edge/etc) y-velocity
+    real(rk), dimension(:), allocatable :: edge_p   !< boundary (ghost/edge/etc) pressure
 
   contains
     procedure, private :: read_pressure_input
     procedure, private :: get_desired_pressure
-    procedure, public :: apply_primitive_var_bc => apply_pressure_input_primitive_var_bc
-    procedure, public :: apply_reconstructed_state_bc => apply_pressure_input_reconstructed_state_bc
-    procedure, public :: apply_cell_gradient_bc => apply_pressure_input_cell_gradient_bc
-    procedure, public :: copy => copy_pressure_input_bc
+    procedure, public :: apply => apply_pressure_input_primitive_var_bc
+    final :: finalize
   end type
 contains
 
-  function pressure_input_bc_constructor(location, input) result(bc)
+  function pressure_input_bc_constructor(location, input, grid) result(bc)
     type(pressure_input_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
+    class(grid_t), intent(in) :: grid
 
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
+    call bc%set_indices(grid)
+
+    bc%density_input = input%bc_density / rho_0
     bc%constant_pressure = input%apply_constant_bc_pressure
     bc%scale_factor = input%bc_pressure_scale_factor
     if(.not. bc%constant_pressure) then
       bc%input_filename = trim(input%bc_pressure_input_file)
       call bc%read_pressure_input()
     else
-      bc%pressure_input = input%constant_bc_pressure_value
+      bc%pressure_input = input%constant_bc_pressure_value / p_0 ! non-dimensionalize
     end if
 
   end function pressure_input_bc_constructor
@@ -74,6 +102,7 @@ contains
       error stop 'Error in pressure_input_bc_t%read_pressure_input(); pressure input file not found, exiting...'
     end if
 
+    ! Open and determine how many lines there are
     open(newunit=input_unit, file=trim(self%input_filename))
     nlines = 0
     do
@@ -88,6 +117,7 @@ contains
     end do
     close(input_unit)
 
+    ! Re-open and now allocate the arrays to the proper size based on the # of lines in the file
     open(newunit=input_unit, file=trim(self%input_filename))
     if(has_header_line) then
       read(input_unit, *, iostat=io_status) ! skip the first line
@@ -105,6 +135,10 @@ contains
     end do
     close(input_unit)
 
+    ! Apply scaling and non-dimensionalization
+    time_sec = time_sec / t_0
+    pressure_barye = (pressure_barye / p_0) * self%scale_factor
+
     self%max_time = maxval(time_sec)
 
     ! Initialize the linear interpolated data object so we can query the pressure at any time
@@ -118,27 +152,7 @@ contains
 
     deallocate(time_sec)
     deallocate(pressure_barye)
-  end subroutine
-
-  subroutine copy_pressure_input_bc(out_bc, in_bc)
-    class(boundary_condition_t), intent(in) :: in_bc
-    class(pressure_input_bc_t), intent(inout) :: out_bc
-
-    call debug_print('Running pressure_input_bc_t%copy_pressure_input_bc()', __FILE__, __LINE__)
-
-    out_bc%name = in_bc%name
-    out_bc%location = in_bc%location
-    select type(in_bc)
-    class is(pressure_input_bc_t)
-      out_bc%constant_pressure = in_bc%constant_pressure
-      out_bc%pressure_input = in_bc%pressure_input
-      out_bc%temporal_pressure_input = in_bc%temporal_pressure_input
-      out_bc%input_filename = in_bc%input_filename
-    class default
-      error stop 'pressure_input_bc_t%copy_pressure_input_bc: unsupported in_bc class'
-    end select
-
-  end subroutine
+  end subroutine read_pressure_input
 
   real(rk) function get_desired_pressure(self) result(desired_pressure)
     class(pressure_input_bc_t), intent(inout) :: self
@@ -152,258 +166,152 @@ contains
         error stop "Unable to interpolate pressure within pressure_input_bc_t%get_desired_pressure()"
       end if
     end if
-
-    desired_pressure = desired_pressure * self%scale_factor
   end function get_desired_pressure
 
-  subroutine apply_pressure_input_primitive_var_bc(self, primitive_vars, lbounds)
+  subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p, lbounds)
     !< Apply pressure_input boundary conditions to the conserved state vector field
     class(pressure_input_bc_t), intent(inout) :: self
-    integer(ik), dimension(3), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: primitive_vars
-    !< ((rho, u ,v, p), i, j); Conserved variables for each cell
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
 
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
-
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
     logical :: inflow
     logical :: outflow
 
-    real(rk) :: desired_boundary_pressure, boundary_density, gamma, ave_u, min_u, max_u, u, v, rho_new, ave_rho
-    real(rk) :: mach
+    real(rk) :: desired_boundary_pressure, boundary_density, gamma
+    real(rk) :: mach_u, mach_v, mach, cs
     real(rk), dimension(:), allocatable :: edge_pressure
+    real(rk), dimension(:), allocatable :: domain_rho
+    real(rk), dimension(:), allocatable :: domain_u
+    real(rk), dimension(:), allocatable :: domain_v
+    real(rk), dimension(:), allocatable :: domain_p
+    real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
+    real(rk), dimension(2) :: boundary_norm
 
     gamma = eos%get_gamma()
-
-    left_ghost = lbound(primitive_vars, dim=2)
-    right_ghost = ubound(primitive_vars, dim=2)
-    bottom_ghost = lbound(primitive_vars, dim=3)
-    top_ghost = ubound(primitive_vars, dim=3)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
-
     inflow = .false.
     outflow = .false.
-    mach = 1.5_rk
-    ! Since we know the pressure/density in the fluid edge cell,
-    ! and we also know what we want the pressure to be on the boundary (ghost)
-    ! We use the isentropic relation rho2/rho2 = (P2/P1)^(gamma-1) to find the density
-    ! in the ghost zone
-    !           |
-    !  Fluid    |   Ghost
-    !  P1,      |    P2
-    !  rho_1    |  rho2
-    !           |
 
-    select case(self%location)
-    case('+x')
-      call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
+    desired_boundary_pressure = self%get_desired_pressure()
 
-      if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
-      allocate(self%edge_primitive_vars(4, bottom_ghost:top_ghost))
-      self%edge_primitive_vars = 0.0_rk
+    if(allocated(self%edge_rho)) deallocate(self%edge_rho)
+    if(allocated(self%edge_u)) deallocate(self%edge_u)
+    if(allocated(self%edge_v)) deallocate(self%edge_v)
+    if(allocated(self%edge_p)) deallocate(self%edge_p)
 
-      allocate(edge_pressure(bottom:top))
+    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+              left_ghost => minval(self%ilo_ghost), &
+              right_ghost => maxval(self%ihi_ghost), &
+              bottom_ghost => minval(self%jlo_ghost), &
+              top_ghost => maxval(self%jhi_ghost), &
+              n => self%n_ghost_layers)
 
-      min_u = minval(primitive_vars(2, right, bottom:top))
-      max_u = maxval(primitive_vars(2, right, bottom:top))
-      ave_u = sum(primitive_vars(2, right, bottom:top)) / size(primitive_vars(2, right, bottom:top))
-      ave_rho = sum(primitive_vars(1, right, bottom:top)) / size(primitive_vars(1, right, bottom:top))
-      primitive_vars(1, right, bottom:top) = ave_rho
+      select case(self%location)
+      case('+x', '-x')
+        allocate(self%edge_rho(bottom_ghost:top_ghost))
+        allocate(self%edge_u(bottom_ghost:top_ghost))
+        allocate(self%edge_v(bottom_ghost:top_ghost))
+        allocate(self%edge_p(bottom_ghost:top_ghost))
+        allocate(domain_rho(bottom_ghost:top_ghost))
+        allocate(domain_u(bottom_ghost:top_ghost))
+        allocate(domain_v(bottom_ghost:top_ghost))
+        allocate(domain_p(bottom_ghost:top_ghost))
+      case('+y', '-y')
+        allocate(self%edge_rho(left_ghost:right_ghost))
+        allocate(self%edge_u(left_ghost:right_ghost))
+        allocate(self%edge_v(left_ghost:right_ghost))
+        allocate(self%edge_p(left_ghost:right_ghost))
+        allocate(domain_rho(left_ghost:right_ghost))
+        allocate(domain_u(left_ghost:right_ghost))
+        allocate(domain_v(left_ghost:right_ghost))
+        allocate(domain_p(left_ghost:right_ghost))
+      end select
 
-      ! defaults
-      u = ave_u
-      v = 0.0_rk
+      self%edge_rho = 0.0_rk
+      self%edge_u = 0.0_rk
+      self%edge_v = 0.0_rk
+      self%edge_p = 0.0_rk
 
-      if(ave_u < 0.0_rk) then
-        inflow = .true.
-        outflow = .false.
-        u = min_u
-      else
-        inflow = .false.
-        outflow = .true.
-        u = max_u
-      end if
+      domain_rho = 0.0_rk
+      domain_u = 0.0_rk
+      domain_v = 0.0_rk
+      domain_p = 0.0_rk
 
-      ! Default to zero-gradient
-      self%edge_primitive_vars(1, :) = sum(primitive_vars(1, right, bottom:top)) / size(primitive_vars(1, right, bottom:top))
-      self%edge_primitive_vars(2, :) = u
-      self%edge_primitive_vars(3, :) = v
+      select case(self%location)
+      case('+x')
+        call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
-      edge_pressure(bottom:top) = sum(primitive_vars(4, right, bottom:top)) / size(primitive_vars(4, right, bottom:top))
-      desired_boundary_pressure = self%get_desired_pressure()
+        domain_rho = rho(right, bottom_ghost:top_ghost)
+        domain_u = u(right, bottom_ghost:top_ghost)
+        domain_v = 0.0_rk
+        domain_p = p(right, bottom_ghost:top_ghost)
+        boundary_norm = [1.0_rk, 0.0_rk] ! outward normal vector at +x
 
-      self%edge_primitive_vars(4, bottom:top) = edge_pressure(bottom:top)
+        do j = bottom, top
+          associate(rho_d => domain_rho(j), u_d => domain_u(j), &
+                    v_d => domain_v(j), p_d => domain_p(j))
+            domain_prim_vars = [rho_d, u_d, v_d, p_d]
 
-      if(desired_boundary_pressure <= 0.0_rk) then
-        ! Default to zero-gradient if the input pressure goes <= 0
-        self%edge_primitive_vars(1, bottom:top) = primitive_vars(1, right, bottom:top)
-        self%edge_primitive_vars(2, bottom:top) = primitive_vars(2, right, bottom:top)
-        self%edge_primitive_vars(3, bottom:top) = primitive_vars(3, right, bottom:top)
-        self%edge_primitive_vars(4, bottom:top) = primitive_vars(4, right, bottom:top)
-      else
-        ! Pressure on the right-most column of fluid cells
+            call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
+            mach_u = u_d / cs
 
-        ! Find the desired density from isentropic relations rho2 = f(rho1, P1, P2)
-        associate(rho_1=>primitive_vars(1, right, bottom:top), &
-                  P_1=>edge_pressure(bottom:top), &
-                  P_2=>desired_boundary_pressure)
+            if(mach_u > 0.0_rk) then ! outlet
+              if(mach_u > 1.0_rk) then
 
-          if(self%get_time() > self%max_time) then  ! switch to a zero gradient
-            self%edge_primitive_vars(1, bottom:top) = primitive_vars(1, right, bottom:top)
-            self%edge_primitive_vars(4, bottom:top) = edge_pressure
-          else
-
-            self%edge_primitive_vars(4, bottom:top) = P_2
-
-            ! Outflow
-            if(outflow) then
-              ! print*, 'outflow!'
-              rho_new = abs((gamma * P_2) / (u / mach)) ! Set density to make the flow supersonic
-              if(rho_new > ave_rho) then
-                self%edge_primitive_vars(1, bottom:top) = ave_rho
+                boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
               else
-                self%edge_primitive_vars(1, bottom:top) = rho_new
+                boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
+                                                     exit_pressure=desired_boundary_pressure, &
+                                                     boundary_norm=boundary_norm)
               end if
-
-            else ! Inflow
-              ! print*, 'inflow!'
-              self%edge_primitive_vars(1, bottom:top) = rho_1 * (P_2 / P_1)**(1.0_rk / gamma)
+            else ! inlet
+              if(abs(mach_u) > 1.0_rk) then
+              error stop 'Error in pressure_input_bc_t%apply_pressure_input_primitive_var_bc(): Supersonic inlet not configured yet'
+              else
+                boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
+                                                    boundary_norm=boundary_norm, &
+                                                    inlet_density=self%density_input, &
+                                                    inlet_total_press=desired_boundary_pressure, &
+                                                    inlet_flow_angle=0.0_rk)
+              end if
             end if
-            ! write(*,'(a, 12(es10.3,1x))') 'edge p  ', P_1
-            ! write(*,'(a, 12(es10.3,1x))') 'input p ', P_2
-            ! write(*,'(a, 12(es10.3,1x))') 'edge rho', rho_1
-            ! write(*,'(a, 12(es10.3,1x))') 'new rho ', self%edge_primitive_vars(1, bottom:top)
-            ! write(*,'(a, 12(es10.3,1x))') 'new u   ', self%edge_primitive_vars(2, bottom:top)
-            ! write(*,'(a, 12(es10.3,1x))') 'new p   ', self%edge_primitive_vars(4, bottom:top)
-            ! print*
+          end associate
+          self%edge_rho(j) = boundary_prim_vars(1)
+          self%edge_u(j) = boundary_prim_vars(2)
+          self%edge_v(j) = 0.0_rk
+          self%edge_p(j) = boundary_prim_vars(4)
+        end do
 
-          end if
-        end associate
+        do i = 1, self%n_ghost_layers
+          rho(self%ihi_ghost(i), bottom:top) = self%edge_rho(bottom:top)
+          u(self%ihi_ghost(i), bottom:top) = self%edge_u(bottom:top)
+          v(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
+          p(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
+        end do
+      case default
+        error stop "Unsupported location to apply the bc at in "// &
+          "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"
+      end select
 
-      end if
-
-      primitive_vars(:, right_ghost, bottom:top) = self%edge_primitive_vars(:, bottom:top)
-    case default
-      error stop "Unsupported location to apply the bc at in "// &
-        "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"
-    end select
-
+    end associate
     if(allocated(edge_pressure)) deallocate(edge_pressure)
 
   end subroutine apply_pressure_input_primitive_var_bc
 
-  subroutine apply_pressure_input_reconstructed_state_bc(self, reconstructed_state, lbounds)
-    !< Apply pressure_input boundary conditions to the reconstructed state vector field
+  subroutine finalize(self)
+    type(pressure_input_bc_t), intent(inout) :: self
+    call debug_print('Running pressure_input_bc_t%finalize()', __FILE__, __LINE__)
+    if(allocated(self%ilo_ghost)) deallocate(self%ilo_ghost)
+    if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
+    if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)
+    if(allocated(self%jhi_ghost)) deallocate(self%jhi_ghost)
 
-    class(pressure_input_bc_t), intent(inout) :: self
-    integer(ik), dimension(5), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):, lbounds(5):), intent(inout) :: reconstructed_state
-    !< ((rho, u ,v, p), point, node/midpoint, i, j); Reconstructed state for each cell
-
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
-    integer(ik) :: n, p, n_points
-
-    n_points = ubound(reconstructed_state, dim=2)
-    left_ghost = lbound(reconstructed_state, dim=4)
-    right_ghost = ubound(reconstructed_state, dim=4)
-    bottom_ghost = lbound(reconstructed_state, dim=5)
-    top_ghost = ubound(reconstructed_state, dim=5)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
-
-    select case(self%location)
-    case('+x')
-      call debug_print('Running pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc() +x', __FILE__, __LINE__)
-      do n = 1, 2
-        do p = 1, n_points
-          reconstructed_state(:, p, n, right_ghost, :) = self%edge_primitive_vars
-        end do
-      end do
-
-      ! case('-x')
-      !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-      !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-      !   reconstructed_state(:, :, :, left_ghost, bottom:top) = reconstructed_state(:, :, :, right, bottom:top)
-      ! case('+y')
-      !   reconstructed_state(:, :, :, left_ghost, top_ghost) = reconstructed_state(:, :, :, right, bottom)
-      !   reconstructed_state(:, :, :, right_ghost, top_ghost) = reconstructed_state(:, :, :, left, bottom)
-      !   reconstructed_state(:, :, :, left:right, top_ghost) = reconstructed_state(:, :, :, left:right, bottom)
-      ! case('-y')
-      !   reconstructed_state(:, :, :, left_ghost, bottom_ghost) = reconstructed_state(:, :, :, right, top)
-      !   reconstructed_state(:, :, :, right_ghost, bottom_ghost) = reconstructed_state(:, :, :, left, top)
-      !   reconstructed_state(:, :, :, left:right, bottom_ghost) = reconstructed_state(:, :, :, left:right, top)
-    case default
-      error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_reconstructed_state_bc()"
-    end select
-
-    if(allocated(self%edge_primitive_vars)) deallocate(self%edge_primitive_vars)
-  end subroutine apply_pressure_input_reconstructed_state_bc
-
-  subroutine apply_pressure_input_cell_gradient_bc(self, cell_gradient, lbounds)
-    !< Apply pressure_input boundary conditions to the reconstructed state vector field
-
-    class(pressure_input_bc_t), intent(in) :: self
-    integer(ik), dimension(4), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):, &
-                        lbounds(4):), intent(inout) :: cell_gradient
-    !< ((rho, u ,v, p), (d/dx, d/dy), i, j); Gradient of each cell's primitive variables
-
-    integer(ik) :: left         !< Min i real cell index
-    integer(ik) :: right        !< Max i real cell index
-    integer(ik) :: bottom       !< Min j real cell index
-    integer(ik) :: top          !< Max j real cell index
-    integer(ik) :: left_ghost   !< Min i ghost cell index
-    integer(ik) :: right_ghost  !< Max i ghost cell index
-    integer(ik) :: bottom_ghost !< Min j ghost cell index
-    integer(ik) :: top_ghost    !< Max j ghost cell index
-
-    left_ghost = lbound(cell_gradient, dim=3)
-    right_ghost = ubound(cell_gradient, dim=3)
-    bottom_ghost = lbound(cell_gradient, dim=4)
-    top_ghost = ubound(cell_gradient, dim=4)
-    left = left_ghost + 1
-    right = right_ghost - 1
-    bottom = bottom_ghost + 1
-    top = top_ghost - 1
-
-    select case(self%location)
-    case('+x')
-      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() +x', __FILE__, __LINE__)
-      cell_gradient(:, :, right_ghost, :) = 0.0_rk
-      ! cell_gradient(1, :, right_ghost, :) = -cell_gradient(1, :, right, :)
-      ! cell_gradient(2:3, :, right_ghost, :) = 0.0_rk !cell_gradient(2:3, :, right, :)
-      ! cell_gradient(4, :, right_ghost, :) = -cell_gradient(4, :, right, :)
-    case('-x')
-      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() -x', __FILE__, __LINE__)
-      cell_gradient(:, :, right_ghost, :) = 0.0_rk
-    case('+y')
-      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() +y', __FILE__, __LINE__)
-      cell_gradient(:, :, :, top_ghost) = 0.0_rk
-    case('-y')
-      call debug_print('Running pressure_input_bc_t%apply_periodic_cell_gradient_bc() -y', __FILE__, __LINE__)
-      cell_gradient(:, :, :, bottom_ghost) = 0.0_rk
-    case default
-      error stop "Unsupported location to apply the bc at in pressure_input_bc_t%apply_pressure_input_cell_gradient_bc()"
-    end select
-
-  end subroutine apply_pressure_input_cell_gradient_bc
+    if(allocated(self%edge_rho)) deallocate(self%edge_rho)
+    if(allocated(self%edge_u)) deallocate(self%edge_u)
+    if(allocated(self%edge_v)) deallocate(self%edge_v)
+    if(allocated(self%edge_p)) deallocate(self%edge_p)
+  end subroutine finalize
 end module mod_pressure_input_bc

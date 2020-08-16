@@ -1,0 +1,236 @@
+! MIT License
+! Copyright (c) 2020 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
+! Fypp variables. This allows us to generate an edge flux subroutine for each direction
+! and still allow the compiler to optimize
+#:set DIRECTIONS = ['i', 'j']
+
+#ifdef __SIMD_ALIGN_OMP__
+#define __INTERP_ALIGN__ aligned(q, edge_values:__ALIGNBYTES__)
+#else
+#define __INTERP_ALIGN__
+#endif
+
+module mod_muscl_tvd5
+  !> Summary: Provide TVD 5th order MUSCL edge interpolation
+  !> Date: 08/15/2020
+  !> Author: Sam Miller
+  !> References:
+  !<   [1] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
+  !<       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
+
+
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use mod_muscl_interpolation, only: muscl_interpolation_t
+  use mod_globals, only: n_ghost_layers, debug_print, enable_debug_print
+  use mod_error, only: error_msg
+
+  implicit none
+  private
+  public :: muscl_tvd5_t, new_muscl_tvd5
+
+  type, extends(muscl_interpolation_t) :: muscl_tvd5_t
+  contains
+    procedure, public :: initialize => init_muscl_tvd5
+    procedure, public :: interpolate_edge_values
+    procedure, public :: distinguish_continuous_regions
+
+    #:for DIR in DIRECTIONS
+    procedure, private :: interp_muscl_tvd5_${DIR}$_edge
+    #:endfor
+
+    final :: finalize
+  end type
+
+contains
+  function new_muscl_tvd5(limiter) result(interpolator)
+    type(muscl_tvd5_t), pointer :: interpolator
+    character(len=*), intent(in) :: limiter
+
+    allocate(interpolator)
+    interpolator%limiter_name = trim(limiter)
+    interpolator%order = 5
+  end function
+
+  subroutine init_muscl_tvd5(self, limiter)
+    class(muscl_tvd5_t), intent(inout) :: self
+    character(len=*), intent(in) :: limiter
+    self%limiter_name = trim(limiter)
+    self%order = 5
+  end subroutine init_muscl_tvd5
+
+  subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
+    class(muscl_tvd5_t), intent(in) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
+    !< (i,j); primitive variable to reconstruct at the edge
+
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
+
+    if (enable_debug_print) call debug_print('Running muscl_tvd5_t%interpolate_edge_values()', __FILE__, __LINE__)
+
+    #:for DIR in DIRECTIONS
+    call self%interp_muscl_tvd5_${DIR}$_edge(q, lbounds, ${DIR}$_edges)
+    #:endfor
+  end subroutine interpolate_edge_values
+
+  subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
+    !< For plain-jane TVD2, there is no need to distinguish the regions which are continuous or linear/non-linear discontinuity regions. This
+    !< is required by the parent class, but is really only implemented in the e-MLP classes.
+    class(muscl_tvd5_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); density
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); density
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); density
+
+    if (enable_debug_print) call debug_print('Running muscl_tvd5_t%distinguish_continuous_regions()', __FILE__, __LINE__)
+  end subroutine distinguish_continuous_regions
+
+  subroutine finalize(self)
+    !< Finalizer routine to clean up allocated data
+    type(muscl_tvd5_t), intent(inout) :: self
+  end subroutine finalize
+
+#:for DIR in DIRECTIONS
+  subroutine interp_muscl_tvd5_${DIR}$_edge(self, q, lbounds, edge_values)
+    class(muscl_tvd5_t), intent(in) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
+    !< (i,j); primitive variable to reconstruct at the edge
+
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
+    !<((L,R), i, j); L/R state for each edge
+
+    integer(ik) :: i, j, m, n
+    integer(ik) :: ilo, ihi, jlo, jhi
+
+    real(rk) :: delta_ij_minus_half       !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
+    real(rk) :: delta_ij_plus_half        !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
+    real(rk) :: delta_ij_plus_three_half  !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
+    real(rk) :: delta_ij_minus_three_half !< Delta Phi_{i-3/2, j} = q(i - 1, j) - q(i - 2, j) (or j-3/2 depending on direction)
+    real(rk) :: delta_ij_plus_five_half   !< Delta Phi_{i+5/2, j} = q(i + 3, j) - q(i + 2, j) (or j+5/2 depending on direction)
+    real(rk) :: r_L_ij_m1
+    real(rk) :: r_L_ij
+    real(rk) :: r_L_ij_p1
+    real(rk) :: r_R_ij_p2
+    real(rk) :: r_R_ij_p1
+    real(rk) :: r_R_ij
+
+    real(rk) :: beta_L, beta_R
+
+    !dir$ assume_aligned q: __ALIGNBYTES__
+    !dir$ assume_aligned edge_values: __ALIGNBYTES__
+
+    if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_tvd5_${DIR}$_edge()', __FILE__, __LINE__)
+
+    ! Because this is an edge-based array, the indexing is # cells + 1, and
+    ! only goes into the single nearest ghost layer
+    ilo = lbound(q, dim=1) + n_ghost_layers - 1
+    jlo = lbound(q, dim=2) + n_ghost_layers - 1
+    ihi = ubound(q, dim=1) - n_ghost_layers
+    jhi = ubound(q, dim=2) - n_ghost_layers
+
+    #:if DIR == 'i'
+    allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
+    #:elif DIR == 'j'
+    allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
+    #:endif
+
+    edge_values = 0.0_rk
+      !
+      !                    jflux(i,j)  'R'
+      !               o--------------------o
+      !               |                'L' |
+      !               |                    |
+      ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+      !               |                    |
+      !               |                'L' | 'R'
+      !               o--------------------o
+      !                  jflux(i,j-1)
+      !
+      ! This is the numbering convention that this module uses
+
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j, m, n, delta_ij_minus_half, delta_ij_plus_half, delta_ij_plus_three_half, delta_ij_minus_three_half, delta_ij_plus_five_half) &
+    !$omp private(r_L_ij_m1, r_L_ij, r_L_ij_p1, r_R_ij_p2, r_R_ij_p1, r_R_ij, beta_L, beta_R) &
+    !$omp shared(q, edge_values, self)
+    !$omp do
+    do j = jlo, jhi
+      !! $omp simd __INTERP_ALIGN__
+      !! dir$ vector aligned
+      do i = ilo, ihi
+          #:if DIR == 'i'
+            delta_ij_minus_half = q(i, j) - q(i - 1, j)
+            delta_ij_plus_half = q(i + 1, j) - q(i, j)
+            delta_ij_plus_three_half = q(i + 2, j) - q(i + 1, j)
+            delta_ij_minus_three_half = q(i - 1, j) - q(i - 2, j)
+            delta_ij_plus_five_half = q(i + 3, j) - q(i + 2, j)
+          #:elif DIR == 'j'
+            delta_ij_minus_half = q(i, j) - q(i, j - 1)
+            delta_ij_plus_half = q(i, j + 1) - q(i, j)
+            delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
+            delta_ij_minus_three_half = q(i, j - 1) - q(i, j - 2)
+            delta_ij_plus_five_half =q(i, j + 3) - q(i, j + 2)
+          #:endif
+
+          if (abs(delta_ij_minus_half) < epsilon(1.0_rk))       delta_ij_minus_half = 0.0_rk
+          if (abs(delta_ij_plus_half) < epsilon(1.0_rk))        delta_ij_plus_half = 0.0_rk
+          if (abs(delta_ij_plus_three_half) < epsilon(1.0_rk))  delta_ij_plus_three_half = 0.0_rk
+          if (abs(delta_ij_minus_three_half) < epsilon(1.0_rk)) delta_ij_minus_three_half= 0.0_rk
+          if (abs(delta_ij_plus_five_half) < epsilon(1.0_rk))   delta_ij_plus_five_half  = 0.0_rk
+
+          r_L_ij_m1 = delta_ij_minus_half / (delta_ij_minus_three_half + 1e-16_rk)
+          r_L_ij    = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
+          r_L_ij_p1 = delta_ij_plus_three_half / (delta_ij_plus_half + 1e-16_rk)
+
+          r_R_ij_p2 = delta_ij_plus_three_half / (delta_ij_plus_five_half + 1e-16_rk)
+          r_R_ij_p1 = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
+          r_R_ij    = delta_ij_minus_half / (delta_ij_plus_half + 1e-16_rk)
+
+          ! 3rd order interpolation. Eq 33 in Ref [1]
+          beta_L = ((-2.0_rk/(r_L_ij_m1 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
+          beta_R = ((-2.0_rk/(r_R_ij_p2 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
+
+          ! Phi L, e.g. left state
+          edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(2.0_rk, &
+                                                                    2.0_rk * r_L_ij , &
+                                                                    beta_L)) * delta_ij_minus_half
+          ! Phi R, e.g. right state
+          #:if DIR == 'i'
+            edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
+                                                                          2.0_rk * r_R_ij_p1 , &
+                                                                          beta_R)) * delta_ij_plus_three_half
+          #:elif DIR == 'j'
+            edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
+                                                                          2.0_rk * r_R_ij_p1 , &
+                                                                          beta_R)) * delta_ij_plus_three_half
+          #:endif
+      end do
+    end do
+    !$omp end do
+    !$omp end parallel
+  end subroutine interp_muscl_tvd5_${DIR}$_edge
+#:endfor
+end module mod_muscl_tvd5

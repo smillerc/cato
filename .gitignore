@@ -43,11 +43,15 @@ papers/~$method_explanation.pptx
 .ipynb_checkpoints
 
 # test details
+std.err
+std.out
 tests/**/cato.x
 tests/**/*.txt
+tests/**/*.png
 tests/**/*.error
 tests/**/*.ipynb
 tests/**/*/timing.csv
+tests/**/*/timing_summary.yaml
 tests/integrated/**/input_source_value.dat
 tests/integrated/**/boundary_pressure_input_value.dat
 
@@ -70,4 +74,11 @@ scripts/reconstruction_testing.ipynb
 # Ignore Intel advisor results
 tests/integrated/*/advi
 tests/integrated/*/out
-tests/integrated/*/timing.csv
+*.csv
+*.xlsx
+instruments*
+
+# integrated test details
+tests/integrated/converge_characteristic_growth/symmetric.ini
+tests/integrated/converge_characteristic_growth/perturbed.ini
+tests/integrated/sod_1d/output

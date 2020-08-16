@@ -26,8 +26,12 @@ contains
     class(quad_cell_t), allocatable :: cell
     real(rk), dimension(4) :: x = [0.0_rk, 1.0_rk, 1.0_rk, 0.0_rk]
     real(rk), dimension(4) :: y = [0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
-    real(rk), dimension(2, 4, 2) :: cell_node_xy !< ((x,y), (point_1:point_4), (corner=1, midpoint=2))
+    real(rk), dimension(8) :: actual_cell_node_x !< x coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+    real(rk), dimension(8) :: actual_cell_node_y !< y coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+    real(rk), dimension(8) :: quad_cell_node_x !< x coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
+    real(rk), dimension(8) :: quad_cell_node_y !< y coordinates (c1,m1,c2,m2,c3,m3,c4,m4)
 
+    real(rk), dimension(8) :: point_x, points_y
     allocate(quad_cell_t :: cell)
     call cell%initialize(x_coords=x, y_coords=y)
 
@@ -35,7 +39,10 @@ contains
     @assertEqual(1., cell%volume)
 
     ! Edge lengths
-    call assert_that(cell%edge_lengths, every_item(is(equal_to(1.0_rk))))
+    @assertEqual(1.0_rk, cell%edge_lengths(1))
+    @assertEqual(1.0_rk, cell%edge_lengths(2))
+    @assertEqual(1.0_rk, cell%edge_lengths(3))
+    @assertEqual(1.0_rk, cell%edge_lengths(4))
 
     ! Mid-points
     @assertEqual([0.5_rk, 0.0_rk], cell%edge_midpoints(:, 1))
@@ -53,13 +60,28 @@ contains
 
     ! Cell node/midoint set
     !< ((x,y), (point_1:point_4), (corner=1, midpoint=2))
-    cell_node_xy(1, :, 1) = [0.0_rk, 1.0_rk, 1.0_rk, 0.0_rk]
-    cell_node_xy(2, :, 1) = [0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk]
+    actual_cell_node_x(1) = 0.0_rk
+    actual_cell_node_x(2) = 0.5_rk
+    actual_cell_node_x(3) = 1.0_rk
+    actual_cell_node_x(4) = 1.0_rk
+    actual_cell_node_x(5) = 1.0_rk
+    actual_cell_node_x(6) = 0.5_rk
+    actual_cell_node_x(7) = 0.0_rk
+    actual_cell_node_x(8) = 0.0_rk
 
-    cell_node_xy(1, :, 2) = [0.5_rk, 1.0_rk, 0.5_rk, 0.0_rk]
-    cell_node_xy(2, :, 2) = [0.0_rk, 0.5_rk, 1.0_rk, 0.5_rk]
+    actual_cell_node_y(1) = 0.0_rk
+    actual_cell_node_y(2) = 0.0_rk
+    actual_cell_node_y(3) = 0.0_rk
+    actual_cell_node_y(4) = 0.5_rk
+    actual_cell_node_y(5) = 1.0_rk
+    actual_cell_node_y(6) = 1.0_rk
+    actual_cell_node_y(7) = 1.0_rk
+    actual_cell_node_y(8) = 0.5_rk
 
-    @assertEqual(cell_node_xy, cell%get_cell_node_xy_set())
+    call cell%get_cell_point_coords(x=quad_cell_node_x, y=quad_cell_node_y)
+
+    @assertEqual(actual_cell_node_x, quad_cell_node_x)
+    @assertEqual(actual_cell_node_y, quad_cell_node_y)
 
   end subroutine test_quad_cell_stats
 

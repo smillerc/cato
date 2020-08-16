@@ -1,3 +1,23 @@
+! MIT License
+! Copyright (c) 2019 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
 module mod_globals
   use iso_fortran_env, only: compiler_options, compiler_version, std_out => output_unit, &
                              ik => int32, rk => real64
@@ -6,13 +26,18 @@ module mod_globals
 
   logical, parameter :: enable_debug_print = .false.
   logical, parameter :: enable_file_and_line_stats = .false.
+  logical, parameter :: plot_gradients = .false.
+  logical, parameter :: plot_limiters = .false.
 
-  real(rk), parameter :: TINY_DIST = 1.0e-20_rk ! cm
-  real(rk), parameter :: TINY_MACH = 5.0e-6_rk
+  real(rk), parameter :: LOW_MACH = 0.1_rk
+
+  real(rk), parameter :: MACHINE_EPS = 1.0e-16_rk
   real(rk), parameter :: PRESSURE_FLOOR = 1.0e4_rk
   real(rk), parameter :: DENSITY_FLOOR = 1.0e-6_rk
 
   logical :: globals_set = .false.
+
+  integer(ik), protected :: n_ghost_layers = 2
 
   character(len=5), protected :: global_dimensionality
   logical, protected :: is_1d = .false.
@@ -21,6 +46,15 @@ module mod_globals
   logical, protected :: is_2d = .true.
 
   logical, protected :: grid_is_orthogonal = .true.
+
+  ! Debug/scratch io file units
+  logical, parameter :: track_single_cell_cone = .false.
+  integer(ik) :: single_cell_cone_unit
+
+  logical, parameter :: enable_debug_cone_output = .false.
+  integer(ik) :: du_midpoint_unit
+  integer(ik) :: lr_midpoint_unit
+  integer(ik) :: corner_unit
 
   character(:), allocatable :: compiler_flags_str
   character(:), allocatable :: compiler_version_str
@@ -43,13 +77,16 @@ contains
     end if
   end subroutine set_global_options
 
-  subroutine set_domain_dimensionality(dimensionality, grid_orthogonality)
+  subroutine set_domain_dimensionality(dimensionality, grid_orthogonality, num_ghost_layers)
     !< Set the global dimensionality of the domain. This helps the code
     !< make shortcuts elsewhere
     character(len=4), intent(in) :: dimensionality
     logical, intent(in) :: grid_orthogonality
+    integer(ik), intent(in) :: num_ghost_layers
 
     grid_is_orthogonal = grid_orthogonality
+
+    n_ghost_layers = num_ghost_layers
 
     select case(trim(dimensionality))
     case('1D_X')
@@ -93,18 +130,19 @@ contains
     integer, intent(in), optional :: line_number
 
     if(enable_debug_print) then
-      ! if(this_image() == 1) then
+      !       if(this_image() == 1) then
 
       if(enable_file_and_line_stats) then
         if(present(file) .and. present(line_number)) then
-          write(std_out, '(a,a,i0,3(a), i0)') file, ':', line_number, ' "', str, '" image: ', this_image()
+          write(std_out, '(a,a,i0,3(a))') file, ':', line_number, ' "', str, '"'
         else
           write(std_out, '(a, a, i0)') str, ' image: ', this_image()
         end if
       else
-        write(std_out, '(a, a, i0)') str, ' image: ', this_image()
+        write(std_out, '(a)') str
       end if
 
+      !      end if
     end if
     ! end if
   end subroutine
@@ -132,15 +170,15 @@ contains
       error stop 'Invalid primitive variable name'
     end select
 
-    associate(cell_ave=>primitive_vars(l, i, j), &
-              C1=>corners(l, i, j), &
-              C2=>corners(l, i + 1, j), &
-              C3=>corners(l, i + 1, j + 1), &
-              C4=>corners(l, i, j + 1), &
-              M1=>leftright_midpoints(l, i, j), &
-              M2=>updown_midoints(l, i + 1, j), &
-              M3=>leftright_midpoints(l, i, j + 1), &
-              M4=>updown_midoints(l, i, j))
+    associate(cell_ave => primitive_vars(l, i, j), &
+              C1 => corners(l, i, j), &
+              C2 => corners(l, i + 1, j), &
+              C3 => corners(l, i + 1, j + 1), &
+              C4 => corners(l, i, j + 1), &
+              M1 => leftright_midpoints(l, i, j), &
+              M2 => updown_midoints(l, i + 1, j), &
+              M3 => leftright_midpoints(l, i, j + 1), &
+              M4 => updown_midoints(l, i, j))
 
       write(*, '(a)') "*********************************************"
       write(*, '(a)') "Evolved state for: "//trim(primitive_variable)
@@ -160,7 +198,7 @@ contains
       write(*, *)
     end associate
 
-    associate(V=>primitive_vars)
+    associate(V => primitive_vars)
       write(*, *) "Cell neighbors: ", trim(primitive_variable)
       write(*, *) "   (i-1,j+1)  |    (i,j+1)   |   (i+1,j+1)"
       write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j + 1), "   |", V(l, i, j + 1), "  |", V(l, i + 1, j + 1)
@@ -204,14 +242,14 @@ contains
       cell_ave = primitive_vars(l, i, j)
     end if
 
-    associate(C1=>reconstructed_domain(l, 1, 1, i, j), &
-              C2=>reconstructed_domain(l, 2, 1, i, j), &
-              C3=>reconstructed_domain(l, 3, 1, i, j), &
-              C4=>reconstructed_domain(l, 4, 1, i, j), &
-              M1=>reconstructed_domain(l, 1, 2, i, j), &
-              M2=>reconstructed_domain(l, 2, 2, i, j), &
-              M3=>reconstructed_domain(l, 3, 2, i, j), &
-              M4=>reconstructed_domain(l, 4, 2, i, j))
+    associate(C1 => reconstructed_domain(l, 1, 1, i, j), &
+              C2 => reconstructed_domain(l, 2, 1, i, j), &
+              C3 => reconstructed_domain(l, 3, 1, i, j), &
+              C4 => reconstructed_domain(l, 4, 1, i, j), &
+              M1 => reconstructed_domain(l, 1, 2, i, j), &
+              M2 => reconstructed_domain(l, 2, 2, i, j), &
+              M3 => reconstructed_domain(l, 3, 2, i, j), &
+              M4 => reconstructed_domain(l, 4, 2, i, j))
 
       write(*, '(a)') "*********************************************"
       write(*, '(a)') "Reconstructed state for: "//trim(primitive_variable)
@@ -233,7 +271,7 @@ contains
     end associate
 
     if(present(primitive_vars)) then
-      associate(V=>primitive_vars)
+      associate(V => primitive_vars)
         write(*, *) "Cell neighbors: ", trim(primitive_variable)
         write(*, *) "   (i-1,j+1)  |    (i,j+1)   |   (i+1,j+1)"
         write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j + 1), "   |", V(l, i, j + 1), "  |", V(l, i + 1, j + 1)
@@ -251,4 +289,35 @@ contains
     end if
 
   end subroutine print_recon_data
+
+  subroutine open_debug_files()
+    character(len=:), allocatable :: header
+
+    if(enable_debug_cone_output) then
+      open(newunit=du_midpoint_unit, file='debug_du_midpoint_cones.csv')
+      open(newunit=lr_midpoint_unit, file='debug_lr_midpoint_cones.csv')
+      open(newunit=corner_unit, file='debug_corner_cones.csv')
+
+      header = "iteration time i j origin_x origin_y p_prime_x p_prime_y radius "// &
+               "ref_density ref_u ref_v ref_cs"
+      write(du_midpoint_unit, '(a)') header
+      write(lr_midpoint_unit, '(a)') header
+      write(corner_unit, '(a)') header
+
+    end if
+
+    if(track_single_cell_cone) then
+      open(newunit=single_cell_cone_unit, file='scratch.csv')
+      write(single_cell_cone_unit, '(a)') 'dtheta_arc1_cell1 dtheta_arc1_cell2 '// &
+        'ref_density ref_sound_speed '// &
+        'ref_u ref_v '// &
+        'rho_arc1_cell_1 rho_arc1_cell_2 '// &
+        'u_arc1_cell_1 u_arc1_cell_2 '// &
+        'v_arc1_cell_1 v_arc1_cell_2 '// &
+        'p_arc1_cell_1 p_arc1_cell_2 '// &
+        'rho u v p '
+    end if
+
+  end subroutine
+
 end module mod_globals

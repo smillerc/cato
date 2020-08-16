@@ -87,12 +87,12 @@ contains
 
     sync all
 
-    associate(ilo=>finite_volume_scheme%grid%ilo_bc_cell, &
-              ihi=>finite_volume_scheme%grid%ihi_bc_cell, &
-              jlo=>finite_volume_scheme%grid%jlo_bc_cell, &
-              jhi=>finite_volume_scheme%grid%jhi_bc_cell, &
-              ni=>finite_volume_scheme%grid%ni_cell, &
-              nj=>finite_volume_scheme%grid%nj_cell)
+    associate(ilo => finite_volume_scheme%grid%ilo_bc_cell, &
+              ihi => finite_volume_scheme%grid%ihi_bc_cell, &
+              jlo => finite_volume_scheme%grid%jlo_bc_cell, &
+              jhi => finite_volume_scheme%grid%jhi_bc_cell, &
+              ni => finite_volume_scheme%grid%ni_cell, &
+              nj => finite_volume_scheme%grid%nj_cell)
 
       dims = [ihi - ilo + 1, jhi - jlo + 1]
 
@@ -104,13 +104,13 @@ contains
       self%node_dims_img(1) = self%node_dims_img(1) - 1
       self%node_dims_img(3) = self%node_dims_img(3) - 1
 
-      if(this_image()==1) then
-        write(*,'(a, 4(i6))') 'self%cell_dims_global:', self%cell_dims_global
-        write(*,'(a, 4(i6))') 'self%node_dims_global:', self%node_dims_global
+      if(this_image() == 1) then
+        write(*, '(a, 4(i6))') 'self%cell_dims_global:', self%cell_dims_global
+        write(*, '(a, 4(i6))') 'self%node_dims_global:', self%node_dims_global
       end if
 
-      write(*,'(a, i0, a, 4(i6))') 'Image: ', this_image(), ' self%cell_dims_img   :', self%cell_dims_img
-      write(*,'(a, i0, a, 4(i6))') 'Image: ', this_image(), ' self%node_dims_img   :', self%node_dims_img
+      write(*, '(a, i0, a, 4(i6))') 'Image: ', this_image(), ' self%cell_dims_img   :', self%cell_dims_img
+      write(*, '(a, i0, a, 4(i6))') 'Image: ', this_image(), ' self%node_dims_img   :', self%node_dims_img
 
       ! Is this image on the edge of the domain?
       if(self%cell_dims_img(1) == ilo) self%img_on_ilo_bc = .true.
@@ -245,8 +245,8 @@ contains
       error stop "Some (or all) of the density array is ~0 in fluid_t%initialize_from_hdf5"
     end if
 
-    associate(imin=>finite_volume_scheme%grid%ilo_bc_cell, imax=>finite_volume_scheme%grid%ihi_bc_cell, &
-              jmin=>finite_volume_scheme%grid%jlo_bc_cell, jmax=>finite_volume_scheme%grid%jhi_bc_cell)
+    associate(imin => finite_volume_scheme%grid%ilo_bc_cell, imax => finite_volume_scheme%grid%ihi_bc_cell, &
+              jmin => finite_volume_scheme%grid%jlo_bc_cell, jmax => finite_volume_scheme%grid%jhi_bc_cell)
 
       self%conserved_vars(1, imin:imax, jmin:jmax) = density
       self%conserved_vars(2, imin:imax, jmin:jmax) = density * x_velocity
@@ -336,17 +336,17 @@ contains
 
     call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
-    associate(imin=>fv%grid%ilo_bc_cell, imax=>fv%grid%ihi_bc_cell, &
-              jmin=>fv%grid%jlo_bc_cell, jmax=>fv%grid%jhi_bc_cell)
+    associate(imin => fv%grid%ilo_bc_cell, imax => fv%grid%ihi_bc_cell, &
+              jmin => fv%grid%jlo_bc_cell, jmax => fv%grid%jhi_bc_cell)
 
       allocate(reconstructed_state(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate reconstructed_state in fluid_t%time_derivative()"
     end associate
 
-    associate(imin_node=>fv%grid%ilo_node, imax_node=>fv%grid%ihi_node, &
-              jmin_node=>fv%grid%jlo_node, jmax_node=>fv%grid%jhi_node, &
-              imin_cell=>fv%grid%ilo_cell, imax_cell=>fv%grid%ihi_cell, &
-              jmin_cell=>fv%grid%jlo_cell, jmax_cell=>fv%grid%jhi_cell)
+    associate(imin_node => fv%grid%ilo_node, imax_node => fv%grid%ihi_node, &
+              jmin_node => fv%grid%jlo_node, jmax_node => fv%grid%jhi_node, &
+              imin_cell => fv%grid%ilo_cell, imax_cell => fv%grid%ihi_cell, &
+              jmin_cell => fv%grid%jlo_cell, jmax_cell => fv%grid%jhi_cell)
 
       ! corners
       allocate(evolved_corner_state(4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
@@ -835,13 +835,13 @@ contains
 
     real(rk), dimension(:, :, :), allocatable :: gather_coarray[:]
 
-    associate(ilo=>self%cell_dims_global(1), ihi=>self%cell_dims_global(2), &
-              jlo=>self%cell_dims_global(3), jhi=>self%cell_dims_global(4))
+    associate(ilo => self%cell_dims_global(1), ihi => self%cell_dims_global(2), &
+              jlo => self%cell_dims_global(3), jhi => self%cell_dims_global(4))
       allocate(gather_coarray(4, ilo:ihi, jlo:jhi)[*])
     end associate
 
-    associate(ilo=>self%cell_dims_img(1), ihi=>self%cell_dims_img(2), &
-              jlo=>self%cell_dims_img(3), jhi=>self%cell_dims_img(4))
+    associate(ilo => self%cell_dims_img(1), ihi => self%cell_dims_img(2), &
+              jlo => self%cell_dims_img(3), jhi => self%cell_dims_img(4))
       gather_coarray(4, ilo:ihi, jlo:jhi)[image] = self%conserved_vars(4, ilo:ihi, jlo:jhi)
       sync all
       if(this_image() == image) gathered_data = gather_coarray
@@ -859,13 +859,13 @@ contains
                            self%cell_dims_global(3):self%cell_dims_global(4)), intent(out) :: partitioning
     integer(ik), dimension(:, :), allocatable :: gather_coarray[:]
 
-    associate(ilo=>self%cell_dims_global(1), ihi=>self%cell_dims_global(2), &
-              jlo=>self%cell_dims_global(3), jhi=>self%cell_dims_global(4))
+    associate(ilo => self%cell_dims_global(1), ihi => self%cell_dims_global(2), &
+              jlo => self%cell_dims_global(3), jhi => self%cell_dims_global(4))
       allocate(gather_coarray(ilo:ihi, jlo:jhi)[*])
     end associate
 
-    associate(ilo=>self%cell_dims_img(1), ihi=>self%cell_dims_img(2), &
-              jlo=>self%cell_dims_img(3), jhi=>self%cell_dims_img(4))
+    associate(ilo => self%cell_dims_img(1), ihi => self%cell_dims_img(2), &
+              jlo => self%cell_dims_img(3), jhi => self%cell_dims_img(4))
       gather_coarray(ilo:ihi, jlo:jhi)[this_image()] = this_image()
       sync all
     end associate

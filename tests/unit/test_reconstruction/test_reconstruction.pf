@@ -2,222 +2,280 @@ module test_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  ! use mod_first_order_reconstruction, only: first_order_reconstruction_t
-  use mod_second_order_sgg_reconstruction, only: second_order_sgg_reconstruction_t
-  use mod_second_order_dbl_reconstruction, only: second_order_dbl_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
+  use mod_edge_interpolator, only: edge_iterpolator_t
+  use mod_edge_interpolator_factory, only: edge_interpolator_factory
+  use mod_tvd_2nd_order, only: tvd_2nd_order_t
+  use mod_tvd_3rd_order, only: tvd_3rd_order_t
+  use mod_tvd_5th_order, only: tvd_5th_order_t
+  ! use mod_mlp_3rd_order, only: mlp_3rd_order_t
+  ! use mod_mlp_5th_order, only: mlp_5th_order_t
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
   use funit
 
   implicit none
 
-  integer(ik), parameter :: ni_nodes = 4
-  integer(ik), parameter :: nj_nodes = 4
+  integer(ik), parameter :: n_ghost_layers = 2
+  integer(ik), parameter :: ni_nodes = 5
+  integer(ik), parameter :: nj_nodes = 5
   integer(ik), parameter :: ni_cells = ni_nodes - 1
   integer(ik), parameter :: nj_cells = nj_nodes - 1
-  integer(ik) :: alloc_status
+  real(rk), parameter :: xmin = -2.0_rk
+  real(rk), parameter :: xmax = 2.0_rk
+  real(rk), parameter :: ymin = -2.0_rk
+  real(rk), parameter :: ymax = 2.0_rk
+  integer(ik) :: alloc_stat
+  integer(ik), parameter :: C1 = 1
+  integer(ik), parameter :: M1 = 2
+  integer(ik), parameter :: C2 = 3
+  integer(ik), parameter :: M2 = 4
+  integer(ik), parameter :: C3 = 5
+  integer(ik), parameter :: M3 = 6
+  integer(ik), parameter :: C4 = 7
+  integer(ik), parameter :: M4 = 8
+
+  class(grid_t), pointer :: grid
+  class(abstract_reconstruction_t), allocatable :: reconstruction_operator
+  type(input_t) :: input
+
+  integer(ik), parameter :: ilo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: ihi_c = ni_cells + n_ghost_layers
+  integer(ik), parameter :: jlo_c = -n_ghost_layers + 1
+  integer(ik), parameter :: jhi_c = nj_cells + n_ghost_layers
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: rho = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: u = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: v = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c, jlo_c:jhi_c) :: p = 0.0_rk
+
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_rho
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_u
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_v
+  real(rk), dimension(1:8, ilo_c:ihi_c, jlo_c:jhi_c) :: recon_p
 
 contains
+
+  @before
+  subroutine before()
+  end subroutine
+
+  @after
+  subroutine after()
+    if(associated(grid)) deallocate(grid)
+    if(allocated(reconstruction_operator)) deallocate(reconstruction_operator)
+  end subroutine
+
   @test
-  subroutine test_piecewise_linear_sgg()
+  subroutine test_tvd2_none()
 
-    class(abstract_reconstruction_t), pointer :: reconstruction_operator
-
-    type(input_t) :: input
-    class(grid_t), pointer :: grid => null()
-    real(rk) :: cell_average
-    real(rk), dimension(:, :, :), allocatable :: prim_vars
-    real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
+    class(edge_iterpolator_t), pointer :: edge_interpolator => null()
+    real(rk), dimension(:, :, :), allocatable :: edge_vars
     integer(ik) :: i, j
-    real(rk), dimension(4) :: point_value
-    integer(ik) :: m, c
-    integer(ik) :: v
 
-    m = 2 ! midpoint index
-    c = 1 ! corner index
+    write(*, *) "Testing the TVD2 edge iterpolation and 'none' flux limiter"
+    input%spatial_reconstruction = 'TVD2'
+    input%limiter = 'none'
+    edge_interpolator => edge_interpolator_factory(input)
 
-    write(*, *) 'Testing 2nd order reconstruction'
-    ! input = input_t(reconstruction_type='discontinuous_bilinear', &
-    !                 ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-    !                 read_init_cond_from_file=.false., &
-    !                 xmin=0.0_rk, xmax=6.0_rk, ymin=0.0_rk, ymax=6.0_rk)
-    input = input_t(reconstruction_type='piecewise_linear_sgg', &
-                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-                    read_init_cond_from_file=.false., &
-                    xmin=0.0_rk, xmax=3.0_rk, ymin=0.0_rk, ymax=3.0_rk)
+    !                Domain           -->                Primitive Variable
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
 
-    grid => grid_factory(input)
+    rho(-1, :) = 1.0_rk ! ghost
+    rho(0, :) = 1.0_rk  ! ghost
+    rho(1, :) = 2.0_rk
+    rho(2, :) = 3.0_rk
+    rho(3, :) = 4.0_rk ! ghost
+    rho(4, :) = 4.0_rk ! ghost
+    ! print*, lbound(rho)
+    ! print*, ubound(rho)
 
-    ! These are normally handled by the cato puppeteer, but for now we make them ourselves
-    associate(imin=>grid%ilo_bc_cell, imax=>grid%ihi_bc_cell, &
-              jmin=>grid%jlo_bc_cell, jmax=>grid%jhi_bc_cell)
+    ! print*, 'density'
+    ! do i = lbound(rho, dim=1), ubound(rho, dim=1)
+    !   do j = lbound(rho, dim=2), ubound(rho, dim=2)
+    !     write(*, '(4(es16.6))') rho(i, j)
+    !   end do
+    !   end do
 
-      allocate(prim_vars(4, imin:imax, jmin:jmax), stat=alloc_status)
-      prim_vars = 0.0_rk
-      ! ((rho,u,v,p),i,j) Conserved variables for each cell
-      if(alloc_status /= 0) error stop "Unable to allocate prim_vars"
+    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbound(rho), edge_values=edge_vars)
+    ! print*, lbound(edge_vars)
+    ! print*, ubound(edge_vars)
 
-      allocate(reconstructed_domain(4, 4, 2, imin:imax, jmin:jmax), stat=alloc_status)
-      reconstructed_domain = 0.0_rk
-      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so imax=ni-1, etc
-      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+    i = 2
+    j = 2
+    associate(cell_ave => rho(i, j), &
+              E1 => edge_vars(1, i, j), &
+              E2 => edge_vars(2, i, j), &
+              E3 => edge_vars(3, i, j), &
+              E4 => edge_vars(4, i, j))
+      write(*, '(a)') "*********************************************"
+      write(*, '(a)') "Interpolated edge state for: rho"
+      write(*, '(a)') "*********************************************"
+      write(*, *)
+      write(*, '(16x,es11.3)') E3
+      write(*, *) "           C---------E3---------C"
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
+      write(*, '(2(es11.3,a))') E4, " E4       (i,j)      E2", E2
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, *) "           C---------E1---------C"
+      write(*, '(16x,es11.3)') E1
+      write(*, *)
+
     end associate
 
-    input%slope_limiter = 'minmod'
-    reconstruction_operator => reconstruction_factory(input=input, grid_target=grid)
-    call reconstruction_operator%set_grid_pointer(grid=grid)
+    ! do i = lbound(edge_vars, dim=2), ubound(edge_vars, dim=2)
+    ! do j = lbound(edge_vars, dim=3), ubound(edge_vars, dim=3)
+    !   write(*, '(4(es16.6))') edge_vars(:, i, j)
+    ! end do
+    ! end do
 
-    @assertEqual(2, reconstruction_operator%order)
+    i = 2
+    j = 2
+    @assertEqual(3.0_rk, edge_vars(1, i, j))
+    @assertEqual(3.5_rk, edge_vars(2, i, j))
+    @assertEqual(3.0_rk, edge_vars(3, i, j))
+    @assertEqual(2.5_rk, edge_vars(4, i, j))
 
-    !           Domain (including ghost)           -->         Primitive Variable (density)
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   1   |   1   |   1   |   1   |   1  |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   1   |   1   |   2   |   1   |   1   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   1   |   2   |   3   |   2   |   1   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   1   |   1   |   2   |   1   |   1   |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   1   |   1   |   1   |   1   |   1   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    prim_vars(1, :, :) = 1.0_rk
-    prim_vars(1, 2, 1) = 2.0_rk
-    prim_vars(1, 1, 2) = 2.0_rk
-    prim_vars(1, 2, 3) = 2.0_rk
-    prim_vars(1, 3, 2) = 2.0_rk
-    prim_vars(1, 2, 2) = 3.0_rk
+    deallocate(edge_vars)
+    deallocate(edge_interpolator)
+  end subroutine test_tvd2_none
 
-    !           Domain (including ghost)           -->        Primitive Variable (x velocity)
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   0   |   0   |   0   |   0   |   0  |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   0   |  -1   |   0   |   1   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   0   |  -2   |   0   |   2   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   0   |  -1   |   0   |   1   |   0   |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   0   |   0   |   0   |   0   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    prim_vars(2, :, :) = 0.0_rk
-    prim_vars(2, 1, 1) = -1.0_rk
-    prim_vars(2, 1, 2) = -2.0_rk
-    prim_vars(2, 1, 3) = -1.0_rk
-    prim_vars(2, 3, 1) = 1.0_rk
-    prim_vars(2, 3, 2) = 2.0_rk
-    prim_vars(2, 3, 3) = 1.0_rk
+  ! @test
+  subroutine test_tvd3()
 
-    !           Domain (including ghost)           -->        Primitive Variable (y velocity)
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,4) || (1,4) | (2,4) | (3,4) || (4,4) |  -->  |   0   |   0   |   0   |   0   |   0  |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,3) || (1,3) | (2,3) | (3,3) || (4,3) |  -->  |   0   |   1   |   2   |   1   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,2) || (1,2) | (2,2) | (3,2) || (4,2) |  -->  |   0   |   0   |   0   |   0   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,1) || (1,1) | (2,1) | (3,1) || (4,1) |  -->  |   0   |  -1   |  -2   |  -1   |   0   |
-    ! |=======||=======|=======|=======||=======|  -->  |-------|-------|-------|-------|-------|
-    ! | (0,0) || (1,0) | (2,0) | (3,0) || (4,0) |  -->  |   0   |   0   |   0   |   0   |   0   |
-    ! |-------||-------|-------|-------||-------|  -->  |-------|-------|-------|-------|-------|
-    prim_vars(3, :, :) = 0.0_rk
-    prim_vars(3, 1, 3) = 1.0_rk
-    prim_vars(3, 2, 3) = 2.0_rk
-    prim_vars(3, 3, 3) = 1.0_rk
-    prim_vars(3, 1, 1) = -1.0_rk
-    prim_vars(3, 2, 1) = -2.0_rk
-    prim_vars(3, 3, 1) = -1.0_rk
+    class(edge_iterpolator_t), allocatable :: edge_interpolator
+    real(rk), dimension(:, :, :), allocatable :: edge_vars
+    integer(ik) :: i, j
 
-    ! The real domain goes from i=1,3 and j=1,3, the ghost layers are i=0,4 and j=0,4
-    !  Reconstruction points for each cell (corners and mid-points)
-    !  C4---M3---C3
-    !  |         |
-    !  M4   x    M2
-    !  |         |
-    !  C1---M1---C2
+    write(*, *) "Testing the TVD3 edge iterpolation"
+    allocate(tvd_3rd_order_t :: edge_interpolator)
+    call edge_interpolator%initialize(limiter='none')
 
-    call reconstruction_operator%set_primitive_vars_pointer(primitive_vars=prim_vars, lbounds=lbound(prim_vars))
-    write(*, '(a)') 'Calling reconstruction_operator%reconstruct_domain()'
-    call reconstruction_operator%reconstruct_domain(reconstructed_domain=reconstructed_domain, &
-                                                    lbounds=lbound(reconstructed_domain))
+    !                Domain           -->                Primitive Variable
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+    ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+    ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   1   ||   2   |   3   ||   4   |
+    ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
 
-    do v = 1, 3 ! loop through v = [rho, u, v]
-      do i = 1, 3
-        do j = 1, 3
-          ! The cell average should be recovered
-          cell_average = sum(reconstructed_domain(v, :, :, i, j)) / 8.0_rk
-          ! @assertEqual(cell_average, prim_vars(:, i, j))
-          print *, 'v,i,j', v, i, j
-          write(*, '(3(f6.2))') reconstructed_domain(v, 4, c, i, j), reconstructed_domain(v, 3, m, i, j), &
-            reconstructed_domain(v, 3, c, i, j)
-          write(*, '(3(f6.2))') reconstructed_domain(v, 4, m, i, j), prim_vars(v, i, j), &
-            reconstructed_domain(v, 2, m, i, j)
-          write(*, '(3(f6.2))') reconstructed_domain(v, 1, c, i, j), reconstructed_domain(v, 1, m, i, j), &
-            reconstructed_domain(v, 2, c, i, j)
-          print *, 'Cell average: ', cell_average
-          print *
-        end do
-      end do
+    rho(0, :) = 1.0_rk
+    rho(1, :) = 2.0_rk
+    rho(2, :) = 3.0_rk
+    rho(3, :) = 4.0_rk
 
-      i = 2; j = 1
-      point_value = reconstruction_operator%reconstruct_point(xy=[1.5_rk, 0.0_rk], cell_ij=[i, j])
-      print *, 'xy=[1.5_rk, 0.0_rk], cell_ij=[2, 1] point_value(v): ', point_value(v)
-      ! @assertEqual(1.50_rk, point_value(1))
+    call edge_interpolator%interpolate_edge_values(q=rho, &
+                                                   lbounds=lbound(rho), &
+                                                   edge_values=edge_vars)
 
-      ! point_value = reconstruction_operator%reconstruct_point(xy=[1.0_rk, 0.25_rk], cell_ij=[i, j])
-      ! print*, 'xy=[1.0_rk, 0.25_rk], cell_ij=[2, 1] point_value(1): ', point_value(1)
-      ! @assertEqual(1.75_rk, point_value(1))
+    i = 2
+    j = 2
+    associate(cell_ave => rho(i, j), &
+              E1 => edge_vars(1, i, j), &
+              E2 => edge_vars(2, i, j), &
+              E3 => edge_vars(3, i, j), &
+              E4 => edge_vars(4, i, j))
+      write(*, '(a)') "*********************************************"
+      write(*, '(a)') "Interpolated edge state for: rho"
+      write(*, '(a)') "*********************************************"
+      write(*, *)
+      write(*, '(16x,es11.3)') E3
+      write(*, *) "           C---------E3---------C"
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
+      write(*, '(2(es11.3,a))') E4, " E4       (i,j)      E2", E2
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, *) "           |                    |"
+      write(*, *) "           C---------E1---------C"
+      write(*, '(16x,es11.3)') E1
+      write(*, *)
 
-      ! point_value = reconstruction_operator%reconstruct_point(xy=[1.75_rk, 0.75_rk], cell_ij=[i, j])
-      ! print*, 'xy=[1.75_rk, 1.0_rk], cell_ij=[2, 1] point_value(1): ', point_value(1)
-      ! @assertEqual(2.25_rk, point_value(1))
+    end associate
 
-      ! i = 3; j = 2
-      ! point_value = reconstruction_operator%reconstruct_point(xy=[2.0_rk, 2.0_rk], cell_ij=[i, j])
-      ! print*, 'xy=[2.0_rk, 2.0_rk], cell_ij=[3, 2] point_value(1): ', point_value(1)
-      ! @assertEqual(2.50_rk, point_value(1))
+    @assertEqual(3.0_rk, edge_vars(1, i, j))
+    @assertEqual(3.5_rk, edge_vars(2, i, j))
+    @assertEqual(3.0_rk, edge_vars(3, i, j))
+    @assertEqual(2.5_rk, edge_vars(4, i, j))
 
-      ! point_value = reconstruction_operator%reconstruct_point(xy=[2.75_rk, 2.0_rk], cell_ij=[i, j])
-      ! print*, 'xy=[2.75_rk, 2.0_rk], cell_ij=[3, 2] point_value(1): ', point_value(1)
-      ! @assertEqual(1.75_rk, point_value(1))
+  end subroutine test_tvd3
 
-      ! point_value = reconstruction_operator%reconstruct_point(xy=[2.75_rk, 1.25_rk], cell_ij=[i, j])
-      ! print*, 'xy=[1.25_rk, 2.75_rk], cell_ij=[3, 2] point_value(1): ', point_value(1)
-      ! @assertEqual(1.75_rk, point_value(1))
+  ! @test
+  ! subroutine test_mlp3()
 
-      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 1, 1))
-      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 1, 3))
-      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 3, 3))
-      ! @assertEqual(1.0_rk, reconstructed_domain(v, :, :, 3, 1))
+  !   class(edge_iterpolator_t), allocatable :: edge_interpolator
+  !   real(rk), dimension(:, :, :), allocatable :: edge_vars
+  !   integer(ik) :: i, j
 
-      ! i = 2; j = 1;
-      ! ! indexing for reconstructed_domain is ((rho, u ,v, p), point, corner/midpoint, i, j);
-      ! ! Corner C4
-      ! @assertEqual(2.5_rk, reconstructed_domain(v, 4, c, i, j))
-      ! ! Midpoint M3
-      ! @assertEqual(2.5_rk, reconstructed_domain(v, 3, m, i, j))
-      ! ! Corner C3
-      ! @assertEqual(2.5_rk, reconstructed_domain(v, 3, c, i, j))
+  !   write(*, *) "Testing the MLP3 edge iterpolation"
+  !   allocate(mlp_3rd_order_t :: edge_interpolator)
+  !   call edge_interpolator%initialize(limiter='none')
 
-      ! ! Midpoint M4
-      ! @assertEqual(2.0_rk, reconstructed_domain(v, 4, m, i, j))
-      ! ! Midpoint M2
-      ! @assertEqual(2.0_rk, reconstructed_domain(v, 2, m, i, j))
+  !   !                Domain           -->                Primitive Variable
+  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+  !   ! | (0,3) || (1,3) | (2,3) || (3,3) |  -->  |   1   ||   2   |   3   ||   4   |
+  !   ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+  !   ! | (0,2) || (1,2) | (2,2) || (3,2) |  -->  |   1   ||   2   |   3   ||   4   |
+  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
+  !   ! | (0,1) || (1,1) | (2,1) || (3,1) |  -->  |   1   ||   2   |   3   ||   4   |
+  !   ! |=======||=======|=======||=======|  -->  |=======||=======|=======||=======|
+  !   ! | (0,0) || (1,0) | (2,0) || (3,0) |  -->  |   1   ||   2   |   3   ||   4   |
+  !   ! |-------||-------|-------||-------|  -->  |-------||-------|-------||-------|
 
-      ! ! Corner C1
-      ! @assertEqual(1.5_rk, reconstructed_domain(v, 1, c, i, j))
-      ! ! Midpoint M1
-      ! @assertEqual(1.5_rk, reconstructed_domain(v, 1, m, i, j))
-      ! ! Corner C2
-      ! @assertEqual(1.5_rk, reconstructed_domain(v, 2, c, i, j))
+  !   rho(0, :) = 1.0_rk
+  !   rho(1, :) = 2.0_rk
+  !   rho(2, :) = 3.0_rk
+  !   rho(3, :) = 4.0_rk
 
-    end do
+  !   call edge_interpolator%interpolate_edge_values(q=rho, &
+  !                                                  lbounds=lbound(rho), &
+  !                                                  edge_values=edge_vars)
 
-    deallocate(reconstruction_operator)
-    deallocate(grid)
-    deallocate(prim_vars)
-    deallocate(reconstructed_domain)
-  end subroutine test_piecewise_linear_sgg
+  !   i = 2
+  !   j = 2
+  !   associate(cell_ave => rho(i, j), &
+  !             E1 => edge_vars(1, i, j), &
+  !             E2 => edge_vars(2, i, j), &
+  !             E3 => edge_vars(3, i, j), &
+  !             E4 => edge_vars(4, i, j))
+  !     write(*, '(a)') "*********************************************"
+  !     write(*, '(a)') "Interpolated edge state for: rho"
+  !     write(*, '(a)') "*********************************************"
+  !     write(*, *)
+  !     write(*, '(16x,es11.3)') E3
+  !     write(*, *) "           C---------E3---------C"
+  !     write(*, *) "           |                    |"
+  !     write(*, *) "           |                    |"
+  !     write(*, '((12x,a,es11.3,a))') "|    ", cell_ave, "     |"
+  !     write(*, '(2(es11.3,a))') E4, " E4       (i,j)      E2", E2
+  !     write(*, *) "           |                    |"
+  !     write(*, *) "           |                    |"
+  !     write(*, *) "           |                    |"
+  !     write(*, *) "           C---------E1---------C"
+  !     write(*, '(16x,es11.3)') E1
+  !     write(*, *)
 
+  !   end associate
+
+  !   @assertEqual(3.0_rk, edge_vars(1, i, j))
+  !   @assertEqual(3.5_rk, edge_vars(2, i, j))
+  !   @assertEqual(3.0_rk, edge_vars(3, i, j))
+  !   @assertEqual(2.5_rk, edge_vars(4, i, j))
+
+  ! end subroutine test_mlp3
 end module test_reconstruction

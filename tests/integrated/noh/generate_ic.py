@@ -1,49 +1,47 @@
 # -*- coding: utf-8 -*-
-"""Generate initial conditions for the Noh Implosion Test"""
+"""
+Generate initial conditions for the Noh Implosion Test
+Reference: https://permalink.lanl.gov/object/tr?what=info:lanl-repo/lareport/LA-UR-17-28269
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import os
 
-# sys.path.append(os.path.abspath('../../../'))
-sys.path.append(os.path.abspath("../../../scripts"))
-from generate_initial_grids import make_uniform_grid, write_initial_hdf5
+sys.path.append(os.path.abspath("../../.."))
+from pycato import make_uniform_grid, write_initial_hdf5, ureg
 
 # Make the empty grid
-domain = make_uniform_grid(n_cells=(200, 200), xrange=(0, 1), yrange=(0, 1))
+domain = make_uniform_grid(n_cells=(50, 50), xrange=(0, 1), yrange=(0, 1))
 
-x = domain["xc"]
-y = domain["yc"]
-V_r = -1.0  # [cm/s] inward radial velocity
+x = domain["xc"].m
+y = domain["yc"].m
+
+# Radial velocity
+V_r = -1.0
 theta = np.arctan2(y, x)
 
-domain["rho"] = np.ones_like(domain["rho"])  # [g/cc] uniform density
-domain["p"] = np.ones_like(domain["rho"])  # [barye] uniform density
+rho = np.ones_like(domain["rho"])
+p = np.ones_like(domain["rho"])
+p = p * (2 / 3) * 1e-12
+u = V_r * np.cos(theta)
+v = V_r * np.sin(theta)
 
-for i in range(y.shape[0]):
-    for j in range(y.shape[1]):
-        radius = np.sqrt(x[i, j] ** 2 + y[i, j] ** 2)
-        theta = np.arctan2(y[i, j], x[i, j])
-        if radius <= 0.9:
-            domain["u"][i, j] = V_r * np.cos(theta)
-            domain["v"][i, j] = V_r * np.sin(theta)
-        else:
-            domain["u"][i, j] = 0.0
-            domain["v"][i, j] = 0.0
+# Add units
+domain["rho"] = rho * ureg("g/cc")
+domain["p"] = p * ureg("barye")
+domain["u"] = u * ureg("cm/s")
+domain["v"] = v * ureg("cm/s")
 
-bc_dict = {"+x": "periodic", "-x": "periodic", "+y": "periodic", "-y": "periodic"}
-
-write_initial_hdf5(
-    filename="ic", initial_condition_dict=domain, boundary_conditions_dict=bc_dict
-)
+write_initial_hdf5(filename="noh", initial_condition_dict=domain)
 
 # Plot the results
 fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
 
 vc = ax1.pcolormesh(
-    domain["x"],
-    domain["y"],
-    np.sqrt(domain["u"] ** 2 + domain["v"] ** 2),
+    domain["x"].m,
+    domain["y"].m,
+    np.sqrt(domain["u"].m ** 2 + domain["v"].m ** 2),
     edgecolor="k",
     lw=0.001,
     antialiased=True,

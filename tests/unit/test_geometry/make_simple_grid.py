@@ -1,115 +1,157 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import h5py
+import pint
+
+ureg = pint.UnitRegistry()
 
 
-def make_uniform_grid(n_nodes=(1, 1), xrange=(0, 1), yrange=(0, 1)):
-    """Create an empty grid"""
-    ghost_cell = 1
+def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=2):
+    """Generate a uniform grid. This will output a dictionary
+    that contains the appropriate arrays, which include the ghost
+    cell layer.
 
-    x = np.linspace(xrange[0], xrange[1], n_nodes[0])
-    ldx = x[1] - x[0]
-    rdx = x[-1] - x[-2]
-    x = np.array([x[0] - ldx] + list(x) + [x[-1] + rdx])
+    Parameters
+    ----------
+    n_cells : tuple
+        Number of non-ghost cells in each direction (x,y)
+    xrange : tuple
+        Extent of the domain in x (min,max)
+    yrange : tuple
+        Extent of the domain in y (min,max)
 
-    y = np.linspace(yrange[0], yrange[1], n_nodes[1])
-    ldy = y[1] - y[0]
-    rdy = y[-1] - y[-2]
-    y = np.array([y[0] - ldy] + list(y) + [y[-1] + rdy])
+    Returns
+    -------
+    dictionary
+        A dictionary that contains the conserved variables (rho, u velocity, v
+        velocity, p), grid (x,y) points, and the cell center (xc,yc) points
+    """
 
-    xc = np.zeros(x.shape[0] - 1)
-    yc = np.zeros(y.shape[0] - 1)
+    dx = float(xrange[1] - xrange[0]) / float(n_cells[0])
+    dy = float(yrange[1] - yrange[0]) / float(n_cells[1])
 
-    xx, yy = np.meshgrid(x, y)
-    xxc, yyc = np.meshgrid(xc, yc)
+    x = np.linspace(
+        start=xrange[0] - n_ghost_layers * dx,
+        stop=xrange[1] + n_ghost_layers * dx,
+        num=(n_cells[0] + 1) + (n_ghost_layers * 2),
+        dtype=np.float64,
+    )
 
-    rho = np.ones_like(xxc)
-    pressure = np.ones_like(xxc)
-    u = np.ones_like(xxc)
-    v = np.ones_like(xxc)
+    y = np.linspace(
+        start=yrange[0] - n_ghost_layers * dy,
+        stop=yrange[1] + n_ghost_layers * dy,
+        num=(n_cells[1] + 1) + (n_ghost_layers * 2),
+        dtype=np.float64,
+    )
 
-    dy = (np.diff(yy[:, 0]) / 2)[0]
-    dx = (np.diff(xx[0, :]) / 2)[0]
-    xc = xx[:-1, :-1] + dx
-    yc = yy[:-1, :-1] + dy
+    xc = np.zeros(x.shape[0] - 1, dtype=np.float64)
+    yc = np.zeros(y.shape[0] - 1, dtype=np.float64)
+
+    # 2d versions
+    y_2d, x_2d = np.meshgrid(y, x)  # nodes
+
+    # cell-centered arrays
+    # node_shape = (x_2d.shape[0], x_2d.shape[1])
+    cell_shape = (x_2d.shape[0] - 1, x_2d.shape[1] - 1)
+    rho = np.ones(cell_shape)
+    u = np.ones(cell_shape)
+    v = np.ones(cell_shape)
+    p = np.ones(cell_shape)
+
+    # cell center locations
+    xc = x_2d[:-1, :-1] + dx
+    yc = y_2d[:-1, :-1] + dy
 
     return {
-        "x": xx,
-        "y": yy,
-        "rho": rho,
-        "u": u,
-        "v": v,
-        "p": pressure,
-        "xc": xc,
-        "yc": yc,
+        "x": x_2d * ureg("cm"),
+        "y": y_2d * ureg("cm"),
+        "rho": rho * ureg("g/cc"),
+        "u": u * ureg("cm/s"),
+        "v": v * ureg("cm/s"),
+        "p": p * ureg("barye"),
+        "xc": xc * ureg("cm"),
+        "yc": yc * ureg("cm"),
+        "n_ghost_layers": n_ghost_layers,
     }
 
 
-def write_initial_hdf5(filename, initial_condition_dict, boundary_conditions_dict):
-    """
-    boundary_conditions_dict: Dict
-        Needs to have the keys [+x,+y,-x,-y]
+def write_initial_hdf5(filename, initial_condition_dict):
+    """ Write the initial conditions to an hdf5 file.
+
+    Parameters
+    ----------
+    filename : str
+        Name of the grid file
+    initial_condition_dict : dictionary
+        Dictionary created by the `make_uniform_grid` method. Must
+        contain the following keys ['x', 'y', 'rho', 'u', 'v', 'p']
     """
 
-    if not filename.endswith(".h5"):
+    if not filename.endswith(".h5") or not filename.endswith(".hdf5"):
         filename += ".h5"
 
     print("Writing to: ", filename)
     with h5py.File(filename, mode="w") as h5:
-        h5.create_dataset(
-            "/x",
-            data=initial_condition_dict["x"].astype(np.float32),
-            compression="gzip",
-            compression_opts=9,
-        )
-        h5.create_dataset(
-            "/y",
-            data=initial_condition_dict["y"].astype(np.float32),
-            compression="gzip",
-            compression_opts=9,
-        )
-        h5.create_dataset(
-            "/density",
-            data=initial_condition_dict["rho"].astype(np.float32),
-            compression="gzip",
-            compression_opts=9,
-        )
-        h5.create_dataset(
-            "/x_velocity",
-            data=initial_condition_dict["u"].astype(np.float32),
-            compression="gzip",
-            compression_opts=9,
-        )
-        h5.create_dataset(
-            "/y_velocity",
-            data=initial_condition_dict["v"].astype(np.float32),
-            compression="gzip",
-            compression_opts=9,
-        )
-        h5.create_dataset(
-            "/pressure",
-            data=initial_condition_dict["p"].astype(np.float32),
-            compression="gzip",
-            compression_opts=9,
-        )
 
-        # Boundary Conditions
-        h5.create_dataset("/plus_x_bc", data=boundary_conditions_dict["+x"])
-        h5.create_dataset("/plus_y_bc", data=boundary_conditions_dict["+y"])
-        h5.create_dataset("/minus_x_bc", data=boundary_conditions_dict["-x"])
-        h5.create_dataset("/minus_y_bc", data=boundary_conditions_dict["-y"])
+        data = initial_condition_dict["n_ghost_layers"]
+        h5.create_dataset("/n_ghost_layers", data=data)
+
+        data = initial_condition_dict["x"].to("cm").m
+        dset = h5.create_dataset(
+            "/x", data=data.astype(np.float64).T, compression="gzip", compression_opts=9
+        )
+        dset.attrs["units"] = "cm"
+
+        data = initial_condition_dict["y"].to("cm").m
+        dset = h5.create_dataset(
+            "/y", data=data.astype(np.float64).T, compression="gzip", compression_opts=9
+        )
+        dset.attrs["units"] = "cm"
+
+        data = initial_condition_dict["rho"].to("g/cc").m
+        dset = h5.create_dataset(
+            "/density",
+            data=data.astype(np.float64).T,
+            compression="gzip",
+            compression_opts=9,
+        )
+        dset.attrs["units"] = "g/cc"
+
+        data = initial_condition_dict["u"].to("cm/s").m
+        dset = h5.create_dataset(
+            "/x_velocity",
+            data=data.astype(np.float64).T,
+            compression="gzip",
+            compression_opts=9,
+        )
+        dset.attrs["units"] = "cm/s"
+
+        data = initial_condition_dict["v"].to("cm/s").m
+        dset = h5.create_dataset(
+            "/y_velocity",
+            data=data.astype(np.float64).T,
+            compression="gzip",
+            compression_opts=9,
+        )
+        dset.attrs["units"] = "cm/s"
+
+        data = initial_condition_dict["p"].to("barye").m
+        dset = h5.create_dataset(
+            "/pressure",
+            data=data.astype(np.float64).T,
+            compression="gzip",
+            compression_opts=9,
+        )
+        dset.attrs["units"] = "barye"
+
         h5.close()
 
 
-bc_dict = {"+x": "periodic", "+y": "periodic", "-x": "periodic", "-y": "periodic"}
-
 # Make a simple grid with dummy initial conditions
-simple = make_uniform_grid(n_nodes=(5, 3), xrange=(-2, 2), yrange=(-2, 2))
+simple = make_uniform_grid(n_cells=(4, 2), xrange=(-2, 2), yrange=(-2, 2))
 simple["rho"] = simple["rho"] * 1
-simple["u"] = simple["p"] * -2
-simple["v"] = simple["p"] * 3
+simple["u"] = simple["u"] * -2
+simple["v"] = simple["v"] * 3
 simple["p"] = simple["p"] * 4
 
-write_initial_hdf5(
-    filename="simple", initial_condition_dict=simple, boundary_conditions_dict=bc_dict
-)
+write_initial_hdf5(filename="simple", initial_condition_dict=simple)

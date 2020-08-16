@@ -1,3 +1,37 @@
+# MIT License
+
+# Copyright (c) 2019 Sam Miller
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# CMake configuration options
+#     -DUSE_OPENMP=[YES/NO]
+#         Enable OpenMP parallelization and SIMD vectorization
+#     -DOUTPUT_OPTIMIZATION_REPORTS=[YES/NO]
+#         Enable optimization reports (gfortran and ifort do this a bit differently)
+#     -DUSE_ASAN=[YES/NO]
+#         Enable leak checks (gfortran only)
+#     -DUSE_DSAN=[YES/NO]
+#         Enable OpenMP thread data race checking (gfortran only)
+#     -DENABLE_TESTING=[YES/NO]
+#         Turn on the pFUnit unit tests (to be run with ctest). Note, pFUnit must be built with the same compiler
+
 cmake_minimum_required(VERSION 3.8)
 
 project(
@@ -7,8 +41,8 @@ project(
   LANGUAGES Fortran C)
 
 set(CATO_VERSION_MAJOR 1)
-set(CATO_VERSION_MINOR 1)
-set(CATO_PATCH_VERSION 0)
+set(CATO_VERSION_MINOR 5)
+set(CATO_PATCH_VERSION 1)
 
 set(CMAKE_VERBOSE_MAKEFILE Off)
 set(CMAKE_CXX_STANDARD 11)
@@ -26,13 +60,31 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# find_package(Python)
+# include(FindPythonModule)
+# FindPythonModule(fypp REQUIRED)
+
 # Determine the host architecture, e.g. Intel Kabylake, and optimize for it
 include(OptimizeForArchitecture)
 optimizeforarchitecture()
 
+# Set __ALIGNBYTES__ for use in OpenMP/Compiler SIMD alignment statements, e.g. __ALIGNBYTES__ = 32
+add_compile_definitions(__ALIGNBYTES__=${MEMORY_ALIGN_BYTES})
+
+if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
+  add_compile_definitions(__SIMD_ALIGN_OMP__)
+endif()
+
 # Determine the number of cores (useful for single machine, shared-memory build)
 include(ProcessorCount)
 processorcount(N_CORES)
+
+if(NOT USE_OPENMP)
+  set(USE_OPENMP Off)
+else()
+  add_compile_definitions(USE_OPENMP)
+  find_package(OpenMP)
+endif()
 
 # Enable ctest unit testing
 if(NOT ENABLE_TESTING)
@@ -56,6 +108,14 @@ if(DISTRIBUTED_MEMORY AND SHARED_MEMORY)
   message(FATAL_ERROR "Cannot enable DISTRIBUTED_MEMORY and SHARED_MEMORY at the same time")
 endif()
 
+set(SERIAL_BUILD On) # Make this default for now (until coarray is finished)
+# Packages find_package(Coarray REQUIRED)
+
+find_package(
+  HDF5
+  COMPONENTS Fortran_HL Fortran
+  REQUIRED)
+
 if(NOT SERIAL_BUILD)
   set(SERIAL_BUILD Off)
   # Set for coarray compile type
@@ -77,13 +137,6 @@ else()
   set(SHARED_MEMORY On)
 endif()
 
-# Packages
-find_package(Coarray REQUIRED)
-find_package(
-  HDF5
-  COMPONENTS Fortran_HL
-  REQUIRED)
-
 # Set compiler flags
 include(SetFortranFlags)
 
@@ -91,7 +144,6 @@ include(SetFortranFlags)
 if(NOT ENABLE_PROFILING)
   set(ENABLE_PROFILING Off)
 endif()
-
 
 if(CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   message(STATUS "Compile Flags: ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_RELEASE} ")

@@ -9,51 +9,467 @@ module test_bc
 
   implicit none
 
+  integer(ik), parameter :: n_ghost_layers = 2
   integer(ik), parameter :: ni_nodes = 5
   integer(ik), parameter :: nj_nodes = 5
   integer(ik), parameter :: ni_cells = ni_nodes - 1
   integer(ik), parameter :: nj_cells = nj_nodes - 1
+  integer(ik), parameter :: ilo_c = -n_ghost_layers + 1       !< low index for all cells
+  integer(ik), parameter :: ihi_c = ni_cells + n_ghost_layers !<
+  integer(ik), parameter :: jlo_c = -n_ghost_layers + 1       !<
+  integer(ik), parameter :: jhi_c = nj_cells + n_ghost_layers !<
+
+  real(rk), dimension(ilo_c:ihi_c) :: top_row = 0.0_rk
+  real(rk), dimension(ilo_c:ihi_c) :: bottom_row = 0.0_rk
+  real(rk), dimension(jlo_c:jhi_c) :: right_col = 0.0_rk
+  real(rk), dimension(jlo_c:jhi_c) :: left_col = 0.0_rk
+
   integer(ik) :: alloc_status
 
+  type(input_t) :: input
+  class(grid_t), pointer :: grid
+  real(rk), dimension(:, :), allocatable :: rho
+  real(rk), dimension(:, :), allocatable :: u
+  real(rk), dimension(:, :), allocatable :: v
+  real(rk), dimension(:, :), allocatable :: p
+  integer(ik), parameter :: bottom_edge = 1 !< cell bottom edge index
+  integer(ik), parameter :: right_edge = 2  !< cell right edge index
+  integer(ik), parameter :: top_edge = 3    !< cell top edge index
+  integer(ik), parameter :: left_edge = 4   !< cell left edge index
 contains
 
-  @test
-  subroutine test_bc_factory()
-    class(boundary_condition_t), pointer :: bc_plus_x
-    class(boundary_condition_t), pointer :: bc_plus_y
-    class(boundary_condition_t), pointer :: bc_minus_x
-    class(boundary_condition_t), pointer :: bc_minus_y
-
-    type(input_t) :: input
-    class(grid_t), pointer :: grid
-    real(rk), dimension(:, :, :), allocatable :: U
-    real(rk), dimension(:, :, :, :, :), allocatable :: reconstructed_domain
-
-    input = input_t(reconstruction_type='piecewise_linear', &
+  @before
+  subroutine startup()
+    input = input_t(spatial_reconstruction='MUSCL', &
+                    flux_solver='AUSM+-up', &
+                    n_ghost_layers=2, &
                     ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
                     read_init_cond_from_file=.false., &
                     xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
 
     grid => grid_factory(input)
+  end subroutine startup
 
-    ! These are normally handled by the cato puppeteer, but for now we make them ourselves
-    associate(left=>grid%ilo_bc_cell, right=>grid%ihi_bc_cell, &
-              bottom=>grid%jlo_bc_cell, top=>grid%jhi_bc_cell)
+  @after
+  subroutine cleanup()
+    deallocate(grid)
+  end subroutine cleanup
 
-      allocate(U(4, left:right, bottom:top), stat=alloc_status)
-      ! ((rho, u, v, p), i, j) Conserved variables for each cell
-      if(alloc_status /= 0) error stop "Unable to allocate U"
+  subroutine setup_periodic()
+    ! Set up the periodic grid to test against
+    integer(ik) :: i, j
 
-      allocate(reconstructed_domain(4, 4, 2, left:right, bottom:top), stat=alloc_status)
+    print*, "Setting up the periodic grid"
+    ! These are normally handled by the master puppeteer, but for now we make them ourselves
+    associate(left => grid%ilo_bc_cell, right => grid%ihi_bc_cell, &
+              bottom => grid%jlo_bc_cell, top => grid%jhi_bc_cell)
 
-      ! ((rho, u ,v, p), point, node/midpoint, i, j); this is a cell-based value, so right=ni-1, etc
-      if(alloc_status /= 0) error stop "Unable to allocate reconstructed_domain"
+      if(allocated(rho)) deallocate(rho)
+      allocate(rho(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate rho"
+
+      if(allocated(u)) deallocate(u)
+      allocate(u(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate u"
+
+      if(allocated(v)) deallocate(v)
+      allocate(v(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate v"
+
+      if(allocated(p)) deallocate(p)
+      allocate(p(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate p"
     end associate
 
-    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input)
-    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input)
-    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input)
-    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input)
+    ! the boundary routines
+
+    !   Domain cartoon layout
+    !   |---|---||---|---|---|---||---|---|
+    ! 6  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=6; aka top_ghost (grid%jhi_bc_cell)
+    !    |---|---||---|---|---|---||---|---|
+    ! 5  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 |
+    !    |===|===||===|===|===|===||===|===|
+    ! 4  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 | <- j=4; aka top (grid%jhi_cell)
+    !    |---|---||---|---|---|---||---|---|
+    ! 3  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 |
+    !    |---|---||---|---|---|---||---|---|
+    ! 2  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 |
+    !    |---|---||---|---|---|---||---|---|
+    ! 1  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 | <- j=1; aka bottom (grid%jlo_cell)
+    !    |===|===||===|===|===|===||===|===|
+    ! 0  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 |
+    !    |---|---||---|---|---|---||---|---|
+    ! -1 | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=-1; aka bottom_ghost (grid%jlo_bc_cell)
+    !    |---|---||---|---|---|---||---|---|
+    !     -1   0    1   2   3   4    5   6
+
+    ! i0; aka left_ghost, grid%ilo_bc_cell
+    ! i1; aka left, grid%ilo_cell
+    ! i4; aka right, grid%ihi_cell
+    ! i5; aka right_ghost grid%ihi_bc_cell
+
+    ! Test the conserved var state
+    rho = 0.0_rk
+    u = 0.0_rk
+    v = 0.0_rk
+    p = 0.0_rk
+
+    ! Set unique values along the (real) edges so I can test the bc routines
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell)
+
+      rho(left:right, top) = [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
+      rho(left:right, bottom) = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
+      rho(left, bottom + 1:top - 1) = 8.0_rk
+      rho(right, bottom + 1:top - 1) = 6.0_rk
+
+    end associate
+
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell, &
+              left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+              bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
+      print*, "Initial conditions:"
+      do j = top_ghost, bottom_ghost, -1
+        write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
+      end do
+      print *
+      end associate
+
+  end subroutine setup_periodic
+
+  ! @test
+  subroutine test_plus_x_periodic()
+    !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_plus_x
+    integer(ik), dimension(2) :: lbounds
+    integer(ik) :: i, j
+
+    print*, "Running test_plus_x_periodic()"
+    input%plus_x_bc =  'zero_gradient'
+    input%plus_y_bc =  'periodic'
+    input%minus_x_bc = 'zero_gradient'
+    input%minus_y_bc = 'zero_gradient'
+
+    call setup_periodic()
+    lbounds = lbound(rho)
+
+    bc_plus_x => bc_factory(bc_type= 'periodic'     , location='+x', input=input, grid=grid)
+    @assertEqual('+x', bc_plus_x%location)
+
+
+    call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+
+    ! Now test the results
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell, &
+              left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+              bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
+
+      ! Print out in all it's glory
+      print*, "After BC's applied"
+      do j = top_ghost, bottom_ghost, -1
+        write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
+      end do
+      print *
+
+      ! right ghost layer
+      right_col = [0.0_rk, 0.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 0.0_rk, 0.0_rk]
+      @assertEqual(right_col, rho(right_ghost - 1, :))
+
+      right_col = [0.0_rk, 0.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 0.0_rk, 0.0_rk]
+      @assertEqual(right_col, rho(right_ghost, :))
+    end associate
+
+    deallocate(bc_plus_x)
+
+    deallocate(rho)
+    deallocate(u)
+    deallocate(v)
+    deallocate(p)
+  end subroutine test_plus_x_periodic
+
+  ! @test
+  subroutine test_plus_y_periodic()
+    !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_plus_y
+    integer(ik), dimension(2) :: lbounds
+    integer(ik) :: i, j
+
+    print*, "Running test_plus_y_periodic()"
+    input%plus_x_bc =  'zero_gradient'
+    input%plus_y_bc =  'periodic'
+    input%minus_x_bc = 'zero_gradient'
+    input%minus_y_bc = 'zero_gradient'
+
+    call setup_periodic()
+    lbounds = lbound(rho)
+    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid)
+    @assertEqual('+y', bc_plus_y%location)
+
+    call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+
+    ! Now test the results
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell, &
+              left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+              bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
+
+      ! Print out in all it's glory
+      print*, "After BC's applied"
+      do j = top_ghost, bottom_ghost, -1
+        write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
+      end do
+      print *
+
+      ! top ghost layer
+      top_row = [0.0_rk, 0.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 0.0_rk, 0.0_rk]
+      @assertEqual(top_row, rho(:, top_ghost))
+
+      top_row = [0.0_rk, 0.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 0.0_rk, 0.0_rk]
+      @assertEqual(top_row, rho(:, top_ghost - 1))
+    end associate
+
+    deallocate(bc_plus_y)
+
+    deallocate(rho)
+    deallocate(u)
+    deallocate(v)
+    deallocate(p)
+  end subroutine test_plus_y_periodic
+
+  ! @test
+  subroutine test_minus_x_periodic()
+    !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_minus_x
+    integer(ik), dimension(2) :: lbounds
+    integer(ik) :: i, j
+
+    print*, "Running test_minus_x_periodic()"
+    input%plus_x_bc =  'zero_gradient'
+    input%plus_y_bc =  'zero_gradient'
+    input%minus_x_bc = 'periodic'
+    input%minus_y_bc = 'zero_gradient'
+
+    call setup_periodic()
+    lbounds = lbound(rho)
+    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid)
+    @assertEqual('-x', bc_minus_x%location)
+
+    call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+
+    ! Now test the results
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell, &
+              left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+              bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
+
+      ! Print out in all it's glory
+      print*, "After BC's applied"
+      do j = top_ghost, bottom_ghost, -1
+        write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
+      end do
+      print *
+
+      ! left ghost layer
+      left_col = [0.0_rk, 0.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 0.0_rk, 0.0_rk]
+      @assertEqual(left_col, rho(left_ghost + 1, :))
+
+      left_col = [0.0_rk, 0.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 0.0_rk, 0.0_rk]
+      @assertEqual(left_col, rho(left_ghost, :))
+    end associate
+
+    deallocate(bc_minus_x)
+
+    deallocate(rho)
+    deallocate(u)
+    deallocate(v)
+    deallocate(p)
+  end subroutine test_minus_x_periodic
+
+  ! @test
+  subroutine test_minus_y_periodic()
+    !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_minus_y
+    integer(ik), dimension(2) :: lbounds
+    integer(ik) :: i, j
+
+    print*, "Running test_minus_y_periodic()"
+    input%plus_x_bc =  'zero_gradient'
+    input%plus_y_bc =  'zero_gradient'
+    input%minus_x_bc = 'zero_gradient'
+    input%minus_y_bc = 'periodic'
+
+    call setup_periodic()
+
+    lbounds = lbound(rho)
+    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input, grid=grid)
+    @assertEqual('-y', bc_minus_y%location)
+    call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+
+    ! Now test the results
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell, &
+              left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+              bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
+
+      ! Print out in all it's glory
+      print*, "After BC's applied"
+      do j = top_ghost, bottom_ghost, -1
+        write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
+      end do
+      print *
+
+      ! bottom ghost layers
+      bottom_row = [0.0_rk, 0.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 0.0_rk, 0.0_rk]
+      @assertEqual(bottom_row, rho(:, bottom_ghost + 1))
+
+      bottom_row = [0.0_rk, 0.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 0.0_rk, 0.0_rk]
+      @assertEqual(bottom_row, rho(:, bottom_ghost))
+    end associate
+
+    if(associated(bc_minus_y)) deallocate(bc_minus_y)
+
+    if(allocated(rho)) deallocate(rho)
+    if(allocated(u)) deallocate(u)
+    if(allocated(v)) deallocate(v)
+    if(allocated(p)) deallocate(p)
+  end subroutine test_minus_y_periodic
+
+  ! @test
+  subroutine test_periodic_all()
+    !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_plus_x
+    class(boundary_condition_t), pointer :: bc_plus_y
+    class(boundary_condition_t), pointer :: bc_minus_x
+    class(boundary_condition_t), pointer :: bc_minus_y
+    integer(ik), dimension(2) :: lbounds
+    integer(ik) :: i, j
+
+    print*, "Running test_periodic_all()"
+    input%plus_x_bc =  'periodic'
+    input%plus_y_bc =  'periodic'
+    input%minus_x_bc = 'periodic'
+    input%minus_y_bc = 'periodic'
+    call setup_periodic()
+    lbounds = lbound(rho)
+    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid)
+    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid)
+    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid)
+    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input, grid=grid)
+
+    @assertEqual('+x', bc_plus_x%location)
+    @assertEqual('+y', bc_plus_y%location)
+    @assertEqual('-x', bc_minus_x%location)
+    @assertEqual('-y', bc_minus_y%location)
+
+    call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    ! Now test the results
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell, &
+              left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+              bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
+
+      ! Print out in all it's glory
+      print*, "After BC's applied"
+      do j = top_ghost, bottom_ghost, -1
+        write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
+      end do
+      print *
+
+      ! bottom ghost layers
+      bottom_row = [7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk]
+      @assertEqual(bottom_row, rho(:, bottom_ghost + 1))
+
+      bottom_row = [0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk]
+      @assertEqual(bottom_row, rho(:, bottom_ghost))
+
+      ! top ghost layer
+      top_row = [0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk]
+      @assertEqual(top_row, rho(:, top_ghost))
+
+      top_row = [5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk]
+      @assertEqual(top_row, rho(:, top_ghost - 1))
+
+      ! right ghost layer
+      right_col = [8.0_rk, 4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk, 8.0_rk]
+      @assertEqual(right_col, rho(right_ghost - 1, :))
+
+      right_col = [0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk]
+      @assertEqual(right_col, rho(right_ghost, :))
+
+      ! left ghost layer
+      left_col = [6.0_rk, 3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk, 6.0_rk]
+      @assertEqual(left_col, rho(left_ghost + 1, :))
+
+      left_col = [0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk]
+      @assertEqual(left_col, rho(left_ghost, :))
+
+    end associate
+
+    deallocate(bc_plus_x)
+    deallocate(bc_plus_y)
+    deallocate(bc_minus_x)
+    deallocate(bc_minus_y)
+
+    deallocate(rho)
+    deallocate(u)
+    deallocate(v)
+    deallocate(p)
+  end subroutine test_periodic_all
+
+  @test
+  subroutine test_symmetry()
+    !< Test the symmetry boundary condition
+    class(boundary_condition_t), pointer :: bc_plus_x
+    class(boundary_condition_t), pointer :: bc_plus_y
+    class(boundary_condition_t), pointer :: bc_minus_x
+    class(boundary_condition_t), pointer :: bc_minus_y
+    integer(ik) :: top_ghost, left_ghost, right_ghost, bottom_ghost
+    integer(ik), dimension(2) :: lbounds
+    integer(ik) :: i, j
+
+    real(rk), dimension(4) ::    top_sym_row = 0.0_rk
+    real(rk), dimension(4) :: bottom_sym_row = 0.0_rk
+    real(rk), dimension(4) ::  right_sym_col = 0.0_rk
+    real(rk), dimension(4) ::   left_sym_col = 0.0_rk
+
+    bottom_ghost = grid%jlo_bc_cell
+    top_ghost = grid%jhi_bc_cell
+
+    left_ghost = grid%ilo_bc_cell
+    right_ghost = grid%ihi_bc_cell
+
+    ! These are normally handled by the master puppeteer, but for now we make them ourselves
+    associate(left => grid%ilo_bc_cell, right => grid%ihi_bc_cell, &
+              bottom => grid%jlo_bc_cell, top => grid%jhi_bc_cell)
+
+      if(allocated(rho)) deallocate(rho)
+      allocate(rho(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate rho"
+
+      if(allocated(u)) deallocate(u)
+      allocate(u(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate u"
+
+      if(allocated(v)) deallocate(v)
+      allocate(v(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate v"
+
+      if(allocated(p)) deallocate(p)
+      allocate(p(left:right, bottom:top), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate p"
+
+    end associate
+
+    lbounds = lbound(rho)
+    bc_plus_x => bc_factory(bc_type='symmetry', location='+x', input=input, grid=grid)
+    bc_plus_y => bc_factory(bc_type='symmetry', location='+y', input=input, grid=grid)
+    bc_minus_x => bc_factory(bc_type='symmetry', location='-x', input=input, grid=grid)
+    bc_minus_y => bc_factory(bc_type='symmetry', location='-y', input=input, grid=grid)
 
     @assertEqual('+x', bc_plus_x%location)
     @assertEqual('+y', bc_plus_y%location)
@@ -61,25 +477,29 @@ contains
     @assertEqual('-y', bc_minus_y%location)
 
     ! Test the conserved var state
-    U = 0.0_rk
-    reconstructed_domain = 0.0_rk
-
-    ! the boundary routines
+    rho = 0.0_rk
+    u = 0.0_rk
+    v = 0.0_rk
+    p = 0.0_rk
 
     !   Domain cartoon layout
-    !   |---||---|---|---|---||---|
-    !   | 2 || 1 | 5 | 5 | 2 || 1 | <- j3; aka top_ghost (grid%jhi_bc_cell)
-    !   |===||===|===|===|===||===|
-    !   | 3 || 4 | 7 | 7 | 3 || 4 | <- j2; aka top (grid%jhi_cell)
-    !   |---||---|---|---|---||---|
-    !   | 6 || 8 | D | D | 6 || 8 |
-    !   |---||---|---|---|---||---|
-    !   | 6 || 8 | D | D | 6 || 8 |
-    !   |---||---|---|---|---||---|
-    !   | 2 || 1 | 5 | 5 | 2 || 1 | <- j1; aka bottom (grid%jlo_cell)
-    !   |===||===|===|===|===||===|
-    !   | 3 || 4 | 7 | 7 | 3 || 4 | <- j0; aka bottom_ghost (grid%jlo_bc_cell)
-    !   |---||---|---|---|---||---|
+    !   |---|---||---|---|---|---||---|---|
+    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=6; aka top_ghost (grid%jhi_bc_cell)
+    !   |---|---||---|---|---|---||---|---|
+    !   | - | - || 4 | 7 | 7 | 3 || - | - |
+    !   |===|===||===|===|===|===||===|===|
+    !   | 7 | 4 || 4 | 7 | 7 | 3 || 3 | 7 | <- j=4; aka top (grid%jhi_cell)
+    !   |---|---||---|---|---|---||---|---|
+    !   | 0 | 8 || 8 | 0 | 0 | 6 || 6 | 0 |
+    !   |---|---||---|---|---|---||---|---|
+    !   | 0 | 8 || 8 | 0 | 0 | 6 || 6 | 0 |
+    !   |---|---||---|---|---|---||---|---|
+    !   | 5 | 1 || 1 | 5 | 5 | 2 || 2 | 5 | <- j=1; aka bottom (grid%jlo_cell)
+    !   |===|===||===|===|===|===||===|===|
+    !   | - | - || 1 | 5 | 5 | 2 || - | - |
+    !   |---|---||---|---|---|---||---|---|
+    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=-1; aka bottom_ghost (grid%jlo_bc_cell)
+    !   |---|---||---|---|---|---||---|---|
     !    i0   i1  i2  i3  i4   i5
 
     ! i0; aka left_ghost, grid%ilo_bc_cell
@@ -87,72 +507,109 @@ contains
     ! i4; aka right, grid%ihi_cell
     ! i5; aka right_ghost grid%ihi_bc_cell
 
-    !  . : ghost cell (aka boundary cell)
-    !  x : physical domain cell
-    !  D : unaffected central cell
-
     ! Set unique values along the (real) edges so I can test the bc routines
-    associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
-              bottom=>grid%jlo_cell, top=>grid%jhi_cell)
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+              bottom => grid%jlo_cell, top => grid%jhi_cell)
 
-      U(:, left:right, bottom) = 5.0_rk ! "5" cells in cartoon
-      U(:, left:right, top) = 7.0_rk    ! "7" cells in cartoon
-      U(:, left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
-      U(:, right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
-      U(:, left, bottom) = 1.0_rk       ! "1" cells in cartoon
-      U(:, left, top) = 4.0_rk          ! "4" cells in cartoon
-      U(:, right, bottom) = 2.0_rk      ! "2" cells in cartoon
-      U(:, right, top) = 3.0_rk         ! "3" cells in cartoon
+      rho(left:right, top) = [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
+      rho(left:right, bottom) = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
+      rho(left, bottom + 1:top - 1) = 8.0_rk
+      rho(right, bottom + 1:top - 1) = 6.0_rk
 
-      reconstructed_domain(:, :, :, left:right, bottom) = 5.0_rk ! "5" cells in cartoon
-      reconstructed_domain(:, :, :, left:right, top) = 7.0_rk    ! "7" cells in cartoon
-      reconstructed_domain(:, :, :, right, bottom:top) = 6.0_rk  ! "6" cells in cartoon
-      reconstructed_domain(:, :, :, left, bottom:top) = 8.0_rk   ! "8" cells in cartoon
-      reconstructed_domain(:, :, :, left, bottom) = 1.0_rk       ! "1" cells in cartoon
-      reconstructed_domain(:, :, :, left, top) = 4.0_rk          ! "4" cells in cartoon
-      reconstructed_domain(:, :, :, right, bottom) = 2.0_rk      ! "2" cells in cartoon
-      reconstructed_domain(:, :, :, right, top) = 3.0_rk         ! "3" cells in cartoon
     end associate
 
-    call bc_plus_x%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
-    call bc_plus_y%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
-    call bc_minus_x%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
-    call bc_minus_y%apply_primitive_var_bc(primitive_vars=U, lbounds=lbound(U))
+    ! Copy to the other arrays
+    u = rho
+    v = rho
+    p = rho
 
-    call bc_plus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
-    call bc_plus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
-    call bc_minus_x%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
-    call bc_minus_y%apply_reconstructed_state_bc(reconstructed_state=reconstructed_domain, lbounds=lbound(reconstructed_domain))
+    call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
+    call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
 
-    associate(left=>grid%ilo_cell, right=>grid%ihi_cell, &
-              bottom=>grid%jlo_cell, top=>grid%jhi_cell, &
-              left_ghost=>grid%ilo_bc_cell, right_ghost=>grid%ihi_bc_cell, &
-              bottom_ghost=>grid%jlo_bc_cell, top_ghost=>grid%jhi_bc_cell)
+    ! Now test the results
+    associate(left => grid%ilo_cell, right => grid%ihi_cell, &
+      bottom => grid%jlo_cell, top => grid%jhi_cell, &
+      left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+      bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
 
-      ! bottom ghost layer
-      @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], U(1, :, bottom_ghost))
-      @assertEqual([3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk], reconstructed_domain(1, 1, 1, :, bottom_ghost))
+      ! Print out in all it's glory
+      print*, "After BC's applied"
+      do j = top_ghost, bottom_ghost, -1
+        write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
+      end do
+      print *
 
-      ! top ghost layer
-      @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], U(1, :, top_ghost))
-      @assertEqual([2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk], reconstructed_domain(1, 1, 1, :, top_ghost))
+      ! -- Bottom --
+      ! first ghost layer
+      bottom_sym_row = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
+      @assertEqual( bottom_sym_row, rho(left:right, bottom_ghost + 1))
+      @assertEqual( bottom_sym_row,   u(left:right, bottom_ghost + 1))
+      @assertEqual(-bottom_sym_row,   v(left:right, bottom_ghost + 1))
+      @assertEqual( bottom_sym_row,   p(left:right, bottom_ghost + 1))
 
-      ! left ghost layer
-      @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], U(1, left_ghost, :))
-      @assertEqual([3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk], reconstructed_domain(1, 1, 1, left_ghost, :))
+      ! 2nd ghost layer (down 1 layer)
+      bottom_sym_row = [8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk]
+      @assertEqual( bottom_sym_row, rho(left:right, bottom_ghost))
+      @assertEqual( bottom_sym_row,   u(left:right, bottom_ghost))
+      @assertEqual(-bottom_sym_row,   v(left:right, bottom_ghost))
+      @assertEqual( bottom_sym_row,   p(left:right, bottom_ghost))
 
-      ! right ghost layer
-      @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], U(1, right_ghost, :))
-      @assertEqual([4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk], reconstructed_domain(1, 1, 1, right_ghost, :))
+      ! Top --
+      top_sym_row = [8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk]
+      @assertEqual( top_sym_row, rho(left:right, top_ghost))
+      @assertEqual( top_sym_row,   u(left:right, top_ghost))
+      @assertEqual(-top_sym_row,   v(left:right, top_ghost))
+      @assertEqual( top_sym_row,   p(left:right, top_ghost))
+
+      ! 2nd ghost layer (down 1 layer)
+      top_sym_row = [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
+      @assertEqual( top_sym_row, rho(left:right, top_ghost - 1))
+      @assertEqual( top_sym_row,   u(left:right, top_ghost - 1))
+      @assertEqual(-top_sym_row,   v(left:right, top_ghost - 1))
+      @assertEqual( top_sym_row,   p(left:right, top_ghost - 1))
+
+      ! -- Right --
+      right_sym_col = [2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk]
+      @assertEqual(right_sym_col, rho(right_ghost - 1, bottom:top))
+      @assertEqual(-right_sym_col,   u(right_ghost - 1, bottom:top))
+      @assertEqual(right_sym_col,   v(right_ghost - 1, bottom:top))
+      @assertEqual(right_sym_col,   p(right_ghost - 1, bottom:top))
+
+      ! 2nd ghost layer
+      right_sym_col = [5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk]
+      @assertEqual(right_sym_col, rho(right_ghost, bottom:top))
+      @assertEqual(-right_sym_col,   u(right_ghost, bottom:top))
+      @assertEqual(right_sym_col,   v(right_ghost, bottom:top))
+      @assertEqual(right_sym_col,   p(right_ghost, bottom:top))
+
+      ! -- Left --
+      left_sym_col = [1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk]
+      @assertEqual(left_sym_col, rho(left_ghost + 1, bottom:top))
+      @assertEqual(-left_sym_col,   u(left_ghost + 1, bottom:top))
+      @assertEqual(left_sym_col,   v(left_ghost + 1, bottom:top))
+      @assertEqual(left_sym_col,   p(left_ghost + 1, bottom:top))
+
+      ! 2nd ghost layer
+      left_sym_col = [5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk]
+      @assertEqual(left_sym_col, rho(left_ghost, bottom:top))
+      @assertEqual(-left_sym_col,   u(left_ghost, bottom:top))
+      @assertEqual(left_sym_col,   v(left_ghost, bottom:top))
+      @assertEqual(left_sym_col,   p(left_ghost, bottom:top))
+
     end associate
+
 
     deallocate(bc_plus_x)
     deallocate(bc_plus_y)
     deallocate(bc_minus_x)
     deallocate(bc_minus_y)
-    deallocate(grid)
-    deallocate(U)
-    deallocate(reconstructed_domain)
-  end subroutine
 
+    deallocate(rho)
+    deallocate(u)
+    deallocate(v)
+    deallocate(p)
+
+  end subroutine test_symmetry
 end module test_bc

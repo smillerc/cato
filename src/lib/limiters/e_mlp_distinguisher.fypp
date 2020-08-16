@@ -1,0 +1,143 @@
+! MIT License
+! Copyright (c) 2020 Sam Miller
+! Permission is hereby granted, free of charge, to any person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
+#ifdef __SIMD_ALIGN_OMP__
+#define __CONT_ALIGN__ aligned(rho, u, v, p, d_bar_rho, d_bar_u, d_bar_v, d_bar_p:__ALIGNBYTES__)
+#else
+#define __CONT_ALIGN__
+#endif
+
+module mod_distinguisher
+  !< Summary: Provide the procedures to conduct the "distinguisher" step in e-MLP. This process
+  !<          scans the domain and finds the regions of linear/non-linear discontinuities as well
+  !<          as continuous regions.
+  !< Date: 07/25/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
+  !<      [1] Hyung-Min Kang, Kyu Hong Kim, Dong-Ho Lee, "A new approach of a limiting process for multi-dimensional flows"
+  !<          Journal of Computational Physics 229 (2010) 7102–7128, http://dx.doi.org/10.1016/j.jcp.2010.06.001
+
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use mod_globals, only: n_ghost_layers
+  implicit none
+
+  integer(ik), parameter :: CONTINUOUS_REGION = 0
+  integer(ik), parameter :: LINEAR_DISCONT_REGION = 1
+  integer(ik), parameter :: NONLINEAR_DISCONT_REGION = 2
+
+contains
+
+  subroutine distinguish(lbounds, rho, u, v, p, continuity_sensor)
+    !< Scan the domain for continuous and discontinuous regions
+
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); cell-centered density
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u   !< (i,j); cell-centered x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v   !< (i,j); cell-centered y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p   !< (i,j); cell-centered pressure
+
+    integer(ik), dimension(:, :), allocatable, intent(out) :: continuity_sensor
+    !< (i,j); sensor value to tag wheter it is continuous, linear discontinuous, or non-linear discontinuous
+
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk), dimension(:, :), allocatable :: d_bar_rho !< (i,j); density approximation
+    real(rk), dimension(:, :), allocatable :: d_bar_u   !< (i,j); x-velocity approximation
+    real(rk), dimension(:, :), allocatable :: d_bar_v   !< (i,j); y-velocity approximation
+    real(rk), dimension(:, :), allocatable :: d_bar_p   !< (i,j); pressure approximation
+
+    real(rk) :: d_ij_i, d_ij_j
+
+    real(rk), parameter :: EPS = 0.01_rk
+    ! Ref [1] Recommends 0.001 for steady problems and 0.01 for other cases...
+
+    real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
+    real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
+
+    ilo = lbound(rho, dim=1)
+    ihi = ubound(rho, dim=1)
+    jlo = lbound(rho, dim=2)
+    jhi = ubound(rho, dim=2)
+
+    allocate(continuity_sensor(ilo:ihi, jlo:jhi))
+
+    continuity_sensor = CONTINUOUS_REGION
+
+    allocate(d_bar_rho(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_rho: __ALIGNBYTES__
+    allocate(d_bar_u(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_u: __ALIGNBYTES__
+    allocate(d_bar_v(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_v: __ALIGNBYTES__
+    allocate(d_bar_p(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_p: __ALIGNBYTES__
+
+    d_bar_rho = 0.0_rk
+    d_bar_u = 0.0_rk
+    d_bar_v = 0.0_rk
+    d_bar_p = 0.0_rk
+
+    #:for F in ['rho','u','v','p']
+    do j = jlo + n_ghost_layers, jhi - n_ghost_layers
+      do i = ilo + n_ghost_layers, ihi - n_ghost_layers
+        d_ij_i = 0.0_rk
+        d_ij_j = 0.0_rk
+        if(abs(${F}$(i, j)) > 0.0_rk) then
+          ! Eq 11a
+          d_ij_i = abs(((-one_sixth * ${F}$(i - 2, j) + two_thirds * ${F}$(i - 1, j) + two_thirds * ${F}$(i + 1, j) - one_sixth * ${F}$(i + 2, j)) &
+                        / ${F}$(i,j)) - 1.0_rk)
+
+          ! Eq 11b
+          d_ij_j = abs(((-one_sixth * ${F}$(i, j - 2) + two_thirds * ${F}$(i, j - 1) + two_thirds * ${F}$(i, j + 1) - one_sixth * ${F}$(i, j + 2)) &
+                        / ${F}$(i,j)) - 1.0_rk)
+        end if
+        ! Eq 11c
+        d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
+      end do
+    end do
+
+    #:endfor
+
+    ! Assign contiuous sensor based on the approximate values, e.g. d_bar_rho
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(abs(d_bar_rho(i, j)) > EPS) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+
+        if(abs(u(i, j)) > abs(v(i, j)) .or.  abs(u(i, j) - v(i, j)) < epsilon(1.0_rk)) then
+          if(abs(d_bar_u(i, j)) > EPS .and. abs(u(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+
+        else if(abs(u(i, j)) < abs(v(i, j))) then
+          if(abs(d_bar_v(i, j)) > EPS .and. abs(v(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+        end if
+
+        if(abs(d_bar_p(i, j)) > EPS) continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
+      end do
+    end do
+
+
+    deallocate(d_bar_rho)
+    deallocate(d_bar_u)
+    deallocate(d_bar_v)
+    deallocate(d_bar_p)
+
+  end subroutine distinguish
+
+end module mod_distinguisher

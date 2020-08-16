@@ -1,0 +1,86 @@
+image: smillerc/gfortran-dev:latest
+
+# Set the thread count for OpenMP runs
+variables:
+  OMP_NUM_THREADS: 2
+  HDF5_DISABLE_VERSION_CHECK: 2
+
+before_script:
+  - /bin/bash
+  - eval `spack load --sh hdf5`
+  - pip install fypp "dask[complete]" --user
+
+stages:
+  - build
+  - test
+
+debug:
+  stage: build
+  script:
+    - mkdir -p debug
+    - cd debug
+    - cmake .. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=YES -DUSE_OPENMP=YES
+    - make -j
+    - ctest --output-on-failure
+
+release:
+  stage: build
+  script:
+    - mkdir -p release
+    - cd release
+    - pwd
+    - cmake .. -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTING=YES -DUSE_OPENMP=YES
+    - make -j
+    - ctest --output-on-failure
+
+sod_1d:
+  stage: test
+  script:
+    - cd tests/integrated/sod_1d/
+    - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTING=NO -DUSE_OPENMP=YES
+    - make -j
+    - python3 generate_ic.py
+    - ./bin/cato.x input.ini
+    - python3 view_results.py
+  artifacts:
+    paths:
+      - /builds/smil/cato/tests/integrated/sod_1d/sod_1d_results.png
+
+kelvin_helmholtz_2d:
+  stage: test
+  script:
+    - cd tests/integrated/kelvin_helmholtz/
+    - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTING=NO -DUSE_OPENMP=YES
+    - make -j
+    - python3 generate_ic.py
+    - ./bin/cato.x input.ini
+    - python3 view_results.py
+  artifacts:
+    paths:
+      - /builds/smil/cato/tests/integrated/kelvin_helmholtz/kh_2d_results.png
+
+sedov_2d:
+  stage: test
+  script:
+    - cd tests/integrated/sedov/
+    - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTING=NO -DUSE_OPENMP=YES
+    - make -j
+    - python3 generate_ic.py
+    - ./bin/cato.x input.ini
+    - python3 view_results.py
+  artifacts:
+    paths:
+      - /builds/smil/cato/tests/integrated/sedov/sedov_2d_results.png
+
+sedov_2d_debug:
+  stage: test
+  script:
+    - cd tests/integrated/sedov/
+    - cmake ../../.. -DCMAKE_BUILD_TYPE="Debug" -DENABLE_TESTING=NO -DUSE_OPENMP=YES
+    - make -j
+    - python3 generate_ic.py
+    - ./bin/cato.x input.ini
+    - python3 view_results.py
+  artifacts:
+    paths:
+      - /builds/smil/cato/tests/integrated/sedov/sedov_2d_debug_results.png

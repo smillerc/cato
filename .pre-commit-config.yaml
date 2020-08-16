@@ -1,17 +1,17 @@
 repos:
 -   repo: https://github.com/ambv/black
-    rev: stable
+    rev: 19.10b0
     hooks:
     - id: black
 
 -   repo: https://github.com/pseewald/fprettify
-    rev: v0.3.4
+    rev: v0.3.6
     hooks:
     - id: fprettify
       args: ['--indent', '2', '--whitespace', '3', '--whitespace-intrinsics', 'False', '--strict-indent', '--enable-replacements', '--c-relations']
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v1.2.3
+    rev: v3.2.0
     hooks:
     - id: end-of-file-fixer
     - id: fix-encoding-pragma
