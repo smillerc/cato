@@ -64,7 +64,7 @@ contains
     end if
 
     select case(trim(input%spatial_reconstruction))
-    case('TVD2')
+    case('TVD2', 'piecewise_linear')
       interpolator => new_tvd_2nd_order_t(limiter=limiter)
     case('TVD3')
       interpolator => new_tvd_3rd_order_t(limiter=limiter)

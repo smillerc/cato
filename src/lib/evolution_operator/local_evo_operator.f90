@@ -35,7 +35,6 @@ module mod_local_evo_operator
 
   use mod_grid, only: grid_t, C1, M1, C2, M2, C3, M3, C4, M4
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  use mod_reconstruction_factory, only: reconstruction_factory
 
   implicit none
 

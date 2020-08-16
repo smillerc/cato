@@ -55,7 +55,7 @@ contains
       allocate(piecewise_constant_reconstruction_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target)
     case default
-      call error_msg(module='mod_muscl_interpolator_factory', procedure='muscl_interpolator_factory', &
+      call error_msg(module='mod_reconstruction_factory', procedure='reconstruction_factory', &
                      message="Unknown reconstruction type '"//recon_type//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
