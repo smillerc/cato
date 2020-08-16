@@ -184,6 +184,7 @@ contains
     call self%init_boundary_conditions(grid, &
                                        bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                        bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+
     call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
@@ -305,14 +306,14 @@ contains
     deallocate(w_2_eta)
     deallocate(w_2_xi)
 
-    deallocate(rho_i_edges   )
-    deallocate(rho_j_edges   )
-    deallocate(u_i_edges   )
-    deallocate(u_j_edges   )
-    deallocate(v_i_edges   )
-    deallocate(v_j_edges   )
-    deallocate(p_i_edges   )
-    deallocate(p_j_edges   )
+    deallocate(rho_i_edges)
+    deallocate(rho_j_edges)
+    deallocate(u_i_edges)
+    deallocate(u_j_edges)
+    deallocate(v_i_edges)
+    deallocate(v_j_edges)
+    deallocate(p_i_edges)
+    deallocate(p_j_edges)
     deallocate(rho_i_edges_sb)
     deallocate(rho_j_edges_sb)
     deallocate(u_i_edges_sb)
@@ -560,7 +561,6 @@ contains
         H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_RHS**2 + v_RHS**2)
 
         ! Total enthalpy normal to the edge
-        ! H_normal = 0.5_rk * (H_L - 0.5_rk * V_L**2 + H_R - 0.5_rk * V_R**2)
         H_normal = min(H_L - 0.5_rk * V_L**2, H_R - 0.5_rk * V_R**2)
 
         ! Speed of sound normal to the edge, also like the critical sound speed
@@ -568,7 +568,7 @@ contains
         c_s = sqrt(2.0_rk * ((gamma - 1.0_rk) / (gamma + 1.0_rk)) * H_normal)
 
         ! Intermediate charactersistic Mach numbers M*
-        M_star = sqrt(u_ave(i, j)**2 + v_ave(i, j)**2) / c_s ! M*(i)
+        ! M_star = sqrt(u_ave(i, j)**2 + v_ave(i, j)**2) / c_s ! M*(i)
 
         ! #:if DIR == 'i'
         !   M_star_2 = sqrt(u_ave(i + 1, j)**2 + v_ave(i + 1, j)**2) / c_s ! M*(i+1)
@@ -586,7 +586,7 @@ contains
         ! Left/Right Mach number
         M_L = U_L / c_half
         M_R = U_R / c_half
-        a = 1.0_rk - min(1.0_rk, max(abs(M_L), abs(M_R)))**2
+
 
         ! Mach splitting functions
         if(abs(M_L) > 1.0_rk) then
@@ -651,17 +651,17 @@ contains
         p_s = p_L * P_L_plus + p_R * P_R_minus
         w = get_w(p_L=p_L, p_R=p_R)
 
-          #:if DIR == 'i'
-        call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
-                   p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
-                   f_L=f_L, f_R=f_R)
-          #:else
-        call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
-                   p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
-                   f_L=f_L, f_R=f_R)
-          #:endif
+        #:if DIR == 'i'
+          call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
+                    p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
+                    p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
+                    f_L=f_L, f_R=f_R)
+        #:else
+          call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
+                    p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
+                    p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
+                    f_L=f_L, f_R=f_R)
+        #:endif
 
         ! Eq. 2 in Ref [1]
         if(M_L_plus + M_R_minus < 0.0_rk) then
@@ -672,6 +672,7 @@ contains
           M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
         end if
 
+        a = 1.0_rk - min(1.0_rk, max(abs(M_L), abs(M_R)))**2
         rho_L_half = phi_L_half(phi_L=rho_L, phi_R=rho_R, phi_L_superbee=rho_L_sb, a=a)
         rho_R_half = phi_R_half(phi_L=rho_L, phi_R=rho_R, phi_R_superbee=rho_R_sb, a=a)
 
@@ -691,8 +692,10 @@ contains
         mass_flux_L = M_bar_L_plus * c_half * rho_L_half
         mass_flux_R = M_bar_R_minus * c_half * rho_R_half
         edge_flux(1, i, j) = (mass_flux_L) + (mass_flux_R)
-       edge_flux(2, i, j) = (mass_flux_L * u_L_half) + (mass_flux_R * u_R_half) + ((P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R))
-       edge_flux(3, i, j) = (mass_flux_L * v_L_half) + (mass_flux_R * v_R_half) + ((P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R))
+        edge_flux(2, i, j) = (mass_flux_L * u_L_half) + (mass_flux_R * u_R_half) + &
+                             ((P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R))
+        edge_flux(3, i, j) = (mass_flux_L * v_L_half) + (mass_flux_R * v_R_half) + &
+                             ((P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R))
         edge_flux(4, i, j) = (mass_flux_L * H_L_half) + (mass_flux_R * H_R_half)
 
       end do
@@ -755,25 +758,11 @@ contains
     real(rk), intent(in) :: phi_L_superbee !< limited primitive interface LHS variable w/ the superbee limiter
     real(rk), intent(in) :: a              !< supersonic function (a=0 in subsonic); a = 1 - min(1, max(|M_L|, |M_R|))^2
 
-    ! Locals
-    real(rk) :: phi_R_minus_L        !< phi_R - phi_L
-    real(rk) :: phi_superbee_minus_L !< phi_L_superbee - phi_L
+    phi_L_half = phi_L + max(0.0_rk, &
+                              ((phi_R - phi_L) * (phi_L_superbee - phi_L)) / &
+                              ((phi_R - phi_L) * abs(phi_L_superbee - phi_L) + 1e-16_rk)) &
+                 * min(a, 0.5_rk * abs(phi_R - phi_L), abs(phi_L_superbee - phi_L))
 
-    if(abs(a) < tiny(1.0_rk)) then
-      phi_L_half = phi_L
-    else
-      phi_R_minus_L = phi_R - phi_L
-      phi_superbee_minus_L = phi_L_superbee - phi_L
-
-      if(abs(phi_superbee_minus_L) < epsilon(1.0_rk) .or. abs(phi_R_minus_L) < epsilon(1.0_rk)) then
-        phi_L_half = phi_L
-      else
-        ! Eq. 27a in Ref [1]
-        phi_L_half = phi_L + (max(0.0_rk, phi_R_minus_L * phi_superbee_minus_L) / &
-                              (phi_R_minus_L * abs(phi_superbee_minus_L))) * &
-                     min(a * 0.5_rk * abs(phi_R_minus_L), abs(phi_superbee_minus_L))
-      end if
-    end if
   end function phi_L_half
 
   pure real(rk) function phi_R_half(phi_L, phi_R, phi_R_superbee, a)
@@ -783,25 +772,10 @@ contains
     real(rk), intent(in) :: phi_R_superbee !< limited primitive interface RHS variable w/ the superbee limiter
     real(rk), intent(in) :: a              !< supersonic function (a=0 in subsonic); a = 1 - min(1, max(|M_L|, |M_R|))^2
 
-    ! Locals
-    real(rk) :: phi_L_minus_R        !< phi_L - phi_R
-    real(rk) :: phi_superbee_minus_R !< phi_R_superbee - phi_R
-
-    if(abs(a) < tiny(1.0_rk)) then
-      phi_R_half = phi_R
-    else
-      phi_L_minus_R = phi_L - phi_R
-      phi_superbee_minus_R = phi_R_superbee - phi_R
-
-      if(abs(phi_superbee_minus_R) < epsilon(1.0_rk) .or. abs(phi_L_minus_R) < epsilon(1.0_rk)) then
-        phi_R_half = phi_R
-      else
-        ! Eq. 27b in Ref [1]
-        phi_R_half = phi_R + (max(0.0_rk, phi_L_minus_R * phi_superbee_minus_R) / &
-                              (phi_L_minus_R * abs(phi_superbee_minus_R))) * &
-                     min(a * 0.5_rk * abs(phi_L_minus_R), abs(phi_superbee_minus_R))
-      end if
-    end if
+    phi_R_half = phi_R + max(0.0_rk, &
+                              ((phi_L - phi_R) * (phi_R_superbee - phi_R)) / &
+                              ((phi_L - phi_R) * abs(phi_R_superbee - phi_R) + 1e-16_rk)) &
+                 * min(a, 0.5_rk * abs(phi_L - phi_R), abs(phi_R_superbee - phi_R))
   end function phi_R_half
 
   pure subroutine get_f(p_L, p_R, p_s, p1_L, p1_R, p2_L, p2_R, f_L, f_R)

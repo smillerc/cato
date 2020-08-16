@@ -417,7 +417,6 @@ contains
         H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_RHS**2 + v_RHS**2)
 
         ! Total enthalpy normal to the edge
-        ! H_normal = 0.5_rk * (H_L - 0.5_rk * V_L**2 + H_R - 0.5_rk * V_R**2)
         H_normal = min(H_L - 0.5_rk * V_L**2, H_R - 0.5_rk * V_R**2)
 
         ! Speed of sound normal to the edge, also like the critical sound speed
@@ -447,15 +446,15 @@ contains
         w = get_w(p_L=p_L, p_R=p_R)
 
         #:if DIR == 'i'
-        call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
-                   p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
-                   f_L=f_L, f_R=f_R)
+          call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
+                    p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
+                    p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
+                    f_L=f_L, f_R=f_R)
         #:else
-        call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
-                   p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
-                   f_L=f_L, f_R=f_R)
+          call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
+                    p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
+                    p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
+                    f_L=f_L, f_R=f_R)
         #:endif
 
         ! From Eq. 24 (ii) in Ref [1]
