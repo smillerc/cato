@@ -21,6 +21,7 @@
 module mod_reconstruction_factory
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_error, only: error_msg
   use mod_globals, only: debug_print
   use mod_input, only: input_t
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
@@ -54,7 +55,9 @@ contains
       allocate(piecewise_constant_reconstruction_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target)
     case default
-      error stop "Error in reconstruction_factory_t, unknown reconstruction type"
+      call error_msg(module='mod_muscl_interpolator_factory', procedure='muscl_interpolator_factory', &
+                     message="Unknown reconstruction type '"//recon_type//"'", &
+                     file_name=__FILE__, line_number=__LINE__)
     end select
   end function
 

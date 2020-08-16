@@ -7,7 +7,6 @@ module test_mach_cone_collection
   use mod_grid, only: grid_t
   use mod_grid_factory, only: grid_factory
   use mod_input, only: input_t
-  use mod_globals, only: n_ghost_layers
 
   use funit
 
@@ -36,6 +35,7 @@ module test_mach_cone_collection
   integer(ik), parameter :: C4 = 7
   integer(ik), parameter :: M4 = 8
 
+  integer(ik), parameter :: n_ghost_layers = 2
   integer(ik), parameter :: ilo_c = -n_ghost_layers + 1
   integer(ik), parameter :: ihi_c = ni_cells + n_ghost_layers
   integer(ik), parameter :: jlo_c = -n_ghost_layers + 1
@@ -80,7 +80,7 @@ contains
     integer(ik) :: i, j
 
     print *, 'Creating reconstruction_operator in test_mach_cone_collection before()'
-    input = input_t(spatial_reconstruction='green_gauss', &
+    input = input_t(spatial_reconstruction='TVD2', &
                     limiter='none', &
                     ni_nodes=ni_nodes - 2, nj_nodes=nj_nodes - 2, &
                     read_init_cond_from_file=.false., &

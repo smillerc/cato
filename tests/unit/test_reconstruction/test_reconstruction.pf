@@ -12,11 +12,11 @@ module test_reconstruction
   ! use mod_mlp_5th_order, only: mlp_5th_order_t
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
-  use mod_globals, only: n_ghost_layers
   use funit
 
   implicit none
 
+  integer(ik), parameter :: n_ghost_layers = 2
   integer(ik), parameter :: ni_nodes = 5
   integer(ik), parameter :: nj_nodes = 5
   integer(ik), parameter :: ni_cells = ni_nodes - 1
@@ -73,6 +73,7 @@ contains
     integer(ik) :: i, j
 
     write(*, *) "Testing the TVD2 edge iterpolation and 'none' flux limiter"
+    input%spatial_reconstruction = 'TVD2'
     input%limiter = 'none'
     edge_interpolator => edge_interpolator_factory(input)
 

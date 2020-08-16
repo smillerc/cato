@@ -5,11 +5,11 @@ module test_bc
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_grid_factory, only: grid_factory
   use mod_grid, only: grid_t
-  use mod_globals, only: n_ghost_layers
   use funit
 
   implicit none
 
+  integer(ik), parameter :: n_ghost_layers = 2
   integer(ik), parameter :: ni_nodes = 5
   integer(ik), parameter :: nj_nodes = 5
   integer(ik), parameter :: ni_cells = ni_nodes - 1

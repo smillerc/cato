@@ -32,6 +32,7 @@ module mod_edge_interpolator_factory
   !<
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use mod_error, only: error_msg
   use mod_globals, only: debug_print
   use mod_input, only: input_t
   use mod_edge_interpolator, only: edge_iterpolator_t
@@ -70,16 +71,15 @@ contains
     case('TVD5')
       interpolator => new_tvd_5th_order_t(limiter=limiter)
     case default
-      write(std_err, '(a)') "Unknown edge interpolation scheme, must be one of the following: "// &
-        "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5', the input value was '"//trim(input%spatial_reconstruction)//"'"
-
-      error stop "Unknown edge interpolation scheme, must be one of the following: "// &
-        "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'"
+      call error_msg(module='mod_edge_interpolator_factory', procedure='edge_interpolator_factory', &
+          message="Unknown edge interpolation scheme '"//trim(input%spatial_reconstruction)//"', must be one of the following: "// &
+                     "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'", &
+                     file_name=__FILE__, line_number=__LINE__)
     end select
 
     call interpolator%initialize(limiter=limiter)
     deallocate(limiter)
 
-  end function
+  end function edge_interpolator_factory
 
 end module mod_edge_interpolator_factory
