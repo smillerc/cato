@@ -25,23 +25,20 @@ module mod_global_fluid
   use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND, error_msg
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
   use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
-  use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
   use mod_units
-  use mod_distinguisher, only: distinguish
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_grid, only: grid_t
   use mod_input, only: input_t
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
-  use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use mod_flux_solver, only: flux_solver_t
-  use mod_ausm_plus_solver, only: ausm_plus_solver_t
-  use mod_fvleg_solver, only: fvleg_solver_t
-  use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
+  ! use mod_ausm_plus_solver, only: ausm_plus_solver_t
+  ! use mod_fvleg_solver, only: fvleg_solver_t
+  ! use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
   use mod_ausmpw_plus_solver, only: ausmpw_plus_solver_t
-  use mod_slau_solver, only: slau_solver_t
+  ! use mod_slau_solver, only: slau_solver_t
   use mod_local_fluid, only: local_fluid_t
 
   implicit none
@@ -193,17 +190,17 @@ contains
     self%time_integration_scheme = trim(input%time_integration_strategy)
 
     select case(trim(input%flux_solver))
-    case('FVLEG')
-      allocate(fvleg_solver_t :: solver)
-    case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
-      error stop "There are issues in the AUSM+ solver for now; exiting..."
-      allocate(ausm_plus_solver_t :: solver)
-    case('M-AUSMPW+')
-      allocate(m_ausmpw_plus_solver_t :: solver)
+      ! case('FVLEG')
+      !   allocate(fvleg_solver_t :: solver)
+      ! case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
+      !   error stop "There are issues in the AUSM+ solver for now; exiting..."
+      !   allocate(ausm_plus_solver_t :: solver)
+      ! case('M-AUSMPW+')
+      !   allocate(m_ausmpw_plus_solver_t :: solver)
     case('AUSMPW+')
       allocate(ausmpw_plus_solver_t :: solver)
-    case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
-      allocate(slau_solver_t :: solver)
+      ! case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
+      !   allocate(slau_solver_t :: solver)
     case default
       call error_msg(module='mod_fluid', class='global_fluid_t', procedure='initialize', &
                      message="Invalid flux solver. It must be one of the following: "// &

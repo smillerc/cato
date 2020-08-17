@@ -49,7 +49,8 @@ module mod_muscl_tvd2
   type, extends(muscl_interpolation_t) :: muscl_tvd2_t
   contains
     procedure, public :: initialize => init_muscl_tvd2
-    procedure, public :: interpolate_edge_values
+    procedure, public :: interpolate_i_edge_values
+    procedure, public :: interpolate_j_edge_values
     procedure, public :: distinguish_continuous_regions
 
     #:for DIR in DIRECTIONS
@@ -79,42 +80,56 @@ subroutine init_muscl_tvd2(self, limiter)
   self%order = 2
 end subroutine init_muscl_tvd2
 
-subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
+subroutine interpolate_i_edge_values(self, q, q_lbounds, edges, e_lbounds)
   class(muscl_tvd2_t), intent(in) :: self
-  integer(ik), dimension(2), intent(in) :: lbounds
+  integer(ik), dimension(2), intent(in) :: q_lbounds
+  integer(ik), dimension(3), intent(in) :: e_lbounds
+  real(rk), dimension(q_lbounds(1):, q_lbounds(2):), codimension[*], contiguous, intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+  real(rk), dimension(e_lbounds(1):, e_lbounds(2):, e_lbounds(3):), codimension[*], intent(inout) :: edges !<((L,R), i, j); L/R state for each i/j edge
+end subroutine interpolate_i_edge_values
 
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
-  !< (i,j); primitive variable to reconstruct at the edge
+subroutine interpolate_j_edge_values(self, q, q_lbounds, edges, e_lbounds)
+  class(muscl_tvd2_t), intent(in) :: self
+  integer(ik), dimension(2), intent(in) :: q_lbounds
+  integer(ik), dimension(3), intent(in) :: e_lbounds
+  real(rk), dimension(q_lbounds(1):, q_lbounds(2):), codimension[*], contiguous, intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+  real(rk), dimension(e_lbounds(1):, e_lbounds(2):, e_lbounds(3):), codimension[*], intent(inout) :: edges !<((L,R), i, j); L/R state for each i/j edge
+end subroutine interpolate_j_edge_values
 
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
+! subroutine interpolate_edge_values(self, q, q_lbounds, i_edges, j_edges, e_lbounds)
+!   class(muscl_tvd2_t), intent(in) :: self
+!   integer(ik), dimension(2), intent(in) :: q_lbounds
+!   integer(ik), dimension(3), intent(in) :: e_lbounds
+!   real(rk), dimension(q_lbounds(1):, q_lbounds(2):), codimension[*], contiguous, intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+!   real(rk), dimension(e_lbounds(1):, e_lbounds(2):, e_lbounds(3):), codimension[*], intent(inout) :: i_edges !<((L,R), i, j); L/R state for each i edge
+!   real(rk), dimension(e_lbounds(1):, e_lbounds(2):, e_lbounds(3):), codimension[*], intent(inout) :: j_edges !<((L,R), i, j); L/R state for each j edge
 
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interpolate_edge_values()', __FILE__, __LINE__)
+!   if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interpolate_edge_values()', __FILE__, __LINE__)
 
-  select case(trim(self%limiter_name))
-    #:for LIMITER in LIMITERS
-  case("${LIMITER}$")
-    #:for DIR in DIRECTIONS
-    call self%interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(q, lbounds, ${DIR}$_edges)
-    #:endfor
-    #:endfor
-  case default
-    call error_msg(module='mod_muscl_tvd2', class='muscl_tvd2_t', procedure='interpolate_edge_values', &
-                   message="Unknown limiter type: '" // trim(self%limiter_name) // "'", &
-                   file_name=__FILE__, line_number=__LINE__)
-  end select
+!   select case(trim(self%limiter_name))
+!     #:for LIMITER in LIMITERS
+!   case("${LIMITER}$")
+!     #:for DIR in DIRECTIONS
+!     call self%interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(q, lbounds, ${DIR}$_edges)
+!     #:endfor
+!     #:endfor
+!   case default
+!     call error_msg(module='mod_muscl_tvd2', class='muscl_tvd2_t', procedure='interpolate_edge_values', &
+!                    message="Unknown limiter type: '" // trim(self%limiter_name) // "'", &
+!                    file_name=__FILE__, line_number=__LINE__)
+!   end select
 
-end subroutine interpolate_edge_values
+! end subroutine interpolate_edge_values
 
 subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
   !< For plain-jane TVD2, there is no need to distinguish the regions which are continuous or linear/non-linear discontinuity regions. This
   !< is required by the parent class, but is really only implemented in the e-MLP classes.
   class(muscl_tvd2_t), intent(inout) :: self
   integer(ik), dimension(2), intent(in) :: lbounds
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); density
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); density
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); density
+  real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(in) :: rho !< (i,j); density
+  real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(in) :: u !< (i,j); x-velocity
+  real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(in) :: v !< (i,j); y-velocity
+  real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(in) :: p !< (i,j); pressure
 
   if (enable_debug_print) call debug_print('Running muscl_tvd2_t%distinguish_continuous_regions()', __FILE__, __LINE__)
 end subroutine distinguish_continuous_regions
@@ -130,11 +145,8 @@ subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, lbounds, edge_val
   class(muscl_tvd2_t), intent(in) :: self
   integer(ik), dimension(2), intent(in) :: lbounds
 
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
-  !< (i,j); primitive variable to reconstruct at the edge
-
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
-  !<((L,R), i, j); L/R state for each edge
+  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+  real(rk), dimension(:, lbounds(1):, lbounds(2):), codimension[*], intent(inout) :: edge_values !<((L,R), i, j); L/R state for each j edge
 
   integer(ik) :: i, j
   integer(ik) :: ilo, ihi, jlo, jhi
@@ -150,16 +162,16 @@ subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, lbounds, edge_val
 
   ! Because this is an edge-based array, the indexing is # cells + 1, and
   ! only goes into the single nearest ghost layer
-  ilo = lbound(q, dim=1) + n_ghost_layers - 1
-  jlo = lbound(q, dim=2) + n_ghost_layers - 1
-  ihi = ubound(q, dim=1) - n_ghost_layers
-  jhi = ubound(q, dim=2) - n_ghost_layers
+!   ilo = lbound(q, dim=1) + n_ghost_layers - 1
+!   jlo = lbound(q, dim=2) + n_ghost_layers - 1
+!   ihi = ubound(q, dim=1) - n_ghost_layers
+!   jhi = ubound(q, dim=2) - n_ghost_layers
 
-#:if DIR == 'i'
-  allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
-#:elif DIR == 'j'
-  allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
-#:endif
+! ! #:if DIR == 'i'
+! !   allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
+! ! #:elif DIR == 'j'
+! !   allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
+! ! #:endif
 
   edge_values = 0.0_rk
     !

@@ -111,15 +111,14 @@ contains
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: u   !< x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: v   !< y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: p   !< pressure
-
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(inout) :: rho !< density
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(inout) :: u   !< x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(inout) :: v   !< y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(inout) :: p   !< pressure
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
     class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x
@@ -131,17 +130,14 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
 
-    real(rk), dimension(:, :, :), allocatable :: rho_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for density
-    real(rk), dimension(:, :, :), allocatable :: rho_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for density
-
-    real(rk), dimension(:, :, :), allocatable ::   u_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for x-velocity
-    real(rk), dimension(:, :, :), allocatable ::   u_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for x-velocity
-
-    real(rk), dimension(:, :, :), allocatable ::   v_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for y-velocity
-    real(rk), dimension(:, :, :), allocatable ::   v_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for y-velocity
-
-    real(rk), dimension(:, :, :), allocatable ::   p_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for pressure
-    real(rk), dimension(:, :, :), allocatable ::   p_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), codimension[:], allocatable :: rho_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for density
+    real(rk), dimension(:, :, :), codimension[:], allocatable :: rho_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for density
+    real(rk), dimension(:, :, :), codimension[:], allocatable ::   u_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), codimension[:], allocatable ::   u_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), codimension[:], allocatable ::   v_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), codimension[:], allocatable ::   v_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), codimension[:], allocatable ::   p_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), codimension[:], allocatable ::   p_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for pressure
 
     call debug_print('Running ausmpw_plus_solver_t%solve_ausmpw_plus()', __FILE__, __LINE__)
 
@@ -166,10 +162,26 @@ contains
     ! This is useful if e-MLP is used
     call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
+
+    ilo = lbound(q, dim=1) + n_ghost_layers - 1
+    jlo = lbound(q, dim=2) + n_ghost_layers - 1
+    ihi = ubound(q, dim=1) - n_ghost_layers
+    jhi = ubound(q, dim=2) - n_ghost_layers
+
+    allocate(rho_i_edges(1:2, ilo-1:ihi, jlo:jhi)[*])
+    allocate(u_i_edges(1:2,   ilo-1:ihi, jlo:jhi)[*])
+    allocate(v_i_edges(1:2,   ilo-1:ihi, jlo:jhi)[*])
+    allocate(p_i_edges(1:2,   ilo-1:ihi, jlo:jhi)[*])
+
+    allocate(rho_j_edges(1:2, ilo:ihi, jlo-1:jhi)[*])
+    allocate(u_j_edges(1:2,   ilo:ihi, jlo-1:jhi)[*])
+    allocate(v_j_edges(1:2,   ilo:ihi, jlo-1:jhi)[*])
+    allocate(p_j_edges(1:2,   ilo:ihi, jlo-1:jhi)[*])
+
+    ! call edge_interpolator%interpolate_edge_values(q=rho, q_lbounds=lbound(q), e_lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
+    ! call edge_interpolator%interpolate_edge_values(q=u,   q_lbounds=lbound(q), e_lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
+    ! call edge_interpolator%interpolate_edge_values(q=v,   q_lbounds=lbound(q), e_lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
+    ! call edge_interpolator%interpolate_edge_values(q=p,   q_lbounds=lbound(q), e_lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
 
     !
     !                    jflux(i,j)  'R'
@@ -192,8 +204,8 @@ contains
     if(allocated(self%iflux)) deallocate(self%iflux)
     if(allocated(self%jflux)) deallocate(self%jflux)
 
-    allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
-    allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
+    allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi)[*])
+    allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi)[*])
 
     ilo_bc = grid%ilo_bc_cell
     ihi_bc = grid%ihi_bc_cell
@@ -201,7 +213,7 @@ contains
     jhi_bc = grid%jhi_bc_cell
 
     #:for DIR in DIRECTIONS
-    call self%get_${DIR}$flux(grid=grid, lbounds=lbound(rho_${DIR}$_edges), eflux_lbounds=lbound(self%${DIR}$flux), &
+    call self%get_${DIR}$flux(grid=grid, &
                               rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
                               rho_edge=rho_${DIR}$_edges, u_edge=u_${DIR}$_edges, &
                               v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
@@ -229,21 +241,19 @@ contains
   end subroutine solve_ausmpw_plus
 
   #:for DIR in DIRECTIONS
-  subroutine get_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
+  subroutine get_${DIR}$flux(self, grid, rho_edge, u_edge, v_edge, p_edge, rho_ave, u_ave, v_ave, p_ave, edge_flux)
     !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
-    integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_ave    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
-    integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux
+    real(rk), dimension(:, :), codimension[*], intent(in) :: rho_ave    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
+    real(rk), dimension(:, :), codimension[*], intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
+    real(rk), dimension(:, :), codimension[*], intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
+    real(rk), dimension(:, :), codimension[*], intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
+    real(rk), dimension(:, :, :), codimension[*], intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
+    real(rk), dimension(:, :, :), codimension[*], intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), codimension[*], intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), codimension[*], intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+    real(rk), dimension(:, :, :), codimension[*], intent(inout) :: edge_flux
 
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi

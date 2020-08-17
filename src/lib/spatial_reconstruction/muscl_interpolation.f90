@@ -23,7 +23,8 @@ module mod_muscl_interpolation
   contains
     ! procedure(initialize), deferred, public ::  initialize
     procedure(distinguish_continuous_regions), deferred, public :: distinguish_continuous_regions
-    procedure(interpolate_edge_values), deferred, public :: interpolate_edge_values
+    procedure(interpolate_edge_values), deferred, public :: interpolate_i_edge_values
+    procedure(interpolate_edge_values), deferred, public :: interpolate_j_edge_values
   end type
 
   abstract interface
@@ -33,27 +34,24 @@ module mod_muscl_interpolation
       character(len=*), intent(in) :: limiter
     end subroutine initialize
 
-    subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
+    subroutine interpolate_edge_values(self, q, q_lbounds, edges, e_lbounds)
       import :: muscl_interpolation_t, ik, rk
       class(muscl_interpolation_t), intent(in) :: self
-      integer(ik), dimension(2), intent(in) :: lbounds
-
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
-      !< (i,j); primitive variable to reconstruct at the edge
-
-      real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
-      !<((L,R), i, j); L/R state for each edge
-      real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
+      integer(ik), dimension(2), intent(in) :: q_lbounds
+      integer(ik), dimension(3), intent(in) :: e_lbounds
+      real(rk), dimension(q_lbounds(1):, q_lbounds(2):), codimension[*], contiguous, intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+      real(rk), dimension(e_lbounds(1):, e_lbounds(2):, e_lbounds(3):), codimension[*], intent(inout) :: edges !<((L,R), i, j); L/R state for each i/j edge
     end subroutine interpolate_edge_values
 
     subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
       import :: muscl_interpolation_t, ik, rk
       class(muscl_interpolation_t), intent(inout) :: self
       integer(ik), dimension(2), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); x-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); y-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); pressure
+      real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(in) :: rho !< (i,j); density
+      real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(in) :: u !< (i,j); x-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(in) :: v !< (i,j); y-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], contiguous, intent(in) :: p !< (i,j); pressure
+
     end subroutine distinguish_continuous_regions
   end interface
 

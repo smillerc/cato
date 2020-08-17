@@ -1,4 +1,4 @@
-add_library(globals lib/error.f90 lib/hermetic.f90 lib/mod_parallel.f90
+add_library(globals lib/error.f90 lib/mod_parallel.f90
                     lib/units.f90 lib/globals.f90 lib/non_dimensional.f90
                     lib/math_constants.f90 lib/floating_point_utilities.f90)
 
@@ -43,15 +43,16 @@ target_link_libraries(geometry PUBLIC globals io eos functional)
 # Create a list of the files to be preprocessed
 set(fyppFiles
     lib/spatial_reconstruction/muscl_tvd2.fypp
-    lib/spatial_reconstruction/muscl_tvd3.fypp
-    lib/spatial_reconstruction/muscl_tvd5.fypp
-    lib/spatial_reconstruction/muscl_mlp.fypp
-    lib/spatial_reconstruction/muscl_e_mlp.fypp
+    # lib/spatial_reconstruction/muscl_tvd3.fypp
+    # lib/spatial_reconstruction/muscl_tvd5.fypp
+    # lib/spatial_reconstruction/muscl_mlp.fypp
+    # lib/spatial_reconstruction/muscl_e_mlp.fypp
     lib/boundary_conditions/periodic_bc.fypp
-    lib/limiters/e_mlp_distinguisher.fypp
-    lib/flux_solvers/m_ausmpw_plus_solver.fypp
+    # lib/limiters/e_mlp_distinguisher.fypp
+    # lib/flux_solvers/m_ausmpw_plus_solver.fypp
     lib/flux_solvers/ausmpw_plus_solver.fypp
-    lib/flux_solvers/slau_solver.fypp)
+    # lib/flux_solvers/slau_solver.fypp
+    )
 
 # Pre-process
 foreach(infileName IN LISTS fyppFiles)
@@ -80,8 +81,8 @@ endforeach(infileName)
 add_library(
   cato
   ${outFiles}
-  lib/mach_cone/mach_cone_utilities.f90
-  lib/mach_cone/mach_cone_collection.f90
+  # lib/mach_cone/mach_cone_utilities.f90
+  # lib/mach_cone/mach_cone_collection.f90
   lib/mod_timing.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
@@ -93,24 +94,24 @@ add_library(
   lib/source_terms/source_factory.f90
   lib/source_terms/mod_source.f90
   lib/source_terms/energy_source.f90
-  lib/fluid/fluxes.f90
+  # lib/fluid/fluxes.f90
   lib/fluid/flux_array.f90
   lib/fluid/mod_local_fluid.f90
   lib/fluid/mod_global_fluid.f90
   lib/flux_solvers/flux_solver.f90
-  lib/flux_solvers/fvleg_solver.f90
-  lib/flux_solvers/ausm_plus_solver.f90
-  lib/evolution_operator/local_evo_operator.f90
-  lib/spatial_reconstruction/abstract_reconstruction.f90
-  lib/spatial_reconstruction/gradients.f90
-  lib/spatial_reconstruction/piecewise_constant.f90
-  lib/spatial_reconstruction/piecewise_linear.f90
-  lib/spatial_reconstruction/edge_interpolator.f90
-  lib/spatial_reconstruction/edge_interpolator_factory.f90
-  lib/spatial_reconstruction/tvd_2nd_order.f90
-  lib/spatial_reconstruction/tvd_3rd_order.f90
-  lib/spatial_reconstruction/tvd_5th_order.f90
-  lib/spatial_reconstruction/reconstruction_factory.f90
+  # lib/flux_solvers/fvleg_solver.f90
+  # lib/flux_solvers/ausm_plus_solver.f90
+  # lib/evolution_operator/local_evo_operator.f90
+  # lib/spatial_reconstruction/abstract_reconstruction.f90
+  # lib/spatial_reconstruction/gradients.f90
+  # lib/spatial_reconstruction/piecewise_constant.f90
+  # lib/spatial_reconstruction/piecewise_linear.f90
+  # lib/spatial_reconstruction/edge_interpolator.f90
+  # lib/spatial_reconstruction/edge_interpolator_factory.f90
+  # lib/spatial_reconstruction/tvd_2nd_order.f90
+  # lib/spatial_reconstruction/tvd_3rd_order.f90
+  # lib/spatial_reconstruction/tvd_5th_order.f90
+  # lib/spatial_reconstruction/reconstruction_factory.f90
   lib/spatial_reconstruction/muscl_interpolation.f90
   lib/spatial_reconstruction/muscl_factory.f90
   lib/master_puppeteer/master_puppeteer.f90)

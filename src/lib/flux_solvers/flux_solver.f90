@@ -28,7 +28,6 @@ module mod_flux_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print
-  use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -43,10 +42,22 @@ module mod_flux_solver
   type, abstract :: flux_solver_t
     type(input_t) :: input
     character(len=32) :: name = ''
+    ! real(rk), allocatable :: dummy_to_facilitate_extension[:]
     integer(ik) :: iteration = 0
     real(rk) :: time = 0.0_rk
     real(rk) :: dt = 0.0_rk
 
+    ! Coarray image indexing
+    integer(ik), dimension(4) :: neighbors !< neighboring images
+    integer(ik), dimension(4) :: node_dims_global = 0 !< (ilo, ihi, jlo, jhi); global node-based dimensions (w/ ghost)
+    integer(ik), dimension(4) :: node_dims_img = 0    !< (ilo, ihi, jlo, jhi); local image node-based dimensions (w/ ghost)
+    integer(ik), dimension(4) :: cell_dims_global = 0 !< (ilo, ihi, jlo, jhi); global node-based dimensions (w/ ghost)
+    integer(ik), dimension(4) :: cell_dims_img = 0    !< (ilo, ihi, jlo, jhi); local image node-based dimensions (w/ ghost)
+
+    logical, allocatable :: img_on_ilo_bc[:] !< is this image on the boundary for ilo?
+    logical, allocatable :: img_on_ihi_bc[:] !< is this image on the boundary for ihi?
+    logical, allocatable :: img_on_jlo_bc[:] !< is this image on the boundary for jlo?
+    logical, allocatable :: img_on_jhi_bc[:] !< is this image on the boundary for jhi?
   contains
     ! Public methods
     procedure, public :: init_boundary_conditions
@@ -59,8 +70,8 @@ module mod_flux_solver
   end type flux_solver_t
 
   type, abstract, extends(flux_solver_t) :: edge_split_flux_solver_t
-    real(rk), dimension(:, :, :), allocatable :: iflux !< ((1:4), i, j) edge flux of the i-direction edges
-    real(rk), dimension(:, :, :), allocatable :: jflux !< ((1:4), i, j) edge flux of the j-direction edges
+    real(rk), dimension(:, :, :), codimension[*], allocatable :: iflux !< ((1:4), i, j) edge flux of the i-direction edges
+    real(rk), dimension(:, :, :), codimension[*], allocatable :: jflux !< ((1:4), i, j) edge flux of the j-direction edges
   contains
     procedure, public :: flux_split_edges
   end type edge_split_flux_solver_t
@@ -75,14 +86,14 @@ module mod_flux_solver
       class(grid_t), intent(in) :: grid
       integer(ik), dimension(2), intent(in) :: lbounds
       real(rk), intent(in) :: dt
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: u   !< x-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: v   !< y-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: p   !< pressure
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+      real(rk), dimension(:, :), codimension[*], contiguous, intent(inout) :: rho !< density
+      real(rk), dimension(:, :), codimension[*], contiguous, intent(inout) :: u   !< x-velocity
+      real(rk), dimension(:, :), codimension[*], contiguous, intent(inout) :: v   !< y-velocity
+      real(rk), dimension(:, :), codimension[*], contiguous, intent(inout) :: p   !< pressure
+      real(rk), dimension(:, :), codimension[*], contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
+      real(rk), dimension(:, :), codimension[*], contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
+      real(rk), dimension(:, :), codimension[*], contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
+      real(rk), dimension(:, :), codimension[*], contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
     end subroutine
 
     subroutine initialize(self, input)
@@ -142,10 +153,10 @@ contains
                                 bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
     class(flux_solver_t), intent(inout) :: self
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(inout) :: rho
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(inout) :: u
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(inout) :: v
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(inout) :: p
     class(boundary_condition_t), intent(inout):: bc_plus_x
     class(boundary_condition_t), intent(inout):: bc_plus_y
     class(boundary_condition_t), intent(inout):: bc_minus_x
@@ -155,6 +166,8 @@ contains
     integer(ik) :: max_priority_bc !< highest goes first
 
     call debug_print('Running flux_solver_t%apply()', __FILE__, __LINE__)
+
+    ! if (self%on_boundary[1]) then
 
     max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
                           bc_minus_x%priority, bc_minus_y%priority)
@@ -183,6 +196,7 @@ contains
       end if
 
     end do
+    ! end if
 
   end subroutine apply_primitive_bc
 
@@ -191,10 +205,10 @@ contains
     class(edge_split_flux_solver_t), intent(in) :: self
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(out) ::   d_rho_dt    !< d/dt of the density field
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
+    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
