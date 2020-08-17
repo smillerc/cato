@@ -289,7 +289,7 @@ contains
 
     if(this_image() == 1) then
       ! Header info
-      call self%hdf5_file%add('/title', fv_scheme%title)
+      call self%hdf5_file%add('/title', master%title)
 
       call self%hdf5_file%add('/iteration', iteration)
       call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
@@ -299,7 +299,7 @@ contains
       call self%hdf5_file%writeattr('/time', 'description', 'Simulation Time')
       call self%hdf5_file%writeattr('/time', 'units', io_time_label)
 
-      call self%hdf5_file%add('/delta_t', fv_scheme%delta_t)
+      call self%hdf5_file%add('/delta_t', master%dt * io_time_units)
       call self%hdf5_file%writeattr('/delta_t', 'description', 'Simulation Timestep')
       call self%hdf5_file%writeattr('/delta_t', 'units', 'seconds')
 

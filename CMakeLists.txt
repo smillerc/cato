@@ -21,6 +21,8 @@
 # SOFTWARE.
 
 # CMake configuration options
+#     -DUSE_COARRAY=[YES/NO]
+#         Enable coarray parallelization
 #     -DUSE_OPENMP=[YES/NO]
 #         Enable OpenMP parallelization and SIMD vectorization
 #     -DOUTPUT_OPTIMIZATION_REPORTS=[YES/NO]
@@ -38,7 +40,7 @@ project(
   CATO
   DESCRIPTION "A modern fortran implementation of the FVLEG scheme"
   HOMEPAGE_URL "https://github.com/smillerc/cato"
-  LANGUAGES Fortran C)
+  LANGUAGES Fortran)
 
 set(CATO_VERSION_MAJOR 1)
 set(CATO_VERSION_MINOR 5)
@@ -68,13 +70,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 include(OptimizeForArchitecture)
 optimizeforarchitecture()
 
-# Set __ALIGNBYTES__ for use in OpenMP/Compiler SIMD alignment statements, e.g. __ALIGNBYTES__ = 32
-add_compile_definitions(__ALIGNBYTES__=${MEMORY_ALIGN_BYTES})
-
-if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
-  add_compile_definitions(__SIMD_ALIGN_OMP__)
-endif()
-
 # Determine the number of cores (useful for single machine, shared-memory build)
 include(ProcessorCount)
 processorcount(N_CORES)
@@ -103,47 +98,35 @@ else()
   endif()
 endif()
 
-# Default to a parallel build
-if(DISTRIBUTED_MEMORY AND SHARED_MEMORY)
-  message(FATAL_ERROR "Cannot enable DISTRIBUTED_MEMORY and SHARED_MEMORY at the same time")
-endif()
+find_package(Coarray REQUIRED)
 
-set(SERIAL_BUILD On) # Make this default for now (until coarray is finished)
-# Packages find_package(Coarray REQUIRED)
+set(SERIAL_BUILD Off)
 
-find_package(
-  HDF5
-  COMPONENTS Fortran_HL Fortran
-  REQUIRED)
+find_package(HDF5 COMPONENTS Fortran_HL Fortran REQUIRED)
 
-if(NOT SERIAL_BUILD)
-  set(SERIAL_BUILD Off)
-  # Set for coarray compile type
-  if(DISTRIBUTED_MEMORY)
-    message(STATUS "Configuring for parallel distributed-memory build")
-    set(DISTRIBUTED_MEMORY On)
-    set(SHARED_MEMORY Off)
-  else()
-    message(STATUS "Configuring for parallel shared-memory build")
-    set(DISTRIBUTED_MEMORY Off)
-    set(SHARED_MEMORY On)
-  endif()
+# if(NOT SERIAL_BUILD)
+#   set(SERIAL_BUILD Off)
+#   # Set for coarray compile type
+#   if(DISTRIBUTED_MEMORY)
+#     message(STATUS "Configuring for parallel distributed-memory build")
+#     set(DISTRIBUTED_MEMORY On)
+#     set(SHARED_MEMORY Off)
+#   else()
+#     message(STATUS "Configuring for parallel shared-memory build")
+#     set(DISTRIBUTED_MEMORY Off)
+#     set(SHARED_MEMORY On)
+#   endif()
 
-else()
-  # SERIAL_BUILD
-  message(STATUS "Configuring for serial single-core build")
-  set(N_CORES 1)
-  set(DISTRIBUTED_MEMORY Off)
-  set(SHARED_MEMORY On)
-endif()
+# else()
+#   # SERIAL_BUILD
+#   message(STATUS "Configuring for serial single-core build")
+#   set(N_CORES 1)
+#   set(DISTRIBUTED_MEMORY Off)
+#   set(SHARED_MEMORY On)
+# endif()
 
 # Set compiler flags
 include(SetFortranFlags)
-
-# Profile the code?
-if(NOT ENABLE_PROFILING)
-  set(ENABLE_PROFILING Off)
-endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   message(STATUS "Compile Flags: ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_RELEASE} ")

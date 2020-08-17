@@ -42,18 +42,13 @@ if(NOT OUTPUT_OPTIMIZATION_REPORTS)
   set(OUTPUT_OPTIMIZATION_REPORTS Off)
 endif()
 
+# Set __ALIGNBYTES__ for use in OpenMP/Compiler SIMD alignment statements, e.g. __ALIGNBYTES__ = 32
+add_compile_definitions(__ALIGNBYTES__=${MEMORY_ALIGN_BYTES})
+
 # gfortran
 if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
 
-  # There is some bug where -march=native doesn't work on Mac
-  if(APPLE)
-    set(GNUNATIVE "-mtune=native")
-  else()
-    set(GNUNATIVE "-march=native")
-  endif()
-
-  # set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
-  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
+  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
   if(USE_OPENMP)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
   endif()
@@ -89,11 +84,10 @@ endif()
 # ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
+  add_compile_definitions(__SIMD_ALIGN_OMP__)
   set(IFORT_FLAGS
       "-fpp -inline-max-size=300 -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -assume contiguous_assumed_shape -diag-disable 5268 -diag-disable 7025 -diag-disable 8770 -diag-disable 6477 ${Coarray_COMPILE_OPTIONS}"
   )
-  # set(IFORT_FLAGS "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770
-  # ${Coarray_COMPILE_OPTIONS}" )
 
   if(USE_OPENMP)
     set(IFORT_FLAGS "${IFORT_FLAGS} ${OpenMP_Fortran_FLAGS}")
