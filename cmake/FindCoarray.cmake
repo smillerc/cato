@@ -40,8 +40,10 @@ The following cache variables may also be set:
   The coarray libraries, if needed and found
 #]=======================================================================]
 
-set(options_coarray Intel NAG) # flags needed
-set(opencoarray_supported GNU)
+cmake_policy(VERSION 3.3)
+
+set(options_coarray Intel)  # flags needed
+set(opencoarray_supported GNU)  # future: Flang, etc.
 
 unset(Coarray_COMPILE_OPTIONS)
 unset(Coarray_LIBRARY)
@@ -50,80 +52,51 @@ unset(Coarray_REQUIRED_VARS)
 if(CMAKE_Fortran_COMPILER_ID IN_LIST options_coarray)
 
   if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
-    if(WIN32)
-      set(Coarray_COMPILE_OPTIONS /Qcoarray:shared)
-      set(Coarray_REQUIRED_VARS ${Coarray_COMPILE_OPTIONS})
-    elseif(UNIX AND NOT APPLE)
-      set(Coarray_COMPILE_OPTIONS -coarray=shared)
-      set(Coarray_LIBRARY -coarray=shared) # ifort requires it at build AND link
-      set(Coarray_REQUIRED_VARS ${Coarray_LIBRARY})
-    endif()
-  elseif(CMAKE_Fortran_COMPILER_ID STREQUAL NAG)
-    set(Coarray_COMPILE_OPTIONS -coarray)
-    set(Coarray_REQUIRED_VARS ${Coarray_COMPILE_OPTIONS})
+    set(Coarray_COMPILE_OPTIONS -coarray=shared)
+    set(Coarray_LIBRARY -coarray=shared)  # ifort requires it at build AND link
   endif()
+
+  list(APPEND Coarray_REQUIRED_VARS ${Coarray_LIBRARY})
 
 elseif(CMAKE_Fortran_COMPILER_ID IN_LIST opencoarray_supported)
 
-  find_package(OpenCoarrays QUIET)
+  find_package(OpenCoarrays)
+
   if(OpenCoarrays_FOUND)
     set(Coarray_LIBRARY OpenCoarrays::caf_mpi)
+
+    set(Coarray_EXECUTABLE cafrun)
+
+    include(ProcessorCount)
+    ProcessorCount(Nproc)
+    set(Coarray_MAX_NUMPROCS ${Nproc})
+    set(Coarray_NUMPROC_FLAG -np)
+
+    list(APPEND Coarray_REQUIRED_VARS ${Coarray_LIBRARY})
+  elseif(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
+    set(Coarray_COMPILE_OPTIONS -fcoarray=single)
+    list(APPEND Coarray_REQUIRED_VARS ${Coarray_COMPILE_OPTIONS})
   endif()
 
-  if(NOT Coarray_LIBRARY)
-    find_package(PkgConfig)
-    pkg_check_modules(pc_caf caf caf_mpi)
-    if(NOT pc_caf_FOUND)
-      pkg_check_modules(pc_caf caf-openmpi)
-    endif()
-
-    find_library(
-      Coarray_LIBRARY
-      NAMES ${pc_caf_LIBRARIES}
-      HINTS ${pc_caf_LIBRARY_DIRS})
-
-    find_path(
-      Coarray_INCLUDE_DIR
-      NAMES opencoarrays.mod
-      HINTS ${pc_caf_INCLUDE_DIRS})
-
-    if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
-      set(Coarray_COMPILE_OPTIONS -fcoarray=lib)
-    endif()
-
-    set(Coarray_REQUIRED_VARS ${Coarray_LIBRARY})
-  endif(NOT Coarray_LIBRARY)
-
 endif()
+
+
+set(CMAKE_REQUIRED_FLAGS ${Coarray_COMPILE_OPTIONS})
+set(CMAKE_REQUIRED_LIBRARIES ${Coarray_LIBRARY})
+include(CheckFortranSourceCompiles)
+check_fortran_source_compiles("program a; real :: x[*]; end" f08coarray SRC_EXT f90)
+unset(CMAKE_REQUIRED_FLAGS)
+unset(CMAKE_REQUIRED_LIBRARIES)
+
+list(APPEND Coarray_REQUIRED_VARS ${f08coarray})
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(Coarray REQUIRED_VARS Coarray_REQUIRED_VARS)
+find_package_handle_standard_args(Coarray
+  REQUIRED_VARS Coarray_REQUIRED_VARS)
 
-if(Coarray_FOUND)
-  set(Coarray_LIBRARIES ${Coarray_LIBRARY})
-  set(Coarray_INCLUDE_DIRS ${Coarray_INCLUDE_DIR})
+set(Coarray_LIBRARIES ${Coarray_LIBRARY})
 
-  if(NOT DEFINED Coarray::Coarray)
 
-    if(Coarray_LIBRARY)
-      add_library(Coarray::Coarray IMPORTED UNKNOWN)
-      set_target_properties(Coarray::Coarray PROPERTIES IMPORTED_LOCATION
-                                                        ${Coarray_LIBRARY})
-    else() # flags only
-      add_library(Coarray::Coarray INTERFACE IMPORTED)
-    endif()
-
-    if(Coarray_INCLUDE_DIR)
-      set_target_properties(
-        Coarray::Coarray PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-                                    ${Coarray_INCLUDE_DIR})
-    endif()
-    if(Coarray_COMPILE_OPTIONS)
-      set_target_properties(
-        Coarray::Coarray PROPERTIES INTERFACE_COMPILE_OPTIONS
-                                    ${Coarray_COMPILE_OPTIONS})
-    endif()
-  endif()
-endif()
-
-mark_as_advanced(Coarray_LIBRARY Coarray_INCLUDE_DIR Coarray_REQUIRED_VARS)
+mark_as_advanced(
+  Coarray_LIBRARY
+  Coarray_REQUIRED_VARS)

@@ -25,7 +25,7 @@ module mod_timing
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, int64, std_out => output_unit
   use mod_master_puppeteer, only: master_puppeteer_t
   use mod_nondimensionalization, only: t_0
-  use mod_fluid, only: fluid_t
+  use mod_global_fluid, only: global_fluid_t
 
   implicit none
 

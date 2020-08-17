@@ -95,7 +95,8 @@ add_library(
   lib/source_terms/energy_source.f90
   lib/fluid/fluxes.f90
   lib/fluid/flux_array.f90
-  lib/fluid/mod_fluid.f90
+  lib/fluid/mod_local_fluid.f90
+  lib/fluid/mod_global_fluid.f90
   lib/flux_solvers/flux_solver.f90
   lib/flux_solvers/fvleg_solver.f90
   lib/flux_solvers/ausm_plus_solver.f90
@@ -128,7 +129,7 @@ target_link_libraries(
          ${HDF5_HL_LIBRARIES})
 
 add_executable(cato.x main.f90)
-target_compile_options(coarray_pi PRIVATE ${Coarray_COMPILE_OPTIONS})
+target_compile_options(cato PRIVATE ${Coarray_COMPILE_OPTIONS})
 
 target_link_libraries(
   cato.x cato functional finterp ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES}

@@ -34,7 +34,7 @@ module mod_master_puppeteer
   use mod_grid_factory, only: grid_factory
   use hdf5_interface, only: hdf5_file
   use mod_nondimensionalization, only: set_scale_factors
-  use mod_fluid, only: fluid_t, new_fluid
+  use mod_global_fluid, only: global_fluid_t
 
   implicit none
   private
@@ -48,7 +48,7 @@ module mod_master_puppeteer
     real(rk) :: dt = 0.0_rk      !< time step
     real(rk) :: time = 0.0_rk    !< simulation time
     class(grid_t), allocatable :: grid   !< grid topology
-    class(fluid_t), allocatable :: fluid !< fluid physics
+    class(global_fluid_t), allocatable :: fluid !< fluid physics
 
   contains
     procedure, public :: initialize
@@ -79,7 +79,7 @@ contains
 
     ! Locals
     class(grid_t), pointer :: grid => null()
-    class(fluid_t), pointer :: fluid => null()
+    class(global_fluid_t), pointer :: fluid => null()
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
     character(32) :: str_buff
@@ -118,10 +118,10 @@ contains
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
 
-    fluid => new_fluid(input, self%grid)
-    allocate(self%fluid, source=fluid, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%fluid"
-    deallocate(fluid)
+    ! fluid => new_fluid(input, self%grid)
+    ! allocate(self%fluid, source=fluid, stat=alloc_status)
+    ! if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%fluid"
+    ! deallocate(fluid)
   end subroutine initialize
 
   subroutine finalize(self)

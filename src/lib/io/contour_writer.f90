@@ -23,7 +23,7 @@ module mod_contour_writer
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, real32
   use mod_master_puppeteer, only: master_puppeteer_t
   use mod_globals, only: n_ghost_layers
-  use mod_fluid, only: fluid_t
+  use mod_global_fluid, only: global_fluid_t
   use mod_units
   use mod_nondimensionalization, only: rho_0, v_0, p_0, t_0, l_0, e_0
   use mod_eos, only: eos
@@ -317,10 +317,6 @@ contains
       call self%hdf5_file%writeattr('/cato_info', 'compile_os', compile_os)
       call self%hdf5_file%writeattr('/cato_info', 'build_type', build_type)
     end if
-
-    call self%write_2d_integer_data(data=master%fluid%continuous_sensor(ilo:ihi, jlo:jhi), name='/continuity_sensor', &
-                               description='Continuity Sensor [0=continuous, 1=linear discontinuity, 2=non-linear discontinuity]', &
-                                    units='dimensionless')
 
     ! Primitive Variables
     dataset_name = '/density'
