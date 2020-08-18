@@ -47,6 +47,9 @@ module mod_flux_solver
     real(rk) :: time = 0.0_rk
     real(rk) :: dt = 0.0_rk
 
+    integer(ik), dimension(2) :: primitive_lbounds = 0 !< lower bounds of the primitive variables
+    integer(ik), dimension(2) :: primitive_ubounds = 0 !< upper bounds of the primitive variables
+
     ! Coarray image indexing
     integer(ik), dimension(4) :: neighbors !< neighboring images
     integer(ik), dimension(4) :: node_dims_global = 0 !< (ilo, ihi, jlo, jhi); global node-based dimensions (w/ ghost)
@@ -58,6 +61,7 @@ module mod_flux_solver
     logical, allocatable :: img_on_ihi_bc[:] !< is this image on the boundary for ihi?
     logical, allocatable :: img_on_jlo_bc[:] !< is this image on the boundary for jlo?
     logical, allocatable :: img_on_jhi_bc[:] !< is this image on the boundary for jhi?
+    logical, allocatable :: img_on_bc[:]
   contains
     ! Public methods
     procedure, public :: init_boundary_conditions
@@ -77,23 +81,22 @@ module mod_flux_solver
   end type edge_split_flux_solver_t
 
   abstract interface
-    subroutine solve(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    subroutine solve(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
       !< Solve and flux the edges
       import :: ik, rk
       import :: flux_solver_t
       import :: grid_t
       class(flux_solver_t), intent(inout) :: self
       class(grid_t), intent(in) :: grid
-      integer(ik), dimension(2), intent(in) :: lbounds
       real(rk), intent(in) :: dt
-      real(rk), dimension(:, :), codimension[*], contiguous, intent(inout) :: rho !< density
-      real(rk), dimension(:, :), codimension[*], contiguous, intent(inout) :: u   !< x-velocity
-      real(rk), dimension(:, :), codimension[*], contiguous, intent(inout) :: v   !< y-velocity
-      real(rk), dimension(:, :), codimension[*], contiguous, intent(inout) :: p   !< pressure
-      real(rk), dimension(:, :), codimension[*], contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
-      real(rk), dimension(:, :), codimension[*], contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-      real(rk), dimension(:, :), codimension[*], contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-      real(rk), dimension(:, :), codimension[*], contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+      real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: rho !< density
+      real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: u   !< x-velocity
+      real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: v   !< y-velocity
+      real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: p   !< pressure
+      real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: d_rho_dt   !< d/dt of the density field
+      real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: d_rho_u_dt !< d/dt of the rhou field
+      real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: d_rho_v_dt !< d/dt of the rhov field
+      real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: d_rho_E_dt !< d/dt of the rhoE field
     end subroutine
 
     subroutine initialize(self, input)
@@ -167,48 +170,47 @@ contains
 
     call debug_print('Running flux_solver_t%apply()', __FILE__, __LINE__)
 
-    ! if (self%on_boundary[1]) then
+    if(self%img_on_bc) then
 
-    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
-                          bc_minus_x%priority, bc_minus_y%priority)
+      max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
+                            bc_minus_x%priority, bc_minus_y%priority)
 
-    call bc_plus_x%set_time(time=self%time)
-    call bc_minus_x%set_time(time=self%time)
-    call bc_plus_y%set_time(time=self%time)
-    call bc_minus_y%set_time(time=self%time)
+      call bc_plus_x%set_time(time=self%time)
+      call bc_minus_x%set_time(time=self%time)
+      call bc_plus_y%set_time(time=self%time)
+      call bc_minus_y%set_time(time=self%time)
 
-    do priority = max_priority_bc, 0, -1
+      do priority = max_priority_bc, 0, -1
 
-      if(bc_plus_x%priority == priority) then
-        call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
+        if(bc_plus_x%priority == priority) then
+          call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+        end if
 
-      if(bc_plus_y%priority == priority) then
-        call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
+        if(bc_plus_y%priority == priority) then
+          call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+        end if
 
-      if(bc_minus_x%priority == priority) then
-        call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
+        if(bc_minus_x%priority == priority) then
+          call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+        end if
 
-      if(bc_minus_y%priority == priority) then
-        call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-      end if
+        if(bc_minus_y%priority == priority) then
+          call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+        end if
 
-    end do
-    ! end if
+      end do
+    end if
 
   end subroutine apply_primitive_bc
 
-  subroutine flux_split_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine flux_split_edges(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
     class(edge_split_flux_solver_t), intent(in) :: self
     class(grid_t), intent(in) :: grid
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), codimension[*], intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+    real(rk), dimension(grid%ilo_bc_cell:, grid%ihi_bc_cell:), codimension[*], intent(out) ::   d_rho_dt    !< d/dt of the density field
+    real(rk), dimension(grid%ilo_bc_cell:, grid%ihi_bc_cell:), codimension[*], intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
+    real(rk), dimension(grid%ilo_bc_cell:, grid%ihi_bc_cell:), codimension[*], intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
+    real(rk), dimension(grid%ilo_bc_cell:, grid%ihi_bc_cell:), codimension[*], intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi

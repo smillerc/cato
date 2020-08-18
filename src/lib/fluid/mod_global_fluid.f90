@@ -470,15 +470,18 @@ contains
     end select
   end subroutine integrate
 
-  function time_derivative(self, grid, stage) result(d_dt)
+  subroutine time_derivative(self, grid, stage, d_dt_rho, d_dt_rho_u, d_dt_rho_v, d_dt_rho_E)
     !< Implementation of the time derivative
-
     ! Inputs/Output
     class(global_fluid_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid     !< grid class - the solver needs grid topology
     type(local_fluid_t), allocatable :: d_dt    !< dU/dt
     integer(ik), intent(in) :: stage      !< stage in the time integration scheme
 
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: d_dt_rho
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: d_dt_rho_u
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: d_dt_rho_v
+    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), codimension[*], intent(inout) :: d_dt_rho_E
     ! Locals
     integer(ik), dimension(2) :: lbounds
 
@@ -487,14 +490,14 @@ contains
     lbounds = lbound(self%rho)
     allocate(d_dt)
     call self%solver%solve(dt=self%dt, &
-                           grid=grid, lbounds=lbounds, &
+                           grid=grid, &
                            rho=self%rho, u=self%u, v=self%v, p=self%p, &
-                           d_rho_dt=d_dt%rho, &
-                           d_rho_u_dt=d_dt%rho_u, &
-                           d_rho_v_dt=d_dt%rho_v, &
-                           d_rho_E_dt=d_dt%rho_E)
+                           d_rho_dt=d_dt_rho, &
+                           d_rho_u_dt=d_dt_rho_u, &
+                           d_rho_v_dt=d_dt_rho_v, &
+                           d_rho_E_dt=d_dt_rho_E)
 
-  end function time_derivative
+  end subroutine time_derivative
 
   subroutine calculate_derived_quantities(self)
     !< Find derived quantities like sound speed, mach number, primitive variables
@@ -725,33 +728,83 @@ contains
     class(grid_t), intent(in) :: grid
     integer(ik), intent(out) :: error_code
 
-    type(local_fluid_t), allocatable :: U_1 !< first stage
-    type(local_fluid_t), allocatable :: R !< hist
+    class(global_fluid_t), allocatable :: U_1 !< first stage
 
-    ! call debug_print('Running global_fluid_t%rk2()', __FILE__, __LINE__)
+    real(rk), dimension(:, :), codimension[:], allocatable :: d_dt_rho
+    real(rk), dimension(:, :), codimension[:], allocatable :: d_dt_rho_u
+    real(rk), dimension(:, :), codimension[:], allocatable :: d_dt_rho_v
+    real(rk), dimension(:, :), codimension[:], allocatable :: d_dt_rho_E
 
-    ! allocate(U_1, source=U)
-    ! allocate(R, source=U)
+    integer(ik) :: img_ilo
+    integer(ik) :: img_ihi
+    integer(ik) :: img_jlo
+    integer(ik) :: img_jhi
+    real(rk) :: dt
 
-    ! ! 1st stage
-    ! associate(dt => U%dt)
-    !   call debug_print(new_line('a')//'Running global_fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
-    !   U_1 = U + U%t(grid, stage=1) * dt
-    !   call U_1%residual_smoother()
+    allocate(d_dt_rho(grid%ilo_bc_cell:grid%ihi_bc_cell, grid%jlo_bc_cell:grid%jhi_bc_cell)[*])
+    allocate(d_dt_rho_u(grid%ilo_bc_cell:grid%ihi_bc_cell, grid%jlo_bc_cell:grid%jhi_bc_cell)[*])
+    allocate(d_dt_rho_v(grid%ilo_bc_cell:grid%ihi_bc_cell, grid%jlo_bc_cell:grid%jhi_bc_cell)[*])
+    allocate(d_dt_rho_E(grid%ilo_bc_cell:grid%ihi_bc_cell, grid%jlo_bc_cell:grid%jhi_bc_cell)[*])
 
-    !   ! Final stage
-    !   call debug_print(new_line('a')//'Running global_fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
-    !   U = U * 0.5_rk + U_1 * 0.5_rk + &
-    !       U_1%t(grid, stage=2) * (0.5_rk * dt)
-    !   call U%residual_smoother()
-    !   call U%sanity_check(error_code)
-
-    !   ! ! Convergence history
-    !   call write_residual_history(first_stage=U_1, last_stage=U)
+    ! associate(ilo => self%cell_dims_global(1), ihi => self%cell_dims_global(2), &
+    !           jlo => self%cell_dims_global(3), jhi => self%cell_dims_global(4))
     ! end associate
 
-    ! deallocate(R)
-    ! deallocate(U_1)
+    allocate(U_1, source=U)
+
+    dt = U%dt
+
+    ! Start and end indices for each image
+    img_ilo = U%cell_dims_img(1)
+    img_ihi = U%cell_dims_img(2)
+    img_jlo = U%cell_dims_img(3)
+    img_jhi = U%cell_dims_img(4)
+
+    ! Stage 1
+    call U%t(grid, stage=1, d_dt_rho=d_dt_rho, d_dt_rho_u=d_dt_rho_u, d_dt_rho_v=d_dt_rho_v, d_dt_rho_E=d_dt_rho_E)
+
+    ! U_1 = U + 0.5 * U%t * dt
+    U_1%rho(img_ilo:img_ihi, img_jlo:img_jhi) = U%rho(img_ilo:img_ihi, img_jlo:img_jhi) &
+                                                + 0.5_rk * d_dt_rho(img_ilo:img_ihi, img_jlo:img_jhi) * dt
+
+    U_1%rho_u(img_ilo:img_ihi, img_jlo:img_jhi) = U%rho_u(img_ilo:img_ihi, img_jlo:img_jhi) &
+                                                  + 0.5_rk * d_dt_rho_u(img_ilo:img_ihi, img_jlo:img_jhi) * dt
+
+    U_1%rho_v(img_ilo:img_ihi, img_jlo:img_jhi) = U%rho_v(img_ilo:img_ihi, img_jlo:img_jhi) &
+                                                  + 0.5_rk * d_dt_rho_v(img_ilo:img_ihi, img_jlo:img_jhi) * dt
+
+    U_1%rho_E(img_ilo:img_ihi, img_jlo:img_jhi) = U%rho_E(img_ilo:img_ihi, img_jlo:img_jhi) &
+                                                  + 0.5_rk * d_dt_rho_E(img_ilo:img_ihi, img_jlo:img_jhi) * dt
+
+    sync all
+
+    ! Final stage
+    ! U = U + U%t * dt
+    call U_1%t(grid, stage=2, d_dt_rho=d_dt_rho, d_dt_rho_u=d_dt_rho_u, d_dt_rho_v=d_dt_rho_v, d_dt_rho_E=d_dt_rho_E)
+
+    U%rho(img_ilo:img_ihi, img_jlo:img_jhi) = 0.5_rk * U%rho(img_ilo:img_ihi, img_jlo:img_jhi) + &
+                                              0.5_rk * U_1%rho(img_ilo:img_ihi, img_jlo:img_jhi) + &
+                                              0.5_rk * d_dt_rho(img_ilo:img_ihi, img_jlo:img_jhi) * dt
+
+    U%rho_u(img_ilo:img_ihi, img_jlo:img_jhi) = 0.5_rk * U%rho_u(img_ilo:img_ihi, img_jlo:img_jhi) + &
+                                                0.5_rk * U_1%rho_u(img_ilo:img_ihi, img_jlo:img_jhi) + &
+                                                0.5_rk * d_dt_rho_u(img_ilo:img_ihi, img_jlo:img_jhi) * dt
+
+    U%rho_v(img_ilo:img_ihi, img_jlo:img_jhi) = 0.5_rk * U%rho_v(img_ilo:img_ihi, img_jlo:img_jhi) + &
+                                                0.5_rk * U_1%rho_v(img_ilo:img_ihi, img_jlo:img_jhi) + &
+                                                0.5_rk * d_dt_rho_v(img_ilo:img_ihi, img_jlo:img_jhi) * dt
+
+    U%rho_E(img_ilo:img_ihi, img_jlo:img_jhi) = 0.5_rk * U%rho_E(img_ilo:img_ihi, img_jlo:img_jhi) + &
+                                                0.5_rk * U_1%rho_E(img_ilo:img_ihi, img_jlo:img_jhi) + &
+                                                0.5_rk * d_dt_rho_E(img_ilo:img_ihi, img_jlo:img_jhi) * dt
+
+    sync all
+
+    deallocate(U_1)
+    deallocate(d_dt_rho)
+    deallocate(d_dt_rho_u)
+    deallocate(d_dt_rho_v)
+    deallocate(d_dt_rho_E)
 
   end subroutine ssp_rk2
 
