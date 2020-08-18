@@ -1,5 +1,12 @@
-add_library(globals lib/error.f90 lib/hermetic.f90 lib/units.f90 lib/globals.f90 lib/non_dimensional.f90
-                    lib/math_constants.f90 lib/floating_point_utilities.f90)
+add_library(
+  globals
+  lib/error.f90
+  lib/units.f90
+  lib/globals.f90
+  lib/non_dimensional.f90
+  lib/field/field_2d.f90
+  lib/math_constants.f90
+  lib/floating_point_utilities.f90)
 
 add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
                        third_party/ini_parser/string_conv_mod.f90)
@@ -19,9 +26,7 @@ target_include_directories(io PUBLIC ${HDF5_INCLUDE_DIRS})
 target_link_libraries(io PUBLIC globals ini_parser ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
 target_link_libraries(eos PUBLIC io)
 
-add_library(
-  utilities lib/limiters/slope_limiter.f90 lib/limiters/flux_limiter.f90
-)
+add_library(utilities lib/limiters/slope_limiter.f90 lib/limiters/flux_limiter.f90)
 target_link_libraries(utilities PUBLIC globals)
 
 add_library(
@@ -37,7 +42,7 @@ add_library(
 
 target_link_libraries(geometry PUBLIC globals io eos functional)
 
-### Pre-process: .fypp -> .f90 via Fypp
+# Pre-process: .fypp -> .f90 via Fypp
 
 # Create a list of the files to be preprocessed
 set(fyppFiles
@@ -55,24 +60,24 @@ set(fyppFiles
 # Pre-process
 foreach(infileName IN LISTS fyppFiles)
 
-    # Generate output file name
-    string(REGEX REPLACE ".fypp\$" ".f90" outfileName "${infileName}")
-    # Generate input file name
-    set(infile "${CMAKE_CURRENT_SOURCE_DIR}/${infileName}")
+  # Generate output file name
+  string(REGEX REPLACE ".fypp\$" ".f90" outfileName "${infileName}")
+  # Generate input file name
+  set(infile "${CMAKE_CURRENT_SOURCE_DIR}/${infileName}")
 
-    # Create the full path for the new file
-    get_filename_component(f90_file ${outfileName} NAME)
-    set(outfile "${CMAKE_BINARY_DIR}/generated/${f90_file}")
+  # Create the full path for the new file
+  get_filename_component(f90_file ${outfileName} NAME)
+  set(outfile "${CMAKE_BINARY_DIR}/generated/${f90_file}")
 
-    # Custom command to do the processing
-    add_custom_command(
-        OUTPUT "${outfile}"
-        COMMAND fypp "${infile}" "${outfile}"
-        MAIN_DEPENDENCY "${infile}"
-        VERBATIM)
+  # Custom command to do the processing
+  add_custom_command(
+    OUTPUT "${outfile}"
+    COMMAND fypp "${infile}" "${outfile}"
+    MAIN_DEPENDENCY "${infile}"
+    VERBATIM)
 
-    # Finally add output file to a list
-    set(outFiles ${outFiles} "${outfile}")
+  # Finally add output file to a list
+  set(outFiles ${outFiles} "${outfile}")
 
 endforeach(infileName)
 
