@@ -91,7 +91,7 @@ class _MultiFileCloser:
             f.close()
 
 
-def load_single(file, drop_ghost=True, var_list="all", ini_file=None):
+def load_single(file, drop_ghost=True, use_dask=True, var_list="all", ini_file=None):
     """Load a single step file and generate an xarray Dataset
 
     Parameters
@@ -127,9 +127,12 @@ def load_single(file, drop_ghost=True, var_list="all", ini_file=None):
     h5 = h5py.File(file, "r")
 
     for v in var_list:
-        chunk_size = h5[f"/{v}"].shape
-        array = da.from_array(h5[f"/{v}"], chunks=chunk_size)
-        array = da.transpose(array)
+        if use_dask:
+            chunk_size = h5[f"/{v}"].shape
+            array = da.from_array(h5[f"/{v}"], chunks=chunk_size)
+            array = da.transpose(array)
+        else:
+            array = h5[f"/{v}"][()].T.astype(np.float32)
 
         try:
             long_name = var_dict[v]["long_name"]
@@ -226,7 +229,7 @@ def load_single(file, drop_ghost=True, var_list="all", ini_file=None):
         return ds
 
 
-def load_multiple_steps(paths, **kwargs):
+def load_multiple_steps(paths, use_dask=True, **kwargs):
     """Load multiple datasets and concatenate them together. This is very similar
     to xarray's open_mfdataset
 
@@ -246,17 +249,22 @@ def load_multiple_steps(paths, **kwargs):
     else:
         paths = [str(p) if isinstance(p, Path) else p for p in paths]
 
-    # Use dask's delayed function on loading single step files
-    open_ = dask.delayed(load_single)
-    getattr_ = dask.delayed(getattr)
-    datasets = [open_(f, **kwargs) for f in paths]
+    if use_dask:
+        # Use dask's delayed function on loading single step files
+        open_ = dask.delayed(load_single)
+        getattr_ = dask.delayed(getattr)
+        datasets = [open_(f, **kwargs) for f in paths]
 
-    file_objs = [getattr_(ds, "_file_obj") for ds in datasets]
-    datasets, file_objs = dask.compute(datasets, file_objs)
+        file_objs = [getattr_(ds, "_file_obj") for ds in datasets]
+        datasets, file_objs = dask.compute(datasets, file_objs)
+    else:
+        datasets = [load_single(f, use_dask=False, **kwargs) for f in paths]
 
     # Concatenate all of the datasets together based on the time dimension
     combined = xr.concat(datasets, dim="time")
-    combined._file_obj = _MultiFileCloser(file_objs)
+
+    if use_dask:
+        combined._file_obj = _MultiFileCloser(file_objs)
     return combined
 
 
