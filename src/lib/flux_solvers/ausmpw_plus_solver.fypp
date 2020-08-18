@@ -41,6 +41,7 @@ module mod_ausmpw_plus_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_error, only: error_msg
+  use mod_field, only: field_t
   use mod_globals, only: debug_print, LOW_MACH
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
@@ -105,21 +106,19 @@ contains
 
   end subroutine copy_ausmpw_plus
 
-  subroutine solve_ausmpw_plus(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine solve_ausmpw_plus(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
-    integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: u   !< x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: v   !< y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: p   !< pressure
-
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+    class(field_t), intent(inout) :: rho !< density
+    class(field_t), intent(inout) :: u   !< x-velocity
+    class(field_t), intent(inout) :: v   !< y-velocity
+    class(field_t), intent(inout) :: p   !< pressure
+    class(field_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
+    class(field_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
+    class(field_t), intent(out)   :: d_rho_v_dt    !< d/dt of the rhov field
+    class(field_t), intent(out)   :: d_rho_E_dt    !< d/dt of the rhoE field
 
     class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x

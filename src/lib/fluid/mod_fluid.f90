@@ -26,10 +26,7 @@ module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
 
-#ifdef USE_OPENMP
-  use omp_lib
-#endif /* USE_OPENMP */
-
+  use mod_field, only: field_t
   use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND, error_msg
   use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
   use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
@@ -45,11 +42,11 @@ module mod_fluid
   use hdf5_interface, only: hdf5_file
   use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use mod_flux_solver, only: flux_solver_t
-  use mod_ausm_plus_solver, only: ausm_plus_solver_t
-  use mod_fvleg_solver, only: fvleg_solver_t
-  use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
+  ! use mod_ausm_plus_solver, only: ausm_plus_solver_t
+  ! use mod_fvleg_solver, only: fvleg_solver_t
+  ! use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
   use mod_ausmpw_plus_solver, only: ausmpw_plus_solver_t
-  use mod_slau_solver, only: slau_solver_t
+  ! use mod_slau_solver, only: slau_solver_t
 
   implicit none
 
@@ -63,29 +60,16 @@ module mod_fluid
 
     private ! make all private by default
 
-    real(rk), dimension(:, :), allocatable, public :: rho    !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: rho
-    real(rk), dimension(:, :), allocatable, public :: rho_u  !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: rho_u
-    real(rk), dimension(:, :), allocatable, public :: rho_v  !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: rho_v
-    real(rk), dimension(:, :), allocatable, public :: rho_E  !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: rho_E
-    real(rk), dimension(:, :), allocatable, public :: u      !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: u
-    real(rk), dimension(:, :), allocatable, public :: v      !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: v
-    real(rk), dimension(:, :), allocatable, public :: p      !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: p
-    real(rk), dimension(:, :), allocatable, public :: cs     !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: cs
-    real(rk), dimension(:, :), allocatable, public :: mach_u   !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: mach_u
-    real(rk), dimension(:, :), allocatable, public :: mach_v   !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: mach_v
-
-    integer(ik), dimension(:, :), allocatable, public :: continuous_sensor !< (i, j); Is the cell continuous, or (non)linear discontinuous?
-    !dir$ attributes align:__ALIGNBYTES__ :: continuous_sensor
+    type(field_t), public :: rho    !< (i, j); Conserved quantities
+    type(field_t), public :: rho_u  !< (i, j); Conserved quantities
+    type(field_t), public :: rho_v  !< (i, j); Conserved quantities
+    type(field_t), public :: rho_E  !< (i, j); Conserved quantities
+    type(field_t), public :: u      !< (i, j); Conserved quantities
+    type(field_t), public :: v      !< (i, j); Conserved quantities
+    type(field_t), public :: p      !< (i, j); Conserved quantities
+    type(field_t), public :: cs     !< (i, j); Conserved quantities
+    type(field_t), public :: mach_u   !< (i, j); Conserved quantities
+    type(field_t), public :: mach_v   !< (i, j); Conserved quantities
 
     class(flux_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
 
@@ -191,17 +175,17 @@ contains
     self%time_integration_scheme = trim(input%time_integration_strategy)
 
     select case(trim(input%flux_solver))
-    case('FVLEG')
-      allocate(fvleg_solver_t :: solver)
-    case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
-      error stop "There are issues in the AUSM+ solver for now; exiting..."
-      allocate(ausm_plus_solver_t :: solver)
-    case('M-AUSMPW+')
-      allocate(m_ausmpw_plus_solver_t :: solver)
+      ! case('FVLEG')
+      !   allocate(fvleg_solver_t :: solver)
+      ! case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
+      !   error stop "There are issues in the AUSM+ solver for now; exiting..."
+      !   allocate(ausm_plus_solver_t :: solver)
+      ! case('M-AUSMPW+')
+      !   allocate(m_ausmpw_plus_solver_t :: solver)
     case('AUSMPW+')
       allocate(ausmpw_plus_solver_t :: solver)
-    case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
-      allocate(slau_solver_t :: solver)
+      ! case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
+      !   allocate(slau_solver_t :: solver)
     case default
       call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
                      message="Invalid flux solver. It must be one of the following: "// &
@@ -647,11 +631,7 @@ contains
     !$omp shared(a,b,c)
     !$omp do
     do j = jlo, jhi
-#ifdef __SIMD_ALIGN_OMP__
-      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
-#else
       !$omp simd
-#endif
       do i = ilo, ihi
         c(i, j) = a(i, j) + b(i, j)
         diff = abs(c(i, j) - a(i, j))
@@ -687,11 +667,7 @@ contains
     !$omp shared(a,b,c)
     !$omp do
     do j = jlo, jhi
-#ifdef __SIMD_ALIGN_OMP__
-      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
-#else
       !$omp simd
-#endif
       do i = ilo, ihi
         c(i, j) = a(i, j) - b(i, j)
         diff = abs(c(i, j) - a(i, j))
@@ -728,11 +704,7 @@ contains
     !$omp shared(a,b,c)
     !$omp do
     do j = jlo, jhi
-#ifdef __SIMD_ALIGN_OMP__
-      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
-#else
       !$omp simd
-#endif
       do i = ilo, ihi
         c(i, j) = a(i, j) * b(i, j)
       end do
@@ -764,11 +736,7 @@ contains
     !$omp shared(a,b,c)
     !$omp do
     do j = jlo, jhi
-#ifdef __SIMD_ALIGN_OMP__
-      !$omp simd aligned(a, c:__ALIGNBYTES__)
-#else
       !$omp simd
-#endif
       do i = ilo, ihi
         c(i, j) = a(i, j) * b
       end do
@@ -972,35 +940,35 @@ contains
     integer(ik), intent(out) :: error_code
     real(rk) :: dt
 
-    call debug_print('Running fluid_t%ssp_rk3()', __FILE__, __LINE__)
+    ! call debug_print('Running fluid_t%ssp_rk3()', __FILE__, __LINE__)
 
-    dt = U%dt
-    allocate(U_1, source=U)
-    allocate(U_2, source=U)
-    allocate(R, source=U)
+    ! dt = U%dt
+    ! allocate(U_1, source=U)
+    ! allocate(U_2, source=U)
+    ! allocate(R, source=U)
 
-    ! 1st stage
-    U_1 = U + U%t(grid, stage=1) * dt
-    call U_1%residual_smoother()
+    ! ! 1st stage
+    ! U_1 = U + U%t(grid, stage=1) * dt
+    ! call U_1%residual_smoother()
 
-    ! 2nd stage
-    U_2 = U * (3.0_rk / 4.0_rk) &
-          + U_1 * (1.0_rk / 4.0_rk) &
-          + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
-    call U_2%residual_smoother()
+    ! ! 2nd stage
+    ! U_2 = U * (3.0_rk / 4.0_rk) &
+    !       + U_1 * (1.0_rk / 4.0_rk) &
+    !       + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
+    ! call U_2%residual_smoother()
 
-    ! Final stage
-    U = U * (1.0_rk / 3.0_rk) &
-        + U_2 * (2.0_rk / 3.0_rk) &
-        + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
-    call U%residual_smoother()
-    call U%sanity_check(error_code)
-    ! Convergence history
-    call write_residual_history(first_stage=U_1, last_stage=U)
+    ! ! Final stage
+    ! U = U * (1.0_rk / 3.0_rk) &
+    !     + U_2 * (2.0_rk / 3.0_rk) &
+    !     + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
+    ! call U%residual_smoother()
+    ! call U%sanity_check(error_code)
+    ! ! Convergence history
+    ! call write_residual_history(first_stage=U_1, last_stage=U)
 
-    deallocate(R)
-    deallocate(U_1)
-    deallocate(U_2)
+    ! deallocate(R)
+    ! deallocate(U_1)
+    ! deallocate(U_2)
 
   end subroutine ssp_rk3
 
@@ -1020,6 +988,14 @@ contains
 
     ! 1st stage
     associate(dt => U%dt)
+
+      ! call self%init_boundary_conditions(grid, bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+      !                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+
+      ! call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
+      !                             bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+      !                             bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+
       call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
       U_1 = U + U%t(grid, stage=1) * dt
       call U_1%residual_smoother()

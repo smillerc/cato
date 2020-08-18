@@ -27,8 +27,8 @@ module mod_flux_solver
   !      [1]
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use mod_field, only: field_t
   use mod_globals, only: debug_print
-  use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_grid, only: grid_t
   use mod_input, only: input_t
@@ -66,23 +66,22 @@ module mod_flux_solver
   end type edge_split_flux_solver_t
 
   abstract interface
-    subroutine solve(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    subroutine solve(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
       !< Solve and flux the edges
       import :: ik, rk
       import :: flux_solver_t
-      import :: grid_t
+      import :: grid_t, field_t
       class(flux_solver_t), intent(inout) :: self
       class(grid_t), intent(in) :: grid
-      integer(ik), dimension(2), intent(in) :: lbounds
       real(rk), intent(in) :: dt
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: u   !< x-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: v   !< y-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: p   !< pressure
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+      class(field_t), intent(inout) :: rho !< density
+      class(field_t), intent(inout) :: u   !< x-velocity
+      class(field_t), intent(inout) :: v   !< y-velocity
+      class(field_t), intent(inout) :: p   !< pressure
+      class(field_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
+      class(field_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
+      class(field_t), intent(out)   :: d_rho_v_dt    !< d/dt of the rhov field
+      class(field_t), intent(out)   :: d_rho_E_dt    !< d/dt of the rhoE field
     end subroutine
 
     subroutine initialize(self, input)
