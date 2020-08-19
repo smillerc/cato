@@ -31,6 +31,6 @@ contains
     else
       error stop 1
     end if
-  end subroutine
+  end subroutine error_msg
 
 end module mod_error

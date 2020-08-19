@@ -55,14 +55,16 @@ module mod_field
     !dir$ attributes align:__ALIGNBYTES__ :: data
 
     ! Attributes/metadata
-    character(:), allocatable, public :: name             !< name, e.g. 'rho'
-    character(:), allocatable, public :: long_name        !< long name, e.g. 'density'
-    character(:), allocatable, public :: units            !< physical units, e.g. 'g/cc'
-    character(:), allocatable, public :: descrip          !< description, e.g. 'Cell-centered density'
+    character(:), allocatable, public :: name      !< name, e.g. 'rho'
+    character(:), allocatable, public :: long_name !< long name, e.g. 'density'
+    character(:), allocatable, public :: units     !< physical units, e.g. 'g/cc'
+    character(:), allocatable, public :: descrip   !< description, e.g. 'Cell-centered density'
 
     ! Non-dimensionalization factors
-    real(rk) :: to_nondim = 1.0_rk                !< scaling factor to convert to non-dimensional form
-    real(rk) :: to_dim = 1.0_rk                   !< scaling factor to convert to dimensional form
+    real(rk) :: to_nondim = 1.0_rk  !< scaling factor to convert to non-dimensional form
+    real(rk) :: to_dim = 1.0_rk     !< scaling factor to convert to dimensional form
+    logical :: is_dim = .true.      !< the current field is in dimensional form
+    logical :: is_nondim = .false.  !< the current field is in non-dimensional form
 
     ! Bounds information
     integer(ik), public :: n_halo_cells = 0               !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
@@ -178,13 +180,31 @@ contains
     type(field_2d_t), intent(in out) :: target
     type(field_2d_t), intent(in) :: source
 
+    if(.not. allocated(source%data)) error stop "Error in field_2d_t%from_field(): source%data isn't allocated"
     target%data = source%data
+
+    if(.not. allocated(source%name)) error stop "Error in field_2d_t%from_field(): source%name isn't allocated"
     target%name = source%name
+
+    if(.not. allocated(source%long_name)) error stop "Error in field_2d_t%from_field(): source%long_name isn't allocated"
     target%long_name = source%long_name
+
+    if(.not. allocated(source%units)) error stop "Error in field_2d_t%from_field(): source%units isn't allocated"
     target%units = source%units
+
+    if(.not. allocated(source%descrip)) error stop "Error in field_2d_t%from_field(): source%descrip isn't allocated"
     target%descrip = source%descrip
+
     target%to_nondim = source%to_nondim
     target%to_dim = source%to_dim
+    target%is_dim = source%is_dim
+    target%is_nondim = source%is_nondim
+
+    target%on_plus_x_bc = source%on_plus_x_bc
+    target%on_minus_x_bc = source%on_minus_x_bc
+    target%on_plus_y_bc = source%on_plus_y_bc
+    target%on_minus_y_bc = source%on_minus_y_bc
+
     target%n_halo_cells = source%n_halo_cells
     target%lbounds = source%lbounds
     target%ubounds = source%ubounds
@@ -392,11 +412,28 @@ contains
   pure subroutine make_dimensional(self)
     !< Convert to the dimensional form
     class(field_2d_t), intent(inout) :: self
+
+    if(self%is_nondim) then
+      self%data = self%data * self%to_dim
+      self%is_nondim = .false.
+      self%is_dim = .true.
+    end if
   end subroutine make_dimensional
 
-  pure subroutine make_non_dimensional(self)
+  pure subroutine make_non_dimensional(self, non_dim_factor)
     !< Convert to the non-dimensional form
     class(field_2d_t), intent(inout) :: self
+    real(rk), intent(in) :: non_dim_factor
+
+    if(abs(non_dim_factor) < tiny(1.0_rk)) error stop "Invalid non-dimensionalization factor"
+
+    if(self%is_dim) then
+      self%to_nondim = 1.0_rk / non_dim_factor
+      self%to_dim = non_dim_factor
+      self%data = self%data * self%to_nondim
+      self%is_nondim = .true.
+      self%is_dim = .false.
+    end if
   end subroutine make_non_dimensional
 
   logical function has_nans(self)

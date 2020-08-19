@@ -283,23 +283,23 @@ contains
 
     if(enable_debug_print) call debug_print('Initializing fluid_t from hdf5', __FILE__, __LINE__)
 
-    ! if(input%restart_from_file) then
-    !   filename = trim(input%restart_file)
-    ! else
-    !   filename = trim(input%initial_condition_file)
-    ! end if
+    if(input%restart_from_file) then
+      filename = trim(input%restart_file)
+    else
+      filename = trim(input%initial_condition_file)
+    end if
 
-    ! file_exists = .false.
-    ! inquire(file=filename, exist=file_exists)
+    file_exists = .false.
+    inquire(file=filename, exist=file_exists)
 
-    ! if(.not. file_exists) then
-    !   call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-    !                  message='File not found: "'//filename//'"', file_name=__FILE__, line_number=__LINE__)
-    ! end if
+    if(.not. file_exists) then
+      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
+                     message='File not found: "'//filename//'"', file_name=__FILE__, line_number=__LINE__)
+    end if
 
-    ! call h5%initialize(filename=filename, status='old', action='r')
+    call h5%initialize(filename=filename, status='old', action='r')
 
-    ! call h5%get('/density', density)
+    call h5%get('/density', density)
     ! if(input%restart_from_file) then
     !   call h5%readattr('/density', 'units', str_buff)
     !   select case(trim(str_buff))
