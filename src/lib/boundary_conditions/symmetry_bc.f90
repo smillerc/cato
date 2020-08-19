@@ -20,7 +20,8 @@
 
 module mod_symmetry_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_globals, only: debug_print
+  use mod_globals, only: enable_debug_print, debug_print
+  use mod_field, only: field_2d_t
   use mod_error, only: error_msg
   use mod_grid, only: grid_t
   use mod_boundary_conditions, only: boundary_condition_t
@@ -190,14 +191,13 @@ contains
     call bc%set_indices(grid)
   end function symmetry_bc_constructor
 
-  subroutine apply_symmetry_primitive_var_bc(self, rho, u, v, p, lbounds)
+  subroutine apply_symmetry_primitive_var_bc(self, rho, u, v, p)
 
     class(symmetry_bc_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    class(field_2d_t), intent(inout) :: rho
+    class(field_2d_t), intent(inout) :: u
+    class(field_2d_t), intent(inout) :: v
+    class(field_2d_t), intent(inout) :: p
 
     integer(ik) :: g
 
@@ -207,47 +207,47 @@ contains
 
       select case(self%location)
       case('+x')
-        call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
+        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
 
         ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
         do g = 1, self%n_ghost_layers
-          rho(right_ghost(g), :) = rho(right - (g - 1), :)
-          u(right_ghost(g), :) = -u(right - (g - 1), :)
-          v(right_ghost(g), :) = v(right - (g - 1), :)
-          p(right_ghost(g), :) = p(right - (g - 1), :)
+          rho%data(right_ghost(g), :) = rho%data(right - (g - 1), :)
+          u%data(right_ghost(g), :) = -u%data(right - (g - 1), :)
+          v%data(right_ghost(g), :) = v%data(right - (g - 1), :)
+          p%data(right_ghost(g), :) = p%data(right - (g - 1), :)
         end do
 
       case('-x')
-        call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
+        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
 
         ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
         do g = 1, self%n_ghost_layers
-          rho(left_ghost(g), :) = rho(left + (g - 1), :)
-          u(left_ghost(g), :) = -u(left + (g - 1), :)
-          v(left_ghost(g), :) = v(left + (g - 1), :)
-          p(left_ghost(g), :) = p(left + (g - 1), :)
+          rho%data(left_ghost(g), :) = rho%data(left + (g - 1), :)
+          u%data(left_ghost(g), :) = -u%data(left + (g - 1), :)
+          v%data(left_ghost(g), :) = v%data(left + (g - 1), :)
+          p%data(left_ghost(g), :) = p%data(left + (g - 1), :)
         end do
 
       case('+y')
-        call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
+        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
 
         ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
         do g = 1, self%n_ghost_layers
-          rho(:, top_ghost(g)) = rho(:, top - (g - 1))
-          u(:, top_ghost(g)) = u(:, top - (g - 1))
-          v(:, top_ghost(g)) = -v(:, top - (g - 1))
-          p(:, top_ghost(g)) = p(:, top - (g - 1))
+          rho%data(:, top_ghost(g)) = rho%data(:, top - (g - 1))
+          u%data(:, top_ghost(g)) = u%data(:, top - (g - 1))
+          v%data(:, top_ghost(g)) = -v%data(:, top - (g - 1))
+          p%data(:, top_ghost(g)) = p%data(:, top - (g - 1))
         end do
 
       case('-y')
-        call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
+        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
 
         ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
         do g = 1, self%n_ghost_layers
-          rho(:, bottom_ghost(g)) = rho(:, bottom + (g - 1))
-          u(:, bottom_ghost(g)) = u(:, bottom + (g - 1))
-          v(:, bottom_ghost(g)) = -v(:, bottom + (g - 1))
-          p(:, bottom_ghost(g)) = p(:, bottom + (g - 1))
+          rho%data(:, bottom_ghost(g)) = rho%data(:, bottom + (g - 1))
+          u%data(:, bottom_ghost(g)) = u%data(:, bottom + (g - 1))
+          v%data(:, bottom_ghost(g)) = -v%data(:, bottom + (g - 1))
+          p%data(:, bottom_ghost(g)) = p%data(:, bottom + (g - 1))
         end do
 
       case default
@@ -261,7 +261,7 @@ contains
 
   subroutine finalize(self)
     type(symmetry_bc_t), intent(inout) :: self
-    call debug_print('Running symmetry_bc_t%finalize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running symmetry_bc_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%ilo_ghost)) deallocate(self%ilo_ghost)
     if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
     if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)

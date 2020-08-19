@@ -23,6 +23,7 @@ module mod_boundary_conditions
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_functional, only: operator(.reverse.)
+  use mod_field, only: field_2d_t
   use mod_input, only: input_t
   use mod_grid, only: grid_t
 
@@ -57,15 +58,14 @@ module mod_boundary_conditions
   end type boundary_condition_t
 
   abstract interface
-    subroutine apply(self, rho, u, v, p, lbounds)
-      import :: boundary_condition_t
+    subroutine apply(self, rho, u, v, p)
+      import :: boundary_condition_t, field_2d_t
       import :: ik, rk
       class(boundary_condition_t), intent(inout) :: self
-      integer(ik), dimension(2), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+      class(field_2d_t), intent(inout) :: rho
+      class(field_2d_t), intent(inout) :: u
+      class(field_2d_t), intent(inout) :: v
+      class(field_2d_t), intent(inout) :: p
     end subroutine apply
   end interface
 contains

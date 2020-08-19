@@ -22,7 +22,8 @@ module mod_periodic_bc
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_functional, only: reverse, operator(.reverse.)
-  use mod_globals, only: debug_print
+  use mod_field, only: field_2d_t
+  use mod_globals, only: enable_debug_print, debug_print
   use mod_grid, only: grid_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
@@ -62,14 +63,13 @@ contains
 
   end function periodic_bc_constructor
 
-  subroutine apply_periodic_primitive_var_bc(self, rho, u, v, p, lbounds)
+  subroutine apply_periodic_primitive_var_bc(self, rho, u, v, p)
 
     class(periodic_bc_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    class(field_2d_t), intent(inout) :: rho
+    class(field_2d_t), intent(inout) :: u
+    class(field_2d_t), intent(inout) :: v
+    class(field_2d_t), intent(inout) :: p
 
     integer(ik) :: i, j
     integer(ik) :: donor_istart, donor_iend, receiver_istart, receiver_iend
@@ -85,7 +85,7 @@ contains
 
         do i = 1, self%n_ghost_layers
           #:for f in ['rho','u','v','p']
-          ${f}$(right_ghost(i), bottom:top) = ${f}$(left + (i - 1), bottom:top)
+          ${f}$%data(right_ghost(i), bottom:top) = ${f}$%data(left + (i - 1), bottom:top)
           #:endfor
         end do
 
@@ -103,14 +103,14 @@ contains
             receiver_j = top_ghost(j)
 
             #:for f in ['rho','u','v','p']
-            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
             #:endfor
 
             donor_j = top - (j - 1)
             receiver_j = bottom_ghost(j)
 
             #:for f in ['rho','u','v','p']
-            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
             #:endfor
           end do
         end if
@@ -120,7 +120,7 @@ contains
 
         do i = 1, self%n_ghost_layers
             #:for f in ['rho','u','v','p']
-          ${f}$(left_ghost(i), bottom:top) = ${f}$(right - (i - 1), bottom:top)
+          ${f}$%data(left_ghost(i), bottom:top) = ${f}$%data(right - (i - 1), bottom:top)
             #:endfor
         end do
 
@@ -138,14 +138,14 @@ contains
             receiver_j = top_ghost(j)
 
               #:for f in ['rho','u','v','p']
-            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
               #:endfor
 
             donor_j = top - (j - 1)
             receiver_j = bottom_ghost(j)
 
               #:for f in ['rho','u','v','p']
-            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
               #:endfor
           end do
         end if
@@ -155,7 +155,7 @@ contains
 
         do i = 1, self%n_ghost_layers
           #:for f in ['rho','u','v','p']
-            ${f}$(left:right, top_ghost(i)) = ${f}$(left:right, bottom + (i - 1))
+            ${f}$%data(left:right, top_ghost(i)) = ${f}$%data(left:right, bottom + (i - 1))
           #:endfor
         end do
 
@@ -173,14 +173,14 @@ contains
             receiver_j = top_ghost(j)
 
                 #:for f in ['rho','u','v','p']
-            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
                 #:endfor
 
             donor_j = top - (j - 1)
             receiver_j = bottom_ghost(j)
 
                 #:for f in ['rho','u','v','p']
-            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
                 #:endfor
           end do
         end if
@@ -190,7 +190,7 @@ contains
 
         do i = 1, self%n_ghost_layers
           #:for f in ['rho','u','v','p']
-            ${f}$(left:right, bottom_ghost(i)) = ${f}$(left:right, top - (i - 1))
+            ${f}$%data(left:right, bottom_ghost(i)) = ${f}$%data(left:right, top - (i - 1))
           #:endfor
         end do
 
@@ -208,14 +208,14 @@ contains
             receiver_j = top_ghost(j)
 
                 #:for f in ['rho','u','v','p']
-            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
                 #:endfor
 
             donor_j = top - (j - 1)
             receiver_j = bottom_ghost(j)
 
                 #:for f in ['rho','u','v','p']
-            ${f}$(receiver_istart:receiver_iend, receiver_j) = ${f}$(donor_istart:donor_iend, donor_j)
+            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
                 #:endfor
           end do
         end if

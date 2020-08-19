@@ -20,7 +20,8 @@
 
 module mod_pressure_input_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
-  use mod_globals, only: debug_print
+  use mod_globals, only: enable_debug_print, debug_print
+  use mod_field, only: field_2d_t
   use mod_grid, only: grid_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_nondimensionalization, only: p_0, rho_0, t_0
@@ -168,14 +169,13 @@ contains
     end if
   end function get_desired_pressure
 
-  subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p, lbounds)
+  subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p)
     !< Apply pressure_input boundary conditions to the conserved state vector field
     class(pressure_input_bc_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    class(field_2d_t), intent(inout) :: rho
+    class(field_2d_t), intent(inout) :: u
+    class(field_2d_t), intent(inout) :: v
+    class(field_2d_t), intent(inout) :: p
 
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     logical :: inflow
@@ -242,12 +242,12 @@ contains
 
       select case(self%location)
       case('+x')
-        call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
+        if (enable_debug_print) call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
 
-        domain_rho = rho(right, bottom_ghost:top_ghost)
-        domain_u = u(right, bottom_ghost:top_ghost)
+        domain_rho = rho%data(right, bottom_ghost:top_ghost)
+        domain_u = u%data(right, bottom_ghost:top_ghost)
         domain_v = 0.0_rk
-        domain_p = p(right, bottom_ghost:top_ghost)
+        domain_p = p%data(right, bottom_ghost:top_ghost)
         boundary_norm = [1.0_rk, 0.0_rk] ! outward normal vector at +x
 
         do j = bottom, top
@@ -286,10 +286,10 @@ contains
         end do
 
         do i = 1, self%n_ghost_layers
-          rho(self%ihi_ghost(i), bottom:top) = self%edge_rho(bottom:top)
-          u(self%ihi_ghost(i), bottom:top) = self%edge_u(bottom:top)
-          v(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
-          p(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
+          rho%data(self%ihi_ghost(i), bottom:top) = self%edge_rho(bottom:top)
+          u%data(self%ihi_ghost(i), bottom:top) = self%edge_u(bottom:top)
+          v%data(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
+          p%data(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
         end do
       case default
         error stop "Unsupported location to apply the bc at in "// &
@@ -303,7 +303,7 @@ contains
 
   subroutine finalize(self)
     type(pressure_input_bc_t), intent(inout) :: self
-    call debug_print('Running pressure_input_bc_t%finalize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running pressure_input_bc_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%ilo_ghost)) deallocate(self%ilo_ghost)
     if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
     if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)

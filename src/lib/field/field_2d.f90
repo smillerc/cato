@@ -29,6 +29,7 @@ module mod_field
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: ieee_arithmetic
   use mod_error, only: error_msg
+  use mod_globals, only: enable_debug_print, debug_print
   ! use mod_parallel, only: tile_indices, tile_neighbors_2d
 
   implicit none
@@ -70,6 +71,12 @@ module mod_field
     integer(ik), dimension(2), public :: ubounds = 0      !< (i, j); upper bounds (not including halo cells)
     integer(ik), dimension(2), public :: lbounds_halo = 0 !< (i, j); lower bounds (including halo cells)
     integer(ik), dimension(2), public :: ubounds_halo = 0 !< (i, j); upper bounds (including halo cells)
+
+    ! Boundary condition checks
+    logical, public :: on_plus_x_bc = .false.  !< does this field live on the +x boundary?
+    logical, public :: on_minus_x_bc = .false. !< does this field live on the -x boundary?
+    logical, public :: on_plus_y_bc = .false.  !< does this field live on the +y boundary?
+    logical, public :: on_minus_y_bc = .false. !< does this field live on the -y boundary?
 
     ! Parallel neighbor information
     integer(ik), dimension(4) :: neighbors = 0    !< (left, right, down, up); parallel neighbor tiles/images
@@ -126,6 +133,8 @@ contains
 
     ! Locals
     integer(ik) :: indices(4)
+
+    if(enable_debug_print) call debug_print('Running field_2d_t%field_constructor()', __FILE__, __LINE__)
 
     self%name = name
     self%long_name = long_name
@@ -475,9 +484,12 @@ contains
     end if
   end function set
 
-  pure subroutine finalize(self)
+  subroutine finalize(self)
     !< Cleanup the field_2d_t object
     type(field_2d_t), intent(inout) :: self
+
+    if(enable_debug_print) call debug_print('Running field_2d_t%finalize()', __FILE__, __LINE__)
+
     if(allocated(self%data)) deallocate(self%data)
     if(allocated(self%units)) deallocate(self%units)
     if(allocated(self%name)) deallocate(self%name)

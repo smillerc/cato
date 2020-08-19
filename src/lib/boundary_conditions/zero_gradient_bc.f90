@@ -20,7 +20,8 @@
 
 module mod_zero_gradient_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_globals, only: debug_print
+  use mod_globals, only: enable_debug_print, debug_print
+  use mod_field, only: field_2d_t
   use mod_grid, only: grid_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
@@ -49,14 +50,13 @@ contains
     call bc%set_indices(grid)
   end function zero_gradient_bc_constructor
 
-  subroutine apply_zero_gradient_primitive_var_bc(self, rho, u, v, p, lbounds)
+  subroutine apply_zero_gradient_primitive_var_bc(self, rho, u, v, p)
 
     class(zero_gradient_bc_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    class(field_2d_t), intent(inout) :: rho
+    class(field_2d_t), intent(inout) :: u
+    class(field_2d_t), intent(inout) :: v
+    class(field_2d_t), intent(inout) :: p
 
     integer(ik) :: i
 
@@ -66,38 +66,38 @@ contains
 
       select case(self%location)
       case('+x')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', __FILE__, __LINE__)
+ if(enable_debug_print) call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', __FILE__, __LINE__)
         do i = 1, self%n_ghost_layers
-          rho(right_ghost(i), :) = rho(right - (i - 1), :)
-          u(right_ghost(i), :) = u(right - (i - 1), :)
-          v(right_ghost(i), :) = v(right - (i - 1), :)
-          p(right_ghost(i), :) = p(right - (i - 1), :)
+          rho%data(right_ghost(i), :) = rho%data(right - (i - 1), :)
+          u%data(right_ghost(i), :) = u%data(right - (i - 1), :)
+          v%data(right_ghost(i), :) = v%data(right - (i - 1), :)
+          p%data(right_ghost(i), :) = p%data(right - (i - 1), :)
         end do
 
       case('-x')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -x', __FILE__, __LINE__)
+ if(enable_debug_print) call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -x', __FILE__, __LINE__)
         do i = 1, self%n_ghost_layers
-          rho(left_ghost(i), :) = rho(left + (i - 1), :)
-          u(left_ghost(i), :) = u(left + (i - 1), :)
-          v(left_ghost(i), :) = v(left + (i - 1), :)
-          p(left_ghost(i), :) = p(left + (i - 1), :)
+          rho%data(left_ghost(i), :) = rho%data(left + (i - 1), :)
+          u%data(left_ghost(i), :) = u%data(left + (i - 1), :)
+          v%data(left_ghost(i), :) = v%data(left + (i - 1), :)
+          p%data(left_ghost(i), :) = p%data(left + (i - 1), :)
         end do
 
       case('+y')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', __FILE__, __LINE__)
+ if(enable_debug_print) call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', __FILE__, __LINE__)
         do i = 1, self%n_ghost_layers
-          rho(:, top_ghost(i)) = rho(:, top - (i - 1))
-          u(:, top_ghost(i)) = u(:, top - (i - 1))
-          v(:, top_ghost(i)) = v(:, top - (i - 1))
-          p(:, top_ghost(i)) = p(:, top - (i - 1))
+          rho%data(:, top_ghost(i)) = rho%data(:, top - (i - 1))
+          u%data(:, top_ghost(i)) = u%data(:, top - (i - 1))
+          v%data(:, top_ghost(i)) = v%data(:, top - (i - 1))
+          p%data(:, top_ghost(i)) = p%data(:, top - (i - 1))
         end do
       case('-y')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', __FILE__, __LINE__)
+ if(enable_debug_print) call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', __FILE__, __LINE__)
         do i = 1, self%n_ghost_layers
-          rho(:, bottom_ghost(i)) = rho(:, bottom + (i - 1))
-          u(:, bottom_ghost(i)) = u(:, bottom + (i - 1))
-          v(:, bottom_ghost(i)) = v(:, bottom + (i - 1))
-          p(:, bottom_ghost(i)) = p(:, bottom + (i - 1))
+          rho%data(:, bottom_ghost(i)) = rho%data(:, bottom + (i - 1))
+          u%data(:, bottom_ghost(i)) = u%data(:, bottom + (i - 1))
+          v%data(:, bottom_ghost(i)) = v%data(:, bottom + (i - 1))
+          p%data(:, bottom_ghost(i)) = p%data(:, bottom + (i - 1))
         end do
       case default
         error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc()"
@@ -108,7 +108,7 @@ contains
 
   subroutine finalize(self)
     type(zero_gradient_bc_t), intent(inout) :: self
-    call debug_print('Running zero_gradient_bc_t%finalize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running zero_gradient_bc_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%ilo_ghost)) deallocate(self%ilo_ghost)
     if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
     if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)

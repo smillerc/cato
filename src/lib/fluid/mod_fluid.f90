@@ -18,23 +18,20 @@
 ! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ! SOFTWARE.
 
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
-#define AT_LINE_LOC " in " // __FILE__ //":"//TOSTRING(__LINE__)
-
 module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
 
   use mod_field, only: field_2d_t
   use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND, error_msg
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
+  use mod_globals, only: enable_debug_print, debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
   use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
   use mod_units
   use mod_distinguisher, only: distinguish
   use mod_boundary_conditions, only: boundary_condition_t
+  use mod_bc_factory, only: bc_factory
   use mod_grid, only: grid_t
   use mod_input, only: input_t
   use mod_eos, only: eos
@@ -83,6 +80,12 @@ module mod_fluid
     ! Residual history
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
     logical :: residual_hist_header_written = .false.
+
+    class(boundary_condition_t), allocatable :: bc_plus_x
+    class(boundary_condition_t), allocatable :: bc_plus_y
+    class(boundary_condition_t), allocatable :: bc_minus_x
+    class(boundary_condition_t), allocatable :: bc_minus_y
+
   contains
     ! Private methods
     private
@@ -91,6 +94,7 @@ module mod_fluid
     procedure :: residual_smoother
     procedure :: calculate_derived_quantities
     procedure :: sanity_check
+    procedure :: apply_bc
     procedure :: ssp_rk2
     procedure :: ssp_rk3
     procedure :: get_continuity_sensor
@@ -136,11 +140,12 @@ contains
     class(input_t), intent(in) :: input
     class(grid_t), intent(in) :: grid
     class(flux_solver_t), pointer :: solver => null()
+    class(boundary_condition_t), pointer :: bc => null()
 
     integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi, io
 
     alloc_status = 0
-    call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
 
     if(.not. scale_factors_set) then
       call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
@@ -199,30 +204,51 @@ contains
 
     self%time_integration_scheme = trim(input%time_integration_strategy)
 
-    ! select case(trim(input%flux_solver))
-    !   ! case('FVLEG')
-    !   !   allocate(fvleg_solver_t :: solver)
-    !   ! case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
-    !   !   error stop "There are issues in the AUSM+ solver for now; exiting..."
-    !   !   allocate(ausm_plus_solver_t :: solver)
-    !   ! case('M-AUSMPW+')
-    !   !   allocate(m_ausmpw_plus_solver_t :: solver)
-    ! case('AUSMPW+')
-    !   allocate(ausmpw_plus_solver_t :: solver)
-    !   ! case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
-    !   !   allocate(slau_solver_t :: solver)
-    ! case default
-    !   call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
-    !                  message="Invalid flux solver. It must be one of the following: "// &
-    !                  "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', "// &
-    !                  "'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
-    !                  "the input was: '"//trim(input%flux_solver)//"'", &
-    !                  file_name=__FILE__, line_number=__LINE__)
-    ! end select
+    select case(trim(input%flux_solver))
+      ! case('FVLEG')
+      !   allocate(fvleg_solver_t :: solver)
+      ! case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
+      !   error stop "There are issues in the AUSM+ solver for now; exiting..."
+      !   allocate(ausm_plus_solver_t :: solver)
+      ! case('M-AUSMPW+')
+      !   allocate(m_ausmpw_plus_solver_t :: solver)
+    case('AUSMPW+')
+      allocate(ausmpw_plus_solver_t :: solver)
+      ! case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
+      !   allocate(slau_solver_t :: solver)
+    case default
+      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
+                     message="Invalid flux solver. It must be one of the following: "// &
+                     "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', "// &
+                     "'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
+                     "the input was: '"//trim(input%flux_solver)//"'", &
+                     file_name=__FILE__, line_number=__LINE__)
+    end select
 
-    ! call solver%initialize(input)
-    ! allocate(self%solver, source=solver)
-    ! deallocate(solver)
+    call solver%initialize(input)
+    allocate(self%solver, source=solver)
+    deallocate(solver)
+
+    ! Set boundary conditions
+    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, grid=grid)
+    allocate(self%bc_plus_x, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
+    deallocate(bc)
+
+    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, grid=grid)
+    allocate(self%bc_plus_y, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
+    deallocate(bc)
+
+    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, grid=grid)
+    allocate(self%bc_minus_x, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
+    deallocate(bc)
+
+    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, grid=grid)
+    allocate(self%bc_minus_y, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
+    deallocate(bc)
 
     ! open(newunit=io, file=trim(self%residual_hist_file), status='replace')
     ! write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
@@ -234,14 +260,10 @@ contains
     !   call self%initialize_from_ini(input)
     ! end if
 
-    ! call self%get_continuity_sensor()
-    ! call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
-
+    call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
     self%mach_v = self%v / self%cs
     self%mach_u = self%u / self%cs
-
     self%prim_vars_updated = .true.
-
   end subroutine initialize
 
   subroutine initialize_from_hdf5(self, input)
@@ -259,7 +281,7 @@ contains
     real(rk), dimension(:, :), allocatable :: y_velocity
     real(rk), dimension(:, :), allocatable :: pressure
 
-    call debug_print('Initializing fluid_t from hdf5', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Initializing fluid_t from hdf5', __FILE__, __LINE__)
 
     ! if(input%restart_from_file) then
     !   filename = trim(input%restart_file)
@@ -373,7 +395,7 @@ contains
     ! y_velocity = input%init_y_velocity / v_0
     ! pressure = input%init_pressure / p_0
 
-    ! call debug_print('Initializing fluid_t from .ini', __FILE__, __LINE__)
+    ! if (enable_debug_print) call debug_print('Initializing fluid_t from .ini', __FILE__, __LINE__)
     ! write(*, '(a,4(f0.3, 1x))') 'Initializing with [rho,u,v,p]: ', &
     !   input%init_density, input%init_x_velocity, input%init_y_velocity, input%init_pressure
 
@@ -399,7 +421,7 @@ contains
   subroutine force_finalization(self)
     class(fluid_t), intent(inout) :: self
 
-    call debug_print('Running fluid_t%force_finalization()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%force_finalization()', __FILE__, __LINE__)
     ! if(allocated(self%rho)) deallocate(self%rho)
     ! if(allocated(self%u)) deallocate(self%u)
     ! if(allocated(self%v)) deallocate(self%v)
@@ -416,7 +438,7 @@ contains
   subroutine finalize(self)
     type(fluid_t), intent(inout) :: self
 
-    call debug_print('Running fluid_t%finalize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%finalize()', __FILE__, __LINE__)
     ! if(allocated(self%rho)) deallocate(self%rho)
     ! if(allocated(self%u)) deallocate(self%u)
     ! if(allocated(self%v)) deallocate(self%v)
@@ -437,7 +459,7 @@ contains
     real(rk), intent(in) :: dt            !< time-step
     integer(ik), intent(in) :: iteration  !< iteration
 
-    call debug_print('Running fluid_t%set_time()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%set_time()', __FILE__, __LINE__)
     self%time = time
     self%iteration = iteration
     self%dt = dt
@@ -450,7 +472,7 @@ contains
     class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
     integer(ik), intent(out) :: error_code
 
-    call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
     self%time = self%time + dt
     self%dt = dt
 
@@ -474,7 +496,7 @@ contains
     type(fluid_t), allocatable :: d_dt    !< dU/dt
     integer(ik), intent(in) :: stage      !< stage in the time integration scheme
 
-    call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
     allocate(d_dt, source=self)
     call self%solver%solve(grid=grid, &
@@ -493,24 +515,15 @@ contains
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
 
-    call debug_print('Running fluid_t%calculate_derived_quantities()', __FILE__, __LINE__)
-    ! ilo = lbound(self%rho, dim=1)
-    ! ihi = ubound(self%rho, dim=1)
-    ! jlo = lbound(self%rho, dim=2)
-    ! jhi = ubound(self%rho, dim=2)
-
-    ! call eos%conserved_to_primitive(rho=self%rho, rho_u=self%rho_u, &
-    !                                 rho_v=self%rho_v, rho_E=self%rho_E, &
-    !                                 u=self%u, v=self%v, p=self%p)
-
-    ! call self%get_continuity_sensor()
-    ! call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
+    if(enable_debug_print) call debug_print('Running fluid_t%calculate_derived_quantities()', __FILE__, __LINE__)
+    call eos%conserved_to_primitive(rho=self%rho, rho_u=self%rho_u, &
+                                    rho_v=self%rho_v, rho_E=self%rho_E, &
+                                    u=self%u, v=self%v, p=self%p)
+    call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
 
     self%mach_u = self%u / self%cs
     self%mach_v = self%v / self%cs
-
     self%prim_vars_updated = .true.
-
   end subroutine calculate_derived_quantities
 
   subroutine get_continuity_sensor(self)
@@ -528,7 +541,7 @@ contains
     integer(ik) :: i, j
     real(rk), parameter :: EPS = 5e-14_rk
 
-    ! call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
+    ! if (enable_debug_print) call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
     ! if(self%smooth_residuals) then
     !   ilo = lbound(self%rho, dim=1) + 1
     !   ihi = ubound(self%rho, dim=1) - 1
@@ -570,7 +583,7 @@ contains
     class(fluid_t), intent(in) :: rhs
     type(fluid_t), allocatable :: difference
 
-    call debug_print('Running fluid_t%subtract_fluid()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%subtract_fluid()', __FILE__, __LINE__)
 
     allocate(difference, source=lhs)
     difference%rho = lhs%rho - rhs%rho
@@ -586,7 +599,7 @@ contains
     class(fluid_t), intent(in) :: rhs
     type(fluid_t), allocatable :: sum
 
-    call debug_print('Running fluid_t%add_fluid()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%add_fluid()', __FILE__, __LINE__)
 
     allocate(sum, source=lhs)
     sum%rho = lhs%rho + rhs%rho
@@ -604,7 +617,7 @@ contains
 
     integer(ik) :: alloc_status
 
-    call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
 
     allocate(product, source=lhs, stat=alloc_status)
     if(alloc_status /= 0) then
@@ -627,7 +640,7 @@ contains
     type(fluid_t), allocatable :: product
     integer(ik) :: alloc_status
 
-    call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
 
     allocate(product, source=rhs, stat=alloc_status)
     if(alloc_status /= 0) then
@@ -649,7 +662,7 @@ contains
     integer(ik) :: error_code
     integer(ik) :: alloc_status
 
-    call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
     lhs%rho = rhs%rho
     lhs%rho_u = rhs%rho_u
@@ -682,7 +695,7 @@ contains
     character(len=64) :: err_message = ''
     integer(ik), intent(out) :: error_code
 
-    call debug_print('Running fluid_t%sanity_check()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%sanity_check()', __FILE__, __LINE__)
 
     error_code = ALL_OK
 
@@ -731,39 +744,41 @@ contains
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
-    type(fluid_t), allocatable :: R !< hist
     integer(ik), intent(out) :: error_code
     real(rk) :: dt
 
-    ! call debug_print('Running fluid_t%ssp_rk3()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%ssp_rk3()', __FILE__, __LINE__)
 
-    ! dt = U%dt
-    ! allocate(U_1, source=U)
-    ! allocate(U_2, source=U)
-    ! allocate(R, source=U)
+    dt = U%dt
+    allocate(U_1, source=U)
+    allocate(U_2, source=U)
 
-    ! ! 1st stage
-    ! U_1 = U + U%t(grid, stage=1) * dt
-    ! call U_1%residual_smoother()
+    ! 1st stage
+    if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk3() 1st stage'//new_line('a'), __FILE__, __LINE__)
+    call U%apply_bc()
+    U_1 = U + U%t(grid, stage=1) * dt
 
-    ! ! 2nd stage
-    ! U_2 = U * (3.0_rk / 4.0_rk) &
-    !       + U_1 * (1.0_rk / 4.0_rk) &
-    !       + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
-    ! call U_2%residual_smoother()
+    ! 2nd stage
+    if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk3() 2nd stage'//new_line('a'), __FILE__, __LINE__)
+    call U_1%apply_bc()
+    U_2 = U * (3.0_rk / 4.0_rk) &
+          + U_1 * (1.0_rk / 4.0_rk) &
+          + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
 
-    ! ! Final stage
-    ! U = U * (1.0_rk / 3.0_rk) &
-    !     + U_2 * (2.0_rk / 3.0_rk) &
-    !     + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
-    ! call U%residual_smoother()
-    ! call U%sanity_check(error_code)
-    ! ! Convergence history
-    ! call write_residual_history(first_stage=U_1, last_stage=U)
+    ! Final stage
+    if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk2() 3rd stage'//new_line('a'), __FILE__, __LINE__)
+    call U_2%apply_bc()
+    U = U * (1.0_rk / 3.0_rk) &
+        + U_2 * (2.0_rk / 3.0_rk) &
+        + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
 
-    ! deallocate(R)
-    ! deallocate(U_1)
-    ! deallocate(U_2)
+    call U%sanity_check(error_code)
+
+    ! Convergence history
+    call write_residual_history(first_stage=U_1, last_stage=U)
+
+    deallocate(U_1)
+    deallocate(U_2)
 
   end subroutine ssp_rk3
 
@@ -773,42 +788,29 @@ contains
     class(grid_t), intent(in) :: grid
 
     type(fluid_t), allocatable :: U_1 !< first stage
-    type(fluid_t), allocatable :: R !< hist
     integer(ik), intent(out) :: error_code
+    real(rk) :: dt
 
-    call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
 
+    dt = U%dt
     allocate(U_1, source=U)
-    allocate(R, source=U)
 
     ! 1st stage
-    associate(dt => U%dt)
+  if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
+    call U%apply_bc()
+    U_1 = U + U%t(grid, stage=1) * dt
 
-      ! call self%init_boundary_conditions(grid, bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-      !                                     bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    ! Final stage
+  if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
+    call U_1%apply_bc()
+    U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, stage=2) * (0.5_rk * dt)
 
-      ! call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
-      !                             bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-      !                             bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    call U%sanity_check(error_code)
 
-      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
-      U_1 = U + U%t(grid, stage=1) * dt
+    ! Convergence history
+    call write_residual_history(first_stage=U_1, last_stage=U)
 
-      ! call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
-      !                             bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-      !                             bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
-      ! Final stage
-      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
-      U = U * 0.5_rk + U_1 * 0.5_rk + &
-          U_1%t(grid, stage=2) * (0.5_rk * dt)
-
-      call U%sanity_check(error_code)
-
-      ! ! Convergence history
-      call write_residual_history(first_stage=U_1, last_stage=U)
-    end associate
-
-    deallocate(R)
     deallocate(U_1)
 
   end subroutine ssp_rk2
@@ -826,7 +828,7 @@ contains
     integer(ik) :: io
     integer(ik) :: i, j, ilo, jlo, ihi, jhi
 
-    ! call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
+    ! if (enable_debug_print) if (enable_debug_print) call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
 
     ! ilo = lbound(last_stage%rho, dim=1) + n_ghost_layers
     ! ihi = ubound(last_stage%rho, dim=1) - n_ghost_layers
@@ -845,88 +847,42 @@ contains
 
   end subroutine write_residual_history
 
-  ! subroutine init_boundary_conditions(self, grid, bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
-  !   class(flux_solver_t), intent(inout) :: self
-  !   class(grid_t), intent(in) :: grid
-  !   class(boundary_condition_t), pointer :: bc => null()
+  subroutine apply_bc(self)
+    !< Apply the boundary conditions
+    class(fluid_t), intent(inout) :: self
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
 
-  !   class(boundary_condition_t), allocatable, intent(out):: bc_plus_x
-  !   class(boundary_condition_t), allocatable, intent(out):: bc_plus_y
-  !   class(boundary_condition_t), allocatable, intent(out):: bc_minus_x
-  !   class(boundary_condition_t), allocatable, intent(out):: bc_minus_y
+    if(enable_debug_print) call debug_print('Running flux_solver_t%apply()', __FILE__, __LINE__)
 
-  !   ! Locals
-  !   integer(ik) :: alloc_status
+    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
+                          self%bc_minus_x%priority, self%bc_minus_y%priority)
 
-  !   ! Set boundary conditions
-  !   bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, grid=grid)
-  !   allocate(bc_plus_x, source=bc, stat=alloc_status)
-  !   if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
-  !   deallocate(bc)
+    call self%bc_plus_x%set_time(time=self%time)
+    call self%bc_minus_x%set_time(time=self%time)
+    call self%bc_plus_y%set_time(time=self%time)
+    call self%bc_minus_y%set_time(time=self%time)
 
-  !   bc => bc_factory(bc_type=self%input%plus_y_bc, location='+y', input=self%input, grid=grid)
-  !   allocate(bc_plus_y, source=bc, stat=alloc_status)
-  !   if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
-  !   deallocate(bc)
+    do priority = max_priority_bc, 0, -1
 
-  !   bc => bc_factory(bc_type=self%input%minus_x_bc, location='-x', input=self%input, grid=grid)
-  !   allocate(bc_minus_x, source=bc, stat=alloc_status)
-  !   if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
-  !   deallocate(bc)
+      if(self%bc_plus_x%priority == priority) then
+        call self%bc_plus_x%apply(rho=self%rho, u=self%u, v=self%v, p=self%p)
+      end if
 
-  !   bc => bc_factory(bc_type=self%input%minus_y_bc, location='-y', input=self%input, grid=grid)
-  !   allocate(bc_minus_y, source=bc, stat=alloc_status)
-  !   if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
-  !   deallocate(bc)
+      if(self%bc_plus_y%priority == priority) then
+        call self%bc_plus_y%apply(rho=self%rho, u=self%u, v=self%v, p=self%p)
+      end if
 
-  ! end subroutine init_boundary_conditions
+      if(self%bc_minus_x%priority == priority) then
+        call self%bc_minus_x%apply(rho=self%rho, u=self%u, v=self%v, p=self%p)
+      end if
 
-  ! subroutine apply_primitive_bc(self, lbounds, rho, u, v, p, &
-  !                               bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
-  !   class(flux_solver_t), intent(inout) :: self
-  !   integer(ik), dimension(2), intent(in) :: lbounds
-  !   real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-  !   real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-  !   real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-  !   real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
-  !   class(boundary_condition_t), intent(inout):: bc_plus_x
-  !   class(boundary_condition_t), intent(inout):: bc_plus_y
-  !   class(boundary_condition_t), intent(inout):: bc_minus_x
-  !   class(boundary_condition_t), intent(inout):: bc_minus_y
+      if(self%bc_minus_y%priority == priority) then
+        call self%bc_minus_y%apply(rho=self%rho, u=self%u, v=self%v, p=self%p)
+      end if
 
-  !   integer(ik) :: priority
-  !   integer(ik) :: max_priority_bc !< highest goes first
+    end do
 
-  !   call debug_print('Running flux_solver_t%apply()', __FILE__, __LINE__)
-
-  !   max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
-  !                         bc_minus_x%priority, bc_minus_y%priority)
-
-  !   call bc_plus_x%set_time(time=self%time)
-  !   call bc_minus_x%set_time(time=self%time)
-  !   call bc_plus_y%set_time(time=self%time)
-  !   call bc_minus_y%set_time(time=self%time)
-
-  !   do priority = max_priority_bc, 0, -1
-
-  !     if(bc_plus_x%priority == priority) then
-  !       call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-  !     end if
-
-  !     if(bc_plus_y%priority == priority) then
-  !       call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-  !     end if
-
-  !     if(bc_minus_x%priority == priority) then
-  !       call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-  !     end if
-
-  !     if(bc_minus_y%priority == priority) then
-  !       call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-  !     end if
-
-  !   end do
-
-  ! end subroutine apply_primitive_bc
+  end subroutine apply_bc
 
 end module mod_fluid
