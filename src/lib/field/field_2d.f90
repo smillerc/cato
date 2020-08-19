@@ -27,12 +27,14 @@ module mod_field
   !      [1] Milan Curcic, "Modern Fortran: Building efficient parallel applications", 2020
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use, intrinsic :: ieee_arithmetic
+  use mod_error, only: error_msg
   ! use mod_parallel, only: tile_indices, tile_neighbors_2d
 
   implicit none
 
   private
-  public :: field_t
+  public :: field_2d_t
 
   ! Neighbor image indices
   integer(ik), parameter :: left = 1  !< left neighbor
@@ -40,62 +42,82 @@ module mod_field
   integer(ik), parameter :: down = 3  !< neighbor below
   integer(ik), parameter :: up = 4    !< neighbor above
 
-  type :: field_t
+  type :: field_2d_t
     !< A base class that encapsulates 2D data with knowledge of its parallel neighbors and bounds
 
-    real(rk), allocatable :: data(:, :)           !< (i, j); field data
-    character(:), allocatable :: name             !< name, e.g. 'rho'
-    character(:), allocatable :: long_name        !< long name, e.g. 'density'
-    character(:), allocatable :: units            !< physical units, e.g. 'g/cc'
-    character(:), allocatable :: descrip          !< description, e.g. 'Cell-centered density'
-    real(rk) :: to_nondim = 1.0_rk                !< scaling factor to convert to non-dimensional form
-    real(rk) :: to_dim = 1.0_rk                   !< scaling factor to convert to dimensional form
-    integer(ik) :: n_halo_cells = 0               !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
-    integer(ik), dimension(2) :: lbounds = 0      !< (i, j); lower bounds (not including halo cells)
-    integer(ik), dimension(2) :: ubounds = 0      !< (i, j); upper bounds (not including halo cells)
-    integer(ik), dimension(2) :: lbounds_halo = 0 !< (i, j); lower bounds (including halo cells)
-    integer(ik), dimension(2) :: ubounds_halo = 0 !< (i, j); upper bounds (including halo cells)
-    integer(ik), dimension(2) :: dims = 0         !< (i, j); dimensions
-    integer(ik), dimension(4) :: neighbors = 0    !< (left, right, down, up); parallel neighbor tiles/images
-    integer(ik) :: edge_size = 0                  !< max number of cells on the edge
+    private
+
+    ! Core data
+    real(rk), allocatable, public :: data(:, :)           !< (i, j); field data
 
     ! Intel compiler alignment hints
     !dir$ attributes align:__ALIGNBYTES__ :: data
+
+    ! Attributes/metadata
+    character(:), allocatable, public :: name             !< name, e.g. 'rho'
+    character(:), allocatable, public :: long_name        !< long name, e.g. 'density'
+    character(:), allocatable, public :: units            !< physical units, e.g. 'g/cc'
+    character(:), allocatable, public :: descrip          !< description, e.g. 'Cell-centered density'
+
+    ! Non-dimensionalization factors
+    real(rk) :: to_nondim = 1.0_rk                !< scaling factor to convert to non-dimensional form
+    real(rk) :: to_dim = 1.0_rk                   !< scaling factor to convert to dimensional form
+
+    ! Bounds information
+    integer(ik), public :: n_halo_cells = 0               !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
+    integer(ik), dimension(2), public :: dims = 0         !< (i, j); dimensions
+    integer(ik), dimension(2), public :: lbounds = 0      !< (i, j); lower bounds (not including halo cells)
+    integer(ik), dimension(2), public :: ubounds = 0      !< (i, j); upper bounds (not including halo cells)
+    integer(ik), dimension(2), public :: lbounds_halo = 0 !< (i, j); lower bounds (including halo cells)
+    integer(ik), dimension(2), public :: ubounds_halo = 0 !< (i, j); upper bounds (including halo cells)
+
+    ! Parallel neighbor information
+    integer(ik), dimension(4) :: neighbors = 0    !< (left, right, down, up); parallel neighbor tiles/images
+    integer(ik) :: edge_size = 0                  !< max number of cells on the edge
   contains
     private
 
     ! Private methods
-    procedure :: assign_field, assign_real_scalar
-    procedure :: field_mul_array, field_mul_real, field_mul_field
-    procedure :: field_div_real
-    procedure :: field_add_field, field_add_real
-    procedure :: field_sub_field, field_sub_real
+    procedure, pass(lhs) :: field_add_field, field_sub_field, field_mul_field, field_div_field
+    procedure, pass(lhs) :: field_add_real_1d, field_add_real_2d
+    procedure, pass(rhs) :: real_1d_add_field, real_2d_add_field
+    procedure, pass(lhs) :: field_sub_real_1d, field_sub_real_2d
+    procedure, pass(rhs) :: real_1d_sub_field, real_2d_sub_field
+    procedure, pass(lhs) :: field_div_real_1d, field_div_real_2d
+    procedure, pass(rhs) :: real_1d_div_field, real_2d_div_field
+    procedure, pass(lhs) :: field_mul_real_2d, field_mul_real_1d
+    procedure, pass(rhs) :: real_1d_mul_field, real_2d_mul_field
+    procedure, pass(lhs) :: assign_real_scalar, assign_field
 
     ! Public methods
+    procedure, public :: make_non_dimensional
+    procedure, public :: make_dimensional
     procedure, public :: zero_out_halo
+    procedure, public :: has_nans
+    procedure, public :: has_negatives
     procedure, public :: gather
     procedure, public :: sync_edges
 
-    generic :: assignment(=) => assign_field, assign_real_scalar
-    generic :: operator(+) => field_add_field, field_add_real
-    generic :: operator(-) => field_sub_field, field_sub_real
-    generic :: operator(*) => field_mul_array, field_mul_real, field_mul_field
-    generic :: operator(/) => field_div_real
+    generic, public :: assignment(=) => assign_field, assign_real_scalar
+    generic, public :: operator(+) => field_add_field, field_add_real_1d, field_add_real_2d, real_1d_add_field, real_2d_add_field
+    generic, public :: operator(-) => field_sub_field, field_sub_real_1d, field_sub_real_2d, real_1d_sub_field, real_2d_sub_field
+    generic, public :: operator(*) => field_mul_field, field_mul_real_2d, field_mul_real_1d, real_1d_mul_field, real_2d_mul_field
+    generic, public :: operator(/) => field_div_field, field_div_real_1d, field_div_real_2d, real_1d_div_field, real_2d_div_field
 
     ! Finalization
     final :: finalize
 
-  end type field_t
+  end type field_2d_t
 
   ! Constructor interface
-  interface field_t
+  interface field_2d_t
     module procedure :: field_constructor
-  end interface field_t
+  end interface field_2d_t
 
 contains
 
-  type(field_t) function field_constructor(name, long_name, descrip, units, dims) result(self)
-    !< Construct the field_t object
+  type(field_2d_t) function field_constructor(name, long_name, descrip, units, dims) result(self)
+    !< Construct the field_2d_t object
     character(len=*), intent(in) :: name          !< name, e.g. 'rho'
     character(len=*), intent(in) :: long_name     !< long name, e.g. 'density'
     character(len=*), intent(in) :: units         !< physical units, e.g. 'g/cc'
@@ -124,28 +146,28 @@ contains
     ! call co_max(self%edge_size)
   end function field_constructor
 
-  subroutine assign_field(self, f)
-    !< Implementation of the (=) operator from another field_t
-    class(field_t), intent(in out) :: self
-    class(field_t), intent(in) :: f
-    call from_field(self, f)
-    call self%sync_edges()
+  subroutine assign_field(lhs, f)
+    !< Implementation of the (=) operator from another field_2d_t
+    class(field_2d_t), intent(in out) :: lhs !< left-hand-side of the operation
+    class(field_2d_t), intent(in) :: f
+    call from_field(lhs, f)
+    call lhs%sync_edges()
   end subroutine assign_field
 
-  pure subroutine assign_real_scalar(self, a)
+  pure subroutine assign_real_scalar(lhs, a)
     !< Implementation of the (=) operator from a real scalar
-    class(field_t), intent(in out) :: self
+    class(field_2d_t), intent(in out) :: lhs !< left-hand-side of the operation
     real(rk), intent(in) :: a
-    self%data = a
+    lhs%data = a
   end subroutine assign_real_scalar
 
   pure subroutine from_field(target, source)
-    !< Initializes field_t instance target using components
-    !< from field_t instance source. Used to initialize a
-    !< field_t from another field_t without invoking the
+    !< Initializes field_2d_t instance target using components
+    !< from field_2d_t instance source. Used to initialize a
+    !< field_2d_t from another field_2d_t without invoking the
     !< assignment operator.
-    type(field_t), intent(in out) :: target
-    type(field_t), intent(in) :: source
+    type(field_2d_t), intent(in out) :: target
+    type(field_2d_t), intent(in) :: source
 
     target%data = source%data
     target%name = source%name
@@ -167,7 +189,7 @@ contains
 
   function gather(self, image)
     !< Performs a gather of field data to image.
-    class(field_t), intent(in) :: self
+    class(field_2d_t), intent(in) :: self
     integer(ik), intent(in) :: image
     real(rk) :: gather(self%dims(1), self%dims(2))
 
@@ -182,70 +204,169 @@ contains
     ! deallocate(gather_coarray)
   end function gather
 
-  pure type(field_t) function field_add_field(self, f) result(res)
-    !< Implementation of the field_t + field_t operation
-    class(field_t), intent(in) :: self, f
-    call from_field(res, self)
-    res%data = self%data + f%data
+  pure type(field_2d_t) function field_add_field(lhs, f) result(res)
+    !< Implementation of the field_2d_t + field_2d_t operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    class(field_2d_t), intent(in) :: f
+    call from_field(res, lhs)
+    res%data = lhs%data + f%data
   end function field_add_field
 
-  pure type(field_t) function field_add_real(self, x) result(res)
-    !< Implementation of the field_t + real64 operation
-    class(field_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(in) :: x
-    call from_field(res, self)
-    res%data = self%data + x
-  end function field_add_real
+  pure type(field_2d_t) function field_sub_field(lhs, f) result(res)
+    !< Implementation of the field_2d_t + field_2d_t operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    class(field_2d_t), intent(in) :: f
+    call from_field(res, lhs)
+    res%data = lhs%data - f%data
+  end function field_sub_field
 
-  pure type(field_t) function field_div_real(self, x) result(res)
-    !< Implementation of the field_t / real64 operation
-    class(field_t), intent(in) :: self
-    real(rk), intent(in) :: x
-    call from_field(res, self)
-    res%data = self%data / x
-  end function field_div_real
-
-  pure type(field_t) function field_mul_array(self, x) result(res)
-    !< Implementation of the field_t * array operation
-    class(field_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(in) :: x
-    call from_field(res, self)
-    res%data = self%data * x
-  end function field_mul_array
-
-  pure type(field_t) function field_mul_real(self, x) result(res)
-    !< Implementation of the field_t * real64 operation
-    class(field_t), intent(in) :: self
-    real(rk), intent(in) :: x
-    call from_field(res, self)
-    res%data = self%data * x
-  end function field_mul_real
-
-  pure type(field_t) function field_mul_field(self, f) result(res)
-    !< Implementation of the field_t * field_t operation
-    class(field_t), intent(in) :: self, f
-    call from_field(res, self)
-    res%data = self%data * f%data
+  pure type(field_2d_t) function field_mul_field(lhs, f) result(res)
+    !< Implementation of the field_2d_t * field_2d_t operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    class(field_2d_t), intent(in) :: f
+    call from_field(res, lhs)
+    res%data = lhs%data * f%data
   end function field_mul_field
 
-  pure type(field_t) function field_sub_real(self, x) result(res)
-    !< Implementation of the field_t - real64 operation
-    class(field_t), intent(in) :: self
-    real(rk), dimension(:, :), intent(in) :: x
-    call from_field(res, self)
-    res%data = self%data - x
-  end function field_sub_real
+  pure type(field_2d_t) function field_div_field(lhs, f) result(res)
+    !< Implementation of the field_2d_t * field_2d_t operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    class(field_2d_t), intent(in) :: f
+    call from_field(res, lhs)
+    res%data = lhs%data / f%data
+  end function field_div_field
 
-  pure type(field_t) function field_sub_field(self, f) result(res)
-    !< Implementation of the field_t - field_t operation
-    class(field_t), intent(in) :: self, f
-    call from_field(res, self)
-    res%data = self%data - f%data
-  end function field_sub_field
+  pure type(field_2d_t) function field_add_real_1d(lhs, x) result(res)
+    !< Implementation of the field_2d_t + real64 operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    real(rk), intent(in) :: x
+    call from_field(res, lhs)
+    res%data = lhs%data + x
+  end function field_add_real_1d
+
+  pure type(field_2d_t) function field_add_real_2d(lhs, x) result(res)
+    !< Implementation of the field_2d_t + real64 operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    real(rk), dimension(:, :), intent(in) :: x
+    call from_field(res, lhs)
+    res%data = lhs%data + x
+  end function field_add_real_2d
+
+  pure type(field_2d_t) function real_1d_add_field(x, rhs) result(res)
+    !< Implementation of the field_2d_t + real64 operation
+    class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
+    real(rk), intent(in) :: x
+    call from_field(res, rhs)
+    res%data = rhs%data + x
+  end function real_1d_add_field
+
+  pure type(field_2d_t) function real_2d_add_field(x, rhs) result(res)
+    !< Implementation of the field_2d_t + real64 operation
+    class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
+    real(rk), dimension(:, :), intent(in) :: x
+    call from_field(res, rhs)
+    res%data = rhs%data + x
+  end function real_2d_add_field
+
+  pure type(field_2d_t) function field_sub_real_1d(lhs, x) result(res)
+    !< Implementation of the field_2d_t + real64 operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    real(rk), intent(in) :: x
+    call from_field(res, lhs)
+    res%data = lhs%data - x
+  end function field_sub_real_1d
+
+  pure type(field_2d_t) function field_sub_real_2d(lhs, x) result(res)
+    !< Implementation of the field_2d_t + real64 operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    real(rk), dimension(:, :), intent(in) :: x
+    call from_field(res, lhs)
+    res%data = lhs%data - x
+  end function field_sub_real_2d
+
+  pure type(field_2d_t) function real_1d_sub_field(x, rhs) result(res)
+    !< Implementation of the field_2d_t + real64 operation
+    class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
+    real(rk), intent(in) :: x
+    call from_field(res, rhs)
+    res%data = rhs%data - x
+  end function real_1d_sub_field
+
+  pure type(field_2d_t) function real_2d_sub_field(x, rhs) result(res)
+    !< Implementation of the field_2d_t + real64 operation
+    class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
+    real(rk), dimension(:, :), intent(in) :: x
+    call from_field(res, rhs)
+    res%data = rhs%data - x
+  end function real_2d_sub_field
+
+  pure type(field_2d_t) function field_div_real_1d(lhs, x) result(res)
+    !< Implementation of the field_2d_t / real64 operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    real(rk), intent(in) :: x
+    call from_field(res, lhs)
+    res%data = lhs%data / x
+  end function field_div_real_1d
+
+  pure type(field_2d_t) function field_div_real_2d(lhs, x) result(res)
+    !< Implementation of the field_2d_t / real64 operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    real(rk), dimension(:, :), intent(in) :: x
+    call from_field(res, lhs)
+    res%data = lhs%data / x
+  end function field_div_real_2d
+
+  pure type(field_2d_t) function real_1d_div_field(x, rhs) result(res)
+    !< Implementation of the field_2d_t / real64 operation
+    class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
+    real(rk), intent(in) :: x
+    call from_field(res, rhs)
+    res%data = x / rhs%data
+  end function real_1d_div_field
+
+  pure type(field_2d_t) function real_2d_div_field(x, rhs) result(res)
+    !< Implementation of the field_2d_t / real64 operation
+    class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
+    real(rk), dimension(:, :), intent(in) :: x
+    call from_field(res, rhs)
+    res%data = x / rhs%data
+  end function real_2d_div_field
+
+  pure type(field_2d_t) function field_mul_real_2d(lhs, x) result(res)
+    !< Implementation of the field_2d_t * array operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    real(rk), dimension(:, :), intent(in) :: x
+    call from_field(res, lhs)
+    res%data = lhs%data * x
+  end function field_mul_real_2d
+
+  pure type(field_2d_t) function field_mul_real_1d(lhs, x) result(res)
+    !< Implementation of the field_2d_t * real64 operation
+    class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
+    real(rk), intent(in) :: x
+    call from_field(res, lhs)
+    res%data = lhs%data * x
+  end function field_mul_real_1d
+
+  pure type(field_2d_t) function real_1d_mul_field(x, rhs) result(res)
+    !< Implementation of the real64 * field_2d_t operation
+    class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
+    real(rk), intent(in) :: x
+    call from_field(res, rhs)
+    res%data = rhs%data * x
+  end function real_1d_mul_field
+
+  pure type(field_2d_t) function real_2d_mul_field(x, rhs) result(res)
+    !< Implementation of the real64 * field_2d_t operation
+    class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
+    real(rk), dimension(:, :), intent(in) :: x
+    call from_field(res, rhs)
+    res%data = rhs%data * x
+  end function real_2d_mul_field
 
   pure subroutine zero_out_halo(self)
     !< Zero out all of the halo (boundary) cells
-    class(field_t), intent(inout) :: self
+    class(field_2d_t), intent(inout) :: self
 
     associate(ilo_s => self%lbounds_halo(1), ilo_e => self%lbounds(1) - 1, &
               ihi_s => self%ubounds(1) + 1, ihi_e => self%ubounds_halo(1), &
@@ -259,8 +380,62 @@ contains
     end associate
   end subroutine zero_out_halo
 
+  pure subroutine make_dimensional(self)
+    !< Convert to the dimensional form
+    class(field_2d_t), intent(inout) :: self
+  end subroutine make_dimensional
+
+  pure subroutine make_non_dimensional(self)
+    !< Convert to the non-dimensional form
+    class(field_2d_t), intent(inout) :: self
+  end subroutine make_non_dimensional
+
+  logical function has_nans(self)
+    !< Check for NaNs
+    class(field_2d_t), intent(in) :: self
+
+    ! Locals
+    integer(ik) :: i, j
+    character(len=:), allocatable :: err_message
+
+    has_nans = .false.
+
+    do j = lbound(self%data, dim=2), ubound(self%data, dim=2)
+      do i = lbound(self%data, dim=1), ubound(self%data, dim=1)
+        if(ieee_is_nan(self%data(i, j))) then
+          write(err_message, '(a, i0, ", ", i0, a)') "NaN "//self%name//" found at (", i, j, ")"
+          call error_msg(module='mod_field', class='field_2d_t', procedure='check_for_nans', &
+                         message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
+          has_nans = .true.
+        end if
+      end do
+    end do
+  end function has_nans
+
+  logical function has_negatives(self)
+    !< Check for negative numbers
+    class(field_2d_t), intent(in) :: self
+
+    ! Locals
+    integer(ik) :: i, j
+    character(len=:), allocatable :: err_message
+
+    has_negatives = .false.
+
+    do j = lbound(self%data, dim=2), ubound(self%data, dim=2)
+      do i = lbound(self%data, dim=1), ubound(self%data, dim=1)
+        if(self%data(i, j) < 0.0_rk) then
+          write(err_message, '(a, i0, ", ", i0, a)') "Negative "//self%name//" found at (", i, j, ")"
+          call error_msg(module='mod_field', class='field_2d_t', procedure='check_for_negatives', &
+                         message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
+          has_negatives = .true.
+        end if
+      end do
+    end do
+  end function has_negatives
+
   subroutine sync_edges(self)
-    class(field_t), intent(inout) :: self
+    class(field_2d_t), intent(inout) :: self
     ! real(rk), allocatable, save :: edge(:, :)[:]
 
     ! associate(is => self%lbounds(1), ie => self%ubounds(1), &
@@ -301,8 +476,8 @@ contains
   end function set
 
   pure subroutine finalize(self)
-    !< Cleanup the field_t object
-    type(field_t), intent(inout) :: self
+    !< Cleanup the field_2d_t object
+    type(field_2d_t), intent(inout) :: self
     if(allocated(self%data)) deallocate(self%data)
     if(allocated(self%units)) deallocate(self%units)
     if(allocated(self%name)) deallocate(self%name)

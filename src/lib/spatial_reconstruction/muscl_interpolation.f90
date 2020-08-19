@@ -8,6 +8,7 @@ module mod_muscl_interpolation
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: ieee_arithmetic
+  use mod_field, only: field_2d_t
   use mod_globals, only: n_ghost_layers, debug_print
   use mod_error, only: error_msg
 
@@ -33,27 +34,21 @@ module mod_muscl_interpolation
       character(len=*), intent(in) :: limiter
     end subroutine initialize
 
-    subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
-      import :: muscl_interpolation_t, ik, rk
+    subroutine interpolate_edge_values(self, q, i_edges, j_edges)
+      import :: muscl_interpolation_t, field_2d_t, ik, rk
       class(muscl_interpolation_t), intent(in) :: self
-      integer(ik), dimension(2), intent(in) :: lbounds
-
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
-      !< (i,j); primitive variable to reconstruct at the edge
-
-      real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
-      !<((L,R), i, j); L/R state for each edge
-      real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
+      class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+      real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges !<((L,R), i, j); L/R state for each edge
+      real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges !<((L,R), i, j); L/R state for each edge
     end subroutine interpolate_edge_values
 
-    subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
-      import :: muscl_interpolation_t, ik, rk
+    subroutine distinguish_continuous_regions(self, rho, u, v, p)
+      import :: muscl_interpolation_t, field_2d_t, ik, rk
       class(muscl_interpolation_t), intent(inout) :: self
-      integer(ik), dimension(2), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); x-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); y-velocity
-      real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); pressure
+      class(field_2d_t), intent(in) :: rho !< density
+      class(field_2d_t), intent(in) :: u   !< x-velocity
+      class(field_2d_t), intent(in) :: v   !< y-velocity
+      class(field_2d_t), intent(in) :: p   !< pressure
     end subroutine distinguish_continuous_regions
   end interface
 

@@ -41,7 +41,7 @@ module mod_ausmpw_plus_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_error, only: error_msg
-  use mod_field, only: field_t
+  use mod_field, only: field_2d_t
   use mod_globals, only: debug_print, LOW_MACH
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
@@ -69,16 +69,14 @@ module mod_ausmpw_plus_solver
     ! Public methods
     procedure, public :: initialize => initialize_ausmpw_plus
     procedure, public :: solve => solve_ausmpw_plus
-    procedure, public, pass(lhs) :: copy => copy_ausmpw_plus
-    ! procedure, public :: flux_split_edges
+
     ! Private methods
     #:for DIR in DIRECTIONS
     procedure, private :: get_${DIR}$flux
     #:endfor
-    final :: finalize
 
-    ! Operators
-    generic :: assignment(=) => copy
+    ! Finalization
+    final :: finalize
   end type ausmpw_plus_solver_t
 contains
   subroutine initialize_ausmpw_plus(self, input)
@@ -92,33 +90,18 @@ contains
     self%apply_low_mach_fix = input%apply_low_mach_fix
   end subroutine initialize_ausmpw_plus
 
-  subroutine copy_ausmpw_plus(lhs, rhs)
-    !< Implement LHS = RHS
-    class(ausmpw_plus_solver_t), intent(inout) :: lhs
-    type(ausmpw_plus_solver_t), intent(in) :: rhs
-
-    call debug_print('Running copy_ausmpw_plus%copy()', __FILE__, __LINE__)
-
-    lhs%iteration = rhs%iteration
-    lhs%time = rhs%time
-    lhs%dt = rhs%dt
-    lhs%gamma = rhs%gamma
-
-  end subroutine copy_ausmpw_plus
-
-  subroutine solve_ausmpw_plus(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine solve_ausmpw_plus(self, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
-    real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
-    class(field_t), intent(inout) :: rho !< density
-    class(field_t), intent(inout) :: u   !< x-velocity
-    class(field_t), intent(inout) :: v   !< y-velocity
-    class(field_t), intent(inout) :: p   !< pressure
-    class(field_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
-    class(field_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
-    class(field_t), intent(out)   :: d_rho_v_dt    !< d/dt of the rhov field
-    class(field_t), intent(out)   :: d_rho_E_dt    !< d/dt of the rhoE field
+    class(field_2d_t), intent(inout) :: rho !< density
+    class(field_2d_t), intent(inout) :: u   !< x-velocity
+    class(field_2d_t), intent(inout) :: v   !< y-velocity
+    class(field_2d_t), intent(inout) :: p   !< pressure
+    type(field_2d_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
+    type(field_2d_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
+    type(field_2d_t), intent(out)   :: d_rho_v_dt    !< d/dt of the rhov field
+    type(field_2d_t), intent(out)   :: d_rho_E_dt    !< d/dt of the rhoE field
 
     class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x
@@ -127,6 +110,7 @@ contains
     class(boundary_condition_t), allocatable:: bc_minus_y
 
     integer(ik) :: i, j
+    integer(ik), dimension(3) :: lbounds
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
 
@@ -144,31 +128,15 @@ contains
 
     call debug_print('Running ausmpw_plus_solver_t%solve_ausmpw_plus()', __FILE__, __LINE__)
 
-    if(dt < tiny(1.0_rk)) then
-      call error_msg(module='mod_ausmpw_plus_solver', class='ausmpw_plus_solver_t', procedure='solve_ausmpw_plus', &
-                   message="The timestep dt is < tiny(1.0_rk)", &
-                   file_name=__FILE__, line_number=__LINE__)
-    end if
-
-    self%time = self%time + dt
-    self%dt = dt
-    self%iteration = self%iteration + 1
-
-    call self%init_boundary_conditions(grid, bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                       bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
-                                 bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
-                                 bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
-
     edge_interpolator => muscl_interpolator_factory(self%input)
 
     ! This is useful if e-MLP is used
-    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p)
 
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=rho, i_edges=rho_i_edges, j_edges=rho_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p, i_edges=p_i_edges, j_edges=p_j_edges)
 
     !
     !                    jflux(i,j)  'R'
@@ -183,21 +151,16 @@ contains
     !
     ! This is the numbering convention that this module uses
 
-    ilo = grid%ilo_cell
-    ihi = grid%ihi_cell
-    jlo = grid%jlo_cell
-    jhi = grid%jhi_cell
+    ilo = rho%lbounds(1)
+    ihi = rho%ubounds(1)
+    jlo = rho%lbounds(2)
+    jhi = rho%ubounds(2)
 
     if(allocated(self%iflux)) deallocate(self%iflux)
     if(allocated(self%jflux)) deallocate(self%jflux)
 
     allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
     allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
-
-    ilo_bc = grid%ilo_bc_cell
-    ihi_bc = grid%ihi_bc_cell
-    jlo_bc = grid%jlo_bc_cell
-    jhi_bc = grid%jhi_bc_cell
 
     #:for DIR in DIRECTIONS
     call self%get_${DIR}$flux(grid=grid, lbounds=lbound(rho_${DIR}$_edges), eflux_lbounds=lbound(self%${DIR}$flux), &
@@ -207,7 +170,7 @@ contains
     #:endfor
 
     ! Now flux the edges to get the next solution
-    call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    call self%flux_split_edges(grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
 
     deallocate(rho_i_edges)
     deallocate(rho_j_edges)
@@ -233,10 +196,10 @@ contains
     class(ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
     integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_ave    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
+    class(field_2d_t), intent(in) :: rho_ave  !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
+    class(field_2d_t), intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
+    class(field_2d_t), intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
+    class(field_2d_t), intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
@@ -446,13 +409,13 @@ contains
 
         #:if DIR == 'i'
           call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                    p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
-                    p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
+                    p1_L=p_ave%data(i, j - 1), p1_R=p_ave%data(i + 1, j - 1), &
+                    p2_L=p_ave%data(i, j + 1), p2_R=p_ave%data(i + 1, j + 1), &
                     f_L=f_L, f_R=f_R)
-        #:else
+        #:elif DIR == 'j'
           call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                    p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
-                    p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
+                    p1_L=p_ave%data(i + 1, j), p1_R=p_ave%data(i + 1, j + 1), &
+                    p2_L=p_ave%data(i - 1, j), p2_R=p_ave%data(i - 1, j + 1), &
                     f_L=f_L, f_R=f_R)
         #:endif
 
