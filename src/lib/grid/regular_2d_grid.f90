@@ -64,21 +64,26 @@ module mod_regular_2d_grid
     ! k=4,c -> [C1, M4, C4]
     ! k=4,2 -> [C2, C1, C4]
   contains
+
+    ! Public methods
     procedure, public :: initialize
+    procedure, public :: finalize
+    procedure, public :: copy
+    procedure, public :: print_grid_stats
+
+    ! Private
     procedure, private :: initialize_from_hdf5
     procedure, private :: initialize_from_ini
     procedure, private :: populate_element_specifications
     procedure, private :: scale_and_nondimensionalize
-    procedure, public :: get_x
-    procedure, public :: get_y
-    procedure, public :: get_cell_volumes
-    procedure, public :: get_cell_edge_lengths
-    procedure, public :: get_cell_edge_norm_vectors
-    procedure, public :: get_midpoint_persistent_vectors
-    procedure, public :: get_corner_persistent_vectors
-    procedure, public :: finalize
-    procedure, public :: copy
-    procedure, public :: print_grid_stats
+    ! procedure, private :: get_cell_edge_norm_vectors
+    procedure, private :: get_midpoint_persistent_vectors
+    procedure, private :: get_corner_persistent_vectors
+    procedure, private :: make_ghost_regions
+    procedure, private :: init_arrays
+    procedure, private :: set_grid_bounds
+
+    ! Cleanup
     final :: force_finalization
 
   end type regular_2d_grid_t
@@ -100,13 +105,15 @@ contains
     class(regular_2d_grid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
-    integer(ik) :: alloc_status
+    integer(ik) :: alloc_status = 0
 
     ! Low node/cell indices (always starts at 1)
     self%ilo_node = 1
     self%jlo_node = 1
     self%ilo_cell = 1
     self%jlo_cell = 1
+
+    self%n_ghost_layers = input%n_ghost_layers
 
     if(input%read_init_cond_from_file .or. input%restart_from_file) then
       write(*, '(a)') 'Initializing the grid via .hdf5'
@@ -116,72 +123,7 @@ contains
       call self%initialize_from_ini(input)
     end if
 
-    ! Allocate cell based arrays
-    associate(imin => self%ilo_bc_cell, imax => self%ihi_bc_cell, &
-              jmin => self%jlo_bc_cell, jmax => self%jhi_bc_cell)
-
-      allocate(self%cell_volume(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volume"
-      self%cell_volume = 0.0_rk
-
-      allocate(self%cell_dx(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_dx"
-      self%cell_dx = 0.0_rk
-
-      allocate(self%cell_dy(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_dy"
-      self%cell_dy = 0.0_rk
-
-      allocate(self%cell_centroid_x(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroid_x"
-      self%cell_centroid_x = 0.0_rk
-
-      allocate(self%cell_centroid_y(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroid_y"
-      self%cell_centroid_y = 0.0_rk
-
-      allocate(self%cell_edge_lengths(4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_lengths"
-      self%cell_edge_lengths = 0.0_rk
-
-      allocate(self%cell_edge_norm_vectors(2, 4, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_norm_vectors"
-      self%cell_edge_norm_vectors = 0.0_rk
-
-      allocate(self%cell_node_x(1:8, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_node_x"
-      self%cell_node_x = 0.0_rk
-
-      allocate(self%cell_node_y(1:8, imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_node_y"
-      self%cell_node_y = 0.0_rk
-    end associate
-
-    ! Allocate the edge vector arrays
-    associate(imin_node => self%ilo_node, imax_node => self%ihi_node, &
-              jmin_node => self%jlo_node, jmax_node => self%jhi_node, &
-              imin_cell => self%ilo_cell, imax_cell => self%ihi_cell, &
-              jmin_cell => self%jlo_cell, jmax_cell => self%jhi_cell)
-
-      allocate(self%corner_edge_vectors(2, 0:4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%corner_edge_vectors"
-
-      allocate(self%corner_edge_vectors_scale(imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%corner_edge_vectors_scale"
-
-      allocate(self%downup_midpoint_edge_vectors(2, 0:2, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%downup_midpoint_edge_vectors"
-
-      allocate(self%downup_midpoint_edge_vectors_scale(imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%downup_midpoint_edge_vectors_scale"
-
-      allocate(self%leftright_midpoint_edge_vectors(2, 0:2, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%leftright_midpoint_edge_vectors"
-
-      allocate(self%leftright_midpoint_edge_vectors_scale(imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%leftright_midpoint_edge_vectors_scale"
-    end associate
-
+    call self%make_ghost_regions()
     call self%populate_element_specifications()
     call self%scale_and_nondimensionalize()
 
@@ -314,7 +256,6 @@ contains
     logical :: file_exists
     character(:), allocatable :: filename
     character(32) :: str_buff = ''
-    character(300) :: msg = ''
 
     real(rk), dimension(:, :), allocatable :: x
     real(rk), dimension(:, :), allocatable :: y
@@ -333,23 +274,14 @@ contains
       error stop 'Error in regular_2d_grid_t%initialize_from_hdf5(); file not found, exiting...'
     end if
 
+    ! Note: the grid does not store ghost layers, the code internally creates them
     call h5%initialize(filename=filename, status='old', action='r')
-
-    ! Low i/j boundary condition indices
-    call h5%get('/n_ghost_layers', self%n_ghost_layers)
-
-    if(self%n_ghost_layers /= input%n_ghost_layers) then
-      write(msg, '(2(a,i0),a)') "The number of ghost layers in the .hdf5 file (", self%n_ghost_layers, ") does not match the"// &
-        " input requirement set by the edge interpolation scheme (", input%n_ghost_layers, ")"
-
-      call error_msg(module='mod_regular_grid_2d', class='regular_2d_grid_t', &
-                     procedure='initialize_from_hdf5', &
-                     message=msg, &
-                     file_name=__FILE__, line_number=__LINE__)
-    end if
-
     call h5%get('/x', x)
     call h5%get('/y', y)
+    call h5%finalize()
+
+    call self%set_grid_bounds(ni_nodes=size(x, dim=1), nj_nodes=size(y, dim=2))
+    call self%init_arrays()
 
     if(input%restart_from_file) then
       call h5%readattr('/x', 'units', str_buff)
@@ -364,15 +296,127 @@ contains
       end select
     end if
 
-    call h5%finalize()
+    ! Allocate node based arrays
+    associate(imin => self%ilo_node, imax => self%ihi_node, &
+              jmin => self%jlo_node, jmax => self%jhi_node, &
+              imin_bc => self%ilo_bc_node, imax_bc => self%ihi_bc_node, &
+              jmin_bc => self%jlo_bc_node, jmax_bc => self%jhi_bc_node)
+
+      allocate(self%node_x(imin_bc:imax_bc, jmin_bc:jmax_bc), stat=alloc_status)
+      if(alloc_status /= 0) then
+        call error_msg(module_name='mod_regular_2d_grid', class_name='regular_2d_grid_t', &
+                       procedure_name='initialize_from_hdf5', &
+                       message="Unable to allocate regular_2d_grid_t%node_x", &
+                       file_name=__FILE__, line_number=__LINE__)
+      end if
+      self%node_x = 0.0_rk
+      self%node_x(imin:imax, jmin:jmax) = x
+      deallocate(x)
+
+      allocate(self%node_y(imin_bc:imax_bc, jmin_bc:jmax_bc), stat=alloc_status)
+      if(alloc_status /= 0) then
+        call error_msg(module_name='mod_regular_2d_grid', class_name='regular_2d_grid_t', &
+                       procedure_name='initialize_from_hdf5', &
+                       message="Unable to allocate regular_2d_grid_t%node_y", &
+                       file_name=__FILE__, line_number=__LINE__)
+      end if
+      self%node_y = 0.0_rk
+      self%node_y(imin:imax, jmin:jmax) = y
+      deallocate(y)
+    end associate
+  end subroutine initialize_from_hdf5
+
+  subroutine init_arrays(self)
+    class(regular_2d_grid_t), intent(inout) :: self
+
+    integer(ik) :: alloc_status
+
+    ! Allocate cell based arrays
+    associate(imin => self%ilo_bc_cell, imax => self%ihi_bc_cell, &
+              jmin => self%jlo_bc_cell, jmax => self%jhi_bc_cell)
+
+      allocate(self%cell_volume(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_volume"
+      self%cell_volume = 0.0_rk
+
+      allocate(self%cell_dx(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_dx"
+      self%cell_dx = 0.0_rk
+
+      allocate(self%cell_dy(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_dy"
+      self%cell_dy = 0.0_rk
+
+      allocate(self%cell_centroid_x(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroid_x"
+      self%cell_centroid_x = 0.0_rk
+
+      allocate(self%cell_centroid_y(imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_centroid_y"
+      self%cell_centroid_y = 0.0_rk
+
+      allocate(self%cell_edge_lengths(4, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_lengths"
+      self%cell_edge_lengths = 0.0_rk
+
+      allocate(self%cell_edge_norm_vectors(2, 4, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_edge_norm_vectors"
+      self%cell_edge_norm_vectors = 0.0_rk
+
+      allocate(self%cell_node_x(1:8, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_node_x"
+      self%cell_node_x = 0.0_rk
+
+      allocate(self%cell_node_y(1:8, imin:imax, jmin:jmax), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_node_y"
+      self%cell_node_y = 0.0_rk
+    end associate
+
+    ! Allocate the edge vector arrays
+    associate(imin_node => self%ilo_node, imax_node => self%ihi_node, &
+              jmin_node => self%jlo_node, jmax_node => self%jhi_node, &
+              imin_cell => self%ilo_cell, imax_cell => self%ihi_cell, &
+              jmin_cell => self%jlo_cell, jmax_cell => self%jhi_cell)
+
+      allocate(self%corner_edge_vectors(2, 0:4, imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%corner_edge_vectors"
+
+      allocate(self%corner_edge_vectors_scale(imin_node:imax_node, jmin_node:jmax_node), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%corner_edge_vectors_scale"
+
+      allocate(self%downup_midpoint_edge_vectors(2, 0:2, imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%downup_midpoint_edge_vectors"
+
+      allocate(self%downup_midpoint_edge_vectors_scale(imin_node:imax_node, jmin_cell:jmax_cell), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%downup_midpoint_edge_vectors_scale"
+
+      allocate(self%leftright_midpoint_edge_vectors(2, 0:2, imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%leftright_midpoint_edge_vectors"
+
+      allocate(self%leftright_midpoint_edge_vectors_scale(imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%leftright_midpoint_edge_vectors_scale"
+    end associate
+  end subroutine init_arrays
+
+  subroutine set_grid_bounds(self, ni_nodes, nj_nodes)
+    class(regular_2d_grid_t), intent(inout) :: self
+    integer(ik), intent(in) :: ni_nodes, nj_nodes
+
+    self%ni_node = ni_nodes
+    self%nj_node = nj_nodes
+    self%ni_cell = self%ni_node - 1
+    self%nj_cell = self%nj_node - 1
+
+    if(self%ni_node < 1) error stop "Error: grid_t%ni_node < 1"
+    if(self%nj_node < 1) error stop "Error: grid_t%nj_node < 1"
 
     ! Node
     self%ilo_node = 1
     self%jlo_node = 1
-    self%ilo_bc_node = 1 - self%n_ghost_layers
-    self%jlo_bc_node = 1 - self%n_ghost_layers
-    self%ihi_bc_node = ubound(x, dim=1) - self%n_ghost_layers
-    self%jhi_bc_node = ubound(x, dim=2) - self%n_ghost_layers
+    self%ilo_bc_node = self%ilo_node - self%n_ghost_layers
+    self%jlo_bc_node = self%jlo_node - self%n_ghost_layers
+    self%ihi_bc_node = self%ni_node + self%n_ghost_layers
+    self%jhi_bc_node = self%nj_node + self%n_ghost_layers
     self%ihi_node = self%ihi_bc_node - self%n_ghost_layers
     self%jhi_node = self%jhi_bc_node - self%n_ghost_layers
 
@@ -386,37 +430,96 @@ contains
     self%jhi_cell = self%jhi_node - 1
     self%ihi_bc_cell = self%ihi_bc_node - 1
     self%jhi_bc_cell = self%jhi_bc_node - 1
+  end subroutine set_grid_bounds
 
-    write(*, '(a, 2(i5))') "cell jlo: ", self%jlo_cell, self%jlo_bc_cell
-    write(*, '(a, 2(i5))') "cell jhi: ", self%jhi_cell, self%jhi_bc_cell
-    write(*, '(a, 2(i5))') "node jlo: ", self%jlo_node, self%jlo_bc_node
-    write(*, '(a, 2(i5))') "node jhi: ", self%jhi_node, self%jhi_bc_node
+  subroutine make_ghost_regions(self)
+    class(regular_2d_grid_t), intent(inout) :: self
 
-    self%ni_node = size(x, dim=1) - (2 * self%n_ghost_layers)
-    self%nj_node = size(y, dim=2) - (2 * self%n_ghost_layers)
-    self%ni_cell = self%ni_node - 1
-    self%nj_cell = self%nj_node - 1
+    integer(ik) :: g !< ghost layer index
+    integer(ik) :: i, j
+    real(rk) :: x0, x1, y0, y1
 
-    if(self%ni_node < 1) error stop "Error: grid_t%ni_node < 1"
-    if(self%nj_node < 1) error stop "Error: grid_t%nj_node < 1"
+    ! Note: this only works for now with rectangular grids
+    associate(ilo => self%ilo_node, ilo_bc => self%ilo_bc_node, &
+              ihi => self%ihi_node, ihi_bc => self%ihi_bc_node, &
+              jlo => self%jlo_node, jlo_bc => self%jlo_bc_node, &
+              jhi => self%jhi_node, jhi_bc => self%jhi_bc_node)
 
-    ! Allocate node based arrays
-    associate(imin => self%ilo_bc_node, imax => self%ihi_bc_node, &
-              jmin => self%jlo_bc_node, jmax => self%jhi_bc_node)
+      ! ilo layer(s)
+      do g = 1, self%n_ghost_layers
+        do j = jlo, jhi
 
-      ! error stop
-      allocate(self%node_x(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_x from .ini input file"
+          ! Edge of the real domain
+          x0 = self%node_x(ilo, j)
+          y0 = self%node_y(ilo, j)
 
-      allocate(self%node_y(imin:imax, jmin:jmax), stat=alloc_status)
-      if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_y from .ini input file"
-      self%node_x(imin:imax, jmin:jmax) = x!(1:imax,1:jmax)
-      self%node_y(imin:imax, jmin:jmax) = y!(1:imax,1:jmax)
+          ! Internal node
+          x1 = self%node_x(ilo + g, j)
+          y1 = self%node_y(ilo + g, j)
+
+          ! Ghost node
+          self%node_x(ilo - g, j) = x0 - (x1 - x0)
+          self%node_y(ilo - g, j) = y0 - (y1 - y0)
+        end do
+      end do
+
+      ! ihi layer(s)
+      do g = 1, self%n_ghost_layers
+        do j = jlo, jhi
+
+          ! Edge of the real domain
+          x0 = self%node_x(ihi, j)
+          y0 = self%node_y(ihi, j)
+
+          ! Internal node
+          x1 = self%node_x(ihi - g, j)
+          y1 = self%node_y(ihi - g, j)
+
+          ! Ghost node
+          self%node_x(ihi + g, j) = x0 - (x1 - x0)
+          self%node_y(ihi + g, j) = y0 - (y1 - y0)
+        end do
+      end do
+
+      ! jlo layer(s)
+      do g = 1, self%n_ghost_layers
+        do i = ilo, ihi
+
+          ! Edge of the real domain
+          x0 = self%node_x(i, jlo)
+          y0 = self%node_y(i, jlo)
+
+          ! Internal node
+          x1 = self%node_x(i, jlo + g)
+          y1 = self%node_y(i, jlo + g)
+
+          ! Ghost node
+          self%node_x(i, jlo - g) = x0 - (x1 - x0)
+          self%node_y(i, jlo - g) = y0 - (y1 - y0)
+        end do
+      end do
+
+      ! jhi layer(s)
+      do g = 1, self%n_ghost_layers
+        do i = ilo, ihi
+
+          ! Edge of the real domain
+          x0 = self%node_x(i, jhi)
+          y0 = self%node_y(i, jhi)
+
+          ! Internal node
+          x1 = self%node_x(i, jhi - g)
+          y1 = self%node_y(i, jhi - g)
+
+          ! Ghost node
+          self%node_x(i, jhi + g) = x0 - (x1 - x0)
+          self%node_y(i, jhi + g) = y0 - (y1 - y0)
+        end do
+      end do
+
     end associate
 
-    deallocate(x)
-    deallocate(y)
-  end subroutine initialize_from_hdf5
+  end subroutine make_ghost_regions
 
   subroutine initialize_from_ini(self, input)
     !< Initialize the nodes from the .ini input file -> requires equal spacing
@@ -633,46 +736,6 @@ contains
 
   end subroutine finalize
 
-  pure function get_x(self, i, j) result(x)
-    !< Public interface to get x
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik), intent(in) :: i, j
-    real(rk) :: x
-    x = self%node_x(i, j)
-  end function get_x
-
-  pure function get_y(self, i, j) result(y)
-    !< Public interface to get y
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik), intent(in) :: i, j
-    real(rk) :: y
-    y = self%node_y(i, j)
-  end function get_y
-
-  pure function get_cell_volumes(self, i, j) result(cell_volume)
-    !< Public interface to get cell_volume
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik), intent(in) :: i, j
-    real(rk) :: cell_volume
-    cell_volume = self%cell_volume(i, j)
-  end function get_cell_volumes
-
-  pure function get_cell_edge_lengths(self, i, j, f) result(cell_edge_lengths)
-    !< Public interface to get cell_edge_lengths
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik), intent(in) :: i, j, f
-    real(rk) :: cell_edge_lengths
-    cell_edge_lengths = self%cell_edge_lengths(f, i, j)
-  end function get_cell_edge_lengths
-
-  pure function get_cell_edge_norm_vectors(self, i, j, f, xy) result(cell_edge_norm_vectors)
-    !< Public interface to get cell_edge_norm_vectors
-    class(regular_2d_grid_t), intent(in) :: self
-    integer(ik), intent(in) :: i, j, f, xy
-    real(rk) :: cell_edge_norm_vectors
-    cell_edge_norm_vectors = self%cell_edge_norm_vectors(xy, f, i, j)
-  end function get_cell_edge_norm_vectors
-
   subroutine get_midpoint_persistent_vectors(self, edge, scale, shift)
     !< Public interface to get_midpoint_vectors
     class(regular_2d_grid_t), intent(inout) :: self
@@ -821,7 +884,7 @@ contains
     real(rk), dimension(2) :: origin
     real(rk), dimension(4) :: vector_length
 
-    integer(ik) :: i, j, v, N
+    integer(ik) :: i, j, v
 
     ! Corner/midpoint index convention         Cell Indexing convention
     ! --------------------------------         ------------------------

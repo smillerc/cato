@@ -153,16 +153,16 @@ module mod_grid
 
   contains
     procedure(initialize), deferred :: initialize
-    procedure(get_2d_data), deferred, public :: get_x
-    procedure(get_2d_data), deferred, public :: get_y
-    procedure(get_2d_data), deferred, public :: get_cell_volumes
+    ! procedure(get_2d_data), deferred, public :: get_x
+    ! procedure(get_2d_data), deferred, public :: get_y
+    ! procedure(get_2d_data), deferred, public :: get_cell_volumes
     ! procedure(get_cell_centroid_xy), deferred, public :: get_cell_centroid_xy
-    procedure(get_cell_edge_lengths), deferred, public :: get_cell_edge_lengths
-    procedure(get_4d_data), deferred, public :: get_cell_edge_norm_vectors
+    ! procedure(get_cell_edge_lengths), deferred, public :: get_cell_edge_lengths
+    ! procedure(get_4d_data), deferred, public :: get_cell_edge_norm_vectors
     ! procedure(get_midpoint_vectors), deferred, public :: get_midpoint_vectors
     ! procedure(get_corner_vectors), deferred, public :: get_corner_vectors
-    procedure(get_midpoint_persistent_vectors), deferred, public :: get_midpoint_persistent_vectors
-    procedure(get_corner_persistent_vectors), deferred, public :: get_corner_persistent_vectors
+    ! procedure(get_midpoint_persistent_vectors), deferred, public :: get_midpoint_persistent_vectors
+    ! procedure(get_corner_persistent_vectors), deferred, public :: get_corner_persistent_vectors
     procedure(copy_grid), public, deferred :: copy
     generic :: assignment(=) => copy
   end type grid_t
