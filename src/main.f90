@@ -76,7 +76,7 @@ program cato
   inquire(file=trim(input_filename), exist=file_exists)
 
   if(.not. file_exists) then
-    call error_msg(module='cato', procedure='main', &
+    call error_msg(module_name='cato', procedure_name='main', &
                    message="CATO input (input.ini) file not found", file_name=__FILE__, line_number=__LINE__)
   end if
 

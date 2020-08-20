@@ -242,7 +242,10 @@ contains
 
       select case(self%location)
       case('+x')
-        if (enable_debug_print) call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', __FILE__, __LINE__)
+        if(enable_debug_print) then
+          call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', &
+                           __FILE__, __LINE__)
+        end if
 
         domain_rho = rho%data(right, bottom_ghost:top_ghost)
         domain_u = u%data(right, bottom_ghost:top_ghost)
@@ -269,7 +272,8 @@ contains
               end if
             else ! inlet
               if(abs(mach_u) > 1.0_rk) then
-              error stop 'Error in pressure_input_bc_t%apply_pressure_input_primitive_var_bc(): Supersonic inlet not configured yet'
+                error stop 'Error in pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"'// &
+                  ': Supersonic inlet not configured yet'
               else
                 boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
                                                     boundary_norm=boundary_norm, &

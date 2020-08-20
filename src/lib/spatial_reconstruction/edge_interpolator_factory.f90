@@ -71,8 +71,10 @@ contains
     case('TVD5')
       interpolator => new_tvd_5th_order_t(limiter=limiter)
     case default
-      call error_msg(module='mod_edge_interpolator_factory', procedure='edge_interpolator_factory', &
-          message="Unknown edge interpolation scheme '"//trim(input%spatial_reconstruction)//"', must be one of the following: "// &
+      call error_msg(module_name='mod_edge_interpolator_factory', &
+                     procedure_name='edge_interpolator_factory', &
+                     message="Unknown edge interpolation scheme '"// &
+                     trim(input%spatial_reconstruction)//"', must be one of the following: "// &
                      "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select

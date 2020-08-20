@@ -217,7 +217,7 @@ contains
     ! call debug_print('Running ausm_plus_solver_t%solve_ausm_plus()', __FILE__, __LINE__)
 
     ! if(dt < tiny(1.0_rk)) then
-    !   call error_msg(module='mod_ausm_plus', class='ausm_plus_solver_t', procedure='solve_ausm_plus', &
+    !   call error_msg(module_name='mod_ausm_plus', class_name='ausm_plus_solver_t', procedure_name='solve_ausm_plus', &
     !                  message="The timestep dt is < tiny(1.0_rk)", &
     !                  file_name=__FILE__, line_number=__LINE__)
     ! end if

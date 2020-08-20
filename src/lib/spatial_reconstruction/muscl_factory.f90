@@ -82,7 +82,7 @@ contains
       ! case('e-MLP5')
       !   interpolator => new_muscl_e_mlp(limiter=limiter, order=5)
     case default
-      call error_msg(module='mod_muscl_interpolator_factory', procedure='muscl_interpolator_factory', &
+      call error_msg(module_name='mod_muscl_interpolator_factory', procedure_name='muscl_interpolator_factory', &
                      message="Unknown edge interpolation scheme, must be one of the following: "// &
                      "['TVD2', '(e-)MLP3', or '(e-)MLP5]', the input value was '"// &
                      trim(input%spatial_reconstruction)//"'", &

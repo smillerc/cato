@@ -188,7 +188,7 @@ contains
 
     inquire(file=filename, exist=file_exists)
     if(.not. file_exists) then
-      call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+      call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                      message="Input .ini file not found", &
                      file_name=__FILE__, line_number=__LINE__)
     end if
@@ -247,7 +247,7 @@ contains
 
       inquire(file=self%restart_file, exist=file_exists)
       if(.not. file_exists) then
-        call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+        call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                        message='Restart file not found: "'//trim(self%restart_file)//'"', &
                        file_name=__FILE__, line_number=__LINE__)
       end if
@@ -263,7 +263,7 @@ contains
 
         inquire(file=self%initial_condition_file, exist=file_exists)
         if(.not. file_exists) then
-          call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+          call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                          message='Initial conditions file not found: "'//trim(self%initial_condition_file)//'"', &
                          file_name=__FILE__, line_number=__LINE__)
         end if
@@ -285,14 +285,14 @@ contains
       required_n_ghost_layers = 3
       call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
     case default
-      call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+      call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                      message="Unknown edge interpolation scheme, must be one of the following: "// &
                      "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
 
     if(self%n_ghost_layers /= required_n_ghost_layers) then
-      call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+      call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                      message="The number of required ghost cell layers doesn't match the edge interpolation order", &
                      file_name=__FILE__, line_number=__LINE__)
     end if
@@ -363,17 +363,17 @@ contains
          self%source_ihi == 0 .and. &
          self%source_jlo == 0 .and. &
          self%source_jhi == 0) then
-        call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+        call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                        message="All of the (i,j) ranges in source_terms are 0", &
                        file_name=__FILE__, line_number=__LINE__)
       end if
 
       if(self%source_ilo > self%source_ihi .and. self%source_ihi /= -1) then
-        call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+        call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                        message="Error: Invalid source application range; source_terms%ilo > source_terms%ihi", &
                        file_name=__FILE__, line_number=__LINE__)
       else if(self%source_jlo > self%source_jhi .and. self%source_jhi /= -1) then
-        call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+        call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                        message="Error: Invalid source application range; source_terms%jlo > source_terms%jhi", &
                        file_name=__FILE__, line_number=__LINE__)
       end if

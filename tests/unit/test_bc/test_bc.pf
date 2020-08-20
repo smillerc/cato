@@ -59,7 +59,7 @@ contains
     ! Set up the periodic grid to test against
     integer(ik) :: i, j
 
-    print*, "Setting up the periodic grid"
+    print *, "Setting up the periodic grid"
     ! These are normally handled by the master puppeteer, but for now we make them ourselves
     associate(left => grid%ilo_bc_cell, right => grid%ihi_bc_cell, &
               bottom => grid%jlo_bc_cell, top => grid%jhi_bc_cell)
@@ -129,12 +129,12 @@ contains
               bottom => grid%jlo_cell, top => grid%jhi_cell, &
               left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
               bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
-      print*, "Initial conditions:"
+      print *, "Initial conditions:"
       do j = top_ghost, bottom_ghost, -1
         write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
       end do
       print *
-      end associate
+    end associate
 
   end subroutine setup_periodic
 
@@ -145,18 +145,17 @@ contains
     integer(ik), dimension(2) :: lbounds
     integer(ik) :: i, j
 
-    print*, "Running test_plus_x_periodic()"
-    input%plus_x_bc =  'zero_gradient'
-    input%plus_y_bc =  'periodic'
+    print *, "Running test_plus_x_periodic()"
+    input%plus_x_bc = 'zero_gradient'
+    input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'zero_gradient'
     input%minus_y_bc = 'zero_gradient'
 
     call setup_periodic()
     lbounds = lbound(rho)
 
-    bc_plus_x => bc_factory(bc_type= 'periodic'     , location='+x', input=input, grid=grid)
+    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid)
     @assertEqual('+x', bc_plus_x%location)
-
 
     call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
 
@@ -167,7 +166,7 @@ contains
               bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
 
       ! Print out in all it's glory
-      print*, "After BC's applied"
+      print *, "After BC's applied"
       do j = top_ghost, bottom_ghost, -1
         write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
       end do
@@ -196,9 +195,9 @@ contains
     integer(ik), dimension(2) :: lbounds
     integer(ik) :: i, j
 
-    print*, "Running test_plus_y_periodic()"
-    input%plus_x_bc =  'zero_gradient'
-    input%plus_y_bc =  'periodic'
+    print *, "Running test_plus_y_periodic()"
+    input%plus_x_bc = 'zero_gradient'
+    input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'zero_gradient'
     input%minus_y_bc = 'zero_gradient'
 
@@ -216,7 +215,7 @@ contains
               bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
 
       ! Print out in all it's glory
-      print*, "After BC's applied"
+      print *, "After BC's applied"
       do j = top_ghost, bottom_ghost, -1
         write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
       end do
@@ -245,9 +244,9 @@ contains
     integer(ik), dimension(2) :: lbounds
     integer(ik) :: i, j
 
-    print*, "Running test_minus_x_periodic()"
-    input%plus_x_bc =  'zero_gradient'
-    input%plus_y_bc =  'zero_gradient'
+    print *, "Running test_minus_x_periodic()"
+    input%plus_x_bc = 'zero_gradient'
+    input%plus_y_bc = 'zero_gradient'
     input%minus_x_bc = 'periodic'
     input%minus_y_bc = 'zero_gradient'
 
@@ -265,7 +264,7 @@ contains
               bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
 
       ! Print out in all it's glory
-      print*, "After BC's applied"
+      print *, "After BC's applied"
       do j = top_ghost, bottom_ghost, -1
         write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
       end do
@@ -294,9 +293,9 @@ contains
     integer(ik), dimension(2) :: lbounds
     integer(ik) :: i, j
 
-    print*, "Running test_minus_y_periodic()"
-    input%plus_x_bc =  'zero_gradient'
-    input%plus_y_bc =  'zero_gradient'
+    print *, "Running test_minus_y_periodic()"
+    input%plus_x_bc = 'zero_gradient'
+    input%plus_y_bc = 'zero_gradient'
     input%minus_x_bc = 'zero_gradient'
     input%minus_y_bc = 'periodic'
 
@@ -314,7 +313,7 @@ contains
               bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
 
       ! Print out in all it's glory
-      print*, "After BC's applied"
+      print *, "After BC's applied"
       do j = top_ghost, bottom_ghost, -1
         write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
       end do
@@ -346,9 +345,9 @@ contains
     integer(ik), dimension(2) :: lbounds
     integer(ik) :: i, j
 
-    print*, "Running test_periodic_all()"
-    input%plus_x_bc =  'periodic'
-    input%plus_y_bc =  'periodic'
+    print *, "Running test_periodic_all()"
+    input%plus_x_bc = 'periodic'
+    input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'periodic'
     input%minus_y_bc = 'periodic'
     call setup_periodic()
@@ -374,7 +373,7 @@ contains
               bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
 
       ! Print out in all it's glory
-      print*, "After BC's applied"
+      print *, "After BC's applied"
       do j = top_ghost, bottom_ghost, -1
         write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
       end do
@@ -530,12 +529,12 @@ contains
 
     ! Now test the results
     associate(left => grid%ilo_cell, right => grid%ihi_cell, &
-      bottom => grid%jlo_cell, top => grid%jhi_cell, &
-      left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
-      bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
+              bottom => grid%jlo_cell, top => grid%jhi_cell, &
+              left_ghost => grid%ilo_bc_cell, right_ghost => grid%ihi_bc_cell, &
+              bottom_ghost => grid%jlo_bc_cell, top_ghost => grid%jhi_bc_cell)
 
       ! Print out in all it's glory
-      print*, "After BC's applied"
+      print *, "After BC's applied"
       do j = top_ghost, bottom_ghost, -1
         write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
       end do
@@ -544,62 +543,61 @@ contains
       ! -- Bottom --
       ! first ghost layer
       bottom_sym_row = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
-      @assertEqual( bottom_sym_row, rho(left:right, bottom_ghost + 1))
-      @assertEqual( bottom_sym_row,   u(left:right, bottom_ghost + 1))
-      @assertEqual(-bottom_sym_row,   v(left:right, bottom_ghost + 1))
-      @assertEqual( bottom_sym_row,   p(left:right, bottom_ghost + 1))
+      @assertEqual(bottom_sym_row, rho(left:right, bottom_ghost + 1))
+      @assertEqual(bottom_sym_row, u(left:right, bottom_ghost + 1))
+      @assertEqual(-bottom_sym_row, v(left:right, bottom_ghost + 1))
+      @assertEqual(bottom_sym_row, p(left:right, bottom_ghost + 1))
 
       ! 2nd ghost layer (down 1 layer)
       bottom_sym_row = [8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk]
-      @assertEqual( bottom_sym_row, rho(left:right, bottom_ghost))
-      @assertEqual( bottom_sym_row,   u(left:right, bottom_ghost))
-      @assertEqual(-bottom_sym_row,   v(left:right, bottom_ghost))
-      @assertEqual( bottom_sym_row,   p(left:right, bottom_ghost))
+      @assertEqual(bottom_sym_row, rho(left:right, bottom_ghost))
+      @assertEqual(bottom_sym_row, u(left:right, bottom_ghost))
+      @assertEqual(-bottom_sym_row, v(left:right, bottom_ghost))
+      @assertEqual(bottom_sym_row, p(left:right, bottom_ghost))
 
       ! Top --
       top_sym_row = [8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk]
-      @assertEqual( top_sym_row, rho(left:right, top_ghost))
-      @assertEqual( top_sym_row,   u(left:right, top_ghost))
-      @assertEqual(-top_sym_row,   v(left:right, top_ghost))
-      @assertEqual( top_sym_row,   p(left:right, top_ghost))
+      @assertEqual(top_sym_row, rho(left:right, top_ghost))
+      @assertEqual(top_sym_row, u(left:right, top_ghost))
+      @assertEqual(-top_sym_row, v(left:right, top_ghost))
+      @assertEqual(top_sym_row, p(left:right, top_ghost))
 
       ! 2nd ghost layer (down 1 layer)
       top_sym_row = [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
-      @assertEqual( top_sym_row, rho(left:right, top_ghost - 1))
-      @assertEqual( top_sym_row,   u(left:right, top_ghost - 1))
-      @assertEqual(-top_sym_row,   v(left:right, top_ghost - 1))
-      @assertEqual( top_sym_row,   p(left:right, top_ghost - 1))
+      @assertEqual(top_sym_row, rho(left:right, top_ghost - 1))
+      @assertEqual(top_sym_row, u(left:right, top_ghost - 1))
+      @assertEqual(-top_sym_row, v(left:right, top_ghost - 1))
+      @assertEqual(top_sym_row, p(left:right, top_ghost - 1))
 
       ! -- Right --
       right_sym_col = [2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk]
       @assertEqual(right_sym_col, rho(right_ghost - 1, bottom:top))
-      @assertEqual(-right_sym_col,   u(right_ghost - 1, bottom:top))
-      @assertEqual(right_sym_col,   v(right_ghost - 1, bottom:top))
-      @assertEqual(right_sym_col,   p(right_ghost - 1, bottom:top))
+      @assertEqual(-right_sym_col, u(right_ghost - 1, bottom:top))
+      @assertEqual(right_sym_col, v(right_ghost - 1, bottom:top))
+      @assertEqual(right_sym_col, p(right_ghost - 1, bottom:top))
 
       ! 2nd ghost layer
       right_sym_col = [5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk]
       @assertEqual(right_sym_col, rho(right_ghost, bottom:top))
-      @assertEqual(-right_sym_col,   u(right_ghost, bottom:top))
-      @assertEqual(right_sym_col,   v(right_ghost, bottom:top))
-      @assertEqual(right_sym_col,   p(right_ghost, bottom:top))
+      @assertEqual(-right_sym_col, u(right_ghost, bottom:top))
+      @assertEqual(right_sym_col, v(right_ghost, bottom:top))
+      @assertEqual(right_sym_col, p(right_ghost, bottom:top))
 
       ! -- Left --
       left_sym_col = [1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk]
       @assertEqual(left_sym_col, rho(left_ghost + 1, bottom:top))
-      @assertEqual(-left_sym_col,   u(left_ghost + 1, bottom:top))
-      @assertEqual(left_sym_col,   v(left_ghost + 1, bottom:top))
-      @assertEqual(left_sym_col,   p(left_ghost + 1, bottom:top))
+      @assertEqual(-left_sym_col, u(left_ghost + 1, bottom:top))
+      @assertEqual(left_sym_col, v(left_ghost + 1, bottom:top))
+      @assertEqual(left_sym_col, p(left_ghost + 1, bottom:top))
 
       ! 2nd ghost layer
       left_sym_col = [5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk]
       @assertEqual(left_sym_col, rho(left_ghost, bottom:top))
-      @assertEqual(-left_sym_col,   u(left_ghost, bottom:top))
-      @assertEqual(left_sym_col,   v(left_ghost, bottom:top))
-      @assertEqual(left_sym_col,   p(left_ghost, bottom:top))
+      @assertEqual(-left_sym_col, u(left_ghost, bottom:top))
+      @assertEqual(left_sym_col, v(left_ghost, bottom:top))
+      @assertEqual(left_sym_col, p(left_ghost, bottom:top))
 
     end associate
-
 
     deallocate(bc_plus_x)
     deallocate(bc_plus_y)

@@ -64,94 +64,94 @@ module mod_muscl_tvd2
 
 contains
 
-function new_muscl_tvd2(limiter) result(interpolator)
-  type(muscl_tvd2_t), pointer :: interpolator
-  character(len=*), intent(in) :: limiter
+  function new_muscl_tvd2(limiter) result(interpolator)
+    type(muscl_tvd2_t), pointer :: interpolator
+    character(len=*), intent(in) :: limiter
 
-  allocate(interpolator)
-  interpolator%limiter_name = trim(limiter)
-  interpolator%order = 2
-end function
+    allocate(interpolator)
+    interpolator%limiter_name = trim(limiter)
+    interpolator%order = 2
+  end function
 
-subroutine init_muscl_tvd2(self, limiter)
-  class(muscl_tvd2_t), intent(inout) :: self
-  character(len=*), intent(in) :: limiter
-  self%limiter_name = trim(limiter)
-  self%order = 2
-end subroutine init_muscl_tvd2
+  subroutine init_muscl_tvd2(self, limiter)
+    class(muscl_tvd2_t), intent(inout) :: self
+    character(len=*), intent(in) :: limiter
+    self%limiter_name = trim(limiter)
+    self%order = 2
+  end subroutine init_muscl_tvd2
 
-subroutine interpolate_edge_values(self, q, i_edges, j_edges)
-  class(muscl_tvd2_t), intent(in) :: self
-  class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+  subroutine interpolate_edge_values(self, q, i_edges, j_edges)
+    class(muscl_tvd2_t), intent(in) :: self
+    class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
 
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
 
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interpolate_edge_values()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running muscl_tvd2_t%interpolate_edge_values()', __FILE__, __LINE__)
 
-  select case(trim(self%limiter_name))
+    select case(trim(self%limiter_name))
     #:for LIMITER in LIMITERS
-  case("${LIMITER}$")
+    case("${LIMITER}$")
     #:for DIR in DIRECTIONS
-    call self%interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(q, ${DIR}$_edges)
+      call self%interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(q, ${DIR}$_edges)
     #:endfor
     #:endfor
-  case default
-    call error_msg(module='mod_muscl_tvd2', class='muscl_tvd2_t', procedure='interpolate_edge_values', &
-                   message="Unknown limiter type: '" // trim(self%limiter_name) // "'", &
-                   file_name=__FILE__, line_number=__LINE__)
-  end select
+    case default
+      call error_msg(module_name='mod_muscl_tvd2', class_name='muscl_tvd2_t', procedure_name='interpolate_edge_values', &
+                     message="Unknown limiter type: '"//trim(self%limiter_name)//"'", &
+                     file_name=__FILE__, line_number=__LINE__)
+    end select
 
-end subroutine interpolate_edge_values
+  end subroutine interpolate_edge_values
 
-subroutine distinguish_continuous_regions(self, rho, u, v, p)
-  !< For plain-jane TVD2, there is no need to distinguish the regions which are continuous or linear/non-linear discontinuity regions. This
-  !< is required by the parent class, but is really only implemented in the e-MLP classes.
-  class(muscl_tvd2_t), intent(inout) :: self
-  class(field_2d_t), intent(in) :: rho !< density
-  class(field_2d_t), intent(in) :: u   !< x-velocity
-  class(field_2d_t), intent(in) :: v   !< y-velocity
-  class(field_2d_t), intent(in) :: p   !< pressure
+  subroutine distinguish_continuous_regions(self, rho, u, v, p)
+    !< For plain-jane TVD2, there is no need to distinguish the regions which are continuous or linear/non-linear discontinuity regions. This
+    !< is required by the parent class, but is really only implemented in the e-MLP classes.
+    class(muscl_tvd2_t), intent(inout) :: self
+    class(field_2d_t), intent(in) :: rho !< density
+    class(field_2d_t), intent(in) :: u   !< x-velocity
+    class(field_2d_t), intent(in) :: v   !< y-velocity
+    class(field_2d_t), intent(in) :: p   !< pressure
 
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%distinguish_continuous_regions()', __FILE__, __LINE__)
-end subroutine distinguish_continuous_regions
+    if(enable_debug_print) call debug_print('Running muscl_tvd2_t%distinguish_continuous_regions()', __FILE__, __LINE__)
+  end subroutine distinguish_continuous_regions
 
-subroutine finalize(self)
-  !< Finalizer routine to clean up allocated data
-  type(muscl_tvd2_t), intent(inout) :: self
-end subroutine finalize
+  subroutine finalize(self)
+    !< Finalizer routine to clean up allocated data
+    type(muscl_tvd2_t), intent(inout) :: self
+  end subroutine finalize
 
 #:for LIMITER in LIMITERS
 #:for DIR in DIRECTIONS
-subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, edge_values)
-  class(muscl_tvd2_t), intent(in) :: self
-  class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+  subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, edge_values)
+    class(muscl_tvd2_t), intent(in) :: self
+    class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
 
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
-  !<((L,R), i, j); L/R state for each edge
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
+    !<((L,R), i, j); L/R state for each edge
 
-  integer(ik) :: i, j
-  integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j
+    integer(ik) :: ilo, ihi, jlo, jhi
 
-  real(rk) :: delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half
-  real(rk) :: r_R, r_L, phi_limit
+    real(rk) :: delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half
+    real(rk) :: r_R, r_L, phi_limit
 
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$()', __FILE__, __LINE__)
 
-  ! Because this is an edge-based array, the indexing is # cells + 1, and
-  ! only goes into the single nearest ghost layer
-  ilo = q%lbounds(1) + n_ghost_layers - 1
-  jlo = q%lbounds(2) + n_ghost_layers - 1
-  ihi = q%ubounds(1) - n_ghost_layers
-  jhi = q%ubounds(2) - n_ghost_layers
+    ! Because this is an edge-based array, the indexing is # cells + 1, and
+    ! only goes into the single nearest ghost layer
+    ilo = q%lbounds(1) + n_ghost_layers - 1
+    jlo = q%lbounds(2) + n_ghost_layers - 1
+    ihi = q%ubounds(1) - n_ghost_layers
+    jhi = q%ubounds(2) - n_ghost_layers
 
 #:if DIR == 'i'
-  allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
+    allocate(edge_values(1:2, ilo - 1:ihi, jlo:jhi))
 #:elif DIR == 'j'
-  allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
+    allocate(edge_values(1:2, ilo:ihi, jlo - 1:jhi))
 #:endif
 
-  edge_values = 0.0_rk
+    edge_values = 0.0_rk
     !
     !                    jflux(i,j)  'R'
     !               o--------------------o
@@ -165,68 +165,68 @@ subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$(self, q, edge_values)
     !
     ! This is the numbering convention that this module uses
 
-  !$omp parallel default(none), &
-  !$omp firstprivate(ilo, ihi, jlo, jhi) &
-  !$omp private(i, j, phi_limit, delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half) &
-  !$omp private(r_L, r_R) &
-  !$omp shared(q, edge_values)
-  !$omp do
-  do j = jlo, jhi
-    !$omp simd __INTERP_ALIGN__
-    !dir$ vector aligned
-    do i = ilo, ihi
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j, phi_limit, delta_i_minus_half, delta_i_plus_half, delta_i_plus_three_half) &
+    !$omp private(r_L, r_R) &
+    !$omp shared(q, edge_values)
+    !$omp do
+    do j = jlo, jhi
+      !$omp simd __INTERP_ALIGN__
+      !dir$ vector aligned
+      do i = ilo, ihi
 
     #:if DIR == 'i'
-      delta_i_minus_half = q%data(i, j) - q%data(i - 1, j)
-      delta_i_plus_half = q%data(i + 1, j) - q%data(i, j)
-      delta_i_plus_three_half = q%data(i + 2, j) - q%data(i + 1, j)
+        delta_i_minus_half = q%data(i, j) - q%data(i - 1, j)
+        delta_i_plus_half = q%data(i + 1, j) - q%data(i, j)
+        delta_i_plus_three_half = q%data(i + 2, j) - q%data(i + 1, j)
     #:elif DIR == 'j'
-      delta_i_minus_half = q%data(i, j) - q%data(i, j - 1)
-      delta_i_plus_half = q%data(i, j + 1) - q%data(i, j)
-      delta_i_plus_three_half = q%data(i, j + 2) - q%data(i, j + 1)
+        delta_i_minus_half = q%data(i, j) - q%data(i, j - 1)
+        delta_i_plus_half = q%data(i, j + 1) - q%data(i, j)
+        delta_i_plus_three_half = q%data(i, j + 2) - q%data(i, j + 1)
     #:endif
 
-      if (abs(delta_i_minus_half) < epsilon(1.0_rk)) delta_i_minus_half = 0.0_rk
-      if (abs(delta_i_plus_half) < epsilon(1.0_rk)) delta_i_plus_half = 0.0_rk
-      if (abs(delta_i_plus_three_half) < epsilon(1.0_rk)) delta_i_plus_three_half = 0.0_rk
+        if(abs(delta_i_minus_half) < epsilon(1.0_rk)) delta_i_minus_half = 0.0_rk
+        if(abs(delta_i_plus_half) < epsilon(1.0_rk)) delta_i_plus_half = 0.0_rk
+        if(abs(delta_i_plus_three_half) < epsilon(1.0_rk)) delta_i_plus_three_half = 0.0_rk
 
-      r_L = delta_i_plus_half / (delta_i_minus_half + 1e-16_rk)
-      r_R = delta_i_plus_half / (delta_i_plus_three_half + 1e-16_rk)
+        r_L = delta_i_plus_half / (delta_i_minus_half + 1e-16_rk)
+        r_R = delta_i_plus_half / (delta_i_plus_three_half + 1e-16_rk)
 
-      ! Apply the limiter
+        ! Apply the limiter
     #:if LIMITER == 'minmod'
-      phi_limit = max(0.0_rk, min(r_L, 1.0_rk))
+        phi_limit = max(0.0_rk, min(r_L, 1.0_rk))
     #:elif LIMITER == 'superbee'
-      phi_limit = max(0.0_rk, min(2.0_rk * r_L, 1.0_rk), min(r_L, 2.0_rk))
+        phi_limit = max(0.0_rk, min(2.0_rk * r_L, 1.0_rk), min(r_L, 2.0_rk))
     #:elif LIMITER == 'vanleer'
-      phi_limit = (r_L + abs(r_L)) / (1.0_rk + abs(r_L))
+        phi_limit = (r_L + abs(r_L)) / (1.0_rk + abs(r_L))
     #:endif
 
-      ! Phi L, e.g. left state
-      edge_values(1, i, j) = q%data(i, j) + 0.5_rk * phi_limit * delta_i_minus_half
+        ! Phi L, e.g. left state
+        edge_values(1, i, j) = q%data(i, j) + 0.5_rk * phi_limit * delta_i_minus_half
 
-      ! Apply the limiter
+        ! Apply the limiter
     #:if LIMITER == 'minmod'
-      phi_limit = max(0.0_rk, min(r_R, 1.0_rk))
+        phi_limit = max(0.0_rk, min(r_R, 1.0_rk))
     #:elif LIMITER == 'superbee'
-      phi_limit = max(0.0_rk, min(2.0_rk * r_R, 1.0_rk), min(r_R, 2.0_rk))
+        phi_limit = max(0.0_rk, min(2.0_rk * r_R, 1.0_rk), min(r_R, 2.0_rk))
     #:elif LIMITER == 'vanleer'
-      phi_limit = (r_R + abs(r_R)) / (1.0_rk + abs(r_R))
+        phi_limit = (r_R + abs(r_R)) / (1.0_rk + abs(r_R))
     #:endif
 
-      ! Phi R, e.g. right state
+        ! Phi R, e.g. right state
     #:if DIR == 'i'
-      edge_values(2, i, j) = q%data(i + 1, j) - 0.5_rk * phi_limit * delta_i_plus_three_half
+        edge_values(2, i, j) = q%data(i + 1, j) - 0.5_rk * phi_limit * delta_i_plus_three_half
     #:elif DIR == 'j'
-      edge_values(2, i, j) = q%data(i, j + 1) - 0.5_rk * phi_limit * delta_i_plus_three_half
+        edge_values(2, i, j) = q%data(i, j + 1) - 0.5_rk * phi_limit * delta_i_plus_three_half
     #:endif
 
+      end do
     end do
-  end do
-  !$omp end do
-  !$omp end parallel
+    !$omp end do
+    !$omp end parallel
 
-end subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$
+  end subroutine interp_muscl_tvd2_${DIR}$_edge_${LIMITER}$
 
 #:endfor
 #:endfor

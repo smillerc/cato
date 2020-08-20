@@ -251,7 +251,9 @@ contains
         end do
 
       case default
-        call error_msg(module='mod_symmetry_bc', class='symmetry_bc_t', procedure='apply_symmetry_primitive_var_bc', &
+        call error_msg(module_name='mod_symmetry_bc', &
+                       class_name='symmetry_bc_t', &
+                       procedure_name='apply_symmetry_primitive_var_bc', &
                        message="Unsupported BC location", &
                        file_name=__FILE__, line_number=__LINE__)
       end select

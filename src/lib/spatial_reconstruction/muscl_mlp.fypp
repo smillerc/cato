@@ -37,7 +37,6 @@ module mod_muscl_mlp
   !<   [1] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
   !<       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
 
-
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_globals, only: n_ghost_layers, debug_print, enable_debug_print
@@ -82,7 +81,7 @@ contains
     real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
     real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
 
-    if (enable_debug_print) call debug_print('Running muscl_mlp_t%interpolate_edge_values()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running muscl_mlp_t%interpolate_edge_values()', __FILE__, __LINE__)
 
     select case(self%order)
       #:for ORDER in SPATIAL_ORDER
@@ -92,8 +91,8 @@ contains
       #:endfor
       #:endfor
     case default
-      call error_msg(module='mod_muscl_mlp', class='muscl_mlp_t', procedure='interpolate_edge_values', &
-                     message="Unknown limiter type: '" // trim(self%limiter_name) // "'", &
+      call error_msg(module_name='mod_muscl_mlp', class_name='muscl_mlp_t', procedure_name='interpolate_edge_values', &
+                     message="Unknown limiter type: '"//trim(self%limiter_name)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
   end subroutine interpolate_edge_values
@@ -108,7 +107,7 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); density
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); density
 
-    if (enable_debug_print) call debug_print('Running muscl_mlp_t%distinguish_continuous_regions()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running muscl_mlp_t%distinguish_continuous_regions()', __FILE__, __LINE__)
   end subroutine distinguish_continuous_regions
 
   subroutine finalize(self)
@@ -154,7 +153,7 @@ contains
     !dir$ assume_aligned q: __ALIGNBYTES__
     !dir$ assume_aligned edge_values: __ALIGNBYTES__
 
-    if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_mlp_${DIR}$_edge()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_mlp_${DIR}$_edge()', __FILE__, __LINE__)
 
     ! Because this is an edge-based array, the indexing is # cells + 1, and
     ! only goes into the single nearest ghost layer
@@ -164,24 +163,24 @@ contains
     jhi = ubound(q, dim=2) - n_ghost_layers
 
     #:if DIR == 'i'
-    allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
+    allocate(edge_values(1:2, ilo - 1:ihi, jlo:jhi))
     #:elif DIR == 'j'
-    allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
+    allocate(edge_values(1:2, ilo:ihi, jlo - 1:jhi))
     #:endif
 
     edge_values = 0.0_rk
-      !
-      !                    jflux(i,j)  'R'
-      !               o--------------------o
-      !               |                'L' |
-      !               |                    |
-      ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
-      !               |                    |
-      !               |                'L' | 'R'
-      !               o--------------------o
-      !                  jflux(i,j-1)
-      !
-      ! This is the numbering convention that this module uses
+    !
+    !                    jflux(i,j)  'R'
+    !               o--------------------o
+    !               |                'L' |
+    !               |                    |
+    ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !               |                    |
+    !               |                'L' | 'R'
+    !               o--------------------o
+    !                  jflux(i,j-1)
+    !
+    ! This is the numbering convention that this module uses
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -202,71 +201,71 @@ contains
       do i = ilo, ihi
 
         #:if DIR == 'i'
-          delta_ij_minus_half = q(i, j) - q(i - 1, j)
-          delta_ij_plus_half = q(i + 1, j) - q(i, j)
-          delta_ij_plus_three_half = q(i + 2, j) - q(i + 1, j)
+        delta_ij_minus_half = q(i, j) - q(i - 1, j)
+        delta_ij_plus_half = q(i + 1, j) - q(i, j)
+        delta_ij_plus_three_half = q(i + 2, j) - q(i + 1, j)
         #:elif DIR == 'j'
-          delta_ij_minus_half = q(i, j) - q(i, j - 1)
-          delta_ij_plus_half = q(i, j + 1) - q(i, j)
-          delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
+        delta_ij_minus_half = q(i, j) - q(i, j - 1)
+        delta_ij_plus_half = q(i, j + 1) - q(i, j)
+        delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
         #:endif
-        if (abs(delta_ij_minus_half) < epsilon(1.0_rk))       delta_ij_minus_half = 0.0_rk
-        if (abs(delta_ij_plus_half) < epsilon(1.0_rk))        delta_ij_plus_half = 0.0_rk
-        if (abs(delta_ij_plus_three_half) < epsilon(1.0_rk))  delta_ij_plus_three_half = 0.0_rk
+        if(abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
+        if(abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
+        if(abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
 
         #:if ORDER == 5
           #:if DIR == 'i'
-            delta_ij_minus_three_half = q(i - 1, j) - q(i - 2, j)
-            delta_ij_plus_five_half = q(i + 3, j) - q(i + 2, j)
+        delta_ij_minus_three_half = q(i - 1, j) - q(i - 2, j)
+        delta_ij_plus_five_half = q(i + 3, j) - q(i + 2, j)
           #:elif DIR == 'j'
-            delta_ij_minus_three_half = q(i, j - 1) - q(i, j - 2)
-            delta_ij_plus_five_half =q(i, j + 3) - q(i, j + 2)
+        delta_ij_minus_three_half = q(i, j - 1) - q(i, j - 2)
+        delta_ij_plus_five_half = q(i, j + 3) - q(i, j + 2)
           #:endif
-          if (abs(delta_ij_minus_three_half) < epsilon(1.0_rk)) delta_ij_minus_three_half= 0.0_rk
-          if (abs(delta_ij_plus_five_half) < epsilon(1.0_rk))   delta_ij_plus_five_half  = 0.0_rk
+        if(abs(delta_ij_minus_three_half) < epsilon(1.0_rk)) delta_ij_minus_three_half = 0.0_rk
+        if(abs(delta_ij_plus_five_half) < epsilon(1.0_rk)) delta_ij_plus_five_half = 0.0_rk
         #:endif
 
         r_R_ij_p1 = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
-        r_L_ij    = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
+        r_L_ij = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
 
         #:if ORDER == 5
-          r_L_ij_m1 = delta_ij_minus_half / (delta_ij_minus_three_half + 1e-16_rk)
-          r_L_ij_p1 = delta_ij_plus_three_half / (delta_ij_plus_half + 1e-16_rk)
-          r_R_ij_p2 = delta_ij_plus_three_half / (delta_ij_plus_five_half + 1e-16_rk)
-          r_R_ij    = delta_ij_minus_half / (delta_ij_plus_half + 1e-16_rk)
+        r_L_ij_m1 = delta_ij_minus_half / (delta_ij_minus_three_half + 1e-16_rk)
+        r_L_ij_p1 = delta_ij_plus_three_half / (delta_ij_plus_half + 1e-16_rk)
+        r_R_ij_p2 = delta_ij_plus_three_half / (delta_ij_plus_five_half + 1e-16_rk)
+        r_R_ij = delta_ij_minus_half / (delta_ij_plus_half + 1e-16_rk)
         #:endif
 
         #:if ORDER == 3
-          ! 3rd order interpolation. Eq 65a in Ref [1]
-          beta_L = (1.0_rk + 2.0_rk * r_L_ij) / 3.0_rk
-          beta_R = (1.0_rk + 2.0_rk * r_R_ij_p1) / 3.0_rk
+        ! 3rd order interpolation. Eq 65a in Ref [1]
+        beta_L = (1.0_rk + 2.0_rk * r_L_ij) / 3.0_rk
+        beta_R = (1.0_rk + 2.0_rk * r_R_ij_p1) / 3.0_rk
         #:elif ORDER == 5
-          ! 5th order interpolation. Eq 65 in Ref [1]
-          beta_L = ((-2.0_rk/(r_L_ij_m1 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
-          beta_R = ((-2.0_rk/(r_R_ij_p2 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
+        ! 5th order interpolation. Eq 65 in Ref [1]
+        beta_L = ((-2.0_rk / (r_L_ij_m1 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
+        beta_R = ((-2.0_rk / (r_R_ij_p2 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
         #:endif
 
         ! Inner term of alpha in Eq. 64a in Ref [1]
         #:if DIR == 'i'
-          ! Xi variant, Eq 18a. Xi is used for the i-direction
-          tan_theta_ij   = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
-          tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i + 1, j - 1)) / (abs(q(i + 2, j) - q(i, j)) + 1e-16_rk)
+        ! Xi variant, Eq 18a. Xi is used for the i-direction
+        tan_theta_ij = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
+        tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i + 1, j - 1)) / (abs(q(i + 2, j) - q(i, j)) + 1e-16_rk)
         #:elif DIR == 'j'
-          ! Eta variant, Eq 18b. Xi is used for the j-direction
-          tan_theta_ij   = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
-          tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i - 1, j + 1)) / (abs(q(i, j + 2) - q(i, j)) + 1e-16_rk)
+        ! Eta variant, Eq 18b. Xi is used for the j-direction
+        tan_theta_ij = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
+        tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i - 1, j + 1)) / (abs(q(i, j + 2) - q(i, j)) + 1e-16_rk)
         #:endif
 
         ! Term inside the alpha [..] in Eq 64
         ! There is no Xi vs Eta split, b/c/ the r_(R,L)_ij and tan_theta_ij terms are handled
         ! accordingly by the checks above for direction
         alpha_L_term = (2.0_rk * max(1.0_rk, r_L_ij) * &
-                        (1.0_rk + max(0.0_rk, (tan_theta_ij_p1 / (r_R_ij_p1 + 1e-16_rk))))) / &
-                        (1.0_rk + tan_theta_ij)
+                        (1.0_rk + max(0.0_rk,(tan_theta_ij_p1 / (r_R_ij_p1 + 1e-16_rk))))) / &
+                       (1.0_rk + tan_theta_ij)
 
         alpha_R_term = (2.0_rk * max(1.0_rk, r_R_ij_p1) * &
-                        (1.0_rk + max(0.0_rk, (tan_theta_ij / (r_L_ij + 1e-16_rk))))) / &
-                        (1.0_rk + tan_theta_ij_p1)
+                        (1.0_rk + max(0.0_rk,(tan_theta_ij / (r_L_ij + 1e-16_rk))))) / &
+                       (1.0_rk + tan_theta_ij_p1)
 
         ! This is the g(x) = max(1, min(2, alpha)) function
         alpha_L = max(1.0_rk, min(2.0_rk, alpha_L_term))
@@ -278,13 +277,13 @@ contains
                                                                   beta_L)) * delta_ij_minus_half
         ! Phi R, e.g. right state
         #:if DIR == 'i'
-          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ij_p1 , &
-                                                                        alpha_R, &
-                                                                        beta_R)) * delta_ij_plus_three_half
+        edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ij_p1, &
+                                                                      alpha_R, &
+                                                                      beta_R)) * delta_ij_plus_three_half
         #:elif DIR == 'j'
-          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ij_p1 , &
-                                                                        alpha_R, &
-                                                                        beta_R)) * delta_ij_plus_three_half
+        edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ij_p1, &
+                                                                      alpha_R, &
+                                                                      beta_R)) * delta_ij_plus_three_half
         #:endif
       end do
     end do

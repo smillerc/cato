@@ -139,8 +139,10 @@ contains
     associate(dx => master%grid%cell_dx, dy => master%grid%cell_dy)
 
       delta_t = minval(cfl / &
-                 (((abs(master%fluid%u%data(ilo:ihi, jlo:jhi)) + master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
-                    ((abs(master%fluid%v%data(ilo:ihi, jlo:jhi)) + master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
+                       (((abs(master%fluid%u%data(ilo:ihi, jlo:jhi)) + &
+                          master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
+                        ((abs(master%fluid%v%data(ilo:ihi, jlo:jhi)) + &
+                          master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
     end associate
     ! !$omp end workshare
 

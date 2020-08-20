@@ -102,12 +102,14 @@ contains
         d_ij_j = 0.0_rk
         if(abs(${F}$(i, j)) > 0.0_rk) then
           ! Eq 11a
-          d_ij_i = abs(((-one_sixth * ${F}$(i - 2, j) + two_thirds * ${F}$(i - 1, j) + two_thirds * ${F}$(i + 1, j) - one_sixth * ${F}$(i + 2, j)) &
-                        / ${F}$(i,j)) - 1.0_rk)
+          d_ij_i = abs(((-one_sixth*${F}$(i - 2, j) + two_thirds*${F}$(i - 1, j) + &
+                         two_thirds*${F}$(i + 1, j) - one_sixth*${F}$(i + 2, j)) &
+                        /${F}$(i, j)) - 1.0_rk)
 
           ! Eq 11b
-          d_ij_j = abs(((-one_sixth * ${F}$(i, j - 2) + two_thirds * ${F}$(i, j - 1) + two_thirds * ${F}$(i, j + 1) - one_sixth * ${F}$(i, j + 2)) &
-                        / ${F}$(i,j)) - 1.0_rk)
+          d_ij_j = abs(((-one_sixth*${F}$(i, j - 2) + two_thirds*${F}$(i, j - 1) + &
+                         two_thirds*${F}$(i, j + 1) - one_sixth*${F}$(i, j + 2)) &
+                        /${F}$(i, j)) - 1.0_rk)
         end if
         ! Eq 11c
         d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
@@ -121,7 +123,7 @@ contains
       do i = ilo, ihi
         if(abs(d_bar_rho(i, j)) > EPS) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
 
-        if(abs(u(i, j)) > abs(v(i, j)) .or.  abs(u(i, j) - v(i, j)) < epsilon(1.0_rk)) then
+        if(abs(u(i, j)) > abs(v(i, j)) .or. abs(u(i, j) - v(i, j)) < epsilon(1.0_rk)) then
           if(abs(d_bar_u(i, j)) > EPS .and. abs(u(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
 
         else if(abs(u(i, j)) < abs(v(i, j))) then
@@ -131,7 +133,6 @@ contains
         if(abs(d_bar_p(i, j)) > EPS) continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
       end do
     end do
-
 
     deallocate(d_bar_rho)
     deallocate(d_bar_u)

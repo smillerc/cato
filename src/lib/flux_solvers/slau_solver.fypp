@@ -158,9 +158,9 @@ contains
     call debug_print('Running ausmpw_plus_solver_t%solve_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
-      call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
-                   message="The timestep dt is < tiny(1.0_rk)", &
-                   file_name=__FILE__, line_number=__LINE__)
+      call error_msg(module_name='mod_slau_solver', class_name='slau_solver_t', procedure_name='solve_slau', &
+                     message="The timestep dt is < tiny(1.0_rk)", &
+                     file_name=__FILE__, line_number=__LINE__)
     end if
 
     self%time = self%time + dt
@@ -179,9 +179,9 @@ contains
     call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
     call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
 
     !
     !                    jflux(i,j)  'R'
@@ -212,7 +212,6 @@ contains
     jlo_bc = grid%jlo_bc_cell
     jhi_bc = grid%jhi_bc_cell
 
-
     select case(trim(self%variant))
     #:for VARIANT in VARIANTS
     case("${VARIANT}$")
@@ -221,14 +220,15 @@ contains
                                                               eflux_lbounds=lbound(self%${DIR}$flux), &
                                                               rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
                                                               rho_edge=rho_${DIR}$_edges, u_edge=u_${DIR}$_edges, &
-                                                              v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
+                                                              v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, &
+                                                              edge_flux=self%${DIR}$flux)
     #:endfor
     #:endfor
     case default
-      call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
+      call error_msg(module_name='mod_slau_solver', class_name='slau_solver_t', procedure_name='solve_slau', &
                      message="Unknown SLAU variant '"//trim(self%variant)// &
-                             "'in slau_solver_t%solve_SLAU(), must be one of "// &
-                             "${VARIANTS}$", &
+                     "'in slau_solver_t%solve_SLAU(), must be one of "// &
+                     "${VARIANTS}$", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
 
@@ -255,7 +255,8 @@ contains
 
   #:for VARIANT in VARIANTS
   #:for DIR in DIRECTIONS
-  subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
+  subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, &
+                                                           rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
     !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(slau_solver_t), intent(inout) :: self
     class(grid_t), intent(in) :: grid
@@ -352,14 +353,14 @@ contains
       do i = ilo, ihi
 
         rho_L = rho_edge(1, i, j)
-        u_L =     u_edge(1, i, j)
-        v_L =     v_edge(1, i, j)
-        p_L =     p_edge(1, i, j)
+        u_L = u_edge(1, i, j)
+        v_L = v_edge(1, i, j)
+        p_L = p_edge(1, i, j)
 
         rho_R = rho_edge(2, i, j)
-        u_R =     u_edge(2, i, j)
-        v_R =     v_edge(2, i, j)
-        p_R =     p_edge(2, i, j)
+        u_R = u_edge(2, i, j)
+        v_R = v_edge(2, i, j)
+        p_R = p_edge(2, i, j)
 
       #:if DIR == 'i'
         n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
@@ -470,10 +471,13 @@ contains
 
       #:if VARIANT == 'SLAU' or VARIANT == 'SD-SLAU'
         ! Eq. A12, Ref [1]
-        p_tilde = (p_bar + 0.5_rk * delta_Beta * p_L_minus_R) + (1.0_rk - Chi) * (Beta_plus + Beta_minus - 1.0_rk) * p_bar
+        p_tilde = (p_bar + 0.5_rk * delta_Beta * p_L_minus_R) + &
+                  (1.0_rk - Chi) * (Beta_plus + Beta_minus - 1.0_rk) * p_bar
       #:elif VARIANT == 'SLAU2' or VARIANT == 'SD-SLAU2'
         ! Eq. 3.5 in Ref [2] (The improved SLAU2 pressure flux)
-        p_tilde = p_bar + (0.5_rk * delta_Beta * p_L_minus_R) + sqrt(0.5_rk * (u_L**2 + v_L**2 + u_R**2 + v_R**2)) * (Beta_plus + Beta_minus - 1.0_rk) * rho_bar * c_bar
+        p_tilde = p_bar + (0.5_rk * delta_Beta * p_L_minus_R) + &
+                  sqrt(0.5_rk * (u_L**2 + v_L**2 + u_R**2 + v_R**2)) * &
+                  (Beta_plus + Beta_minus - 1.0_rk) * rho_bar * c_bar
       #:endif
 
         ! Eq. A9, Ref [1], 0 <= g <= 1
@@ -481,11 +485,13 @@ contains
 
       #:if VARIANT == 'SLAU' or VARIANT == 'SLAU2'
         ! Eq. A5, Ref [1]
-        mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * (1.0_rk - g) - ((Chi / (2.0_rk * c_bar)) * delta_p)
+        mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * &
+                    (1.0_rk - g) - ((Chi / (2.0_rk * c_bar)) * delta_p)
 
         #:elif VARIANT == 'SD-SLAU' or VARIANT == 'SD-SLAU2'
         ! Eq 5 in Ref [3]
-        mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * (1.0_rk - g) - ((theta / (2.0_rk * c_bar)) * delta_p)
+        mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * &
+                    (1.0_rk - g) - ((theta / (2.0_rk * c_bar)) * delta_p)
 
       #:endif
 

@@ -29,7 +29,7 @@ module mod_field
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: ieee_arithmetic
   use mod_error, only: error_msg
-  use mod_globals, only: enable_debug_print, debug_print
+  use mod_globals, only: enable_debug_print, debug_print, n_ghost_layers
   ! use mod_parallel, only: tile_indices, tile_neighbors_2d
 
   implicit none
@@ -135,6 +135,7 @@ contains
 
     ! Locals
     integer(ik) :: indices(4)
+    integer(ik) :: alloc_status
 
     if(enable_debug_print) call debug_print('Running field_2d_t%field_constructor()', __FILE__, __LINE__)
 
@@ -143,14 +144,38 @@ contains
     self%units = units
     self%descrip = descrip
     self%dims = dims
+    self%n_halo_cells = n_ghost_layers
 
+    ! Coarray domain-decomposition
     ! indices = tile_indices(dims)
-
     ! self%lbounds = indices([1, 3])
     ! self%ubounds = indices([2, 4])
-    ! allocate(self%data(self%lbounds(1) - 1:self%ubounds(1) + 1, &
-    !                    self%lbounds(2) - 1:self%ubounds(2) + 1))
-    ! self%data = 0
+
+    ! Non-coarray version
+    self%lbounds = [1, 1]
+    self%ubounds = [dims(1), dims(2)]
+
+    self%lbounds_halo = self%lbounds - self%n_halo_cells
+    self%ubounds_halo = self%ubounds + self%n_halo_cells
+
+    associate(ilo => self%lbounds_halo(1), ihi => self%ubounds_halo(1), &
+              jlo => self%lbounds_halo(2), jhi => self%ubounds_halo(2))
+
+      ! Allocate w/ halo cells
+      allocate(self%data(ilo:ihi, jlo:jhi), stat=alloc_status)
+      if(alloc_status /= 0) then
+        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='fluid_mul_real', &
+                       message="Unable to allocate field_2d_t%data for '"//self%name//"'", &
+                       file_name=__FILE__, line_number=__LINE__)
+      end if
+    end associate
+
+    print *, "self%lbounds: ", self%lbounds
+    print *, "self%ubounds: ", self%ubounds
+    print *, 'lbound: ', lbound(self%data)
+    print *, 'ubound: ', ubound(self%data)
+    error stop
+    self%data = 0.0_rk
     ! self%neighbors = tile_neighbors_2d(periodic=.true.)
     ! self%edge_size = max(self%ubounds(1) - self%lbounds(1) + 1, &
     !                      self%ubounds(2) - self%lbounds(2) + 1)
@@ -450,7 +475,7 @@ contains
       do i = lbound(self%data, dim=1), ubound(self%data, dim=1)
         if(ieee_is_nan(self%data(i, j))) then
           write(err_message, '(a, i0, ", ", i0, a)') "NaN "//self%name//" found at (", i, j, ")"
-          call error_msg(module='mod_field', class='field_2d_t', procedure='check_for_nans', &
+          call error_msg(module_name='mod_field', class_name='field_2d_t', procedure_name='check_for_nans', &
                          message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
           has_nans = .true.
         end if
@@ -472,7 +497,7 @@ contains
       do i = lbound(self%data, dim=1), ubound(self%data, dim=1)
         if(self%data(i, j) < 0.0_rk) then
           write(err_message, '(a, i0, ", ", i0, a)') "Negative "//self%name//" found at (", i, j, ")"
-          call error_msg(module='mod_field', class='field_2d_t', procedure='check_for_negatives', &
+          call error_msg(module_name='mod_field', class_name='field_2d_t', procedure_name='check_for_negatives', &
                          message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
           has_negatives = .true.
         end if

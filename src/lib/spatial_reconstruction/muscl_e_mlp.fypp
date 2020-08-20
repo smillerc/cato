@@ -53,7 +53,7 @@ module mod_muscl_e_mlp
   integer(ik), parameter :: NONLINEAR_DISCONT_REGION = 2
 
   type, extends(muscl_interpolation_t) :: muscl_e_mlp_t
-    integer(ik), dimension(:,:), allocatable :: continuity_sensor !< (i,j); flag for continuous and linear/non-linear discontinuity regions
+    integer(ik), dimension(:, :), allocatable :: continuity_sensor !< (i,j); flag for continuous and linear/non-linear discontinuity regions
     !dir$ attributes align:__ALIGNBYTES__ :: continuity_sensor
   contains
     procedure, public :: initialize => init_muscl_e_mlp
@@ -71,236 +71,236 @@ module mod_muscl_e_mlp
 
 contains
 
-function new_muscl_e_mlp(limiter, order) result(interpolator)
-  type(muscl_e_mlp_t), pointer :: interpolator
-  character(len=*), intent(in) :: limiter
-  integer(ik), intent(in) :: order
+  function new_muscl_e_mlp(limiter, order) result(interpolator)
+    type(muscl_e_mlp_t), pointer :: interpolator
+    character(len=*), intent(in) :: limiter
+    integer(ik), intent(in) :: order
 
-  allocate(interpolator)
-  write(interpolator%limiter_name, '(a, i0)') 'e-MLP', order
-  interpolator%order = order
+    allocate(interpolator)
+    write(interpolator%limiter_name, '(a, i0)') 'e-MLP', order
+    interpolator%order = order
 
-end function
+  end function
 
-subroutine init_muscl_e_mlp(self, limiter)
-  class(muscl_e_mlp_t), intent(inout) :: self
-  character(len=*), intent(in) :: limiter
+  subroutine init_muscl_e_mlp(self, limiter)
+    class(muscl_e_mlp_t), intent(inout) :: self
+    character(len=*), intent(in) :: limiter
 
+    select case(trim(limiter))
+    case('e-MLP3')
+      self%limiter_name = 'e-MLP3'
+      self%order = 3
+    case('e-MLP5')
+      self%limiter_name = 'e-MLP5'
+      self%order = 5
+    case default
+      call error_msg(module_name='mod_muscl_e_mlp', class_name='muscl_e_mlp_t', procedure_name='init_muscl_e_mlp', &
+                     message="Unknown limiter type: '"//trim(limiter)//"'", &
+                     file_name=__FILE__, line_number=__LINE__)
+    end select
 
-  select case(trim(limiter))
-  case('e-MLP3')
-    self%limiter_name = 'e-MLP3'
-    self%order = 3
-  case('e-MLP5')
-    self%limiter_name = 'e-MLP5'
-    self%order = 5
-  case default
-    call error_msg(module='mod_muscl_e_mlp', class='muscl_e_mlp_t', procedure='init_muscl_e_mlp', &
-                   message="Unknown limiter type: '" // trim(limiter) // "'", &
-                   file_name=__FILE__, line_number=__LINE__)
-  end select
+  end subroutine init_muscl_e_mlp
 
-end subroutine init_muscl_e_mlp
+  subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
+    class(muscl_e_mlp_t), intent(in) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
 
-subroutine interpolate_edge_values(self, q, lbounds, i_edges, j_edges)
-  class(muscl_e_mlp_t), intent(in) :: self
-  integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
+    !< (i,j); primitive variable to reconstruct at the edge
 
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
-  !< (i,j); primitive variable to reconstruct at the edge
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
 
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges
-
-
-  select case(self%order)
+    select case(self%order)
     #:for ORDER in SPATIAL_ORDER
-  case(${ORDER}$)
+    case(${ORDER}$)
     #:for DIR in DIRECTIONS
-    call self%interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(q, lbounds, ${DIR}$_edges)
+      call self%interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(q, lbounds, ${DIR}$_edges)
     #:endfor
     #:endfor
-  case default
-    call error_msg(module='mod_muscl_e_mlp', class='muscl_e_mlp_t', procedure='interpolate_edge_values', &
-                   message="Unknown limiter type: '" // trim(self%limiter_name) // "'", &
-                   file_name=__FILE__, line_number=__LINE__)
-  end select
+    case default
+      call error_msg(module_name='mod_muscl_e_mlp', class_name='muscl_e_mlp_t', procedure_name='interpolate_edge_values', &
+                     message="Unknown limiter type: '"//trim(self%limiter_name)//"'", &
+                     file_name=__FILE__, line_number=__LINE__)
+    end select
 
-end subroutine interpolate_edge_values
+  end subroutine interpolate_edge_values
 
-subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
-  !< Find the continuous and discontinuous regions
-  class(muscl_e_mlp_t), intent(inout) :: self
-  integer(ik), dimension(2), intent(in) :: lbounds
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); x-velocity
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); y-velocity
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); pressure
+  subroutine distinguish_continuous_regions(self, rho, u, v, p, lbounds)
+    !< Find the continuous and discontinuous regions
+    class(muscl_e_mlp_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: rho !< (i,j); density
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: u !< (i,j); x-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: v !< (i,j); y-velocity
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: p !< (i,j); pressure
 
-  ! Locals
-  integer(ik) :: i, j, ilo, ihi, jlo, jhi
-  real(rk), dimension(:, :), allocatable :: d_bar_rho !< (i,j); density approximation
-  real(rk), dimension(:, :), allocatable :: d_bar_u   !< (i,j); x-velocity approximation
-  real(rk), dimension(:, :), allocatable :: d_bar_v   !< (i,j); y-velocity approximation
-  real(rk), dimension(:, :), allocatable :: d_bar_p   !< (i,j); pressure approximation
+    ! Locals
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk), dimension(:, :), allocatable :: d_bar_rho !< (i,j); density approximation
+    real(rk), dimension(:, :), allocatable :: d_bar_u   !< (i,j); x-velocity approximation
+    real(rk), dimension(:, :), allocatable :: d_bar_v   !< (i,j); y-velocity approximation
+    real(rk), dimension(:, :), allocatable :: d_bar_p   !< (i,j); pressure approximation
 
-  real(rk) :: d_ij_i, d_ij_j
+    real(rk) :: d_ij_i, d_ij_j
 
-  real(rk), parameter :: EPS = 0.005_rk
-  ! Ref [1] Recommends 0.001 for steady problems and 0.01 for other cases...
+    real(rk), parameter :: EPS = 0.005_rk
+    ! Ref [1] Recommends 0.001 for steady problems and 0.01 for other cases...
 
-  real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
-  real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
+    real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
+    real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
 
-  ilo = lbound(rho, dim=1)
-  ihi = ubound(rho, dim=1)
-  jlo = lbound(rho, dim=2)
-  jhi = ubound(rho, dim=2)
+    ilo = lbound(rho, dim=1)
+    ihi = ubound(rho, dim=1)
+    jlo = lbound(rho, dim=2)
+    jhi = ubound(rho, dim=2)
 
-  allocate(self%continuity_sensor(ilo:ihi, jlo:jhi))
+    allocate(self%continuity_sensor(ilo:ihi, jlo:jhi))
 
-  self%continuity_sensor = CONTINUOUS_REGION
+    self%continuity_sensor = CONTINUOUS_REGION
 
-  allocate(d_bar_rho(ilo:ihi, jlo:jhi))
-  !dir$ assume_aligned d_bar_rho: __ALIGNBYTES__
-  allocate(d_bar_u(ilo:ihi, jlo:jhi))
-  !dir$ assume_aligned d_bar_u: __ALIGNBYTES__
-  allocate(d_bar_v(ilo:ihi, jlo:jhi))
-  !dir$ assume_aligned d_bar_v: __ALIGNBYTES__
-  allocate(d_bar_p(ilo:ihi, jlo:jhi))
-  !dir$ assume_aligned d_bar_p: __ALIGNBYTES__
+    allocate(d_bar_rho(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_rho: __ALIGNBYTES__
+    allocate(d_bar_u(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_u: __ALIGNBYTES__
+    allocate(d_bar_v(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_v: __ALIGNBYTES__
+    allocate(d_bar_p(ilo:ihi, jlo:jhi))
+    !dir$ assume_aligned d_bar_p: __ALIGNBYTES__
 
-  d_bar_rho = 0.0_rk
-  d_bar_u = 0.0_rk
-  d_bar_v = 0.0_rk
-  d_bar_p = 0.0_rk
+    d_bar_rho = 0.0_rk
+    d_bar_u = 0.0_rk
+    d_bar_v = 0.0_rk
+    d_bar_p = 0.0_rk
 
-
-  !$omp parallel default(none), &
-  !$omp firstprivate(ilo, ihi, jlo, jhi, n_ghost_layers) &
-  !$omp private(i, j) &
-  !$omp private(d_ij_i, d_ij_j) &
-  !$omp shared(rho, u, v, p, d_bar_rho, d_bar_u, d_bar_v, d_bar_p, self)
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi, n_ghost_layers) &
+    !$omp private(i, j) &
+    !$omp private(d_ij_i, d_ij_j) &
+    !$omp shared(rho, u, v, p, d_bar_rho, d_bar_u, d_bar_v, d_bar_p, self)
   #:for F in ['rho','u','v','p']
-  !$omp do
-  do j = jlo + n_ghost_layers, jhi - n_ghost_layers
-    !$omp simd __CONT_ALIGN__
-    !dir$ vector aligned
-    do i = ilo + n_ghost_layers, ihi - n_ghost_layers
-      d_ij_i = 0.0_rk
-      d_ij_j = 0.0_rk
-      if(abs(${F}$(i, j)) > 0.0_rk) then
-        ! Eq 11a
-        d_ij_i = abs(((-one_sixth * ${F}$(i - 2, j) + two_thirds * ${F}$(i - 1, j) + two_thirds * ${F}$(i + 1, j) - one_sixth * ${F}$(i + 2, j)) &
-                      / ${F}$(i,j)) &
-                      - 1.0_rk)
-
-        ! Eq 11b
-        d_ij_j = abs(((-one_sixth * ${F}$(i, j - 2) + two_thirds * ${F}$(i, j - 1) + two_thirds * ${F}$(i, j + 1) - one_sixth * ${F}$(i, j + 2)) &
-                       / ${F}$(i,j)) &
+    !$omp do
+    do j = jlo + n_ghost_layers, jhi - n_ghost_layers
+      !$omp simd __CONT_ALIGN__
+      !dir$ vector aligned
+      do i = ilo + n_ghost_layers, ihi - n_ghost_layers
+        d_ij_i = 0.0_rk
+        d_ij_j = 0.0_rk
+        if(abs(${F}$(i, j)) > 0.0_rk) then
+          ! Eq 11a
+          d_ij_i = abs(((-one_sixth*${F}$(i - 2, j) + two_thirds*${F}$(i - 1, j) + &
+                         two_thirds*${F}$(i + 1, j) - one_sixth*${F}$(i + 2, j)) &
+                        /${F}$(i, j)) &
                        - 1.0_rk)
-      end if
-      d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
-      ! Eq 11c
+
+          ! Eq 11b
+          d_ij_j = abs(((-one_sixth*${F}$(i, j - 2) + two_thirds*${F}$(i, j - 1) + &
+                         two_thirds*${F}$(i, j + 1) - one_sixth*${F}$(i, j + 2)) &
+                        /${F}$(i, j)) &
+                       - 1.0_rk)
+        end if
+        d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
+        ! Eq 11c
+      end do
     end do
-  end do
-  !$omp end do
+    !$omp end do
 
   #:endfor
 
-  !$omp do
-  ! Assign contiuous sensor based on the approximate values, e.g. d_bar_rho
-  do j = jlo, jhi
-    do i = ilo, ihi
-      if(abs(d_bar_rho(i, j)) > EPS) self%continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+    !$omp do
+    ! Assign contiuous sensor based on the approximate values, e.g. d_bar_rho
+    do j = jlo, jhi
+      do i = ilo, ihi
+        if(abs(d_bar_rho(i, j)) > EPS) self%continuity_sensor(i, j) = LINEAR_DISCONT_REGION
 
-      if(abs(u(i, j)) < abs(v(i, j))) then
-        if(abs(d_bar_v(i, j)) > EPS .and. abs(v(i, j)) > 1e-6_rk) self%continuity_sensor(i, j) = LINEAR_DISCONT_REGION
-      else ! abs(u(i,j)) >= abs(v(i,j))
-        if(abs(d_bar_u(i, j)) > EPS .and. abs(u(i, j)) > 1e-6_rk) self%continuity_sensor(i, j) = LINEAR_DISCONT_REGION
-      end if
+        if(abs(u(i, j)) < abs(v(i, j))) then
+          if(abs(d_bar_v(i, j)) > EPS .and. abs(v(i, j)) > 1e-6_rk) self%continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+        else ! abs(u(i,j)) >= abs(v(i,j))
+          if(abs(d_bar_u(i, j)) > EPS .and. abs(u(i, j)) > 1e-6_rk) self%continuity_sensor(i, j) = LINEAR_DISCONT_REGION
+        end if
 
-      if(abs(d_bar_p(i, j)) > EPS) self%continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
+        if(abs(d_bar_p(i, j)) > EPS) self%continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
+      end do
     end do
-  end do
-  !$omp end do
-  !$omp end parallel
+    !$omp end do
+    !$omp end parallel
 
-  deallocate(d_bar_rho)
-  deallocate(d_bar_u)
-  deallocate(d_bar_v)
-  deallocate(d_bar_p)
+    deallocate(d_bar_rho)
+    deallocate(d_bar_u)
+    deallocate(d_bar_v)
+    deallocate(d_bar_p)
 
-  self%continuity_sensor = LINEAR_DISCONT_REGION
+    self%continuity_sensor = LINEAR_DISCONT_REGION
 
-end subroutine distinguish_continuous_regions
+  end subroutine distinguish_continuous_regions
 
-subroutine finalize(self)
-  !< Finalizer routine to clean up allocated data
-  type(muscl_e_mlp_t), intent(inout) :: self
-  if (allocated(self%continuity_sensor)) deallocate(self%continuity_sensor)
-end subroutine finalize
-
+  subroutine finalize(self)
+    !< Finalizer routine to clean up allocated data
+    type(muscl_e_mlp_t), intent(inout) :: self
+    if(allocated(self%continuity_sensor)) deallocate(self%continuity_sensor)
+  end subroutine finalize
 
 #:for DIR in DIRECTIONS
 #:for ORDER in SPATIAL_ORDER
-subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edge_values)
-  class(muscl_e_mlp_t), intent(in) :: self
-  integer(ik), dimension(2), intent(in) :: lbounds
+  subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edge_values)
+    class(muscl_e_mlp_t), intent(in) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
 
-  real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
-  !< (i,j); primitive variable to reconstruct at the edge
+    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(in) :: q
+    !< (i,j); primitive variable to reconstruct at the edge
 
-  real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
-  !<((L,R), i, j); L/R state for each edge
+    real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
+    !<((L,R), i, j); L/R state for each edge
 
-  integer(ik) :: i, j, m, n
-  integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j, m, n
+    integer(ik) :: ilo, ihi, jlo, jhi
 
-  real(rk) :: delta_ij_minus_half      !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
-  real(rk) :: delta_ij_plus_half       !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
-  real(rk) :: delta_ij_plus_three_half !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
-  real(rk) :: r_R !< smoothness parameter
-  real(rk) :: r_L !< smoothness parameter
+    real(rk) :: delta_ij_minus_half      !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
+    real(rk) :: delta_ij_plus_half       !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
+    real(rk) :: delta_ij_plus_three_half !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
+    real(rk) :: r_R !< smoothness parameter
+    real(rk) :: r_L !< smoothness parameter
 
-  real(rk) :: tan_theta_ij   !< the tan(theta), i term
-  real(rk) :: tan_theta_ijp1 !< the tan(theta), i+1 term
+    real(rk) :: tan_theta_ij   !< the tan(theta), i term
+    real(rk) :: tan_theta_ijp1 !< the tan(theta), i+1 term
 
-  real(rk) :: phi_ML, phi_MR
-  real(rk), dimension(6) :: phi_MN
-  real(rk) :: min_phi_MN, max_phi_MN
-  real(rk) :: alpha_L, alpha_R
-  real(rk) :: alpha_L_term, alpha_R_term
-  real(rk) :: beta_L_delta_ij_minus_half
-  real(rk) :: beta_R_delta_ij_plus_three_half
+    real(rk) :: phi_ML, phi_MR
+    real(rk), dimension(6) :: phi_MN
+    real(rk) :: min_phi_MN, max_phi_MN
+    real(rk) :: alpha_L, alpha_R
+    real(rk) :: alpha_L_term, alpha_R_term
+    real(rk) :: beta_L_delta_ij_minus_half
+    real(rk) :: beta_R_delta_ij_plus_three_half
 
-  real(rk), parameter :: f_1_over_3 = 1.0_rk / 3.0_rk     !< paramater for 1/3 used to save extra divisions
-  real(rk), parameter :: f_2_over_3 = 2.0_rk / 3.0_rk     !< paramater for 2/3 used to save extra divisions
-  real(rk), parameter :: f_2_over_30 = 2.0_rk / 30.0_rk   !< paramater for 2/30 used to save extra divisions
-  real(rk), parameter :: f_3_over_30 = 3.0_rk / 30.0_rk   !< paramater for 3/30 used to save extra divisions
-  real(rk), parameter :: f_13_over_30 = 13.0_rk / 30.0_rk !< paramater for 13/30 used to save extra divisions
-  real(rk), parameter :: f_27_over_30 = 27.0_rk / 30.0_rk !< paramater for 27/30 used to save extra divisions
+    real(rk), parameter :: f_1_over_3 = 1.0_rk / 3.0_rk     !< paramater for 1/3 used to save extra divisions
+    real(rk), parameter :: f_2_over_3 = 2.0_rk / 3.0_rk     !< paramater for 2/3 used to save extra divisions
+    real(rk), parameter :: f_2_over_30 = 2.0_rk / 30.0_rk   !< paramater for 2/30 used to save extra divisions
+    real(rk), parameter :: f_3_over_30 = 3.0_rk / 30.0_rk   !< paramater for 3/30 used to save extra divisions
+    real(rk), parameter :: f_13_over_30 = 13.0_rk / 30.0_rk !< paramater for 13/30 used to save extra divisions
+    real(rk), parameter :: f_27_over_30 = 27.0_rk / 30.0_rk !< paramater for 27/30 used to save extra divisions
 
+    !dir$ assume_aligned q: __ALIGNBYTES__
+    !dir$ assume_aligned edge_values: __ALIGNBYTES__
 
-  !dir$ assume_aligned q: __ALIGNBYTES__
-  !dir$ assume_aligned edge_values: __ALIGNBYTES__
+    if(enable_debug_print) then
+      call debug_print('Running muscl_tvd2_t%interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order()', &
+                       __FILE__, __LINE__)
+    end if
 
-  if (enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order()', __FILE__, __LINE__)
-
-  ! Because this is an edge-based array, the indexing is # cells + 1, and
-  ! only goes into the single nearest ghost layer
-  ilo = lbound(q, dim=1) + n_ghost_layers - 1
-  jlo = lbound(q, dim=2) + n_ghost_layers - 1
-  ihi = ubound(q, dim=1) - n_ghost_layers
-  jhi = ubound(q, dim=2) - n_ghost_layers
+    ! Because this is an edge-based array, the indexing is # cells + 1, and
+    ! only goes into the single nearest ghost layer
+    ilo = lbound(q, dim=1) + n_ghost_layers - 1
+    jlo = lbound(q, dim=2) + n_ghost_layers - 1
+    ihi = ubound(q, dim=1) - n_ghost_layers
+    jhi = ubound(q, dim=2) - n_ghost_layers
 
   #:if DIR == 'i'
-  allocate(edge_values(1:2, ilo-1:ihi, jlo:jhi))
+    allocate(edge_values(1:2, ilo - 1:ihi, jlo:jhi))
   #:elif DIR == 'j'
-  allocate(edge_values(1:2, ilo:ihi, jlo-1:jhi))
+    allocate(edge_values(1:2, ilo:ihi, jlo - 1:jhi))
   #:endif
 
-  edge_values = 0.0_rk
+    edge_values = 0.0_rk
     !
     !                    jflux(i,j)  'R'
     !               o--------------------o
@@ -314,63 +314,63 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
     !
     ! This is the numbering convention that this module uses
 
-  !$omp parallel default(none), &
-  !$omp firstprivate(ilo, ihi, jlo, jhi) &
-  !$omp private(i, j, m, n, delta_ij_minus_half, delta_ij_plus_half, delta_ij_plus_three_half) &
-  !$omp private(r_L, r_R) &
-  !$omp private(tan_theta_ij, tan_theta_ijp1,  alpha_L, alpha_R, alpha_L_term, alpha_R_term) &
-  !$omp private(phi_ML, phi_MR) &
-  !$omp private(beta_L_delta_ij_minus_half, beta_R_delta_ij_plus_three_half, phi_MN, min_phi_MN, max_phi_MN) &
-  !$omp shared(q, edge_values, self)
-  !$omp do
-  do j = jlo, jhi
-    !! $omp simd __INTERP_ALIGN__
-    !! dir$ vector aligned
-    do i = ilo, ihi
+    !$omp parallel default(none), &
+    !$omp firstprivate(ilo, ihi, jlo, jhi) &
+    !$omp private(i, j, m, n, delta_ij_minus_half, delta_ij_plus_half, delta_ij_plus_three_half) &
+    !$omp private(r_L, r_R) &
+    !$omp private(tan_theta_ij, tan_theta_ijp1,  alpha_L, alpha_R, alpha_L_term, alpha_R_term) &
+    !$omp private(phi_ML, phi_MR) &
+    !$omp private(beta_L_delta_ij_minus_half, beta_R_delta_ij_plus_three_half, phi_MN, min_phi_MN, max_phi_MN) &
+    !$omp shared(q, edge_values, self)
+    !$omp do
+    do j = jlo, jhi
+      !! $omp simd __INTERP_ALIGN__
+      !! dir$ vector aligned
+      do i = ilo, ihi
       #:if ORDER == 3
         ! 3rd order interpolation
         #:if DIR == 'i'
-          ! Eq 23a in Ref [1]
-          beta_L_delta_ij_minus_half = -f_1_over_3 * q(i - 1, j) - f_1_over_3 * q(i,j) + f_2_over_3 * q(i + 1, j)
+        ! Eq 23a in Ref [1]
+        beta_L_delta_ij_minus_half = -f_1_over_3 * q(i - 1, j) - f_1_over_3 * q(i, j) + f_2_over_3 * q(i + 1, j)
 
-          ! Eq 23b in Ref [1]
-          beta_R_delta_ij_plus_three_half = f_1_over_3 * q(i + 2, j) + f_1_over_3 * q(i + 1, j) - f_2_over_3 * q(i, j)
+        ! Eq 23b in Ref [1]
+        beta_R_delta_ij_plus_three_half = f_1_over_3 * q(i + 2, j) + f_1_over_3 * q(i + 1, j) - f_2_over_3 * q(i, j)
         #:elif DIR == 'j'
-          ! Eq 23a in Ref [1]
-          beta_L_delta_ij_minus_half = -f_1_over_3 * q(i, j - 1) - f_1_over_3 * q(i,j) + f_2_over_3 * q(i, j + 1)
+        ! Eq 23a in Ref [1]
+        beta_L_delta_ij_minus_half = -f_1_over_3 * q(i, j - 1) - f_1_over_3 * q(i, j) + f_2_over_3 * q(i, j + 1)
 
-          ! Eq 23b in Ref [1]
-          beta_R_delta_ij_plus_three_half = f_1_over_3 * q(i, j + 2) + f_1_over_3 * q(i, j + 1) - f_2_over_3 * q(i, j)
+        ! Eq 23b in Ref [1]
+        beta_R_delta_ij_plus_three_half = f_1_over_3 * q(i, j + 2) + f_1_over_3 * q(i, j + 1) - f_2_over_3 * q(i, j)
         #:endif
 
       #:elif ORDER == 5
         ! 5th order interpolation
         #:if DIR == 'i'
-          ! Eq 24a in Ref [1]
-          beta_L_delta_ij_minus_half = f_2_over_30 * q(i - 2, j) - f_13_over_30 * q(i - 1,j) &
-                                      - f_13_over_30 * q(i, j) + f_27_over_30 * q(i + 1, j) - f_3_over_30 * q(i + 2, j)
+        ! Eq 24a in Ref [1]
+        beta_L_delta_ij_minus_half = f_2_over_30 * q(i - 2, j) - f_13_over_30 * q(i - 1, j) &
+                                     - f_13_over_30 * q(i, j) + f_27_over_30 * q(i + 1, j) - f_3_over_30 * q(i + 2, j)
 
-          ! Eq 24b in Ref [1]
-          beta_R_delta_ij_plus_three_half = -f_2_over_30 * q(i + 3, j) + f_13_over_30 * q(i + 2,j) &
+        ! Eq 24b in Ref [1]
+        beta_R_delta_ij_plus_three_half = -f_2_over_30 * q(i + 3, j) + f_13_over_30 * q(i + 2, j) &
                                           + f_13_over_30 * q(i + 1, j) - f_27_over_30 * q(i, j) + f_3_over_30 * q(i - 1, j)
         #:elif DIR == 'j'
-          ! Eq 24a in Ref [1]
-          beta_L_delta_ij_minus_half = f_2_over_30 * q(i, j - 2) - f_13_over_30 * q(i, j - 1) &
-                                      - f_13_over_30 * q(i, j) + f_27_over_30 * q(i, j + 1) - f_3_over_30 * q(i, j + 2)
+        ! Eq 24a in Ref [1]
+        beta_L_delta_ij_minus_half = f_2_over_30 * q(i, j - 2) - f_13_over_30 * q(i, j - 1) &
+                                     - f_13_over_30 * q(i, j) + f_27_over_30 * q(i, j + 1) - f_3_over_30 * q(i, j + 2)
 
-          ! Eq 24b in Ref [1]
-          beta_R_delta_ij_plus_three_half = -f_2_over_30 * q(i, j + 3) + f_13_over_30 * q(i,j + 2) &
-                                           + f_13_over_30 * q(i, j + 1) - f_27_over_30 * q(i, j) + f_3_over_30 * q(i, j - 1)
+        ! Eq 24b in Ref [1]
+        beta_R_delta_ij_plus_three_half = -f_2_over_30 * q(i, j + 3) + f_13_over_30 * q(i, j + 2) &
+                                          + f_13_over_30 * q(i, j + 1) - f_27_over_30 * q(i, j) + f_3_over_30 * q(i, j - 1)
         #:endif
       #:endif
 
-      ! Now apply the enhanced MLP routine based on the continuity sensor at the current cell
-      select case(self%continuity_sensor(i,j))
-      case(CONTINUOUS_REGION)
-        ! No limiting function enabled, since it's a continuous region
+        ! Now apply the enhanced MLP routine based on the continuity sensor at the current cell
+        select case(self%continuity_sensor(i, j))
+        case(CONTINUOUS_REGION)
+          ! No limiting function enabled, since it's a continuous region
 
-        ! Phi L, e.g. left state
-        edge_values(1, i, j) = q(i, j) + 0.5_rk * beta_L_delta_ij_minus_half
+          ! Phi L, e.g. left state
+          edge_values(1, i, j) = q(i, j) + 0.5_rk * beta_L_delta_ij_minus_half
 
         #:if DIR == 'i'
           ! Phi R, e.g. right state
@@ -380,8 +380,8 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
           edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * beta_R_delta_ij_plus_three_half
         #:endif
 
-      case(LINEAR_DISCONT_REGION)
-        ! For a linear discontinuity, use TVD limiting
+        case(LINEAR_DISCONT_REGION)
+          ! For a linear discontinuity, use TVD limiting
 
         #:if DIR == 'i'
           delta_ij_minus_half = q(i, j) - q(i - 1, j)
@@ -393,15 +393,15 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
           delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
         #:endif
 
-        if (abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
-        if (abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
-        if (abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
+          if(abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
+          if(abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
+          if(abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
 
-        ! Phi L, e.g. left state
-        edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(2.0_rk * delta_ij_plus_half, &
-                                                                  2.0_rk * delta_ij_minus_half, &
-                                                                  beta_L_delta_ij_minus_half))
-        ! Phi R, e.g. right state
+          ! Phi L, e.g. left state
+          edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(2.0_rk * delta_ij_plus_half, &
+                                                                    2.0_rk * delta_ij_minus_half, &
+                                                                    beta_L_delta_ij_minus_half))
+          ! Phi R, e.g. right state
         #:if DIR == 'i'
           edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(2.0_rk * delta_ij_plus_half, &
                                                                         2.0_rk * delta_ij_plus_three_half, &
@@ -412,8 +412,8 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
                                                                         beta_R_delta_ij_plus_three_half))
         #:endif
 
-      case(NONLINEAR_DISCONT_REGION)
-        ! For non-linear discontinuity, use MLP limiting
+        case(NONLINEAR_DISCONT_REGION)
+          ! For non-linear discontinuity, use MLP limiting
 
         #:if DIR == 'i'
           delta_ij_minus_half = q(i, j) - q(i - 1, j)
@@ -425,20 +425,20 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
           delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
         #:endif
 
-        if (abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
-        if (abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
-        if (abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
+          if(abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
+          if(abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
+          if(abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
 
-        r_L = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
-        r_R = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
+          r_L = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
+          r_R = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
 
-        ! Inner term of alpha in Eq. 17 in Ref [1]
+          ! Inner term of alpha in Eq. 17 in Ref [1]
         #:if DIR == 'i'
           ! Xi variant, Eq 18a. Xi is used for the i-direction
-          tan_theta_ij   = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
+          tan_theta_ij = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
           tan_theta_ijp1 = abs(q(i + 1, j + 1) - q(i + 1, j - 1)) / (abs(q(i + 2, j) - q(i, j)) + 1e-16_rk)
 
-          phi_MN = [q(i,j+1), q(i+1,j+1), q(i,j), q(i+1,j), q(i,j-1), q(i+1,j+1)]
+          phi_MN = [q(i, j + 1), q(i + 1, j + 1), q(i, j), q(i + 1, j), q(i, j - 1), q(i + 1, j + 1)]
 
           ! min_phi_MN = huge(1.0_rk)
           ! max_phi_MN = -huge(1.0_rk)
@@ -451,10 +451,10 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
 
         #:elif DIR == 'j'
           ! Eta variant, Eq 18b. Xi is used for the j-direction
-          tan_theta_ij   = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
+          tan_theta_ij = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
           tan_theta_ijp1 = abs(q(i + 1, j + 1) - q(i - 1, j + 1)) / (abs(q(i, j + 2) - q(i, j)) + 1e-16_rk)
 
-          phi_MN = [q(i-1,j+1), q(i,j+1), q(i+1,j+1), q(i-1,j), q(i,j), q(i+1,j)]
+          phi_MN = [q(i - 1, j + 1), q(i, j + 1), q(i + 1, j + 1), q(i - 1, j), q(i, j), q(i + 1, j)]
 
           ! min_phi_MN = huge(1.0_rk)
           ! max_phi_MN = -huge(1.0_rk)
@@ -466,38 +466,44 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
           ! end do
         #:endif
 
-        min_phi_MN = minval(phi_MN)
-        max_phi_MN = maxval(phi_MN)
+          min_phi_MN = minval(phi_MN)
+          max_phi_MN = maxval(phi_MN)
 
-        if (delta_ij_plus_half > 0.0_rk) then
-          phi_ML = max_phi_MN
-          phi_MR = min_phi_MN
-        else ! <= 0
-          phi_ML = min_phi_MN
-          phi_MR = max_phi_MN
-        end if
+          if(delta_ij_plus_half > 0.0_rk) then
+            phi_ML = max_phi_MN
+            phi_MR = min_phi_MN
+          else ! <= 0
+            phi_ML = min_phi_MN
+            phi_MR = max_phi_MN
+          end if
 
-        ! Term inside the [..] in Eq 16a/17a in Ref [1]
-        alpha_L_term = (2.0_rk * max(1.0_rk, abs(r_L)) * abs((phi_ML - q(i, j)) / (delta_ij_plus_half + 1e-16_rk))) / (1.0_rk + max(0.0_rk, tan_theta_ij))
+          ! Term inside the [..] in Eq 16a/17a in Ref [1]
+          alpha_L_term = (2.0_rk * max(1.0_rk, abs(r_L)) * abs((phi_ML - q(i, j)) / &
+                                                               (delta_ij_plus_half + 1e-16_rk))) / &
+                         (1.0_rk + max(0.0_rk, tan_theta_ij))
 
         #:if DIR == 'i'
           ! Term inside the [..] in Eq 16b in Ref [1]
-          alpha_R_term = (2.0_rk * max(1.0_rk, abs(r_R)) * abs((q(i + 1, j) - phi_MR) / (delta_ij_plus_half + 1e-16_rk))) / (1.0_rk + max(0.0_rk, tan_theta_ijp1))
+          alpha_R_term = (2.0_rk * max(1.0_rk, abs(r_R)) * abs((q(i + 1, j) - phi_MR) / &
+                                                               (delta_ij_plus_half + 1e-16_rk))) / &
+                         (1.0_rk + max(0.0_rk, tan_theta_ijp1))
         #:elif DIR == 'j'
           ! Term inside the [..] in Eq 17b in Ref [1], there's a typo in the formula in the paper on the q(i + 1, j) term which should be q(i, j + 1)
-          alpha_R_term = (2.0_rk * max(1.0_rk, abs(r_R)) * abs((q(i, j + 1) - phi_MR) / (delta_ij_plus_half + 1e-16_rk))) / (1.0_rk + max(0.0_rk, tan_theta_ijp1))
+          alpha_R_term = (2.0_rk * max(1.0_rk, abs(r_R)) * abs((q(i, j + 1) - phi_MR) / &
+                                                               (delta_ij_plus_half + 1e-16_rk))) / &
+                         (1.0_rk + max(0.0_rk, tan_theta_ijp1))
         #:endif
 
-        ! This is the g(x) = max(1, min(2, alpha)) function
-        alpha_L = max(1.0_rk, min(2.0_rk, alpha_L_term))
-        alpha_R = max(1.0_rk, min(2.0_rk, alpha_R_term))
-        ! write(*, '(a, 10(es16.6))') '${DIR}$, ', alpha_L_term, alpha_R_term, alpha_L, alpha_R
+          ! This is the g(x) = max(1, min(2, alpha)) function
+          alpha_L = max(1.0_rk, min(2.0_rk, alpha_L_term))
+          alpha_R = max(1.0_rk, min(2.0_rk, alpha_R_term))
+          ! write(*, '(a, 10(es16.6))') '${DIR}$, ', alpha_L_term, alpha_R_term, alpha_L, alpha_R
 
-        ! Phi L, e.g. left state
-        edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(alpha_L * delta_ij_plus_half, &
-                                                                  alpha_L * delta_ij_minus_half, &
-                                                                  beta_L_delta_ij_minus_half))
-        ! Phi R, e.g. right state
+          ! Phi L, e.g. left state
+          edge_values(1, i, j) = q(i, j) + 0.5_rk * max(0.0_rk, min(alpha_L * delta_ij_plus_half, &
+                                                                    alpha_L * delta_ij_minus_half, &
+                                                                    beta_L_delta_ij_minus_half))
+          ! Phi R, e.g. right state
         #:if DIR == 'i'
           edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(alpha_R * delta_ij_plus_half, &
                                                                         alpha_R * delta_ij_plus_three_half, &
@@ -507,14 +513,14 @@ subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order(self, q, lbounds, edg
                                                                         alpha_R * delta_ij_plus_three_half, &
                                                                         beta_R_delta_ij_plus_three_half))
         #:endif
-      end select
+        end select
 
+      end do
     end do
-  end do
-  !$omp end do
-  !$omp end parallel
+    !$omp end do
+    !$omp end parallel
 
-end subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order
+  end subroutine interp_muscl_e_mlp_${DIR}$_edge_${ORDER}$_order
 
 #:endfor
 #:endfor

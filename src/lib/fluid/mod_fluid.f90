@@ -148,8 +148,9 @@ contains
     if(enable_debug_print) call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
 
     if(.not. scale_factors_set) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
-            message="Global non-dimensional scale factors haven't been set yet. These need to be set before fluid initialization", &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize', &
+                     message="Global non-dimensional scale factors haven't been set yet. "// &
+                     "These need to be set before fluid initialization", &
                      file_name=__FILE__, line_number=__LINE__)
     end if
 
@@ -217,7 +218,7 @@ contains
       ! case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
       !   allocate(slau_solver_t :: solver)
     case default
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize', &
                      message="Invalid flux solver. It must be one of the following: "// &
                      "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', "// &
                      "'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
@@ -293,77 +294,87 @@ contains
     inquire(file=filename, exist=file_exists)
 
     if(.not. file_exists) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                      message='File not found: "'//filename//'"', file_name=__FILE__, line_number=__LINE__)
     end if
 
     call h5%initialize(filename=filename, status='old', action='r')
 
     call h5%get('/density', density)
-    ! if(input%restart_from_file) then
-    !   call h5%readattr('/density', 'units', str_buff)
-    !   select case(trim(str_buff))
-    !   case('g/cc')
-    !   case default
-    !     call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-    !              message="Unknown density units in .h5 file. Acceptable units are 'g/cc'", file_name=__FILE__, line_number=__LINE__)
-    !   end select
-    ! end if
+    call h5%readattr('/density', 'units', str_buff)
+    self%rho%units = trim(str_buff)
 
-    ! call h5%get('/x_velocity', x_velocity)
-    ! call h5%get('/y_velocity', y_velocity)
-    ! if(input%restart_from_file) then
-    !   call h5%readattr('/x_velocity', 'units', str_buff)
-    !   select case(trim(str_buff))
-    !   case('km/s')
-    !     x_velocity = x_velocity * km_per_sec_to_cm_per_sec
-    !     y_velocity = y_velocity * km_per_sec_to_cm_per_sec
-    !   case('cm/s')
-    !   case default
-    !     call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-    !  message="Unknown velocity units in .h5 file. Acceptable units are 'km/s' and 'cm/s'", file_name=__FILE__, line_number=__LINE__)
-    !   end select
-    ! end if
+    if(input%restart_from_file) then
+      select case(trim(str_buff))
+      case('g/cc')
+      case default
+        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
+                       message="Unknown density units in .h5 file. Acceptable units are 'g/cc'", &
+                       file_name=__FILE__, line_number=__LINE__)
+      end select
+    end if
 
-    ! call h5%get('/pressure', pressure)
+    call h5%get('/x_velocity', x_velocity)
+    call h5%get('/y_velocity', y_velocity)
+    call h5%readattr('/x_velocity', 'units', str_buff)
+    self%u%units = trim(str_buff)
+    self%v%units = trim(str_buff)
 
-    ! if(input%restart_from_file) then
-    !   call h5%readattr('/pressure', 'units', str_buff)
-    !   select case(trim(str_buff))
-    !   case('barye')
-    !   case('Mbar')
-    !     pressure = pressure * mega_bar_to_barye
-    !   case default
-    !     call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-    !    message="Unknown pressure units in .h5 file. Acceptable units are 'barye', 'Mbar'", file_name=__FILE__, line_number=__LINE__)
-    !   end select
-    ! end if
+    if(input%restart_from_file) then
+      select case(trim(str_buff))
+      case('km/s')
+        x_velocity = x_velocity * km_per_sec_to_cm_per_sec
+        y_velocity = y_velocity * km_per_sec_to_cm_per_sec
+      case('cm/s')
+      case default
+        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
+                       message="Unknown velocity units in .h5 file. Acceptable units are 'km/s' and 'cm/s'", &
+                       file_name=__FILE__, line_number=__LINE__)
+      end select
+    end if
 
-    ! call h5%finalize()
+    call h5%get('/pressure', pressure)
+    call h5%readattr('/pressure', 'units', str_buff)
 
-    ! ! Non-dimensionalize
-    ! density = density / rho_0
-    ! x_velocity = x_velocity / v_0
-    ! y_velocity = y_velocity / v_0
-    ! pressure = pressure / p_0
+    if(input%restart_from_file) then
+      select case(trim(str_buff))
+      case('barye')
+      case('Mbar')
+        pressure = pressure * mega_bar_to_barye
+      case default
+        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
+                       message="Unknown pressure units in .h5 file. Acceptable units are 'barye', 'Mbar'", &
+                       file_name=__FILE__, line_number=__LINE__)
+      end select
+    end if
 
-    ! if(minval(pressure) < tiny(1.0_rk)) then
-    !   call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-    !                  message="Some (or all) of the pressure array is ~0", file_name=__FILE__, line_number=__LINE__)
-    ! end if
+    call h5%finalize()
 
-    ! if(minval(density) < tiny(1.0_rk)) then
-    !   call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-    !                  message="Some (or all) of the density array is ~0", file_name=__FILE__, line_number=__LINE__)
-    ! end if
+    associate(ilo => self%rho%lbounds(1), ihi => self%rho%ubounds(1), &
+              jlo => self%rho%lbounds(2), jhi => self%rho%ubounds(2))
+      self%rho%data(ilo:ihi, jlo:jhi) = density(ilo:ihi, jlo:jhi)
+      self%u%data(ilo:ihi, jlo:jhi) = x_velocity(ilo:ihi, jlo:jhi)
+      self%v%data(ilo:ihi, jlo:jhi) = y_velocity(ilo:ihi, jlo:jhi)
+      self%p%data(ilo:ihi, jlo:jhi) = pressure(ilo:ihi, jlo:jhi)
+    end associate
 
-    ! self%rho = density
-    ! self%u = x_velocity
-    ! self%v = y_velocity
-    ! self%p = pressure
+    call self%rho%make_non_dimensional(non_dim_factor=rho_0)
+    call self%u%make_non_dimensional(non_dim_factor=v_0)
+    call self%v%make_non_dimensional(non_dim_factor=v_0)
+    call self%p%make_non_dimensional(non_dim_factor=p_0)
 
-    ! call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
-    !                                 rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
+    if(minval(pressure) < tiny(1.0_rk)) then
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
+                     message="Some (or all) of the pressure array is ~0", file_name=__FILE__, line_number=__LINE__)
+    end if
+
+    if(minval(density) < tiny(1.0_rk)) then
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
+                     message="Some (or all) of the density array is ~0", file_name=__FILE__, line_number=__LINE__)
+    end if
+
+    call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
+                                    rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
     write(*, '(a)') 'Initial fluid stats'
     write(*, '(a)') '==================================================='
@@ -407,12 +418,12 @@ contains
     !                                 rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
     ! if(near_zero(input%init_pressure)) then
-    !   call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_ini', &
+    !   call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_ini', &
     !                  message="Some (or all) of the pressure array is ~0", file_name=__FILE__, line_number=__LINE__)
     ! end if
 
     ! if(near_zero(input%init_density)) then
-    !   call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_ini', &
+    !   call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_ini', &
     !                  message="Some (or all) of the density array is ~0", file_name=__FILE__, line_number=__LINE__)
     ! end if
 
@@ -482,7 +493,7 @@ contains
     case('ssp_rk3')
       call self%ssp_rk3(grid, error_code)
     case default
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='assign_fluid', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
                      message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
     end select
   end subroutine integrate
@@ -621,7 +632,7 @@ contains
 
     allocate(product, source=lhs, stat=alloc_status)
     if(alloc_status /= 0) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='fluid_mul_real', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='fluid_mul_real', &
                      message="Unable to allocate lhs%solver", file_name=__FILE__, line_number=__LINE__)
     end if
 
@@ -644,7 +655,7 @@ contains
 
     allocate(product, source=rhs, stat=alloc_status)
     if(alloc_status /= 0) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='real_mul_fluid', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='real_mul_fluid', &
                      message="Unable to allocate product", file_name=__FILE__, line_number=__LINE__)
     end if
 
@@ -672,7 +683,7 @@ contains
 
     allocate(lhs%solver, source=rhs%solver, stat=alloc_status)
     if(alloc_status /= 0) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='assign_fluid', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
                      message="Unable to allocate lhs%solver", file_name=__FILE__, line_number=__LINE__)
     end if
 
@@ -797,12 +808,18 @@ contains
     allocate(U_1, source=U)
 
     ! 1st stage
-  if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
+    if(enable_debug_print) then
+      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), &
+                       __FILE__, __LINE__)
+    end if
     call U%apply_bc()
     U_1 = U + U%t(grid, stage=1) * dt
 
     ! Final stage
-  if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
+    if(enable_debug_print) then
+      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), &
+                       __FILE__, __LINE__)
+    end if
     call U_1%apply_bc()
     U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, stage=2) * (0.5_rk * dt)
 
