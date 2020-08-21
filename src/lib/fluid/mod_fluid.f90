@@ -670,7 +670,6 @@ contains
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
     class(fluid_t), intent(inout) :: lhs
     type(fluid_t), intent(in) :: rhs
-    integer(ik) :: error_code
     integer(ik) :: alloc_status
 
     if(enable_debug_print) call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
@@ -701,9 +700,7 @@ contains
   subroutine sanity_check(self, error_code)
     !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.
     class(fluid_t), intent(in) :: self
-    integer(ik) :: i, j, ilo, jlo, ihi, jhi
     logical :: invalid_numbers, negative_numbers
-    character(len=64) :: err_message = ''
     integer(ik), intent(out) :: error_code
 
     if(enable_debug_print) call debug_print('Running fluid_t%sanity_check()', __FILE__, __LINE__)
@@ -843,24 +840,24 @@ contains
     real(rk) :: rho_v_diff !< difference in the rhov residual
     real(rk) :: rho_E_diff !< difference in the rhoE residual
     integer(ik) :: io
-    integer(ik) :: i, j, ilo, jlo, ihi, jhi
+    integer(ik) :: ilo, jlo, ihi, jhi
 
-    ! if (enable_debug_print) if (enable_debug_print) call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
 
-    ! ilo = lbound(last_stage%rho, dim=1) + n_ghost_layers
-    ! ihi = ubound(last_stage%rho, dim=1) - n_ghost_layers
-    ! jlo = lbound(last_stage%rho, dim=2) + n_ghost_layers
-    ! jhi = ubound(last_stage%rho, dim=2) - n_ghost_layers
+    ilo = last_stage%rho%lbounds(1)
+    ihi = last_stage%rho%ubounds(1)
+    jlo = last_stage%rho%lbounds(2)
+    jhi = last_stage%rho%ubounds(2)
 
-    ! rho_diff = maxval(abs(last_stage%rho(ilo:ihi, jlo:jhi) - first_stage%rho(ilo:ihi, jlo:jhi)))
-    ! rho_u_diff = maxval(abs(last_stage%rho_u(ilo:ihi, jlo:jhi) - first_stage%rho_u(ilo:ihi, jlo:jhi)))
-    ! rho_v_diff = maxval(abs(last_stage%rho_v(ilo:ihi, jlo:jhi) - first_stage%rho_v(ilo:ihi, jlo:jhi)))
-    ! rho_E_diff = maxval(abs(last_stage%rho_E(ilo:ihi, jlo:jhi) - first_stage%rho_E(ilo:ihi, jlo:jhi)))
+    rho_diff = maxval(abs(last_stage%rho%data(ilo:ihi, jlo:jhi) - first_stage%rho%data(ilo:ihi, jlo:jhi)))
+    rho_u_diff = maxval(abs(last_stage%rho_u%data(ilo:ihi, jlo:jhi) - first_stage%rho_u%data(ilo:ihi, jlo:jhi)))
+    rho_v_diff = maxval(abs(last_stage%rho_v%data(ilo:ihi, jlo:jhi) - first_stage%rho_v%data(ilo:ihi, jlo:jhi)))
+    rho_E_diff = maxval(abs(last_stage%rho_E%data(ilo:ihi, jlo:jhi) - first_stage%rho_E%data(ilo:ihi, jlo:jhi)))
 
-    ! open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
-    ! write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &
-    !   rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
-    ! close(io)
+    open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
+    write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &
+      rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
+    close(io)
 
   end subroutine write_residual_history
 
