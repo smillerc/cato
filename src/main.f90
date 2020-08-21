@@ -45,6 +45,7 @@ program cato
   type(contour_writer_t) :: contour_writer
   type(timer_t) :: timer
   real(rk) :: time = 0.0_rk
+  real(rk) :: new_time = 0.0_rk
   real(rk) :: delta_t = 0.0_rk
   real(rk) :: next_output_time = 0.0_rk
   integer(ik) :: iteration = 0
@@ -132,11 +133,8 @@ program cato
     write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
       ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
 
-    ! call master%apply_source_terms(conserved_vars=U%conserved_vars, &
-    !                            lbounds=bounds)
     ! Integrate in time
     call master%integrate(dt=delta_t, error_code=error_code)
-
     if(error_code /= ALL_OK) then
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
@@ -144,13 +142,12 @@ program cato
       error stop 1
     end if
 
-    time = time + delta_t
-    iteration = iteration + 1
-    call master%set_time(time, delta_t, iteration)
-    call timer%log_time(iteration, delta_t)
+    if(.not. input%use_constant_delta_t) delta_t = get_timestep(cfl=input%cfl, master=master)
+
+    new_time = time + delta_t
 
     ! I/O
-    if(time >= next_output_time) then
+    if(abs(time - next_output_time) < epsilon(1.0_rk)) then
       next_output_time = next_output_time + contour_interval_dt
       write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
         next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
@@ -158,7 +155,17 @@ program cato
       last_io_iteration = iteration
     end if
 
-    if(.not. input%use_constant_delta_t) delta_t = get_timestep(cfl=input%cfl, master=master)
+    ! Check for overshoots in the time for contour I/O. This will shore up the
+    ! next time to exactly match the contour interval
+    if(new_time > next_output_time) then
+      delta_t = abs(next_output_time - time)
+      new_time = time + delta_t
+    end if
+
+    time = new_time
+    iteration = iteration + 1
+    call master%set_time(time, delta_t, iteration)
+    call timer%log_time(iteration, delta_t)
   end do
 
   call timer%stop()
