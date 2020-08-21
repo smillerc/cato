@@ -154,51 +154,40 @@ contains
                      file_name=__FILE__, line_number=__LINE__)
     end if
 
-    !associate(imin => grid%ilo_bc_cell, &
-    !          imax => grid%ihi_bc_cell, &
-    !          jmin => grid%jlo_bc_cell, &
-    !          jmax => grid%jhi_bc_cell)
-    !
-    !  allocate(self%rho(imin:imax, jmin:jmax))
-    !  allocate(self%u  (imin:imax, jmin:jmax))
-    !  allocate(self%v  (imin:imax, jmin:jmax))
-    !  allocate(self%p  (imin:imax, jmin:jmax))
-    !  allocate(self%rho_u(imin:imax, jmin:jmax))
-    !  allocate(self%rho_v(imin:imax, jmin:jmax))
-    !  allocate(self%rho_E(imin:imax, jmin:jmax))
-    !  allocate(self%cs(imin:imax, jmin:jmax))
-    !  allocate(self%mach_u(imin:imax, jmin:jmax))
-    !  allocate(self%mach_v(imin:imax, jmin:jmax))
-    !end associate
-
-    self%rho = field_2d_t(name='rho', long_name='Density', descrip='', units='', &
+    self%rho = field_2d_t(name='rho', long_name='Density', descrip='Cell Density', &
+                          units='g / cm^3', &
                           dims=[grid%ni_cell, grid%nj_cell])
 
-    self%rho_u = field_2d_t(name='rhou', long_name='rhou', descrip='', units='', &
+    self%rho_u = field_2d_t(name='rhou', long_name='rhou', descrip='Cell Conserved quantity (Density * X-Velocity)', &
+                            units='g cm / cm^2 s', &
                             dims=[grid%ni_cell, grid%nj_cell])
 
-    self%rho_v = field_2d_t(name='rhov', long_name='rhov', descrip='', units='', &
+    self%rho_v = field_2d_t(name='rhov', long_name='rhov', descrip='Cell Conserved quantity (Density * Y-Velocity)', &
+                            units='g cm / cm^2 s', &
                             dims=[grid%ni_cell, grid%nj_cell])
 
-    self%rho_E = field_2d_t(name='rhoE', long_name='rhoE', descrip='', units='', &
+    self%rho_E = field_2d_t(name='rhoE', long_name='rhoE', descrip='Cell Conserved quantity (Density * Total Energy)', &
+                            units='g erg / cm^3', &
                             dims=[grid%ni_cell, grid%nj_cell])
 
-    self%u = field_2d_t(name='u', long_name='Y Velocity', descrip='', units='', &
+    self%u = field_2d_t(name='u', long_name='X Velocity', descrip='Cell X-Velocity', units='cm / s', &
                         dims=[grid%ni_cell, grid%nj_cell])
 
-    self%v = field_2d_t(name='v', long_name='X Velocity', descrip='', units='', &
+    self%v = field_2d_t(name='v', long_name='Y Velocity', descrip='Cell Y-Velocity', units='cm / s', &
                         dims=[grid%ni_cell, grid%nj_cell])
 
-    self%p = field_2d_t(name='p', long_name='Pressure', descrip='', units='', &
+    self%p = field_2d_t(name='p', long_name='Pressure', descrip='Cell Pressure', units='barye', &
                         dims=[grid%ni_cell, grid%nj_cell])
 
-    self%cs = field_2d_t(name='cs', long_name='Sound Speed', descrip='', units='', &
+    self%cs = field_2d_t(name='cs', long_name='Sound Speed', descrip='Cell Sound Speed', units='cm / s', &
                          dims=[grid%ni_cell, grid%nj_cell])
 
-    self%mach_u = field_2d_t(name='mach_u', long_name='Mach X', descrip='', units='', &
+    self%mach_u = field_2d_t(name='mach_u', long_name='Mach X', descrip='Cell Mach number in x-direction', &
+                             units='dimensionless', &
                              dims=[grid%ni_cell, grid%nj_cell])
 
-    self%mach_v = field_2d_t(name='mach_v', long_name='Mach Y', descrip='', units='', &
+    self%mach_v = field_2d_t(name='mach_v', long_name='Mach Y', descrip='Cell Mach number in y-direction', &
+                             units='dimensionless', &
                              dims=[grid%ni_cell, grid%nj_cell])
 
     self%smooth_residuals = input%smooth_residuals
@@ -251,15 +240,15 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
     deallocate(bc)
 
-    ! open(newunit=io, file=trim(self%residual_hist_file), status='replace')
-    ! write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
-    ! close(io)
+    open(newunit=io, file=trim(self%residual_hist_file), status='replace')
+    write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
+    close(io)
 
-    ! if(input%read_init_cond_from_file .or. input%restart_from_file) then
-    !   call self%initialize_from_hdf5(input)
-    ! else
-    !   call self%initialize_from_ini(input)
-    ! end if
+    if(input%read_init_cond_from_file .or. input%restart_from_file) then
+      call self%initialize_from_hdf5(input)
+    else
+      call self%initialize_from_ini(input)
+    end if
 
     call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
     self%mach_v = self%v / self%cs
@@ -302,7 +291,7 @@ contains
 
     call h5%get('/density', density)
     call h5%readattr('/density', 'units', str_buff)
-    self%rho%units = trim(str_buff)
+    ! self%rho%units = trim(str_buff)
 
     if(input%restart_from_file) then
       select case(trim(str_buff))
@@ -317,8 +306,8 @@ contains
     call h5%get('/x_velocity', x_velocity)
     call h5%get('/y_velocity', y_velocity)
     call h5%readattr('/x_velocity', 'units', str_buff)
-    self%u%units = trim(str_buff)
-    self%v%units = trim(str_buff)
+    ! self%u%units = trim(str_buff)
+    ! self%v%units = trim(str_buff)
 
     if(input%restart_from_file) then
       select case(trim(str_buff))

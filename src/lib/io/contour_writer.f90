@@ -454,8 +454,8 @@ contains
 
     close(xdmf_unit)
 
-    deallocate(cell_shape)
-    deallocate(node_shape)
+    if(allocated(cell_shape)) deallocate(cell_shape)
+    if(allocated(node_shape)) deallocate(node_shape)
   end subroutine write_xdmf
 
   subroutine write_2d_integer_data(self, data, name, description, units)
