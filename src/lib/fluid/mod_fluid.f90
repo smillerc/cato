@@ -23,6 +23,16 @@
 #define AT_LINE_LOC " in " // __FILE__ //":"//TOSTRING(__LINE__)
 
 module mod_fluid
+  !< Summary: Provide
+  !< Date: 08/24/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
+  !<      [1] D. Rouson, J. Xia, and X. Xu, "Scientific Software Design: The Object-Oriented Way"
+  !<      [2] J. Blazek, "Computational Fluid Dynamics: Principles and Applications"
+  !<      [3] S. Ruuth, R. Spiteri, "High-Order Strong-Stability-Preserving Runge–Kutta Methods with Downwind-Biased Spatial Discretizations",
+  !<          SIAM Journal of Numerical Analysis, Vol. 42, No. 3, pp. 974–996, https://doi.org/10.1137/S0036142902419284
+
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
 
@@ -90,7 +100,7 @@ module mod_fluid
     class(flux_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
 
     ! Time variables
-    character(len=10) :: time_integration_scheme = 'ssp_rk2'
+    character(len=10) :: time_integration_scheme = 'ssp_rk_2_2'
     real(rk) :: time = 0.0_rk !< current simulation time
     real(rk) :: dt = 0.0_rk   !< time step
     integer(ik) :: iteration = 0 !< current iteration number
@@ -109,8 +119,9 @@ module mod_fluid
     procedure :: residual_smoother
     procedure :: calculate_derived_quantities
     procedure :: sanity_check
-    procedure :: ssp_rk2
-    procedure :: ssp_rk3
+    procedure :: ssp_rk_2_2
+    procedure :: ssp_rk_3_3
+    procedure :: ssp_rk_4_3
     procedure :: get_continuity_sensor
     procedure, nopass :: add_fields
     procedure, nopass :: mult_fields
@@ -463,9 +474,11 @@ contains
 
     select case(trim(self%time_integration_scheme))
     case('ssp_rk2')
-      call self%ssp_rk2(grid, error_code)
-    case('ssp_rk3')
-      call self%ssp_rk3(grid, error_code)
+      call self%ssp_rk_2_2(grid, error_code)
+    case('ssp_rk3', 'ssp_rk33')
+      call self%ssp_rk_3_3(grid, error_code)
+    case('ssp_rk43')
+      call self%ssp_rk_4_3(grid, error_code)
     case default
       call error_msg(module='mod_fluid', class='fluid_t', procedure='assign_fluid', &
                      message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
@@ -961,29 +974,27 @@ contains
     !$omp end parallel
   end subroutine sanity_check
 
-  subroutine ssp_rk3(U, grid, error_code)
-    !< Strong-stability preserving Runge-Kutta 3rd order
+  subroutine ssp_rk_3_3(U, grid, error_code)
+    !< Strong-stability preserving Runge-Kutta 3-step, 3rd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
     class(grid_t), intent(in) :: grid
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
-    type(fluid_t), allocatable :: R !< hist
     integer(ik), intent(out) :: error_code
     real(rk) :: dt
 
-    call debug_print('Running fluid_t%ssp_rk3()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%ssp_rk_3_3()', __FILE__, __LINE__)
 
     dt = U%dt
-    allocate(U_1, source=U)
-    allocate(U_2, source=U)
-    allocate(R, source=U)
 
     ! 1st stage
+    allocate(U_1, source=U)
     U_1 = U + U%t(grid, stage=1) * dt
     call U_1%residual_smoother()
 
     ! 2nd stage
+    allocate(U_2, source=U)
     U_2 = U * (3.0_rk / 4.0_rk) &
           + U_1 * (1.0_rk / 4.0_rk) &
           + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
@@ -995,17 +1006,66 @@ contains
         + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
     call U%residual_smoother()
     call U%sanity_check(error_code)
+
     ! Convergence history
     call write_residual_history(first_stage=U_1, last_stage=U)
 
-    deallocate(R)
     deallocate(U_1)
     deallocate(U_2)
 
-  end subroutine ssp_rk3
+  end subroutine ssp_rk_3_3
 
-  subroutine ssp_rk2(U, grid, error_code)
-    !< Strong-stability preserving Runge-Kutta 2nd order
+  subroutine ssp_rk_4_3(U, grid, error_code)
+    !< Strong-stability preserving Runge-Kutta 4-step, 3rd order time integration. See Ref [3]. According to the
+    !< reference, the increase in stage number is more than offset by the allowable increase in CFL number.
+
+    class(fluid_t), intent(inout) :: U
+    class(grid_t), intent(in) :: grid
+
+    type(fluid_t), allocatable :: U_1 !< first stage
+    type(fluid_t), allocatable :: U_2 !< second stage
+    type(fluid_t), allocatable :: U_3 !< third stage
+    integer(ik), intent(out) :: error_code
+    real(rk) :: dt
+    real(rk), parameter :: one_third = 1.0_rk / 3.0_rk
+    real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
+    real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
+
+    call debug_print('Running fluid_t%ssp_rk_4_3()', __FILE__, __LINE__)
+
+    dt = U%dt
+
+    ! 1st stage
+    allocate(U_1, source=U)
+    U_1 = U + 0.5_rk * dt * U%t(grid, stage=1)
+    call U_1%residual_smoother()
+
+    ! 2nd stage
+    allocate(U_2, source=U)
+    U_2 = U_1 + 0.5_rk * dt * U_1%t(grid, stage=2)
+    call U_2%residual_smoother()
+
+    ! 3rd stage
+    allocate(U_3, source=U)
+    U_3 = two_thirds * U + one_third * U_2 + one_sixth * dt * U_2%t(grid, stage=3)
+    call U_3%residual_smoother()
+
+    ! Final stage
+    U = U_3 + 0.5_rk * dt * U_3%t(grid, stage=4)
+    call U%residual_smoother()
+    call U%sanity_check(error_code)
+
+    ! Convergence history
+    call write_residual_history(first_stage=U_1, last_stage=U)
+
+    deallocate(U_1)
+    deallocate(U_2)
+    deallocate(U_3)
+
+  end subroutine ssp_rk_4_3
+
+  subroutine ssp_rk_2_2(U, grid, error_code)
+    !< Strong-stability preserving Runge-Kutta 2-stage, 2nd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
     class(grid_t), intent(in) :: grid
 
@@ -1038,7 +1098,7 @@ contains
     deallocate(R)
     deallocate(U_1)
 
-  end subroutine ssp_rk2
+  end subroutine ssp_rk_2_2
 
   subroutine write_residual_history(first_stage, last_stage)
     !< This writes out the change in residual to a file for convergence history monitoring.
