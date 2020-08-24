@@ -29,10 +29,10 @@
 #endif
 
 module mod_muscl_tvd3
-  !> Summary: Provide TVD 3rd order MUSCL edge interpolation
-  !> Date: 08/15/2020
-  !> Author: Sam Miller
-  !> References:
+  !< Summary: Provide TVD 3rd order MUSCL edge interpolation
+  !< Date: 08/15/2020
+  !< Author: Sam Miller
+  !< References:
   !<   [1] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
   !<       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
 
