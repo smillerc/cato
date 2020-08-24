@@ -839,7 +839,6 @@ contains
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
     class(fluid_t), intent(inout) :: lhs
     type(fluid_t), intent(in) :: rhs
-    integer(ik) :: error_code
     integer(ik) :: alloc_status
 
     call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
@@ -865,7 +864,6 @@ contains
     lhs%residual_hist_file = rhs%residual_hist_file
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
 
-    ! call lhs%sanity_check(error_code)
     call lhs%calculate_derived_quantities()
   end subroutine assign_fluid
 
@@ -1037,21 +1035,21 @@ contains
 
     ! 1st stage
     allocate(U_1, source=U)
-    U_1 = U + 0.5_rk * dt * U%t(grid, stage=1)
+    U_1 = U + U%t(grid, stage=1) * 0.5_rk * dt
     call U_1%residual_smoother()
 
     ! 2nd stage
     allocate(U_2, source=U)
-    U_2 = U_1 + 0.5_rk * dt * U_1%t(grid, stage=2)
+    U_2 = U_1 + U_1%t(grid, stage=2) * 0.5_rk * dt
     call U_2%residual_smoother()
 
     ! 3rd stage
     allocate(U_3, source=U)
-    U_3 = two_thirds * U + one_third * U_2 + one_sixth * dt * U_2%t(grid, stage=3)
+    U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid, stage=3) * one_sixth * dt)
     call U_3%residual_smoother()
 
     ! Final stage
-    U = U_3 + 0.5_rk * dt * U_3%t(grid, stage=4)
+    U = U_3 + (U_3%t(grid, stage=4) * 0.5_rk * dt)
     call U%residual_smoother()
     call U%sanity_check(error_code)
 
@@ -1111,7 +1109,7 @@ contains
     real(rk) :: rho_v_diff !< difference in the rhov residual
     real(rk) :: rho_E_diff !< difference in the rhoE residual
     integer(ik) :: io
-    integer(ik) :: i, j, ilo, jlo, ihi, jhi
+    integer(ik) :: ilo, jlo, ihi, jhi
 
     call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
 
