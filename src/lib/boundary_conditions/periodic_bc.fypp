@@ -155,7 +155,7 @@ contains
 
         do i = 1, self%n_ghost_layers
           #:for f in ['rho','u','v','p']
-            ${f}$(left:right, top_ghost(i)) = ${f}$(left:right, bottom + (i - 1))
+          ${f}$(left:right, top_ghost(i)) = ${f}$(left:right, bottom + (i - 1))
           #:endfor
         end do
 
@@ -190,7 +190,7 @@ contains
 
         do i = 1, self%n_ghost_layers
           #:for f in ['rho','u','v','p']
-            ${f}$(left:right, bottom_ghost(i)) = ${f}$(left:right, top - (i - 1))
+          ${f}$(left:right, bottom_ghost(i)) = ${f}$(left:right, top - (i - 1))
           #:endfor
         end do
 

@@ -278,10 +278,10 @@ contains
 
     ! Grid
     select case(trim(self%limiter))
-    case('minmod', 'superbee', 'van_leer', 'none', 'TVD2', 'TVD3', 'MLP3')
+    case('minmod', 'superbee', 'van_leer', 'none', 'TVD2', 'TVD3', 'MLP3', 'eMLP3')
       required_n_ghost_layers = 2
       call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
-    case('TVD5', 'MLP5')
+    case('TVD5', 'MLP5', 'eMLP5')
       required_n_ghost_layers = 3
       call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
     case default

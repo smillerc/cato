@@ -159,8 +159,8 @@ contains
 
     if(dt < tiny(1.0_rk)) then
       call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
-                   message="The timestep dt is < tiny(1.0_rk)", &
-                   file_name=__FILE__, line_number=__LINE__)
+                     message="The timestep dt is < tiny(1.0_rk)", &
+                     file_name=__FILE__, line_number=__LINE__)
     end if
 
     self%time = self%time + dt
@@ -179,9 +179,9 @@ contains
     call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
     call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
 
     !
     !                    jflux(i,j)  'R'
@@ -212,7 +212,6 @@ contains
     jlo_bc = grid%jlo_bc_cell
     jhi_bc = grid%jhi_bc_cell
 
-
     select case(trim(self%variant))
     #:for VARIANT in VARIANTS
     case("${VARIANT}$")
@@ -221,14 +220,14 @@ contains
                                                               eflux_lbounds=lbound(self%${DIR}$flux), &
                                                               rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
                                                               rho_edge=rho_${DIR}$_edges, u_edge=u_${DIR}$_edges, &
-                                                              v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
+                                                         v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
     #:endfor
     #:endfor
     case default
       call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
                      message="Unknown SLAU variant '"//trim(self%variant)// &
-                             "'in slau_solver_t%solve_SLAU(), must be one of "// &
-                             "${VARIANTS}$", &
+                     "'in slau_solver_t%solve_SLAU(), must be one of "// &
+                     "${VARIANTS}$", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
 
@@ -352,14 +351,14 @@ contains
       do i = ilo, ihi
 
         rho_L = rho_edge(1, i, j)
-        u_L =     u_edge(1, i, j)
-        v_L =     v_edge(1, i, j)
-        p_L =     p_edge(1, i, j)
+        u_L = u_edge(1, i, j)
+        v_L = v_edge(1, i, j)
+        p_L = p_edge(1, i, j)
 
         rho_R = rho_edge(2, i, j)
-        u_R =     u_edge(2, i, j)
-        v_R =     v_edge(2, i, j)
-        p_R =     p_edge(2, i, j)
+        u_R = u_edge(2, i, j)
+        v_R = v_edge(2, i, j)
+        p_R = p_edge(2, i, j)
 
       #:if DIR == 'i'
         n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)

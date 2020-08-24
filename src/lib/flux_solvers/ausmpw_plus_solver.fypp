@@ -147,8 +147,8 @@ contains
 
     if(dt < tiny(1.0_rk)) then
       call error_msg(module='mod_ausmpw_plus_solver', class='ausmpw_plus_solver_t', procedure='solve_ausmpw_plus', &
-                   message="The timestep dt is < tiny(1.0_rk)", &
-                   file_name=__FILE__, line_number=__LINE__)
+                     message="The timestep dt is < tiny(1.0_rk)", &
+                     file_name=__FILE__, line_number=__LINE__)
     end if
 
     self%time = self%time + dt
@@ -167,9 +167,9 @@ contains
     call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
     call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=u,   lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=v,   lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=p,   lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
 
     !
     !                    jflux(i,j)  'R'
@@ -355,15 +355,15 @@ contains
 
         ! Left state
         rho_L = rho_edge(1, i, j)
-        u_LHS =   u_edge(1, i, j)
-        v_LHS =   v_edge(1, i, j)
-        p_L =     p_edge(1, i, j)
+        u_LHS = u_edge(1, i, j)
+        v_LHS = v_edge(1, i, j)
+        p_L = p_edge(1, i, j)
 
         ! Right state
         rho_R = rho_edge(2, i, j)
-        u_RHS =   u_edge(2, i, j)
-        v_RHS =   v_edge(2, i, j)
-        p_R =     p_edge(2, i, j)
+        u_RHS = u_edge(2, i, j)
+        v_RHS = v_edge(2, i, j)
+        p_R = p_edge(2, i, j)
 
       #:if DIR == 'i'
         n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
@@ -446,15 +446,15 @@ contains
         w = get_w(p_L=p_L, p_R=p_R)
 
         #:if DIR == 'i'
-          call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                    p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
-                    p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
-                    f_L=f_L, f_R=f_R)
+        call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
+                   p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
+                   p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
+                   f_L=f_L, f_R=f_R)
         #:else
-          call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                    p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
-                    p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
-                    f_L=f_L, f_R=f_R)
+        call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
+                   p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
+                   p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
+                   f_L=f_L, f_R=f_R)
         #:endif
 
         ! From Eq. 24 (ii) in Ref [1]
