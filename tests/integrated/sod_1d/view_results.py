@@ -55,7 +55,7 @@ with ProgressBar():
     ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 
 try:
-    scheme = f"{ds.attrs['scheme.flux_solver']} + {ds.attrs['scheme.limiter']}"
+    scheme = f"{ds.attrs['scheme_flux_solver']}({ds.attrs['scheme_spatial_reconstruction']} {ds.attrs['scheme_limiter']})"
 except Exception:
     scheme = None
 

@@ -24,7 +24,7 @@ if not os.path.exists(pp_dir):
 ds = load_dataset(".", use_dask=True)
 
 try:
-    scheme = f"{ds.attrs['scheme.flux_solver']} + {ds.attrs['scheme.limiter']}"
+    scheme = f"{ds.attrs['scheme_flux_solver']}({ds.attrs['scheme_spatial_reconstruction']} {ds.attrs['scheme_limiter']})"
 except Exception:
     scheme = None
 
