@@ -3,12 +3,44 @@
 in the .h5 format
 """
 import numpy as np
+import os
 import h5py
+from configparser import ConfigParser
 
 from .unit_registry import ureg
 
 
-def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=1):
+def get_n_ghost_layers_required(input):
+    # Read the input file and make sure the spatial order is consistent
+    config = ConfigParser()
+    config.read(input)
+    config.sections()
+    edge_interp = config["scheme"]["limiter"]
+    edge_interp = edge_interp.strip("'").strip('"')
+
+    valid_limiters = [
+        "minmod",
+        "superbee",
+        "van_leer",
+        "TVD3",
+        "TVD5",
+        "MLP3",
+        "eMLP3",
+        "MLP5",
+        "eMLP5",
+    ]
+
+    if edge_interp not in valid_limiters:
+        raise Exception("Invalid limiter type in the input.ini file")
+
+    if edge_interp in ["TVD5", "MLP5", "eMLP5"]:
+        n_ghost_layers = 3
+    else:
+        n_ghost_layers = 2
+    return n_ghost_layers
+
+
+def make_uniform_grid(n_cells, xrange, yrange, input_file="input.ini"):
     """Generate a uniform grid. This will output a dictionary
     that contains the appropriate arrays, which include the ghost
     cell layer.
@@ -28,6 +60,8 @@ def make_uniform_grid(n_cells, xrange, yrange, n_ghost_layers=1):
         A dictionary that contains the conserved variables (rho, u velocity, v
         velocity, p), grid (x,y) points, and the cell center (xc,yc) points
     """
+
+    n_ghost_layers = get_n_ghost_layers_required(input_file)
 
     print(f"Generating grid with {n_ghost_layers} ghost layers")
     dx = float(xrange[1] - xrange[0]) / float(n_cells[0])
@@ -140,7 +174,7 @@ def make_2d_layered_grid(
     dy=None,
     layer_spacing=None,
     spacing_scale_factor=1.05,
-    n_ghost_layers=2,
+    input_file="input.ini",
 ):
     """Create a 2D layered grid (uniform in y, layers are in x)
 
@@ -180,6 +214,7 @@ def make_2d_layered_grid(
     if not layer_spacing:
         layer_spacing = ["constant"] * len(layer_thicknesses)
 
+    n_ghost_layers = get_n_ghost_layers_required(input_file)
     print(f"Building with {n_ghost_layers} ghost layers")
     layer_thicknesses = layer_thicknesses.to("cm").m
     cumulative_thickness = 0
@@ -356,7 +391,7 @@ def make_1d_layered_grid(
     layer_pressure,
     layer_spacing=None,
     spacing_scale_factor=1.05,
-    n_ghost_layers=1,
+    input_file="input.ini",
 ):
     """Create a 1d layered grid
 
@@ -381,6 +416,8 @@ def make_1d_layered_grid(
         A dictionary that contains the conserved variables (rho, u velocity, v
         velocity, p), grid points (x, y), and the cell center (xc, yc) points
     """
+    n_ghost_layers = get_n_ghost_layers_required(input_file)
+
     if not layer_spacing:
         layer_spacing = ["constant"] * len(layer_thicknesses)
 
@@ -501,7 +538,7 @@ def make_1d_layered_grid(
     }
 
 
-def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1), n_ghost_layers=1):
+def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1), input_file="input.ini"):
     """Generate a uniform grid 1d grid in x. This will output a dictionary
     that contains the appropriate arrays, which include the ghost
     cell layer.
@@ -520,6 +557,7 @@ def make_1d_in_x_uniform_grid(n_cells, limits=(0, 1), n_ghost_layers=1):
         velocity, p), grid points, and the cell center (xc, yc) points
     """
 
+    n_ghost_layers = get_n_ghost_layers_required(input_file)
     dx = float(limits[1] - limits[0]) / float(n_cells)
     x = np.linspace(
         start=limits[0] - n_ghost_layers * dx,
