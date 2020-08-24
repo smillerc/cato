@@ -66,7 +66,7 @@ contains
       limiter = input%limiter
     end if
 
-    select case(trim(input%limiter))
+    select case(limiter)
     case('superbee', 'van_leer', 'minmod')
       interpolator => new_muscl_tvd2(limiter=limiter)
     case('TVD3')
@@ -77,9 +77,9 @@ contains
       interpolator => new_muscl_mlp(limiter=limiter, order=3)
     case('MLP5')
       interpolator => new_muscl_mlp(limiter=limiter, order=5)
-    case('e-MLP3')
+    case('eMLP3')
       interpolator => new_muscl_e_mlp(limiter=limiter, order=3)
-    case('e-MLP5')
+    case('eMLP5')
       interpolator => new_muscl_e_mlp(limiter=limiter, order=5)
     case default
       call error_msg(module='mod_muscl_interpolator_factory', procedure='muscl_interpolator_factory', &
