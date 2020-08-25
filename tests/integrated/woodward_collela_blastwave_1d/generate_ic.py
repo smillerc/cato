@@ -13,22 +13,9 @@ import os
 sys.path.append(os.path.abspath("../../.."))
 from pycato import *
 
-# Read the input file and make sure the spatial order is consistent
-config = ConfigParser()
-config.read("input.ini")
-config.sections()
-edge_interp = config["scheme"]["limiter"]
-edge_interp = edge_interp.strip("'").strip('"')
-
-if edge_interp in ["TVD5", "MLP5"]:
-    n_ghost_layers = 3
-else:
-    n_ghost_layers = 2
 
 # Make the empty grid
-ic = make_1d_in_x_uniform_grid(
-    n_cells=1000, limits=(0, 1.0), n_ghost_layers=n_ghost_layers
-)
+ic = make_1d_in_x_uniform_grid(n_cells=1000, limits=(0, 1.0), input_file="input.ini")
 
 # Set the initial conditions
 gamma = 1.4

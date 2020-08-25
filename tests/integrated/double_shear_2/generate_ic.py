@@ -9,24 +9,13 @@ import os
 sys.path.append(os.path.abspath("../../.."))
 from pycato import *
 
-# Read the input file and make sure the spatial order is consistent
-config = ConfigParser()
-config.read("input.ini")
-config.sections()
-edge_interp = config["scheme"]["limiter"]
-edge_interp = edge_interp.strip("'").strip('"')
-
-if edge_interp in ["TVD5", "MLP5"]:
-    n_ghost_layers = 3
-else:
-    n_ghost_layers = 2
 
 # Make the empty grid
 domain = make_uniform_grid(
     n_cells=(256, 256),
     xrange=(0, 2 * np.pi),
     yrange=(0, 2 * np.pi),
-    n_ghost_layers=n_ghost_layers,
+    input_file="input.ini",
 )
 
 # Set the initial conditions

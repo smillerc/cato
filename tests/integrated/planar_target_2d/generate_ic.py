@@ -12,17 +12,6 @@ import os
 sys.path.append(os.path.abspath("../../.."))
 from pycato import *
 
-# Read the input file and make sure the spatial order is consistent
-config = ConfigParser()
-config.read("input.ini")
-config.sections()
-edge_interp = config["scheme"]["limiter"]
-edge_interp = edge_interp.strip("'").strip('"')
-
-if edge_interp in ["TVD5", "MLP5"]:
-    n_ghost_layers = 3
-else:
-    n_ghost_layers = 2
 
 # Physics
 gamma = 5.0 / 3.0
@@ -69,7 +58,7 @@ domain = make_2d_layered_grid(
     dy=dy,
     layer_spacing=layer_spacing,
     spacing_scale_factor=vacuum_feathering,
-    n_ghost_layers=n_ghost_layers,
+    input_file="input.ini",
 )
 
 x = domain["xc"].to("um")
