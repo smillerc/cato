@@ -15,12 +15,12 @@ init_pressure = 1e9 * ureg("barye")
 ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
 
-vacuum_pressure = 7e12 * ureg("barye")
+vacuum_pressure = 35e12 * ureg("barye")
 vacuum_density = 0.01 * ureg("g/cc")
 
 # Mesh
 interface_loc = 70.0
-layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
+layer_thicknesses = [interface_loc, 10, 10] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
 layer_resolution = [20, 20, 20] * ureg("1/um")
 
@@ -46,18 +46,18 @@ domain = make_2d_layered_grid(
 
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
-try:
-    plt.figure(figsize=(10, 2))
-    plt.pcolormesh(
-        domain["x"].m,
-        domain["y"].m,
-        domain["rho"].m,
-        ec="k",
-        lw=0.1,
-        antialiased=True,
-        cmap="viridis",
-    )
-    plt.axis("equal")
-    plt.show()
-except Exception:
-    pass
+# try:
+#     plt.figure(figsize=(10, 2))
+#     plt.pcolormesh(
+#         domain["x"].m,
+#         domain["y"].m,
+#         domain["rho"].m,
+#         ec="k",
+#         lw=0.1,
+#         antialiased=True,
+#         cmap="viridis",
+#     )
+#     plt.axis("equal")
+#     plt.show()
+# except Exception:
+#     pass
