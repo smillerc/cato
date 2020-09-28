@@ -61,6 +61,8 @@ module mod_fluid
   use mod_ausmpw_plus_solver, only: ausmpw_plus_solver_t
   use mod_slau_solver, only: slau_solver_t
 
+  use mod_source, only: source_t
+
   implicit none
 
   private
@@ -461,9 +463,10 @@ contains
     self%dt = dt
   end subroutine set_time
 
-  subroutine integrate(self, dt, grid, error_code)
+  subroutine integrate(self, dt, grid, source_term, error_code)
     !< Integrate in time
     class(fluid_t), intent(inout) :: self
+    class(source_t), allocatable, intent(in) :: source_term
     real(rk), intent(in) :: dt !< time step
     class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
     integer(ik), intent(out) :: error_code
@@ -474,22 +477,23 @@ contains
 
     select case(trim(self%time_integration_scheme))
     case('ssp_rk2')
-      call self%ssp_rk_2_2(grid, error_code)
+      call self%ssp_rk_2_2(grid=grid, source_term=source_term, error_code=error_code)
     case('ssp_rk3', 'ssp_rk33')
-      call self%ssp_rk_3_3(grid, error_code)
+      call self%ssp_rk_3_3(grid=grid, source_term=source_term, error_code=error_code)
     case('ssp_rk43')
-      call self%ssp_rk_4_3(grid, error_code)
+      call self%ssp_rk_4_3(grid=grid, source_term=source_term, error_code=error_code)
     case default
       call error_msg(module='mod_fluid', class='fluid_t', procedure='assign_fluid', &
                      message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
     end select
   end subroutine integrate
 
-  function time_derivative(self, grid, stage) result(d_dt)
+  function time_derivative(self, grid, source_term, stage) result(d_dt)
     !< Implementation of the time derivative
 
     ! Inputs/Output
     class(fluid_t), intent(inout) :: self
+    class(source_t), allocatable, intent(in) :: source_term
     class(grid_t), intent(in) :: grid     !< grid class - the solver needs grid topology
     type(fluid_t), allocatable :: d_dt    !< dU/dt
     integer(ik), intent(in) :: stage      !< stage in the time integration scheme
@@ -509,6 +513,13 @@ contains
                            d_rho_v_dt=d_dt%rho_v, &
                            d_rho_E_dt=d_dt%rho_E)
 
+    if(allocated(source_term)) then
+      if(self%time <= source_term%max_time) then
+        if(source_term%source_type == 'energy') then
+          d_dt%rho_E = source_term%data + d_dt%rho_E
+        end if
+      end if
+    end if
   end function time_derivative
 
   subroutine calculate_derived_quantities(self)
@@ -972,10 +983,11 @@ contains
     !$omp end parallel
   end subroutine sanity_check
 
-  subroutine ssp_rk_3_3(U, grid, error_code)
+  subroutine ssp_rk_3_3(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 3-step, 3rd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
     class(grid_t), intent(in) :: grid
+    class(source_t), allocatable, intent(in) :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
@@ -988,20 +1000,20 @@ contains
 
     ! 1st stage
     allocate(U_1, source=U)
-    U_1 = U + U%t(grid, stage=1) * dt
+    U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * dt
     call U_1%residual_smoother()
 
     ! 2nd stage
     allocate(U_2, source=U)
     U_2 = U * (3.0_rk / 4.0_rk) &
           + U_1 * (1.0_rk / 4.0_rk) &
-          + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
+          + U_1%t(grid=grid, source_term=source_term, stage=2) * ((1.0_rk / 4.0_rk) * dt)
     call U_2%residual_smoother()
 
     ! Final stage
     U = U * (1.0_rk / 3.0_rk) &
         + U_2 * (2.0_rk / 3.0_rk) &
-        + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
+        + U_2%t(grid=grid, source_term=source_term, stage=3) * ((2.0_rk / 3.0_rk) * dt)
     call U%residual_smoother()
     call U%sanity_check(error_code)
 
@@ -1013,12 +1025,13 @@ contains
 
   end subroutine ssp_rk_3_3
 
-  subroutine ssp_rk_4_3(U, grid, error_code)
+  subroutine ssp_rk_4_3(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 4-step, 3rd order time integration. See Ref [3]. According to the
     !< reference, the increase in stage number is more than offset by the allowable increase in CFL number.
 
     class(fluid_t), intent(inout) :: U
     class(grid_t), intent(in) :: grid
+    class(source_t), allocatable, intent(in) :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
@@ -1035,21 +1048,21 @@ contains
 
     ! 1st stage
     allocate(U_1, source=U)
-    U_1 = U + U%t(grid, stage=1) * 0.5_rk * dt
+    U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * 0.5_rk * dt
     call U_1%residual_smoother()
 
     ! 2nd stage
     allocate(U_2, source=U)
-    U_2 = U_1 + U_1%t(grid, stage=2) * 0.5_rk * dt
+    U_2 = U_1 + U_1%t(grid=grid, source_term=source_term, stage=2) * 0.5_rk * dt
     call U_2%residual_smoother()
 
     ! 3rd stage
     allocate(U_3, source=U)
-    U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid, stage=3) * one_sixth * dt)
+    U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid=grid, source_term=source_term, stage=3) * one_sixth * dt)
     call U_3%residual_smoother()
 
     ! Final stage
-    U = U_3 + (U_3%t(grid, stage=4) * 0.5_rk * dt)
+    U = U_3 + (U_3%t(grid=grid, source_term=source_term, stage=4) * 0.5_rk * dt)
     call U%residual_smoother()
     call U%sanity_check(error_code)
 
@@ -1062,10 +1075,11 @@ contains
 
   end subroutine ssp_rk_4_3
 
-  subroutine ssp_rk_2_2(U, grid, error_code)
+  subroutine ssp_rk_2_2(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 2-stage, 2nd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
     class(grid_t), intent(in) :: grid
+    class(source_t), allocatable, intent(in) :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: R !< hist
@@ -1079,13 +1093,13 @@ contains
     ! 1st stage
     associate(dt => U%dt)
       call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
-      U_1 = U + U%t(grid, stage=1) * dt
+      U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * dt
       call U_1%residual_smoother()
 
       ! Final stage
       call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
       U = U * 0.5_rk + U_1 * 0.5_rk + &
-          U_1%t(grid, stage=2) * (0.5_rk * dt)
+          U_1%t(grid=grid, source_term=source_term, stage=2) * (0.5_rk * dt)
       call U%residual_smoother()
       call U%sanity_check(error_code)
 

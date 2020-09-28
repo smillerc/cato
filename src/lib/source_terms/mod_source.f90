@@ -24,66 +24,136 @@ module mod_source
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit
   use mod_units
+  use math_constants, only: pi
   use linear_interpolation_module, only: linear_interp_1d
+  use mod_input, only: input_t
+  use mod_grid, only: grid_t
+  use mod_error, only: error_msg
+  use mod_nondimensionalization, only: t_0, rho_0, l_0, v_0, p_0, e_0
 
   implicit none
 
-  type, abstract :: source_t
-    character(len=:), allocatable :: source_type
-    real(rk) :: scale_factor = 1.0_rk !< User scale factor do scale energy up/down
-    real(rk), private :: time = 0.0_rk ! Solution time (for time dependent bc's)
-    real(rk), private :: max_time = 0.0_rk !< Max time in source (e.g. stop after this)
-    integer(ik) :: ilo = 0 !< Index to apply source term at
-    integer(ik) :: jlo = 0 !< Index to apply source term at
-    integer(ik) :: ihi = 0 !< Index to apply source term at
-    integer(ik) :: jhi = 0 !< Index to apply source term at
-    integer(ik) :: io_unit !< file that the source value is written out to (time,source) pairs
+  type :: source_t
+
+    character(len=:), allocatable :: source_type !< what type of source, e.g. energy, force, etc.?
+    character(len=:), allocatable :: source_geometry !< Shape of the source, e.g. uniform, constant, or 1D/2D gaussian
+
+    real(rk) :: dt = 0.0_rk   !< Current time step
+    real(rk) :: time = 0.0_rk !< Current time
+    real(rk) :: max_time = 0.0_rk !< Max time in source (e.g. stop after this)
+
+    real(rk) :: multiplier = 1.0_rk
+    real(rk) :: nondim_scale_factor = 1.0_rk
+
+    ! Bounds
+    integer(ik) :: ilo = 0 !< lower i index bound on the source region
+    integer(ik) :: jlo = 0 !< lower j index bound on the source region
+    integer(ik) :: ihi = 0 !< upper i index bound on the source region
+    integer(ik) :: jhi = 0 !< upper j index bound on the source region
+
+    real(rk) :: xlo = 0.0 !< lower x extent bound on the source region
+    real(rk) :: ylo = 0.0 !< lower y extent bound on the source region
+    real(rk) :: xhi = 0.0 !< upper x extent bound on the source region
+    real(rk) :: yhi = 0.0 !< upper y extent bound on the source region
+
+    ! For gaussian source terms
+    real(rk) :: fwhm_x = 0.0 !< full-width half-max value in the x-direction
+    real(rk) :: fwhm_y = 0.0 !< full-width half-max value in the y-direction
+    integer(ik) :: gaussian_order = 0
+
+    real(rk) :: x_center = 0.0_rk !< x-center of the source term (if any)
+    real(rk) :: y_center = 0.0_rk !< y-center of the source term (if any)
 
     logical :: constant_source = .false.
-    real(rk) :: source_input = 0.0_rk
+    real(rk) :: constant_source_value = 0.0_rk
+    logical :: constant_in_x = .false. !< is the source term 1D in the x-direction, e.g. only depends on x
+    logical :: constant_in_y = .false. !< is the source term 1D in the y-direction, e.g. only depends on y
 
     ! Temporal inputs
     type(linear_interp_1d) :: temporal_source_input
-    character(len=100) :: input_filename
+    character(len=:), allocatable :: input_filename
 
+    ! Field data
+    real(rk), allocatable, dimension(:, :) :: data !< (i,j); actual source data to apply
+    real(rk), pointer, dimension(:, :) :: cell_centroid_x => null() !< (i,j); cell x centroid used to apply positional source data
+    real(rk), pointer, dimension(:, :) :: cell_centroid_y => null() !< (i,j); cell y centroid used to apply positional source data
+    real(rk), pointer, dimension(:, :) :: cell_volume => null()
   contains
-    procedure, public :: set_time
-    procedure, public :: get_time
-    procedure, public :: get_application_bounds
-    procedure(apply_source), deferred :: apply_source
-    procedure(copy_source), public, deferred :: copy
+    private
+    procedure, public :: integrate
     procedure, public :: read_input_file
-    procedure, public :: get_desired_source_value
-    generic :: assignment(=) => copy
+    procedure, public :: get_desired_source_input
+    procedure, public :: get_source_field
   end type
 
-  abstract interface
-    subroutine copy_source(out_source, in_source)
-      import :: source_t
-      class(source_t), intent(in) :: in_source
-      class(source_t), intent(inout) :: out_source
-    end subroutine copy_source
-
-    subroutine apply_source(self, conserved_vars, lbounds, time)
-      import :: source_t, rk, ik
-      class(source_t), intent(inout) :: self
-      integer(ik), dimension(3), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), intent(inout) :: conserved_vars
-      real(rk), intent(in) :: time
-    end subroutine apply_source
-  end interface
 contains
-  subroutine set_time(self, time)
-    class(source_t), intent(inout) :: self
-    real(rk), intent(in) :: time
-    self%time = time
-  end subroutine
 
-  function get_time(self) result(time)
-    class(source_t), intent(in) :: self
-    real(rk) :: time
-    time = self%time
-  end function
+  function new_source(input, grid, time)
+    !< Source constructor
+    type(source_t), pointer :: new_source
+    class(input_t), intent(in) :: input
+    class(grid_t), intent(in), target :: grid
+    real(rk), intent(in) :: time
+    allocate(new_source)
+
+    new_source%source_type = 'energy'
+    new_source%time = time
+    new_source%multiplier = input%source_scale_factor
+    new_source%nondim_scale_factor = e_0 / t_0
+    new_source%source_geometry = trim(input%source_geometry)
+    new_source%constant_source = input%apply_constant_source
+
+    new_source%cell_volume => grid%cell_volume
+
+    if(.not. new_source%constant_source) then
+      new_source%input_filename = trim(input%source_file)
+      call new_source%read_input_file()
+    else
+      new_source%constant_source_value = input%constant_source_value
+    end if
+
+    select case(new_source%source_geometry)
+    case('uniform')
+      ! case('constant_xy', '1d_gaussian', '2d_gaussian')
+    case('constant_xy', '1d_gaussian')
+      ! Get the cell centroid data since the source is position dependant
+      new_source%cell_centroid_x => grid%cell_centroid_x
+      new_source%cell_centroid_y => grid%cell_centroid_y
+    case default
+      call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
+                     module='mod_source', class='source_t', procedure='new_source', file_name=__FILE__, line_number=__LINE__)
+    end select
+
+    ! Determine the extents of the source term (if any)
+    select case(new_source%source_geometry)
+    case('constant_xy')
+      new_source%xlo = input%source_xlo / l_0
+      new_source%xhi = input%source_xhi / l_0
+      new_source%ylo = input%source_ylo / l_0
+      new_source%yhi = input%source_yhi / l_0
+    case('1d_gaussian', '2d_gaussian')
+      new_source%x_center = input%source_center_x / l_0
+      new_source%y_center = input%source_center_y / l_0
+      new_source%fwhm_x = input%source_gaussian_fwhm_x / l_0
+      new_source%fwhm_y = input%source_gaussian_fwhm_y / l_0
+      new_source%gaussian_order = input%source_gaussian_order
+
+      if(new_source%gaussian_order < 1) then
+        call error_msg(message="Source term gaussian order is invalid (< 1)", &
+                       module='mod_source', class='source_t', procedure='new_source', file_name=__FILE__, line_number=__LINE__)
+      end if
+
+      if(new_source%fwhm_x > 0.0_rk .and. new_source%fwhm_y <= 0.0_rk) then
+        new_source%constant_in_y = .true.
+      else if(new_source%fwhm_y > 0.0_rk .and. new_source%fwhm_x <= 0.0_rk) then
+        new_source%constant_in_x = .true.
+      end if
+    end select
+
+    allocate(new_source%data, mold=grid%cell_centroid_x)
+    new_source%data = 0.0_rk
+
+  end function new_source
 
   subroutine read_input_file(self)
     !< Read the input file and initialize the linear iterpolated object. This
@@ -138,7 +208,10 @@ contains
     end do
     close(input_unit)
 
+    time = time / t_0
     self%max_time = maxval(time)
+
+    source_data = source_data / self%nondim_scale_factor
 
     ! Initialize the linear interpolated data object so we can query the pressure at any time
     call self%temporal_source_input%initialize(time, source_data, interp_status)
@@ -148,79 +221,120 @@ contains
     deallocate(source_data)
   end subroutine read_input_file
 
-  real(rk) function get_desired_source_value(self) result(source_value)
+  real(rk) function get_desired_source_input(self) result(source_value)
     !< Get the desired source term amount. This can vary with time, so this can
     !< use linear interpolation.
 
     class(source_t), intent(inout) :: self
     integer(ik) :: interp_stat
-    real(rk) :: t
 
-    t = self%get_time()
     if(self%constant_source) then
-      source_value = self%source_input
+      source_value = self%constant_source_value
     else
-      if(t <= self%max_time) then
-        call self%temporal_source_input%evaluate(x=t, &
+      if(self%time <= self%max_time) then
+        call self%temporal_source_input%evaluate(x=self%time, &
                                                  f=source_value, &
                                                  istat=interp_stat)
 
         if(interp_stat /= 0) then
           write(std_out, '(a)') "Unable to interpolate value within "// &
-            "source_t%get_desired_source_value()"
+            "source_t%get_desired_source_input()"
           error stop "Unable to interpolate value within "// &
-            "source_t%get_desired_source_value()"
+            "source_t%get_desired_source_input()"
         end if
       else
         source_value = 0.0_rk
       end if
     end if
 
-    source_value = source_value * self%scale_factor
-
     if(source_value > 0.0_rk) then
-      write(*, '(a, es10.3)') 'Applying source term of: ', source_value
-      write(self%io_unit, '(2(es14.5, 1x))') t, source_value
+      write(*, '(a, es10.3)') 'Applying source term of: ', source_value * self%nondim_scale_factor
     end if
 
-  end function get_desired_source_value
+  end function get_desired_source_input
 
-  function get_application_bounds(self, lbounds, ubounds) result(ranges)
-    !< Get the i and j ranges where the source is to be applied
+  subroutine integrate(self, dt)
+    !< Create the source field to be passed to the fluid class or others
+    class(source_t), intent(inout) :: self
+    real(rk), intent(in) :: dt
 
-    class(source_t), intent(in) :: self
-    integer(ik), dimension(3), intent(in) :: lbounds
-    integer(ik), dimension(3), intent(in) :: ubounds
-    integer(ik), dimension(4) :: ranges !< [ilo, ihi, jlo, jhi]
+    self%dt = dt
+    self%time = self%time + dt
 
-    associate(ilo => ranges(1), ihi => ranges(2), &
-              jlo => ranges(3), jhi => ranges(4))
+    call self%get_source_field()
+  end subroutine integrate
 
-      ilo = self%ilo
-      ihi = self%ihi
-      jlo = self%jlo
-      jhi = self%jhi
+  subroutine get_source_field(self)
+    !< For the given time find the source strength and distribution based on the geometry type
+    class(source_t), intent(inout) :: self
+    real(rk) :: source_value
+    real(rk) :: gauss_amplitude, c
+    real(rk), parameter :: fwhm_to_c = 1.0_rk / (2.0_rk * sqrt(2.0_rk * log(2.0)))
 
-      if(self%ilo == 0 .and. self%ihi == 0) then
-        ! Apply across entire i range
-        ilo = lbounds(2)
-        ihi = ubounds(2)
-      else if(self%jlo == 0 .and. self%jhi == 0) then
-        ! Apply across entire j range
-        jlo = lbounds(3)
-        jhi = ubounds(3)
-      end if
+    source_value = self%get_desired_source_input() * self%multiplier
+    self%data = 0.0_rk
 
-      ! For convienence, -1 just means go to the last index, ala python
-      if(self%ihi == -1) ihi = ubounds(2)
-      if(self%jhi == -1) jhi = ubounds(3)
+    if(abs(source_value) > 0.0_rk) then
+      select case(self%source_geometry)
+      case('uniform')
+        self%data = source_value
+      case('constant_xy')
+        where(self%cell_centroid_x < self%xhi .and. self%cell_centroid_x > self%xlo .and. &
+              self%cell_centroid_y < self%yhi .and. self%cell_centroid_x > self%ylo)
+        self%data = 1.0_rk
+        end where
+      case('1d_gaussian')
+        if(self%constant_in_y) then
+          associate(x => self%cell_centroid_x, x0 => self%x_center, &
+                    fwhm => self%fwhm_x, order => self%gaussian_order)
 
-      if(ilo > ihi .or. jlo > jhi) then
-        write(*, '(a, 4(i0, 1x), a)') "Error: Invalid source appliation range [ilo,ihi,jlo,jhi]: [", ilo, ihi, jlo, jhi, ']'
-        error stop "Error: Invalid source appliation range"
-      end if
+            c = fwhm * fwhm_to_c
+            gauss_amplitude = source_value / (sqrt(2.0_rk * pi) * abs(c))
+            self%data = gauss_amplitude * exp(-((((x - x0)**2) / ((2.0_rk * c)**2))))
 
-    end associate
-  end function get_application_bounds
+          end associate
+        else
+          error stop "not done yet"
+          associate(y => self%cell_centroid_y, y0 => self%y_center, &
+                    fwhm => self%fwhm_y, order => self%gaussian_order)
+            self%data = exp(-((((y - y0)**2) / fwhm**2)**order))
+          end associate
+        end if
+      case('2d_gaussian')
 
+        associate(x => self%cell_centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &
+                  y => self%cell_centroid_y, y0 => self%y_center, fwhm_y => self%fwhm_y, &
+                  order => self%gaussian_order)
+          self%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
+                             (((y - y0)**2) / fwhm_y**2))**order))
+        end associate
+      end select
+
+      ! Remove tiny numbers
+      where(abs(self%data) < tiny(1.0_rk)) self%data = 0.0_rk
+
+      ! self%data = self%data / maxval(self%data)
+
+      ! write(*,'(a, 10(es16.6))') "min/max: ", minval(self%data), maxval(self%data)
+      ! write(*,'(a, es16.6)') "source_value", source_value
+      ! write(*,'(a, es16.6)') "sum(self%data)", sum(self%data)
+      ! write(*,'(a, es16.6)') "sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)", sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)
+      self%data = self%data / sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)
+      ! write(*,'(a, es16.6)') "self%data", sum(self%data)
+    end if
+    ! error stop
+  end subroutine get_source_field
+
+  subroutine finalize(self)
+    type(source_t), intent(inout) :: self
+    logical :: is_open = .false.
+
+    if(allocated(self%data)) deallocate(self%data)
+    if(allocated(self%source_type)) deallocate(self%source_type)
+    if(allocated(self%source_geometry)) deallocate(self%source_geometry)
+    if(allocated(self%input_filename)) deallocate(self%input_filename)
+    if(associated(self%cell_centroid_x)) deallocate(self%cell_centroid_x)
+    if(associated(self%cell_centroid_y)) deallocate(self%cell_centroid_y)
+    if(associated(self%cell_volume)) deallocate(self%cell_volume)
+  end subroutine finalize
 end module mod_source

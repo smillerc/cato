@@ -36,6 +36,7 @@ module mod_input
     character(:), allocatable :: unit_system !< Type of units to output (CGS, ICF, MKS, etc...)
 
     ! reference state
+    logical :: non_dimensionalize = .true.
     real(rk) :: reference_pressure = 1.0_rk
     real(rk) :: reference_density = 1.0_rk
     real(rk) :: reference_mach = 1.0_rk
@@ -80,10 +81,19 @@ module mod_input
     character(:), allocatable :: source_file
     real(rk) :: constant_source_value = 0.0_rk
     real(rk) :: source_scale_factor = 1.0_rk
-    integer(ik) :: source_ilo = 0
-    integer(ik) :: source_ihi = 0
-    integer(ik) :: source_jlo = 0
-    integer(ik) :: source_jhi = 0
+
+    real(rk) :: source_xlo = 0.0_rk
+    real(rk) :: source_xhi = 0.0_rk
+    real(rk) :: source_ylo = 0.0_rk
+    real(rk) :: source_yhi = 0.0_rk
+
+    real(rk) :: source_center_x = 0.0_rk
+    real(rk) :: source_center_y = 0.0_rk
+    real(rk) :: source_gaussian_fwhm_x = 0.0_rk
+    real(rk) :: source_gaussian_fwhm_y = 0.0_rk
+    integer(ik) :: source_gaussian_order = 1
+
+    character(:), allocatable :: source_geometry
 
     ! io
     character(:), allocatable :: contour_io_format !< e.g. 'xdmf'
@@ -203,10 +213,13 @@ contains
     self%unit_system = trim(char_buffer)
 
     ! Reference state
-    call cfg%get("reference_state", "reference_pressure", self%reference_pressure)
-    call cfg%get("reference_state", "reference_density", self%reference_density)
-    call cfg%get("reference_state", "reference_mach", self%reference_mach, 1.0_rk)
+    call cfg%get("reference_state", "non_dimensionalize", self%non_dimensionalize, .true.)
 
+    if(self%non_dimensionalize) then
+      call cfg%get("reference_state", "reference_pressure", self%reference_pressure)
+      call cfg%get("reference_state", "reference_density", self%reference_density)
+      call cfg%get("reference_state", "reference_mach", self%reference_mach, 1.0_rk)
+    end if
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "initial_delta_t", self%initial_delta_t, 0.0_rk)
@@ -329,7 +342,7 @@ contains
        self%minus_y_bc == 'pressure_input') then
 
       call cfg%get("boundary_conditions", "apply_constant_bc_pressure", self%apply_constant_bc_pressure, .false.)
-      call cfg%get("boundary_conditions", "bc_density", self%bc_density)
+      call cfg%get("boundary_conditions", "bc_density", self%bc_density, 0.0_rk)
 
       if(self%apply_constant_bc_pressure) then
         call cfg%get("boundary_conditions", "constant_bc_pressure_value", self%constant_bc_pressure_value)
@@ -345,6 +358,10 @@ contains
     call cfg%get('source_terms', 'enable_source_terms', self%enable_source_terms, .false.)
 
     if(self%enable_source_terms) then
+
+      call cfg%get('source_terms', 'geometry', char_buffer)
+      self%source_geometry = trim(char_buffer)
+
       call cfg%get('source_terms', 'apply_constant_source', self%apply_constant_source, .false.)
       call cfg%get('source_terms', 'source_file', char_buffer)
       self%source_file = trim(char_buffer)
@@ -354,29 +371,20 @@ contains
 
       call cfg%get('source_terms', 'constant_source_value', self%constant_source_value, 0.0_rk)
       call cfg%get('source_terms', 'source_scale_factor', self%source_scale_factor, 1.0_rk)
-      call cfg%get('source_terms', 'ilo', self%source_ilo, 0)
-      call cfg%get('source_terms', 'ihi', self%source_ihi, 0)
-      call cfg%get('source_terms', 'jlo', self%source_jlo, 0)
-      call cfg%get('source_terms', 'jhi', self%source_jhi, 0)
 
-      if(self%source_ilo == 0 .and. &
-         self%source_ihi == 0 .and. &
-         self%source_jlo == 0 .and. &
-         self%source_jhi == 0) then
-        call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
-                       message="All of the (i,j) ranges in source_terms are 0", &
-                       file_name=__FILE__, line_number=__LINE__)
-      end if
-
-      if(self%source_ilo > self%source_ihi .and. self%source_ihi /= -1) then
-        call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
-                       message="Error: Invalid source application range; source_terms%ilo > source_terms%ihi", &
-                       file_name=__FILE__, line_number=__LINE__)
-      else if(self%source_jlo > self%source_jhi .and. self%source_jhi /= -1) then
-        call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
-                       message="Error: Invalid source application range; source_terms%jlo > source_terms%jhi", &
-                       file_name=__FILE__, line_number=__LINE__)
-      end if
+      select case(self%source_geometry)
+      case('constant_xy')
+        call cfg%get('source_terms', 'xlo', self%source_xlo)
+        call cfg%get('source_terms', 'xhi', self%source_xhi)
+        call cfg%get('source_terms', 'ylo', self%source_ylo)
+        call cfg%get('source_terms', 'yhi', self%source_yhi)
+      case('1d_gaussian', '2d_gaussian')
+        call cfg%get('source_terms', 'center_x', self%source_center_x, 0.0_rk)
+        call cfg%get('source_terms', 'center_y', self%source_center_y, 0.0_rk)
+        call cfg%get('source_terms', 'gaussian_fwhm_x', self%source_gaussian_fwhm_x, 0.0_rk)
+        call cfg%get('source_terms', 'gaussian_fwhm_y', self%source_gaussian_fwhm_y, 0.0_rk)
+        call cfg%get('source_terms', 'gaussian_order', self%source_gaussian_order, 1)
+      end select
     end if
 
     ! Input/Output
@@ -450,10 +458,6 @@ contains
     write(*, '(a, a)') "source_file = ", self%source_file
     write(*, '(a, es10.3)') "constant_source_value = ", self%constant_source_value
     write(*, '(a, es10.3)') "source_scale_factor   = ", self%source_scale_factor
-    write(*, '(a, i0)') "source_ilo = ", self%source_ilo
-    write(*, '(a, i0)') "source_ihi = ", self%source_ihi
-    write(*, '(a, i0)') "source_jlo = ", self%source_jlo
-    write(*, '(a, i0)') "source_jhi = ", self%source_jhi
 
     write(*, *)
     write(*, '(a)') "[boundary_conditions]"
