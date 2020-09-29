@@ -154,7 +154,7 @@ contains
     call setup_periodic()
     lbounds = lbound(rho)
 
-    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid)
+    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid, time=0.0_rk)
     @assertEqual('+x', bc_plus_x%location)
 
     call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
@@ -203,7 +203,7 @@ contains
 
     call setup_periodic()
     lbounds = lbound(rho)
-    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid)
+    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid, time=0.0_rk)
     @assertEqual('+y', bc_plus_y%location)
 
     call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
@@ -252,7 +252,7 @@ contains
 
     call setup_periodic()
     lbounds = lbound(rho)
-    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid)
+    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid, time=0.0_rk)
     @assertEqual('-x', bc_minus_x%location)
 
     call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
@@ -302,7 +302,7 @@ contains
     call setup_periodic()
 
     lbounds = lbound(rho)
-    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input, grid=grid)
+    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input, grid=grid, time=0.0_rk)
     @assertEqual('-y', bc_minus_y%location)
     call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbound(rho))
 
@@ -352,10 +352,10 @@ contains
     input%minus_y_bc = 'periodic'
     call setup_periodic()
     lbounds = lbound(rho)
-    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid)
-    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid)
-    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid)
-    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input, grid=grid)
+    bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid, time=0.0_rk)
+    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid, time=0.0_rk)
+    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid, time=0.0_rk)
+    bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input, grid=grid, time=0.0_rk)
 
     @assertEqual('+x', bc_plus_x%location)
     @assertEqual('+y', bc_plus_y%location)
@@ -465,10 +465,10 @@ contains
     end associate
 
     lbounds = lbound(rho)
-    bc_plus_x => bc_factory(bc_type='symmetry', location='+x', input=input, grid=grid)
-    bc_plus_y => bc_factory(bc_type='symmetry', location='+y', input=input, grid=grid)
-    bc_minus_x => bc_factory(bc_type='symmetry', location='-x', input=input, grid=grid)
-    bc_minus_y => bc_factory(bc_type='symmetry', location='-y', input=input, grid=grid)
+    bc_plus_x => bc_factory(bc_type='symmetry', location='+x', input=input, grid=grid, time=0.0_rk)
+    bc_plus_y => bc_factory(bc_type='symmetry', location='+y', input=input, grid=grid, time=0.0_rk)
+    bc_minus_x => bc_factory(bc_type='symmetry', location='-x', input=input, grid=grid, time=0.0_rk)
+    bc_minus_y => bc_factory(bc_type='symmetry', location='-y', input=input, grid=grid, time=0.0_rk)
 
     @assertEqual('+x', bc_plus_x%location)
     @assertEqual('+y', bc_plus_y%location)
