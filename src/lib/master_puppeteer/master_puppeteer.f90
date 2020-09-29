@@ -125,7 +125,7 @@ contains
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
 
-    fluid => new_fluid(input, self%grid)
+    fluid => new_fluid(input, self%grid, time=self%time)
     allocate(self%fluid, source=fluid, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%fluid"
     deallocate(fluid)

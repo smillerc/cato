@@ -84,12 +84,14 @@ module mod_m_ausmpw_plus_solver
     generic :: assignment(=) => copy
   end type m_ausmpw_plus_solver_t
 contains
-  subroutine initialize_m_ausmpw_plus(self, input)
+  subroutine initialize_m_ausmpw_plus(self, input, time)
     !< Constructor for the M-AUSMPW+ solver
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
     class(input_t), intent(in) :: input
+    real(rk), intent(in) :: time
 
     self%input = input
+    self%time = time
     self%gamma = eos%get_gamma()
     self%name = 'M-AUSMPW+_'//input%limiter
     self%apply_low_mach_fix = input%apply_low_mach_fix

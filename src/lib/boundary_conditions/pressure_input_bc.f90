@@ -60,17 +60,19 @@ module mod_pressure_input_bc
   end type
 contains
 
-  function pressure_input_bc_constructor(location, input, grid) result(bc)
+  function pressure_input_bc_constructor(location, input, grid, time) result(bc)
     type(pressure_input_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
     class(grid_t), intent(in) :: grid
+    real(rk), intent(in) :: time
 
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
     call bc%set_indices(grid)
 
+    bc%time = time
     bc%density_input = input%bc_density / rho_0
     bc%constant_pressure = input%apply_constant_bc_pressure
     bc%scale_factor = input%bc_pressure_scale_factor
@@ -199,6 +201,7 @@ contains
       desired_density = self%density_input
     else
       call self%temporal_density_input%evaluate(x=self%get_time(), f=desired_density, istat=interp_stat)
+
       if(interp_stat /= 0) then
         error stop "Unable to interpolate density within pressure_input_bc_t%get_desired_density()"
       end if
@@ -224,7 +227,7 @@ contains
 
     real(rk) :: desired_boundary_density  !< user-specified boundary value for density
     real(rk) :: desired_boundary_pressure !< user-specified boundary value for pressure
-    real(rk) :: boundary_density, gamma
+    real(rk) :: boundary_density, gamma, boundary_cs
     real(rk) :: mach_u, mach_v, mach, cs
     real(rk), dimension(:), allocatable :: edge_pressure
     real(rk), dimension(:), allocatable :: domain_rho
@@ -292,6 +295,7 @@ contains
         domain_u = u(right, bottom_ghost:top_ghost)
         domain_v = 0.0_rk
         domain_p = p(right, bottom_ghost:top_ghost)
+
         boundary_norm = [1.0_rk, 0.0_rk] ! outward normal vector at +x
 
         do j = bottom, top
@@ -300,16 +304,20 @@ contains
             domain_prim_vars = [rho_d, u_d, v_d, p_d]
 
             call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
+            call eos%sound_speed(p=desired_boundary_pressure, rho=desired_boundary_density, cs=boundary_cs)
             mach_u = u_d / cs
+            ! print*, 'domain mach', mach_u, 'ghost mach',  u_d / boundary_cs
+            ! print*, "maxval(domain_p) > desired_boundary_pressure ", maxval(domain_p(bottom:top)) > desired_boundary_pressure, maxval(domain_p(bottom:top)), desired_boundary_pressure
 
             if(mach_u > 0.0_rk) then ! outlet
-              if(mach_u > 1.0_rk) then
-
-                boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
-              else
+              if(mach_u <= 1.0_rk .or. maxval(domain_p(bottom:top)) < desired_boundary_pressure) then
+                ! print*, 'sub outlet'
+                ! error stop
                 boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
                                                      exit_pressure=desired_boundary_pressure, &
                                                      boundary_norm=boundary_norm)
+              else
+                boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
               end if
             else ! inlet
               if(abs(mach_u) > 1.0_rk) then

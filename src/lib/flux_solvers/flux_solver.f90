@@ -85,11 +85,12 @@ module mod_flux_solver
       real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
     end subroutine
 
-    subroutine initialize(self, input)
-      import :: flux_solver_t
+    subroutine initialize(self, input, time)
+      import :: flux_solver_t, rk
       import :: input_t
       class(flux_solver_t), intent(inout) :: self
       class(input_t), intent(in) :: input
+      real(rk), intent(in) :: time
     end subroutine
 
     subroutine copy(lhs, rhs)
@@ -116,22 +117,22 @@ contains
     integer(ik) :: alloc_status
 
     ! Set boundary conditions
-    bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, grid=grid)
+    bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, grid=grid, time=self%time)
     allocate(bc_plus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=self%input%plus_y_bc, location='+y', input=self%input, grid=grid)
+    bc => bc_factory(bc_type=self%input%plus_y_bc, location='+y', input=self%input, grid=grid, time=self%time)
     allocate(bc_plus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=self%input%minus_x_bc, location='-x', input=self%input, grid=grid)
+    bc => bc_factory(bc_type=self%input%minus_x_bc, location='-x', input=self%input, grid=grid, time=self%time)
     allocate(bc_minus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=self%input%minus_y_bc, location='-y', input=self%input, grid=grid)
+    bc => bc_factory(bc_type=self%input%minus_y_bc, location='-y', input=self%input, grid=grid, time=self%time)
     allocate(bc_minus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
     deallocate(bc)

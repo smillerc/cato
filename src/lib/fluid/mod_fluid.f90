@@ -155,23 +155,27 @@ module mod_fluid
 
 contains
 
-  function new_fluid(input, grid) result(fluid)
+  function new_fluid(input, grid, time) result(fluid)
     !< Fluid constructor
     class(input_t), intent(in) :: input
     class(grid_t), intent(in) :: grid
     type(fluid_t), pointer :: fluid
+    real(rk), intent(in) :: time
 
     allocate(fluid)
-    call fluid%initialize(input, grid)
+    call fluid%initialize(input, grid, time)
   end function new_fluid
 
-  subroutine initialize(self, input, grid)
+  subroutine initialize(self, input, grid, time)
     class(fluid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
     class(grid_t), intent(in) :: grid
+    real(rk), intent(in) :: time
     class(flux_solver_t), pointer :: solver => null()
 
     integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi, io
+
+    self%time = time
 
     alloc_status = 0
     call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
@@ -224,7 +228,7 @@ contains
                      file_name=__FILE__, line_number=__LINE__)
     end select
 
-    call solver%initialize(input)
+    call solver%initialize(input, self%time)
     allocate(self%solver, source=solver)
     deallocate(solver)
 
