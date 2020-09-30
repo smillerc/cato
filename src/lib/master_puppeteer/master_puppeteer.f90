@@ -33,7 +33,7 @@ module mod_master_puppeteer
   use mod_grid, only: grid_t
   use mod_grid_factory, only: grid_factory
   use hdf5_interface, only: hdf5_file
-  use mod_nondimensionalization, only: set_scale_factors
+  use mod_nondimensionalization, only: set_scale_factors, t_0
   use mod_fluid, only: fluid_t, new_fluid
   use mod_source, only: source_t, new_source
 
@@ -112,6 +112,8 @@ contains
       call h5%finalize()
     end if
 
+    print*, 'time', self%time
+    
     self%title = trim(input%title)
 
     grid => grid_factory(input)
@@ -124,6 +126,9 @@ contains
     ! so that the smallest cell edge length is 1.
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
+
+    self%time = self%time / t_0
+    print*, 'time', self%time
 
     fluid => new_fluid(input, self%grid, time=self%time)
     allocate(self%fluid, source=fluid, stat=alloc_status)
