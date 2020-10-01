@@ -241,6 +241,7 @@ contains
     inflow = .false.
     outflow = .false.
 
+    boundary_prim_vars = 0.0_rk
     desired_boundary_pressure = self%get_desired_pressure()
     desired_boundary_density = self%get_desired_density()
 
@@ -321,9 +322,7 @@ contains
               end if
             else ! inlet
               if(abs(mach_u) > 1.0_rk) then
-                boundary_prim_vars = [desired_boundary_density, domain_u, domain_v, desired_boundary_pressure]
-                ! error stop 'Error in pressure_input_bc_t%apply_pressure_input_primitive_var_bc(): ' // &
-                !            'Supersonic inlet not configured yet'
+                boundary_prim_vars = [desired_boundary_density, u_d, v_d, desired_boundary_pressure]
               else
                 boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
                                                     boundary_norm=boundary_norm, &

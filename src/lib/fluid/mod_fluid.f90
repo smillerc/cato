@@ -373,7 +373,7 @@ contains
     write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
     write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
     write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
+    write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(y_velocity), maxval(y_velocity)
     write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
     write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
     write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
@@ -578,6 +578,8 @@ contains
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
+    real(rk) :: high, low, rel_diff
+    real(rk), parameter :: REL_TOL = 1e-5_rk
     real(rk), parameter :: EPS = 5e-14_rk
 
     call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
@@ -590,7 +592,47 @@ contains
       !$omp parallel default(none) &
       !$omp shared(self) &
       !$omp firstprivate(ilo,ihi,jlo,jhi) &
-      !$omp private(i,j)
+      !$omp private(i,j, high, low, rel_diff)
+
+      ! !$omp do
+      ! do j = jlo, jhi
+      !   do i = ilo, ihi
+      !     ! Check to see if the x/y velocities in each cell. For example, if x-vel is 500
+      !     ! and y-vel is 1e-3, then make y-vel 0
+      !     if(abs(self%u(i, j)) > 0.0_rk .and. abs(self%v(i, j)) > 0.0_rk) then
+
+      !       if(abs(self%u(i,j)) > abs(self%v(i,j))) then
+      !         high = abs(self%u(i,j))
+      !         low = abs(self%v(i,j))
+      !         rel_diff = high - (high - low)
+
+      !         if (rel_diff < REL_TOL) then
+      !           error stop "Filtering"
+      !           write(*,'(a, 2(es16.6))') "rel_diff < REL_TOL, u,v", self%u(i,j), self%v(i,j)
+      !           self%v(i,j) = 0.0_rk
+      !           self%rho_v(i,j) = 0.0_rk
+      !           self%mach_v(i,j) = 0.0_rk
+      !         end if
+
+      !       else if(abs(self%u(i,j)) < abs(self%v(i,j))) then
+      !           high = abs(self%v(i,j))
+      !           low = abs(self%u(i,j))
+      !           rel_diff = high - (high - low)
+
+      !           if (rel_diff < REL_TOL) then
+      !             error stop "Filtering"
+      !             self%u(i,j) = 0.0_rk
+      !             self%rho_u(i,j) = 0.0_rk
+      !             self%mach_u(i,j) = 0.0_rk
+      !           end if
+
+      !       end if
+
+      !     end if
+      !   end do
+      ! end do
+      ! !$omp end do
+
       !$omp do
       do j = jlo, jhi
         do i = ilo, ihi
@@ -880,6 +922,8 @@ contains
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
 
     call lhs%calculate_derived_quantities()
+
+    if(lhs%smooth_residuals) call lhs%residual_smoother()
   end subroutine assign_fluid
 
   subroutine sanity_check(self, error_code)
@@ -1005,20 +1049,17 @@ contains
     ! 1st stage
     allocate(U_1, source=U)
     U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * dt
-    call U_1%residual_smoother()
 
     ! 2nd stage
     allocate(U_2, source=U)
     U_2 = U * (3.0_rk / 4.0_rk) &
           + U_1 * (1.0_rk / 4.0_rk) &
           + U_1%t(grid=grid, source_term=source_term, stage=2) * ((1.0_rk / 4.0_rk) * dt)
-    call U_2%residual_smoother()
 
     ! Final stage
     U = U * (1.0_rk / 3.0_rk) &
         + U_2 * (2.0_rk / 3.0_rk) &
         + U_2%t(grid=grid, source_term=source_term, stage=3) * ((2.0_rk / 3.0_rk) * dt)
-    call U%residual_smoother()
     call U%sanity_check(error_code)
 
     ! Convergence history
@@ -1053,12 +1094,10 @@ contains
     ! 1st stage
     allocate(U_1, source=U)
     U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * 0.5_rk * dt
-    call U_1%residual_smoother()
 
     ! 2nd stage
     allocate(U_2, source=U)
     U_2 = U_1 + U_1%t(grid=grid, source_term=source_term, stage=2) * 0.5_rk * dt
-    call U_2%residual_smoother()
 
     ! 3rd stage
     allocate(U_3, source=U)
@@ -1067,7 +1106,6 @@ contains
 
     ! Final stage
     U = U_3 + (U_3%t(grid=grid, source_term=source_term, stage=4) * 0.5_rk * dt)
-    call U%residual_smoother()
     call U%sanity_check(error_code)
 
     ! Convergence history
@@ -1098,13 +1136,11 @@ contains
     associate(dt => U%dt)
       call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
       U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * dt
-      call U_1%residual_smoother()
 
       ! Final stage
       call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
       U = U * 0.5_rk + U_1 * 0.5_rk + &
           U_1%t(grid=grid, source_term=source_term, stage=2) * (0.5_rk * dt)
-      call U%residual_smoother()
       call U%sanity_check(error_code)
 
       ! ! Convergence history
