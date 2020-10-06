@@ -112,8 +112,6 @@ contains
       call h5%finalize()
     end if
 
-    print*, 'time', self%time
-    
     self%title = trim(input%title)
 
     grid => grid_factory(input)
@@ -128,7 +126,6 @@ contains
                            density_scale=input%reference_density)
 
     self%time = self%time / t_0
-    print*, 'time', self%time
 
     fluid => new_fluid(input, self%grid, time=self%time)
     allocate(self%fluid, source=fluid, stat=alloc_status)

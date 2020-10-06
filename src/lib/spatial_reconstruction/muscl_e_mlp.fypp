@@ -179,31 +179,31 @@ contains
     !$omp private(d_ij_i, d_ij_j) &
     !$omp shared(rho, u, v, p, d_bar_rho, d_bar_u, d_bar_v, d_bar_p, self)
     #:for F in ['rho','u','v','p']
-      !$omp do
-      do j = jlo + n_ghost_layers, jhi - n_ghost_layers
-        !$omp simd __CONT_ALIGN__
-        !dir$ vector aligned
-        do i = ilo + n_ghost_layers, ihi - n_ghost_layers
-          d_ij_i = 0.0_rk
-          d_ij_j = 0.0_rk
-          if(abs(${F}$(i, j)) > 0.0_rk) then
-            ! Eq 11a
-            d_ij_i = abs(((-one_sixth*${F}$(i - 2, j) + two_thirds*${F}$(i - 1, j) + &
-                          two_thirds*${F}$(i + 1, j) - one_sixth*${F}$(i + 2, j)) &
-                          /${F}$(i, j)) &
-                        - 1.0_rk)
+    !$omp do
+    do j = jlo + n_ghost_layers, jhi - n_ghost_layers
+      !$omp simd __CONT_ALIGN__
+      !dir$ vector aligned
+      do i = ilo + n_ghost_layers, ihi - n_ghost_layers
+        d_ij_i = 0.0_rk
+        d_ij_j = 0.0_rk
+        if(abs(${F}$(i, j)) > 0.0_rk) then
+          ! Eq 11a
+          d_ij_i = abs(((-one_sixth*${F}$(i - 2, j) + two_thirds*${F}$(i - 1, j) + &
+                         two_thirds*${F}$(i + 1, j) - one_sixth*${F}$(i + 2, j)) &
+                        /${F}$(i, j)) &
+                       - 1.0_rk)
 
-            ! Eq 11b
-            d_ij_j = abs(((-one_sixth*${F}$(i, j - 2) + two_thirds*${F}$(i, j - 1) + &
-                          two_thirds*${F}$(i, j + 1) - one_sixth*${F}$(i, j + 2)) &
-                          /${F}$(i, j)) &
-                        - 1.0_rk)
-          end if
-          d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
-          ! Eq 11c
-        end do
+          ! Eq 11b
+          d_ij_j = abs(((-one_sixth*${F}$(i, j - 2) + two_thirds*${F}$(i, j - 1) + &
+                         two_thirds*${F}$(i, j + 1) - one_sixth*${F}$(i, j + 2)) &
+                        /${F}$(i, j)) &
+                       - 1.0_rk)
+        end if
+        d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
+        ! Eq 11c
       end do
-      !$omp end do
+    end do
+    !$omp end do
 
     #:endfor
 
@@ -322,13 +322,13 @@ contains
       do i = ilo, ihi
 
         #:if DIR == 'i'
-          delta_ij_minus_half = q(i, j) - q(i - 1, j)
-          delta_ij_plus_half = q(i + 1, j) - q(i, j)
-          delta_ij_plus_three_half = q(i + 2, j) - q(i + 1, j)
+        delta_ij_minus_half = q(i, j) - q(i - 1, j)
+        delta_ij_plus_half = q(i + 1, j) - q(i, j)
+        delta_ij_plus_three_half = q(i + 2, j) - q(i + 1, j)
         #:elif DIR == 'j'
-          delta_ij_minus_half = q(i, j) - q(i, j - 1)
-          delta_ij_plus_half = q(i, j + 1) - q(i, j)
-          delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
+        delta_ij_minus_half = q(i, j) - q(i, j - 1)
+        delta_ij_plus_half = q(i, j + 1) - q(i, j)
+        delta_ij_plus_three_half = q(i, j + 2) - q(i, j + 1)
         #:endif
 
         if(abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
@@ -337,34 +337,34 @@ contains
 
         #:if ORDER == 5
           #:if DIR == 'i'
-            delta_ij_minus_three_half = q(i - 1, j) - q(i - 2, j)
-            delta_ij_plus_five_half = q(i + 3, j) - q(i + 2, j)
+        delta_ij_minus_three_half = q(i - 1, j) - q(i - 2, j)
+        delta_ij_plus_five_half = q(i + 3, j) - q(i + 2, j)
           #:elif DIR == 'j'
-            delta_ij_minus_three_half = q(i, j - 1) - q(i, j - 2)
-            delta_ij_plus_five_half = q(i, j + 3) - q(i, j + 2)
+        delta_ij_minus_three_half = q(i, j - 1) - q(i, j - 2)
+        delta_ij_plus_five_half = q(i, j + 3) - q(i, j + 2)
           #:endif
-          if(abs(delta_ij_minus_three_half) < epsilon(1.0_rk)) delta_ij_minus_three_half = 0.0_rk
-          if(abs(delta_ij_plus_five_half) < epsilon(1.0_rk)) delta_ij_plus_five_half = 0.0_rk
+        if(abs(delta_ij_minus_three_half) < epsilon(1.0_rk)) delta_ij_minus_three_half = 0.0_rk
+        if(abs(delta_ij_plus_five_half) < epsilon(1.0_rk)) delta_ij_plus_five_half = 0.0_rk
         #:endif
 
         r_R_ij_p1 = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
         r_L_ij = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
 
         #:if ORDER == 5
-          r_L_ij_m1 = delta_ij_minus_half / (delta_ij_minus_three_half + 1e-16_rk)
-          r_L_ij_p1 = delta_ij_plus_three_half / (delta_ij_plus_half + 1e-16_rk)
-          r_R_ij_p2 = delta_ij_plus_three_half / (delta_ij_plus_five_half + 1e-16_rk)
-          r_R_ij = delta_ij_minus_half / (delta_ij_plus_half + 1e-16_rk)
+        r_L_ij_m1 = delta_ij_minus_half / (delta_ij_minus_three_half + 1e-16_rk)
+        r_L_ij_p1 = delta_ij_plus_three_half / (delta_ij_plus_half + 1e-16_rk)
+        r_R_ij_p2 = delta_ij_plus_three_half / (delta_ij_plus_five_half + 1e-16_rk)
+        r_R_ij = delta_ij_minus_half / (delta_ij_plus_half + 1e-16_rk)
         #:endif
 
         #:if ORDER == 3
-          ! 3rd order interpolation. Eq 65a in Ref [1]
-          beta_L = (1.0_rk + 2.0_rk * r_L_ij) / 3.0_rk
-          beta_R = (1.0_rk + 2.0_rk * r_R_ij_p1) / 3.0_rk
+        ! 3rd order interpolation. Eq 65a in Ref [1]
+        beta_L = (1.0_rk + 2.0_rk * r_L_ij) / 3.0_rk
+        beta_R = (1.0_rk + 2.0_rk * r_R_ij_p1) / 3.0_rk
         #:elif ORDER == 5
-          ! 5th order interpolation. Eq 65 in Ref [1]
-          beta_L = ((-2.0_rk / (r_L_ij_m1 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
-          beta_R = ((-2.0_rk / (r_R_ij_p2 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
+        ! 5th order interpolation. Eq 65 in Ref [1]
+        beta_L = ((-2.0_rk / (r_L_ij_m1 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
+        beta_R = ((-2.0_rk / (r_R_ij_p2 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
         #:endif
 
         ! Now apply the enhanced MLP routine based on the continuity sensor at the current cell
@@ -375,9 +375,9 @@ contains
 
           ! Phi R, e.g. right state
           #:if DIR == 'i'
-            edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * beta_R * delta_ij_plus_three_half
+          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * beta_R * delta_ij_plus_three_half
           #:elif DIR == 'j'
-            edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * beta_R * delta_ij_plus_three_half
+          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * beta_R * delta_ij_plus_three_half
           #:endif
 
         case(LINEAR_DISCONT_REGION) ! For a linear discontinuity use TVD limiting
@@ -388,11 +388,11 @@ contains
                                                                     beta_L)) * delta_ij_minus_half
           ! Phi R, e.g. right state
           #:if DIR == 'i'
-            edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
+          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
                                                                         2.0_rk * r_R_ij_p1, &
                                                                         beta_R)) * delta_ij_plus_three_half
           #:elif DIR == 'j'
-            edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
+          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
                                                                         2.0_rk * r_R_ij_p1, &
                                                                         beta_R)) * delta_ij_plus_three_half
           #:endif
@@ -400,13 +400,13 @@ contains
         case(NONLINEAR_DISCONT_REGION) ! For non-linear discontinuity, use MLP limiting
           ! Inner term of alpha in Eq. 64a in Ref [1]
           #:if DIR == 'i'
-            ! Xi variant, Eq 18a. Xi is used for the i-direction
-            tan_theta_ij = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
-            tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i + 1, j - 1)) / (abs(q(i + 2, j) - q(i, j)) + 1e-16_rk)
+          ! Xi variant, Eq 18a. Xi is used for the i-direction
+          tan_theta_ij = abs(q(i, j + 1) - q(i, j - 1)) / (abs(q(i + 1, j) - q(i - 1, j)) + 1e-16_rk)
+          tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i + 1, j - 1)) / (abs(q(i + 2, j) - q(i, j)) + 1e-16_rk)
           #:elif DIR == 'j'
-            ! Eta variant, Eq 18b. Xi is used for the j-direction
-            tan_theta_ij = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
-            tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i - 1, j + 1)) / (abs(q(i, j + 2) - q(i, j)) + 1e-16_rk)
+          ! Eta variant, Eq 18b. Xi is used for the j-direction
+          tan_theta_ij = abs(q(i + 1, j) - q(i - 1, j)) / (abs(q(i, j + 1) - q(i, j - 1)) + 1e-16_rk)
+          tan_theta_ij_p1 = abs(q(i + 1, j + 1) - q(i - 1, j + 1)) / (abs(q(i, j + 2) - q(i, j)) + 1e-16_rk)
           #:endif
 
           ! Term inside the alpha [..] in Eq 64
@@ -430,11 +430,11 @@ contains
                                                                     beta_L)) * delta_ij_minus_half
           ! Phi R, e.g. right state
           #:if DIR == 'i'
-            edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ij_p1, &
+          edge_values(2, i, j) = q(i + 1, j) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ij_p1, &
                                                                         alpha_R, &
                                                                         beta_R)) * delta_ij_plus_three_half
           #:elif DIR == 'j'
-            edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ij_p1, &
+          edge_values(2, i, j) = q(i, j + 1) - 0.5_rk * max(0.0_rk, min(alpha_R * r_R_ij_p1, &
                                                                         alpha_R, &
                                                                         beta_R)) * delta_ij_plus_three_half
           #:endif
