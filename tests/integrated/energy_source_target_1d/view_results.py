@@ -74,7 +74,6 @@ ds.pressure[-1].plot(x="x", label="Pressure", ax=ax2, color="k")
 
 ax3 = ax.twinx()
 ax3.spines["right"].set_position(("axes", 1.1))
-# ds.mach_x[-1].plot(x="x", label="Mach", ax=ax3, color="r")
 ds.x_velocity[-1].plot(x="x", label="Velocity", ax=ax3, color="r")
 
 ax3.set_title(None)

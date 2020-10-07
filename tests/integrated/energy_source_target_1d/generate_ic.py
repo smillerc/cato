@@ -15,14 +15,14 @@ init_pressure = 1e9 * ureg("barye")
 ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
 
-vacuum_pressure = 3.5e13 * ureg("barye")
+vacuum_pressure = 1e8 * ureg("barye")
 vacuum_density = 0.001 * ureg("g/cc")
 
 v_shell = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s").m
-print(v_shell)
+
 # Mesh
 interface_loc = 70.0
-layer_thicknesses = [interface_loc, 10, 10] * ureg("um")
+layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
 layer_resolution = [20, 20, 20] * ureg("1/um")
 
@@ -31,7 +31,7 @@ layer_n_cells = np.round(
 ).m.astype(int)
 
 layer_density = [ice_density, shell_density, vacuum_density]
-layer_u = [0, 0, -v_shell] * ureg("cm/s")
+layer_u = [0, 0, 0] * ureg("cm/s")
 layer_v = [0, 0, 0] * ureg("cm/s")
 layer_pressure = [init_pressure, init_pressure, vacuum_pressure]
 
@@ -45,7 +45,6 @@ domain = make_2d_layered_grid(
     y_thickness=0,
     layer_spacing=layer_spacing,
 )
-
 
 apply_perturbations = False
 if apply_perturbations:

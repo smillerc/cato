@@ -19,13 +19,13 @@ init_pressure = np.float64(1e9) * ureg("barye")
 ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
 
-vacuum_pressure = 7e12 * ureg("barye")
+vacuum_pressure = 3.5e13 * ureg("barye")
 vacuum_density = 0.01 * ureg("g/cc")
 vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s")
 
 # Mesh
 vacuum_feathering = 1.1
-wavelength = 2 * ureg("um")
+wavelength = 0.5 * ureg("um")
 two_pi = (2 * np.pi) * ureg("radian")
 k = two_pi / wavelength
 print(f"k: {k}")
@@ -33,17 +33,17 @@ y_thickness = (two_pi / k) / 2.0
 print(f"y_thickness: {y_thickness.to('um')}")
 dy = None  # will use smallest dx if None
 
-interface_loc = 15.0
-layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
+interface_loc = 5.0
+layer_thicknesses = [interface_loc, 10, 10] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [25, 25, 25] * ureg("1/um")
+layer_resolution = [40, 40, 40] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
 ).m.astype(int)
 
 layer_density = [ice_density, shell_density, vacuum_density]
-layer_u = [0, 0, 0] * ureg("cm/s")
+layer_u = [0, 0, -vacuum_u.m] * ureg("cm/s")
 layer_v = [0, 0, 0] * ureg("cm/s")
 layer_pressure = [init_pressure, init_pressure, vacuum_pressure]
 
@@ -65,21 +65,23 @@ x = domain["xc"].to("um")
 y = domain["yc"].to("um")
 
 # Perturbation
-x0 = (interface_loc + 5) * ureg("um")  # perturbation location
+do_pert = False
+if do_pert:
+    x0 = (interface_loc + 5) * ureg("um")  # perturbation location
 
-pert_x = np.exp(-k.m * ((x - x0).m) ** 2)
-pert_x[pert_x < 1e-4] = 0.0
+    pert_x = np.exp(-k.m * ((x - x0).m) ** 2)
+    pert_x[pert_x < 1e-4] = 0.0
 
-pert_y = -((1.0 - np.cos(k * y)) / 2.0).to_base_units().m
-perturbation_loc = pert_x * pert_y
-perturbation_frac = 0.5
+    pert_y = -((1.0 - np.cos(k * y)) / 2.0).to_base_units().m
+    perturbation_loc = pert_x * pert_y
+    perturbation_frac = 0.5
 
-perturbation = np.abs(perturbation_loc * perturbation_frac)
-perturbation[perturbation < 1e-4] = 0.0
+    perturbation = np.abs(perturbation_loc * perturbation_frac)
+    perturbation[perturbation < 1e-4] = 0.0
 
-domain["rho"] = domain["rho"] * (1.0 - perturbation)
-# Cutoff the perturbation below 1e-6 otherwise there
-# will be weird noise issues
+    domain["rho"] = domain["rho"] * (1.0 - perturbation)
+    # Cutoff the perturbation below 1e-6 otherwise there
+    # will be weird noise issues
 
 # Save to file
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
