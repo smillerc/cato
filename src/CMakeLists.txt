@@ -1,3 +1,6 @@
+# Add third party libraries
+add_subdirectory(third_party)
+
 add_library(
   globals
   lib/error.f90
@@ -8,14 +11,6 @@ add_library(
   lib/math_constants.f90
   lib/floating_point_utilities.f90)
 
-add_library(ini_parser third_party/ini_parser/cfgio_mod.f90
-                       third_party/ini_parser/string_conv_mod.f90)
-
-add_library(finterp third_party/finterp/linear_interpolation_module.f90)
-
-add_library(functional third_party/functional/mod_functional.f90
-                       third_party/functional/mod_interfaces.f90)
-
 add_library(io lib/io/mod_hdf5.f90 lib/io/mod_input.f90)
 
 add_library(eos lib/equation_of_state.f90)
@@ -23,7 +18,7 @@ add_library(eos lib/equation_of_state.f90)
 include_directories(${HDF5_INCLUDE_DIRS})
 target_include_directories(io PUBLIC ${HDF5_INCLUDE_DIRS})
 
-target_link_libraries(io PUBLIC globals ini_parser ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+target_link_libraries(io PUBLIC globals ini_parser ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} h5fortran)
 target_link_libraries(eos PUBLIC io)
 
 add_library(utilities lib/limiters/slope_limiter.f90 lib/limiters/flux_limiter.f90)
@@ -31,6 +26,7 @@ target_link_libraries(utilities PUBLIC globals)
 
 add_library(
   geometry
+  lib/grid/grid_block.f90
   lib/grid/grid_type.f90
   lib/grid/regular_2d_grid.f90
   lib/grid/grid_factory.f90
@@ -43,20 +39,17 @@ add_library(
 target_link_libraries(geometry PUBLIC globals io eos functional)
 
 # Pre-process: .fypp -> .f90 via Fypp
-
 # Create a list of the files to be preprocessed
 set(fyppFiles
     lib/spatial_reconstruction/muscl_tvd2.fypp
-    # lib/spatial_reconstruction/muscl_tvd3.fypp
-    # lib/spatial_reconstruction/muscl_tvd5.fypp
-    # lib/spatial_reconstruction/muscl_mlp.fypp
-    # lib/spatial_reconstruction/muscl_e_mlp.fypp
+    # lib/spatial_reconstruction/muscl_tvd3.fypp lib/spatial_reconstruction/muscl_tvd5.fypp
+    # lib/spatial_reconstruction/muscl_mlp.fypp lib/spatial_reconstruction/muscl_e_mlp.fypp
     lib/boundary_conditions/periodic_bc.fypp
     lib/limiters/e_mlp_distinguisher.fypp
     # lib/flux_solvers/m_ausmpw_plus_solver.fypp
     lib/flux_solvers/ausmpw_plus_solver.fypp
     # lib/flux_solvers/slau_solver.fypp
-    )
+)
 
 # Pre-process
 foreach(infileName IN LISTS fyppFiles)
@@ -88,6 +81,7 @@ add_library(
   # lib/mach_cone/mach_cone_utilities.f90
   # lib/mach_cone/mach_cone_collection.f90
   lib/mod_timing.f90
+  lib/mod_parallel.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
@@ -118,7 +112,6 @@ add_library(
   lib/spatial_reconstruction/muscl_factory.f90
   lib/master_puppeteer/master_puppeteer.f90)
 
-# target_compile_options(cato PUBLIC ${Coarray_COMPILE_OPTIONS})
 target_link_libraries(
   cato
   PUBLIC eos
@@ -132,35 +125,17 @@ target_link_libraries(
          ${HDF5_HL_LIBRARIES})
 
 add_executable(cato.x main.f90)
-target_link_libraries(
-  cato.x cato functional finterp ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES}
-  # ${Coarray_LIBRARIES}
-)
 
-# include_directories(${HDF5_INCLUDE_DIRS})
-
-# add_library( cato lib/globals.f90 lib/math_constants.f90 third_party/ini_parser/cfgio_mod.f90
-# third_party/ini_parser/string_conv_mod.f90 third_party/finterp/linear_interpolation_module.f90
-# third_party/functional/mod_functional.f90 third_party/functional/mod_interfaces.f90
-# lib/io/mod_hdf5.f90 lib/io/mod_input.f90 lib/equation_of_state.f90 lib/limiters/slope_limiter.f90
-# lib/domain/grid_type.f90 lib/domain/regular_2d_grid.f90 lib/domain/grid_factory.f90
-# lib/geometry/vector_2d.f90 lib/geometry/vector.f90 lib/geometry/mach_cone_geometry.f90
-# lib/geometry/quad_cell.f90 lib/io/contour_writer.f90
-# lib/boundary_conditions/boundary_conditions.f90 lib/boundary_conditions/periodic_bc.f90
-# lib/boundary_conditions/bc_factory.f90 lib/domain/fluxes.f90
-# lib/evolution_operator/abstract_evo_operator.f90 lib/evolution_operator/local_evo_operator.f90
-# lib/reconstruction/abstract_reconstruction.f90 lib/reconstruction/first_order_reconstruction.f90
-# lib/reconstruction/second_order_reconstruction.f90 lib/reconstruction/reconstruction_factory.f90
-# lib/master_puppeteer/master.f90 lib/master_puppeteer/cato.f90 lib/integrand.f90
-# lib/integrators/strategy.f90 lib/integrators/surrogate.f90
-# lib/integrators/time_integrator_factory.f90 lib/integrators/runge_kutta_2nd_order.f90)
-
-# set_property(TARGET cato PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE) set_target_properties(cato
-# PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE)
-
-# target_link_libraries(cato ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
-
-# add_executable(cato.x main.f90) set_property(TARGET cato.x PROPERTY INTERPROCEDURAL_OPTIMIZATION
-# FALSE) set_target_properties(cato.x PROPERTIES INTERPROCEDURAL_OPTIMIZATION FALSE) #
-# message(STATUS "INTERPROCEDURAL_OPTIMIZATION: " # ${INTERPROCEDURAL_OPTIMIZATION})
-# target_link_libraries(cato.x cato)
+if(ENABLE_COARRAY OR ENABLE_COARRAY_SINGLE)
+  # Turn on coarray linking
+  target_link_libraries(
+    cato.x
+    cato
+    functional
+    finterp
+    ${HDF5_LIBRARIES}
+    ${HDF5_HL_LIBRARIES}
+    ${Coarray_LIBRARIES})
+else()
+  target_link_libraries(cato.x cato functional finterp ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+endif()

@@ -1,0 +1,1 @@
+add_library(finterp linear_interpolation_module.f90)
