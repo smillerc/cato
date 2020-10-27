@@ -39,7 +39,7 @@ module mod_edge_interpolator_factory
   use mod_tvd_2nd_order, only: tvd_2nd_order_t, new_tvd_2nd_order_t
   use mod_tvd_3rd_order, only: tvd_3rd_order_t, new_tvd_3rd_order_t
   use mod_tvd_5th_order, only: tvd_5th_order_t, new_tvd_5th_order_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
 
   implicit none
 

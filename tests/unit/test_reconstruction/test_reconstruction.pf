@@ -11,7 +11,7 @@ module test_reconstruction
   ! use mod_mlp_3rd_order, only: mlp_3rd_order_t
   ! use mod_mlp_5th_order, only: mlp_5th_order_t
   use mod_grid_factory, only: grid_factory
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use funit
 
   implicit none
@@ -35,7 +35,7 @@ module test_reconstruction
   integer(ik), parameter :: C4 = 7
   integer(ik), parameter :: M4 = 8
 
-  class(grid_t), pointer :: grid
+  class(grid_block_t), pointer :: grid
   class(abstract_reconstruction_t), allocatable :: reconstruction_operator
   type(input_t) :: input
 

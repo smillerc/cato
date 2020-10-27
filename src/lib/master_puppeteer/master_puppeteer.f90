@@ -30,7 +30,10 @@ module mod_master_puppeteer
   use mod_units
   use mod_input, only: input_t
   use mod_eos, only: eos
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_1d, only: grid_block_1d_t
+  use mod_grid_block_2d, only: grid_block_2d_t
+  use mod_grid_block_3d, only: grid_block_3d_t
   use mod_grid_factory, only: grid_factory
   use hdf5_interface, only: hdf5_file
   use mod_nondimensionalization, only: set_scale_factors
@@ -47,7 +50,7 @@ module mod_master_puppeteer
     integer(ik) :: iteration = 0 !< iteration coount
     real(rk) :: dt = 0.0_rk      !< time step
     real(rk) :: time = 0.0_rk    !< simulation time
-    class(grid_t), allocatable :: grid   !< grid topology
+    class(grid_block_t), allocatable :: grid   !< grid topology
     class(fluid_t), allocatable :: fluid !< fluid physics
 
   contains
@@ -78,7 +81,7 @@ contains
     class(input_t), intent(in) :: input
 
     ! Locals
-    class(grid_t), pointer :: grid => null()
+    class(grid_block_t), pointer :: grid => null()
     class(fluid_t), pointer :: fluid => null()
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
@@ -140,7 +143,12 @@ contains
 
     self%iteration = self%iteration + 1
     self%time = self%time + dt
-    call self%fluid%integrate(dt=dt, grid=self%grid, error_code=error_code)
+
+    select type(grid => self%grid)
+    class is (grid_block_2d_t)
+      call self%fluid%integrate(dt=dt, grid=self%grid, error_code=error_code)
+    end select
+
   end subroutine integrate
 
   subroutine set_time(self, time, dt, iteration)

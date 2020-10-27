@@ -49,7 +49,7 @@ module mod_ausmpw_plus_solver
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
-  use mod_grid, only: grid_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
 
   implicit none
@@ -93,7 +93,7 @@ contains
   subroutine solve_ausmpw_plus(self, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(ausmpw_plus_solver_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     class(field_2d_t), intent(inout) :: rho !< density
     class(field_2d_t), intent(inout) :: u   !< x-velocity
     class(field_2d_t), intent(inout) :: v   !< y-velocity
@@ -195,7 +195,7 @@ contains
                              rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
     !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(ausmpw_plus_solver_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
     class(field_2d_t), intent(in) :: rho_ave  !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
     class(field_2d_t), intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
@@ -329,8 +329,8 @@ contains
         p_R = p_edge(2, i, j)
 
       #:if DIR == 'i'
-        n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
+        n_x = grid%edge_norm_vectors(1, RIGHT_IDX, i, j)
+        n_y = grid%edge_norm_vectors(2, RIGHT_IDX, i, j)
 
         U_L = u_LHS
         U_R = u_RHS
@@ -338,8 +338,8 @@ contains
         V_R = v_RHS
 
       #:elif DIR == 'j'
-        n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
+        n_x = grid%edge_norm_vectors(1, TOP_IDX, i, j)
+        n_y = grid%edge_norm_vectors(2, TOP_IDX, i, j)
 
         U_L = v_LHS
         U_R = v_RHS

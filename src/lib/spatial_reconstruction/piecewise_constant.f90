@@ -22,7 +22,7 @@ module mod_piecewise_constant_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use mod_globals, only: debug_print, n_ghost_layers
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
 

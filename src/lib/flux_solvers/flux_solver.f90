@@ -27,7 +27,7 @@ module mod_flux_solver
   use mod_field, only: field_2d_t
   use mod_globals, only: debug_print
   use mod_floating_point_utils, only: neumaier_sum_4
-  use mod_grid, only: grid_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_bc_factory, only: bc_factory
@@ -64,9 +64,9 @@ module mod_flux_solver
     subroutine solve(self, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
       !< Solve and flux the edges
       import :: flux_solver_t
-      import :: grid_t, field_2d_t
+      import :: grid_block_2d_t, field_2d_t
       class(flux_solver_t), intent(inout) :: self
-      class(grid_t), intent(in) :: grid
+      class(grid_block_2d_t), intent(in) :: grid
       class(field_2d_t), intent(inout) :: rho !< density
       class(field_2d_t), intent(inout) :: u   !< x-velocity
       class(field_2d_t), intent(inout) :: v   !< y-velocity
@@ -90,7 +90,7 @@ contains
   subroutine flux_split_edges(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
     class(edge_split_flux_solver_t), intent(in) :: self
-    class(grid_t), intent(in) :: grid          !< grid topology class
+    class(grid_block_2d_t), intent(in) :: grid          !< grid topology class
     type(field_2d_t), intent(out) ::   d_rho_dt  !< d/dt of the density field
     type(field_2d_t), intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
     type(field_2d_t), intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
@@ -154,7 +154,7 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
 
-        delta_l = grid%cell_edge_lengths(:, i, j)
+        delta_l = grid%edge_lengths(:, i, j)
         volume = grid%cell_volume(i, j)
 
         ! rho

@@ -128,23 +128,23 @@ contains
     real(rk), intent(in) :: cfl
     class(master_puppeteer_t), intent(in) :: master
 
-    integer(ik) :: ilo, ihi, jlo, jhi
+    ! integer(ik) :: ilo, ihi, jlo, jhi
 
-    ilo = master%grid%ilo_cell
-    ihi = master%grid%ihi_cell
-    jlo = master%grid%jlo_cell
-    jhi = master%grid%jhi_cell
+    ! ilo = master%grid%cell_lbounds(1)
+    ! ihi = master%grid%cell_ubounds(1)
+    ! jlo = master%grid%cell_lbounds(2)
+    ! jhi = master%grid%cell_ubounds(2)
 
-    if(.not. master%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
-    associate(dx => master%grid%cell_dx, dy => master%grid%cell_dy)
+    ! if(.not. master%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
+    ! associate(dx => master%grid%cell_dx, dy => master%grid%cell_dy)
 
-      delta_t = minval(cfl / &
-                       (((abs(master%fluid%u%data(ilo:ihi, jlo:jhi)) + &
-                          master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
-                        ((abs(master%fluid%v%data(ilo:ihi, jlo:jhi)) + &
-                          master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
-    end associate
-    ! !$omp end workshare
+    !   delta_t = minval(cfl / &
+    !                    (((abs(master%fluid%u%data(ilo:ihi, jlo:jhi)) + &
+    !                       master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
+    !                     ((abs(master%fluid%v%data(ilo:ihi, jlo:jhi)) + &
+    !                       master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
+    ! end associate
+    ! ! !$omp end workshare
 
   end function
 

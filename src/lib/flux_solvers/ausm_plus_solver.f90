@@ -36,7 +36,7 @@ module mod_ausm_plus_solver
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_input, only: input_t
 
   implicit none
@@ -142,7 +142,7 @@ contains
   subroutine solve_ausm_plus(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(ausm_plus_solver_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
@@ -258,10 +258,10 @@ contains
     ! !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
     ! !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
 
-    ! ilo = grid%ilo_cell
-    ! ihi = grid%ihi_cell
-    ! jlo = grid%jlo_cell
-    ! jhi = grid%jhi_cell
+    ! ilo = grid%cell_lbounds(1)
+    ! ihi = grid%cell_ubounds(1)
+    ! jlo = grid%cell_lbounds(2)
+    ! jhi = grid%cell_ubounds(2)
 
     ! if(allocated(self%iflux)) deallocate(self%iflux)
     ! if(allocated(self%jflux)) deallocate(self%jflux)
@@ -284,8 +284,8 @@ contains
     !   do i = ilo - 1, ihi ! start at ilo-1 b/c of the first i edge, e.g. i = 0
 
     !     ! use the normal vector of the right edge of the current cell
-    !     n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
-    !     n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
+    !     n_x = grid%edge_norm_vectors(1, RIGHT_IDX, i, j)
+    !     n_y = grid%edge_norm_vectors(2, RIGHT_IDX, i, j)
 
     !     ! right edge (i + 1/2)
     !     rho_L = rho_interface_values(RIGHT_IDX, i, j)    ! right edge of the current cell
@@ -329,8 +329,8 @@ contains
     ! ! Find fluxes in the j-direction
     ! do j = jlo - 1, jhi
     !   do i = ilo, ihi
-    !     n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
-    !     n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
+    !     n_x = grid%edge_norm_vectors(1, TOP_IDX, i, j)
+    !     n_y = grid%edge_norm_vectors(2, TOP_IDX, i, j)
 
     !     ! top edge (j + 1/2)
     !     rho_L = rho_interface_values(TOP_IDX, i, j)        ! top edge of the current cell

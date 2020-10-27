@@ -144,25 +144,25 @@ contains
     self%xdmf_filename = trim(char_buff)//'.xdmf'
 
     if(self%plot_ghost_cells) then
-      self%ilo_cell = master%grid%ilo_bc_cell
-      self%ihi_cell = master%grid%ihi_bc_cell
-      self%jlo_cell = master%grid%jlo_bc_cell
-      self%jhi_cell = master%grid%jhi_bc_cell
+      self%ilo_cell = master%grid%cell_lbounds_halo(1)
+      self%ihi_cell = master%grid%cell_ubounds_halo(1)
+      self%jlo_cell = master%grid%cell_lbounds_halo(2)
+      self%jhi_cell = master%grid%cell_ubounds_halo(2)
 
-      self%ilo_node = master%grid%ilo_bc_node
-      self%ihi_node = master%grid%ihi_bc_node
-      self%jlo_node = master%grid%jlo_bc_node
-      self%jhi_node = master%grid%jhi_bc_node
+      self%ilo_node = master%grid%node_lbounds_halo(1)
+      self%ihi_node = master%grid%node_ubounds_halo(1)
+      self%jlo_node = master%grid%node_lbounds_halo(2)
+      self%jhi_node = master%grid%node_ubounds_halo(2)
     else
-      self%ilo_cell = master%grid%ilo_cell
-      self%ihi_cell = master%grid%ihi_cell
-      self%jlo_cell = master%grid%jlo_cell
-      self%jhi_cell = master%grid%jhi_cell
+      self%ilo_cell = master%grid%cell_lbounds(1)
+      self%ihi_cell = master%grid%cell_ubounds(1)
+      self%jlo_cell = master%grid%cell_lbounds(2)
+      self%jhi_cell = master%grid%cell_ubounds(2)
 
-      self%ilo_node = master%grid%ilo_node
-      self%ihi_node = master%grid%ihi_node
-      self%jlo_node = master%grid%jlo_node
-      self%jhi_node = master%grid%jhi_node
+      self%ilo_node = master%grid%node_lbounds(1)
+      self%ihi_node = master%grid%node_ubounds(1)
+      self%jlo_node = master%grid%node_lbounds(2)
+      self%jhi_node = master%grid%node_ubounds(2)
     end if
 
     write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
@@ -258,8 +258,8 @@ contains
     !   ! Write a simple flag to tag ghost cells
     !   dataset_name = '/ghost_cell'
     !   int_data_buffer = 1
-    !   associate(ilo_r => master%grid%ilo_cell, ihi_r => master%grid%ihi_cell, &
-    !             jlo_r => master%grid%jlo_cell, jhi_r => master%grid%jhi_cell)
+    !   associate(ilo_r => master%grid%cell_lbounds(1), ihi_r => master%grid%cell_ubounds(1), &
+    !             jlo_r => master%grid%cell_lbounds(2), jhi_r => master%grid%cell_ubounds(2))
     !     int_data_buffer(ilo_r:ihi_r, jlo_r:jhi_r) = 0
     !   end associate
     !   call self%write_2d_integer_data(data=int_data_buffer, name='/ghost_cell', &

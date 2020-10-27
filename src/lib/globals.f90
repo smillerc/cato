@@ -39,13 +39,13 @@ module mod_globals
 
   integer(ik), protected :: n_ghost_layers = 2
 
-  character(len=5), protected :: global_dimensionality
-  logical, protected :: is_1d = .false.
-  logical, protected :: is_1d_in_x = .false.
-  logical, protected :: is_1d_in_y = .false.
-  logical, protected :: is_2d = .true.
+  ! character(len=5), protected :: global_dimensionality
+  ! logical, protected :: is_1d = .false.
+  ! logical, protected :: is_1d_in_x = .false.
+  ! logical, protected :: is_1d_in_y = .false.
+  ! logical, protected :: is_2d = .true.
 
-  logical, protected :: grid_is_orthogonal = .true.
+  ! logical, protected :: grid_is_orthogonal = .true.
 
   ! Debug/scratch io file units
   logical, parameter :: track_single_cell_cone = .false.
@@ -84,27 +84,27 @@ contains
     logical, intent(in) :: grid_orthogonality
     integer(ik), intent(in) :: num_ghost_layers
 
-    grid_is_orthogonal = grid_orthogonality
+    ! grid_is_orthogonal = grid_orthogonality
 
-    n_ghost_layers = num_ghost_layers
+    ! n_ghost_layers = num_ghost_layers
 
-    select case(trim(dimensionality))
-    case('1D_X')
-      is_1d = .true.
-      is_1d_in_x = .true.
-      is_1d_in_y = .false.
-      is_2d = .false.
-    case('1D_Y')
-      is_1d = .true.
-      is_1d_in_x = .false.
-      is_1d_in_y = .true.
-      is_2d = .false.
-    case('2D_XY')
-      is_1d = .false.
-      is_1d_in_x = .true.
-      is_1d_in_y = .false.
-      is_2d = .true.
-    end select
+    ! select case(trim(dimensionality))
+    ! case('1D_X')
+    !   is_1d = .true.
+    !   is_1d_in_x = .true.
+    !   is_1d_in_y = .false.
+    !   is_2d = .false.
+    ! case('1D_Y')
+    !   is_1d = .true.
+    !   is_1d_in_x = .false.
+    !   is_1d_in_y = .true.
+    !   is_2d = .false.
+    ! case('2D_XY')
+    !   is_1d = .false.
+    !   is_1d_in_x = .true.
+    !   is_1d_in_y = .false.
+    !   is_2d = .true.
+    ! end select
   end subroutine set_domain_dimensionality
 
   subroutine print_version_stats()

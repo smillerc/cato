@@ -22,7 +22,7 @@ module mod_pressure_input_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_globals, only: enable_debug_print, debug_print
   use mod_field, only: field_2d_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_nondimensionalization, only: p_0, rho_0, t_0
   use mod_input, only: input_t
@@ -62,7 +62,7 @@ contains
     type(pressure_input_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
 
     allocate(bc)
     bc%name = 'pressure_input'

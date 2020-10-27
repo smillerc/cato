@@ -2,59 +2,92 @@ module mod_grid_block_3d
 
   use iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_grid_block, only: grid_block_t
-  implicit none (type, external)
+  use mod_input, only: input_t
+
+  implicit none(type, external)
+
+  private
+  public :: grid_block_3d_t, new_3d_grid_block
 
   type, extends(grid_block_t) :: grid_block_3d_t
-    private
-
-    ! Bounds information
-    integer(ik), dimension(3), public :: dims = 0         !< (i, j); dimensions
-    integer(ik), dimension(3), public :: lbounds = 0      !< (i, j); lower bounds (not including halo cells)
-    integer(ik), dimension(3), public :: ubounds = 0      !< (i, j); upper bounds (not including halo cells)
-    integer(ik), dimension(3), public :: lbounds_halo = 0 !< (i, j); lower bounds (including halo cells)
-    integer(ik), dimension(3), public :: ubounds_halo = 0 !< (i, j); upper bounds (including halo cells)
-
-    integer(ik), public :: ilo = 0 !< Lower bound for i
-    integer(ik), public :: ihi = 0 !< Upper bound for i
-    integer(ik), public :: jlo = 0 !< Lower bound for j
-    integer(ik), public :: jhi = 0 !< Upper bound for j
-    integer(ik), public :: klo = 0 !< Lower bound for k
-    integer(ik), public :: khi = 0 !< Upper bound for k
-    integer(ik), public :: ilo_halo = 0 !< Lower halo bound for i
-    integer(ik), public :: ihi_halo = 0 !< Upper halo bound for i
-    integer(ik), public :: jlo_halo = 0 !< Lower halo bound for j
-    integer(ik), public :: jhi_halo = 0 !< Upper halo bound for j
-    integer(ik), public :: klo_halo = 0 !< Lower halo bound for k
-    integer(ik), public :: khi_halo = 0 !< Upper halo bound for k
-
-    ! Boundary condition checks
-    logical, public :: on_ihi_bc = .true. !< does this grid live on the ihi boundary?
-    logical, public :: on_ilo_bc = .true. !< does this grid live on the ilo boundary?
-    logical, public :: on_jhi_bc = .true. !< does this grid live on the jhi boundary?
-    logical, public :: on_jlo_bc = .true. !< does this grid live on the jlo boundary?
-    logical, public :: on_khi_bc = .true. !< does this grid live on the khi boundary?
-    logical, public :: on_klo_bc = .true. !< does this grid live on the klo boundary?
-
-    real(rk), dimension(:, :, :), allocatable, public :: cell_volume !< (i, j, k); volume of each cell
-    real(rk), dimension(:, :, :), allocatable, public :: cell_dx     !< (i, j, k); dx spacing of each cell
-    real(rk), dimension(:, :, :), allocatable, public :: cell_dy     !< (i, j, k); dy spacing of each cell
-    real(rk), dimension(:, :, :), allocatable, public :: node_x      !< (i, j, k); x location of each node
-    real(rk), dimension(:, :, :), allocatable, public :: node_y      !< (i, j, k); y location of each node
-    real(rk), dimension(:, :, :), allocatable, public :: centroid_x  !< (i, j, k); x location of the cell centroid
-    real(rk), dimension(:, :, :), allocatable, public :: centroid_y  !< (i, j, k); y location of the cell centroid
-    real(rk), dimension(:, :, :, :), allocatable, public :: edge_lengths         !< ((edge_1:edge_n), i, j); length of each edge
-    real(rk), dimension(:, :, :, :, :), allocatable, public :: edge_norm_vectors !< ((x,y), edge, i, j); normal direction vector of each face
+    real(rk), dimension(:, :, :), allocatable :: cell_volume !< (i, j, k); volume of each cell
+    real(rk), dimension(:, :, :), allocatable :: cell_dx     !< (i, j, k); dx spacing of each cell
+    real(rk), dimension(:, :, :), allocatable :: cell_dy     !< (i, j, k); dy spacing of each cell
+    real(rk), dimension(:, :, :), allocatable :: node_x      !< (i, j, k); x location of each node
+    real(rk), dimension(:, :, :), allocatable :: node_y      !< (i, j, k); y location of each node
+    real(rk), dimension(:, :, :), allocatable :: centroid_x  !< (i, j, k); x location of the cell centroid
+    real(rk), dimension(:, :, :), allocatable :: centroid_y  !< (i, j, k); y location of the cell centroid
+    real(rk), dimension(:, :, :, :), allocatable :: edge_lengths         !< ((edge_1:edge_n), i, j); length of each edge
+    real(rk), dimension(:, :, :, :, :), allocatable :: edge_norm_vectors !< ((x,y), edge, i, j); normal direction vector of each face
   contains
     procedure :: initialize => init_3d_block
     final :: finalize_3d_block
   end type grid_block_3d_t
 contains
-  
-  subroutine init_3d_block(self)
+
+  function new_3d_grid_block(input) result(grid)
+    type(grid_block_3d_t), pointer :: grid
+    class(input_t), intent(in) :: input
+    allocate(grid)
+    call grid%initialize(input)
+  end function new_3d_grid_block
+
+  subroutine init_3d_block(self, input)
     class(grid_block_3d_t), intent(inout) :: self
+    class(input_t), intent(in) :: input
+
+    allocate(self%global_node_dims (3))
+    self%global_node_dims  = 0
+    allocate(self%global_cell_dims (3))
+    self%global_cell_dims  = 0
+    allocate(self%domain_node_shape(3))
+    self%domain_node_shape = 0
+    allocate(self%domain_cell_shape(3))
+    self%domain_cell_shape = 0
+    allocate(self%node_lbounds     (3))
+    self%node_lbounds      = 0
+    allocate(self%node_ubounds     (3))
+    self%node_ubounds      = 0
+    allocate(self%node_lbounds_halo(3))
+    self%node_lbounds_halo = 0
+    allocate(self%node_ubounds_halo(3))
+    self%node_ubounds_halo = 0
+    allocate(self%cell_lbounds     (3))
+    self%cell_lbounds      = 0
+    allocate(self%cell_ubounds     (3))
+    self%cell_ubounds      = 0
+    allocate(self%cell_lbounds_halo(3))
+    self%cell_lbounds_halo = 0
+    allocate(self%cell_ubounds_halo(3))
+    self%cell_ubounds_halo = 0
+    allocate(self%on_bc            (2,3))
+    self%on_bc             = .false.
+
   end subroutine
 
   subroutine finalize_3d_block(self)
     type(grid_block_3d_t), intent(inout) :: self
+    if(allocated(self%node_x)) deallocate(self%node_x)
+    if(allocated(self%node_y)) deallocate(self%node_y)
+    if(allocated(self%cell_volume)) deallocate(self%cell_volume)
+    if(allocated(self%cell_dx)) deallocate(self%cell_dx)
+    if(allocated(self%cell_dy)) deallocate(self%cell_dy)
+    if(allocated(self%centroid_x)) deallocate(self%centroid_x)
+    if(allocated(self%centroid_y)) deallocate(self%centroid_y)
+    if(allocated(self%edge_lengths)) deallocate(self%edge_lengths)
+    if(allocated(self%edge_norm_vectors)) deallocate(self%edge_norm_vectors)
+    if(allocated(self%global_node_dims )) deallocate(self%global_node_dims )
+    if(allocated(self%global_cell_dims )) deallocate(self%global_cell_dims )
+    if(allocated(self%domain_node_shape)) deallocate(self%domain_node_shape)
+    if(allocated(self%domain_cell_shape)) deallocate(self%domain_cell_shape)
+    if(allocated(self%node_lbounds     )) deallocate(self%node_lbounds     )
+    if(allocated(self%node_ubounds     )) deallocate(self%node_ubounds     )
+    if(allocated(self%node_lbounds_halo)) deallocate(self%node_lbounds_halo)
+    if(allocated(self%node_ubounds_halo)) deallocate(self%node_ubounds_halo)
+    if(allocated(self%cell_lbounds     )) deallocate(self%cell_lbounds     )
+    if(allocated(self%cell_ubounds     )) deallocate(self%cell_ubounds     )
+    if(allocated(self%cell_lbounds_halo)) deallocate(self%cell_lbounds_halo)
+    if(allocated(self%cell_ubounds_halo)) deallocate(self%cell_ubounds_halo)
+    if(allocated(self%on_bc)) deallocate(self%on_bc)
   end subroutine
 end module mod_grid_block_3d

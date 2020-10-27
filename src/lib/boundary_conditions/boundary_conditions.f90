@@ -25,7 +25,7 @@ module mod_boundary_conditions
   use mod_functional, only: operator(.reverse.)
   use mod_field, only: field_2d_t
   use mod_input, only: input_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
 
   implicit none
 
@@ -85,7 +85,7 @@ contains
     !< by the other procedures that apply the boundary conditions
 
     class(boundary_condition_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     integer(ik) :: i
     ! integer(ik), dimension(:, :), intent(in) :: ghost_layers
     !< (ilo_layers(n), ihi_layers(n), jlo_layers(n), jhi_layers(n)); indices to the ghost layers.
@@ -98,7 +98,7 @@ contains
     ! the real cells are [1,2,3,4] and the ghost cells are [-1 0] and [5 6].
     ! Then ilo_ghost = [0, -1] and ihi_ghost = [5, 6]
 
-    self%n_ghost_layers = grid%ilo_cell - grid%ilo_bc_cell
+    self%n_ghost_layers = grid%n_halo_cells
 
     allocate(self%ilo_ghost(self%n_ghost_layers))
     allocate(self%ihi_ghost(self%n_ghost_layers))
@@ -106,31 +106,31 @@ contains
     allocate(self%jhi_ghost(self%n_ghost_layers))
 
     if(self%n_ghost_layers == 1) then
-      self%ilo_ghost = grid%ilo_bc_cell
-      self%ihi_ghost = grid%ihi_bc_cell
-      self%jlo_ghost = grid%jlo_bc_cell
-      self%jhi_ghost = grid%jhi_bc_cell
-      self%ilo = grid%ilo_cell
-      self%ihi = grid%ihi_cell
-      self%jlo = grid%jlo_cell
-      self%jhi = grid%jhi_cell
+      self%ilo_ghost = grid%cell_lbounds_halo(1)
+      self%ihi_ghost = grid%cell_ubounds_halo(1)
+      self%jlo_ghost = grid%cell_lbounds_halo(2)
+      self%jhi_ghost = grid%cell_ubounds_halo(2)
+      self%ilo = grid%cell_lbounds(1)
+      self%ihi = grid%cell_ubounds(1)
+      self%jlo = grid%cell_lbounds(2)
+      self%jhi = grid%cell_ubounds(2)
     else if(self%n_ghost_layers > 1) then
       do i = 1, self%n_ghost_layers
-        self%ilo_ghost(i) = grid%ilo_bc_cell + i - 1
-        self%ihi_ghost(i) = grid%ihi_bc_cell - i + 1
+        self%ilo_ghost(i) = grid%cell_lbounds_halo(1) + i - 1
+        self%ihi_ghost(i) = grid%cell_ubounds_halo(1) - i + 1
 
-        self%jlo_ghost(i) = grid%jlo_bc_cell + i - 1
-        self%jhi_ghost(i) = grid%jhi_bc_cell - i + 1
+        self%jlo_ghost(i) = grid%cell_lbounds_halo(2) + i - 1
+        self%jhi_ghost(i) = grid%cell_ubounds_halo(2) - i + 1
       end do
       self%ilo_ghost = .reverse.self%ilo_ghost
       self%jlo_ghost = .reverse.self%jlo_ghost
       self%ihi_ghost = .reverse.self%ihi_ghost
       self%jhi_ghost = .reverse.self%jhi_ghost
 
-      self%ilo = grid%ilo_cell
-      self%ihi = grid%ihi_cell
-      self%jlo = grid%jlo_cell
-      self%jhi = grid%jhi_cell
+      self%ilo = grid%cell_lbounds(1)
+      self%ihi = grid%cell_ubounds(1)
+      self%jlo = grid%cell_lbounds(2)
+      self%jhi = grid%cell_ubounds(2)
     else
       error stop "Error in boundary_condition_t%set_indicies(), n_ghost_layers <= 0"
     end if

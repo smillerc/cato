@@ -101,7 +101,7 @@ contains
       case('['); de%tok = new_token(toml_tokentype%lbracket, ptr, 1); return
       case(']'); de%tok = new_token(toml_tokentype%rbracket, ptr, 1); return
       case(TOML_NEWLINE); de%tok = new_token(toml_tokentype%newline, ptr, 1); return
-      case(' ', char(9));
+      case(' ', char(9)); 
         skip = verify(ptr, TOML_WHITESPACE) - 1
         de%tok = new_token(toml_tokentype%whitespace, ptr, skip)
         return

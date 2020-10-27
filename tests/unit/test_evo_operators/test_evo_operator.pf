@@ -9,7 +9,7 @@ module test_evo_operator
   use mod_reconstruction_factory, only: reconstruction_factory
   use mod_abstract_evo_operator, only: abstract_evo_operator_t
   use mod_evo_operator_factory, only: evo_operator_factory
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_eos
   use mod_local_evo_operator
   use mod_mach_cone_collection
@@ -18,7 +18,7 @@ module test_evo_operator
 
   implicit none
 
-  class(grid_t), allocatable :: grid
+  class(grid_block_t), allocatable :: grid
   real(rk), parameter :: tau = 1e-3_rk
   integer(ik), parameter :: M = 2
   integer(ik), parameter :: N = 1
@@ -42,7 +42,7 @@ contains
   subroutine startup()
 
     integer(ik) :: i, j, c, p
-    class(grid_t), pointer :: grid_ptr
+    class(grid_block_t), pointer :: grid_ptr
     real(rk), dimension(2, 2, 4) :: actual_corner_vectors, grid_corner_vectors
 
     write(*, *) "Creating a simple grid, recon operator, and evo operator for E0 testing"

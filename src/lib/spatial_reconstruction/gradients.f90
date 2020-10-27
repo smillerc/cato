@@ -29,7 +29,7 @@ module mod_gradients
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use, intrinsic :: ieee_arithmetic
   use mod_floating_point_utils, only: neumaier_sum
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_globals, only: n_ghost_layers, plot_gradients
   use hdf5_interface, only: hdf5_file
 
@@ -82,10 +82,10 @@ contains
       do i = ilo + n_ghost_layers, ihi - n_ghost_layers
 
         ! Edge (face) interface data
-        edge_lengths(1) = grid%cell_edge_lengths(1, i, j)  ! bottom
-        edge_lengths(2) = grid%cell_edge_lengths(2, i, j)  ! right
-        edge_lengths(3) = grid%cell_edge_lengths(3, i, j)  ! top
-        edge_lengths(4) = grid%cell_edge_lengths(4, i, j)  ! left
+        edge_lengths(1) = grid%edge_lengths(1, i, j)  ! bottom
+        edge_lengths(2) = grid%edge_lengths(2, i, j)  ! right
+        edge_lengths(3) = grid%edge_lengths(3, i, j)  ! top
+        edge_lengths(4) = grid%edge_lengths(4, i, j)  ! left
 
         if(abs(edge_lengths(3) - edge_lengths(1)) < EPS) edge_lengths(3) = edge_lengths(1)
         if(abs(edge_lengths(4) - edge_lengths(2)) < EPS) edge_lengths(4) = edge_lengths(2)
@@ -93,14 +93,14 @@ contains
         diff = maxval(edge_lengths) - minval(edge_lengths)
         if(diff < EPS) edge_lengths = maxval(edge_lengths)
 
-        n_x(1) = grid%cell_edge_norm_vectors(1, 1, i, j)  ! bottom
-        n_y(1) = grid%cell_edge_norm_vectors(2, 1, i, j)  ! bottom
-        n_x(2) = grid%cell_edge_norm_vectors(1, 2, i, j)  ! right
-        n_y(2) = grid%cell_edge_norm_vectors(2, 2, i, j)  ! right
-        n_x(3) = grid%cell_edge_norm_vectors(1, 3, i, j)  ! top
-        n_y(3) = grid%cell_edge_norm_vectors(2, 3, i, j)  ! top
-        n_x(4) = grid%cell_edge_norm_vectors(1, 4, i, j)  ! left
-        n_y(4) = grid%cell_edge_norm_vectors(2, 4, i, j)  ! left
+        n_x(1) = grid%edge_norm_vectors(1, 1, i, j)  ! bottom
+        n_y(1) = grid%edge_norm_vectors(2, 1, i, j)  ! bottom
+        n_x(2) = grid%edge_norm_vectors(1, 2, i, j)  ! right
+        n_y(2) = grid%edge_norm_vectors(2, 2, i, j)  ! right
+        n_x(3) = grid%edge_norm_vectors(1, 3, i, j)  ! top
+        n_y(3) = grid%edge_norm_vectors(2, 3, i, j)  ! top
+        n_x(4) = grid%edge_norm_vectors(1, 4, i, j)  ! left
+        n_y(4) = grid%edge_norm_vectors(2, 4, i, j)  ! left
 
         d_dx = sum(edge_vars(:, i, j) * n_x * edge_lengths)
         d_dy = sum(edge_vars(:, i, j) * n_y * edge_lengths)

@@ -35,7 +35,7 @@ module mod_fvleg_solver
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use mod_flux_array, only: get_fluxes, flux_array_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_input, only: input_t
 
   implicit none
@@ -96,7 +96,7 @@ contains
                          d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(fvleg_solver_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
@@ -165,8 +165,8 @@ contains
 
     call debug_print('Running fvleg_t%solve_fvleg()', __FILE__, __LINE__)
 
-    associate(imin => grid%ilo_bc_cell, imax => grid%ihi_bc_cell, &
-              jmin => grid%jlo_bc_cell, jmax => grid%jhi_bc_cell)
+    associate(imin => grid%cell_lbounds_halo(1), imax => grid%cell_ubounds_halo(1), &
+              jmin => grid%cell_lbounds_halo(2), jmax => grid%cell_ubounds_halo(2))
 
       allocate(rho_recon_state(1:8, imin:imax, jmin:jmax))
       allocate(u_recon_state(1:8, imin:imax, jmin:jmax))
@@ -176,8 +176,8 @@ contains
 
     associate(imin_node => grid%ilo_node, imax_node => grid%ihi_node, &
               jmin_node => grid%jlo_node, jmax_node => grid%jhi_node, &
-              imin_cell => grid%ilo_cell, imax_cell => grid%ihi_cell, &
-              jmin_cell => grid%jlo_cell, jmax_cell => grid%jhi_cell)
+              imin_cell => grid%cell_lbounds(1), imax_cell => grid%cell_ubounds(1), &
+              jmin_cell => grid%cell_lbounds(2), jmax_cell => grid%cell_ubounds(2))
 
       allocate(evolved_corner_rho(imin_node:imax_node, jmin_node:jmax_node))
       allocate(evolved_corner_u(imin_node:imax_node, jmin_node:jmax_node))
@@ -325,24 +325,24 @@ contains
                         evolved_du_mid_rho, evolved_du_mid_u, evolved_du_mid_v, evolved_du_mid_p, &
                         d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
     !< Evaluate the fluxes along the edges. This is equation 13 in the paper
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
 
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rho_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhou_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhov_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhoE_dt
+    real(rk), dimension(grid%cell_lbounds(1):, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
+    real(rk), dimension(grid%cell_lbounds(1):, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
+    real(rk), dimension(grid%cell_lbounds(1):, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
+    real(rk), dimension(grid%cell_lbounds(1):, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
+    real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
+    real(rk), dimension(grid%cell_lbounds_halo(1):, grid%cell_lbounds_halo(2):), contiguous, intent(inout) :: d_rho_dt
+    real(rk), dimension(grid%cell_lbounds_halo(1):, grid%cell_lbounds_halo(2):), contiguous, intent(inout) :: d_rhou_dt
+    real(rk), dimension(grid%cell_lbounds_halo(1):, grid%cell_lbounds_halo(2):), contiguous, intent(inout) :: d_rhov_dt
+    real(rk), dimension(grid%cell_lbounds_halo(1):, grid%cell_lbounds_halo(2):), contiguous, intent(inout) :: d_rhoE_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j, k, edge, xy
@@ -378,20 +378,20 @@ contains
     corner_fluxes = get_fluxes(rho=evolved_corner_rho, u=evolved_corner_u, v=evolved_corner_v, &
                                p=evolved_corner_p, lbounds=bounds)
 
-    ilo = grid%ilo_cell; ihi = grid%ihi_cell
+    ilo = grid%cell_lbounds(1); ihi = grid%cell_ubounds(1)
     jlo = grid%jlo_node; jhi = grid%jhi_node
     bounds = [ilo, jlo]
     leftright_mid_fluxes = get_fluxes(rho=evolved_lr_mid_rho, u=evolved_lr_mid_u, v=evolved_lr_mid_v, &
                                       p=evolved_lr_mid_p, lbounds=bounds)
 
     ilo = grid%ilo_node; ihi = grid%ihi_node
-    jlo = grid%jlo_cell; jhi = grid%jhi_cell
+    jlo = grid%cell_lbounds(2); jhi = grid%cell_ubounds(2)
     bounds = [ilo, jlo]
     downup_mid_fluxes = get_fluxes(rho=evolved_du_mid_rho, u=evolved_du_mid_u, v=evolved_du_mid_v, &
                                    p=evolved_du_mid_p, lbounds=bounds)
 
-    ilo = grid%ilo_cell; ihi = grid%ihi_cell
-    jlo = grid%jlo_cell; jhi = grid%jhi_cell
+    ilo = grid%cell_lbounds(1); ihi = grid%cell_ubounds(1)
+    jlo = grid%cell_lbounds(2); jhi = grid%cell_ubounds(2)
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j, k, delta_l, n_hat) &
@@ -404,11 +404,11 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
 
-        delta_l = grid%cell_edge_lengths(:, i, j)
+        delta_l = grid%edge_lengths(:, i, j)
 
         do edge = 1, 4
           do xy = 1, 2
-            n_hat(xy, edge) = grid%cell_edge_norm_vectors(xy, edge, i, j)
+            n_hat(xy, edge) = grid%edge_norm_vectors(xy, edge, i, j)
           end do
         end do
 
@@ -428,10 +428,10 @@ contains
                   G_m3 => leftright_mid_fluxes%G(:, i, j + 1), &
                   G_m4 => downup_mid_fluxes%G(:, i, j), &
                   F_m4 => downup_mid_fluxes%F(:, i, j), &
-                  n_hat_1 => grid%cell_edge_norm_vectors(:, 1, i, j), &
-                  n_hat_2 => grid%cell_edge_norm_vectors(:, 2, i, j), &
-                  n_hat_3 => grid%cell_edge_norm_vectors(:, 3, i, j), &
-                  n_hat_4 => grid%cell_edge_norm_vectors(:, 4, i, j))
+                  n_hat_1 => grid%edge_norm_vectors(:, 1, i, j), &
+                  n_hat_2 => grid%edge_norm_vectors(:, 2, i, j), &
+                  n_hat_3 => grid%edge_norm_vectors(:, 3, i, j), &
+                  n_hat_4 => grid%edge_norm_vectors(:, 4, i, j))
 
           ! Bottom
           ! bottom_flux (rho, rhou, rhov, rhoE)
@@ -507,8 +507,8 @@ contains
     !$omp end do simd
     !$omp end parallel
 
-    ilo = grid%ilo_bc_cell; ihi = grid%ihi_bc_cell
-    jlo = grid%jlo_bc_cell; jhi = grid%jhi_bc_cell
+    ilo = grid%cell_lbounds_halo(1); ihi = grid%cell_ubounds_halo(1)
+    jlo = grid%cell_lbounds_halo(2); jhi = grid%cell_ubounds_halo(2)
     d_rho_dt(ilo, :) = 0.0_rk
     d_rho_dt(ihi, :) = 0.0_rk
     d_rho_dt(:, jlo) = 0.0_rk

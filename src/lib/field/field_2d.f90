@@ -251,22 +251,22 @@ module mod_field
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
     end function field_maxval_cpu
-  
+
     module function field_maxloc_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       integer(ik), dimension(2) :: res
     end function field_maxloc_cpu
-  
+
     module function field_minval_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
     end function field_minval_cpu
-  
+
     module function field_minloc_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       integer(ik), dimension(2) :: res
     end function field_minloc_cpu
-    
+
     module function field_sum_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
@@ -389,22 +389,22 @@ module mod_field
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
     end function field_maxval_gpu
-  
+
     module function field_maxloc_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       integer(ik), dimension(2) :: res
     end function field_maxloc_gpu
-  
+
     module function field_minval_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
     end function field_minval_gpu
-  
+
     module function field_minloc_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       integer(ik), dimension(2) :: res
     end function field_minloc_gpu
-    
+
     module function field_sum_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
@@ -504,7 +504,7 @@ contains
 
     if(lhs%domain_shape(1) == rhs%domain_shape(1) .and. &
        lhs%domain_shape(2) == rhs%domain_shape(2)) then
-        field_shapes_match = .true.
+      field_shapes_match = .true.
     end if
   end function field_shapes_match
 
@@ -515,7 +515,7 @@ contains
 
     if(lhs%domain_shape(1) == size(rhs, dim=1) .and. &
        lhs%domain_shape(2) == size(rhs, dim=2)) then
-        shapes_match = .true.
+      shapes_match = .true.
     end if
   end function shapes_match
 
@@ -674,7 +674,7 @@ contains
   ! I/O for HDF5
   ! --------------------------------------------------------------------
   subroutine read_from_h5(self, filename, dataset)
-    !< Read in the data from an hdf5 file. This will read from the 
+    !< Read in the data from an hdf5 file. This will read from the
     !< file and only grab the per-image data, e.g. each field will
     !< only read from the indices it has been assigned with respect
     !< to the global domain.
@@ -686,7 +686,7 @@ contains
     call h5%initialize(filename=trim(filename), status='old', action='r')
 
     ! Read on a per-image basis
-    associate(ilo=>self%ilo, ihi=>self%ihi, jlo=>self%jlo, jhi=>self%jhi)
+    associate(ilo => self%ilo, ihi => self%ihi, jlo => self%jlo, jhi => self%jhi)
       call h5%read(dname=dataset, value=self%data(ilo:ihi, jlo:jhi), &
                    istart=[ilo, jhi], iend=[jlo, jhi])
 
@@ -695,7 +695,7 @@ contains
     end associate
     call h5%finalize()
   end subroutine read_from_h5
-  
+
   subroutine write_to_h5(self, filename, dataset)
     !< Write the global data to an hdf5 file. This gathers all to image 1 and
     !< writes to a single file. Technically, this could be done in parallel
@@ -938,7 +938,7 @@ contains
     if(.not. field_shapes_match(lhs, f)) then
       error stop "Error in field_2d_t%field_add_field(): field_2d_t shapes don't match"
     end if
-    
+
     if(lhs%use_gpu) then
       call field_mul_field_gpu(lhs, f, res)
     else
@@ -957,7 +957,7 @@ contains
     if(.not. field_shapes_match(lhs, f)) then
       error stop "Error in field_2d_t%field_add_field(): field_2d_t shapes don't match"
     end if
-    
+
     if(lhs%use_gpu) then
       call field_div_field_gpu(lhs, f, res)
     else
@@ -1025,7 +1025,7 @@ contains
     if(.not. shapes_match(rhs, x)) then
       error stop "Error in field_2d_t%real_2d_add_field(): field_2d_t and x shapes don't match"
     end if
-    
+
     ! Reuse the field + 2d version
     if(rhs%use_gpu) then
       call field_add_real_2d_gpu(rhs, x, res)
@@ -1168,7 +1168,7 @@ contains
     if(.not. shapes_match(rhs, x)) then
       error stop "Error in field_2d_t%real_2d_div_field(): field_2d_t and x shapes don't match"
     end if
-    
+
     if(rhs%use_gpu) then
       call real_2d_div_field_gpu(x, rhs, res)
     else
@@ -1296,7 +1296,7 @@ contains
       res = field_minloc_cpu(self)
     end if
   end function field_minloc
-  
+
   function field_sum(self) result(res)
     class(field_2d_t), intent(in) :: self
     real(rk) :: res

@@ -1,7 +1,7 @@
 module test_grid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, stdout => output_unit
   use mod_regular_2d_grid, only: regular_2d_grid_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_grid_factory, only: grid_factory
   use mod_input, only: input_t
   use funit
@@ -31,7 +31,7 @@ contains
   @test
   subroutine test_corner_edge_vector_query()
 
-    class(grid_t), pointer :: grid
+    class(grid_block_t), pointer :: grid
     type(input_t) :: input
 
     real(rk), dimension(2, 0:4) :: actual_corner_vectors
@@ -60,7 +60,7 @@ contains
   @test
   subroutine test_leftright_midpoint_edge_vector_query()
 
-    class(grid_t), pointer :: grid
+    class(grid_block_t), pointer :: grid
     type(input_t) :: input
 
     real(rk), dimension(2, 0:2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
@@ -88,7 +88,7 @@ contains
   @test
   subroutine test_downup_midpoint_edge_vector_query()
 
-    class(grid_t), pointer :: grid
+    class(grid_block_t), pointer :: grid
     type(input_t) :: input
 
     real(rk), dimension(2, 0:2) :: actual_midpoint_vectors !< ((x,y), (tail,head), (vector1:vector2))
@@ -115,7 +115,7 @@ contains
   @test
   subroutine test_init_from_ini()
 
-    class(grid_t), pointer :: grid
+    class(grid_block_t), pointer :: grid
     type(input_t) :: input
     integer(ik) :: ini
     character(:), allocatable :: ini_filename
@@ -169,7 +169,7 @@ contains
 
   @test
   subroutine test_init_from_h5()
-    class(grid_t), pointer :: grid
+    class(grid_block_t), pointer :: grid
     type(input_t) :: input
 
     input = input_t(spatial_reconstruction='MUSCL', &
@@ -185,7 +185,7 @@ contains
 
   subroutine test_grid_bounds(grid)
 
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     integer(ik) :: i, j
     integer(ik), parameter :: n_ghost_cells = 2
     integer(ik) :: total_ni_cells
@@ -200,23 +200,23 @@ contains
 
     @assertEqual(1, grid%ilo_node)
     @assertEqual(5, grid%ihi_node)
-    @assertEqual(1, grid%ilo_cell)
-    @assertEqual(4, grid%ihi_cell)
+    @assertEqual(1, grid%cell_lbounds(1))
+    @assertEqual(4, grid%cell_ubounds(1))
 
     @assertEqual(1, grid%jlo_node)
     @assertEqual(3, grid%jhi_node)
-    @assertEqual(1, grid%jlo_cell)
-    @assertEqual(2, grid%jhi_cell)
+    @assertEqual(1, grid%cell_lbounds(2))
+    @assertEqual(2, grid%cell_ubounds(2))
 
     @assertEqual(-1, grid%ilo_bc_node)
     @assertEqual(-1, grid%jlo_bc_node)
-    @assertEqual(-1, grid%ilo_bc_cell)
-    @assertEqual(-1, grid%jlo_bc_cell)
+    @assertEqual(-1, grid%cell_lbounds_halo(1))
+    @assertEqual(-1, grid%cell_lbounds_halo(2))
 
     @assertEqual(7, grid%ihi_bc_node)
     @assertEqual(5, grid%jhi_bc_node)
-    @assertEqual(6, grid%ihi_bc_cell)
-    @assertEqual(4, grid%jhi_bc_cell)
+    @assertEqual(6, grid%cell_ubounds_halo(1))
+    @assertEqual(4, grid%cell_ubounds_halo(2))
 
     @assertEqual(1.0_rk, grid%min_dx)
     @assertEqual(2.0_rk, grid%min_dy)
@@ -232,8 +232,8 @@ contains
     @assertEqual([-3.0_rk, 3.0_rk],[grid%get_x(0, 0), grid%get_x(6, 0)])
 
     @assertEqual(2.0_rk, grid%get_cell_volumes(1, 1))
-    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ilo_bc_cell, grid%jlo_bc_cell))
-    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ihi_bc_cell, grid%jhi_bc_cell))
+    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%cell_lbounds_halo(1), grid%cell_lbounds_halo(2)))
+    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%cell_ubounds_halo(1), grid%cell_ubounds_halo(2)))
 
     i = 1; j = 1
     ! Corners
@@ -263,13 +263,13 @@ contains
     @assertEqual([-1, -1], lbound(grid%cell_centroid_y))
     @assertEqual([total_ni_cells, total_nj_cells], ubound(grid%cell_centroid_y))
 
-    @assertEqual([4, ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_edge_lengths))
-    @assertEqual([1, -1, -1], lbound(grid%cell_edge_lengths))
-    @assertEqual([4, total_ni_cells, total_nj_cells], ubound(grid%cell_edge_lengths))
+    @assertEqual([4, ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%edge_lengths))
+    @assertEqual([1, -1, -1], lbound(grid%edge_lengths))
+    @assertEqual([4, total_ni_cells, total_nj_cells], ubound(grid%edge_lengths))
 
-    @assertEqual([2, 4, ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_edge_norm_vectors))
-    @assertEqual([1, 1, -1, -1], lbound(grid%cell_edge_norm_vectors))
-    @assertEqual([2, 4, total_ni_cells, total_nj_cells], ubound(grid%cell_edge_norm_vectors))
+    @assertEqual([2, 4, ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%edge_norm_vectors))
+    @assertEqual([1, 1, -1, -1], lbound(grid%edge_norm_vectors))
+    @assertEqual([2, 4, total_ni_cells, total_nj_cells], ubound(grid%edge_norm_vectors))
 
     @assertEqual([8, ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_node_x))
     @assertEqual([1, -1, -1], lbound(grid%cell_node_x))

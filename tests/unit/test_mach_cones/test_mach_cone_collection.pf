@@ -4,7 +4,7 @@ module test_mach_cone_collection
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use math_constants, only: pi, rad2deg
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_grid_factory, only: grid_factory
   use mod_input, only: input_t
 
@@ -13,7 +13,7 @@ module test_mach_cone_collection
   implicit none
 
   class(abstract_reconstruction_t), allocatable :: reconstruction_operator !< Recon operator used to find P' values
-  class(grid_t), pointer :: grid
+  class(grid_block_t), pointer :: grid
 
   type(input_t) :: input
 
@@ -94,8 +94,8 @@ contains
 
     associate(imin_node => grid%ilo_node, imax_node => grid%ihi_node, &
               jmin_node => grid%jlo_node, jmax_node => grid%jhi_node, &
-              imin_cell => grid%ilo_cell, imax_cell => grid%ihi_cell, &
-              jmin_cell => grid%jlo_cell, jmax_cell => grid%jhi_cell)
+              imin_cell => grid%cell_lbounds(1), imax_cell => grid%cell_ubounds(1), &
+              jmin_cell => grid%cell_lbounds(2), jmax_cell => grid%cell_ubounds(2))
 
       print *, imin_node, imax_node, jmin_node, jmax_node
       print *, imin_cell, imax_cell, jmin_cell, jmax_cell

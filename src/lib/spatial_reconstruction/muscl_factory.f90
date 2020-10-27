@@ -42,7 +42,7 @@ module mod_muscl_interpolator_factory
   ! use mod_muscl_mlp, only: muscl_mlp_t, new_muscl_mlp
   ! use mod_muscl_e_mlp, only: muscl_e_mlp_t, new_muscl_e_mlp
 
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
 
   implicit none
 

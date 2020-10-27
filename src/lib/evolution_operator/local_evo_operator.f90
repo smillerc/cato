@@ -33,7 +33,7 @@ module mod_local_evo_operator
   use mod_input, only: input_t
   use mod_mach_cone_collection, only: mach_cone_collection_t
 
-  use mod_grid, only: grid_t, C1, M1, C2, M2, C3, M3, C4, M4
+  use mod_grid_block, only: grid_block_t, C1, M1, C2, M2, C3, M3, C4, M4
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
 
   implicit none
@@ -47,7 +47,7 @@ module mod_local_evo_operator
     !< operator will inherit from this class. Most of the attributes are the same, just that the
     !< implementation varies between those who inherit this class
 
-    class(grid_t), pointer :: grid => null()
+    class(grid_block_t), pointer :: grid => null()
     !< pointer to the grid object
 
     real(rk), dimension(:, :, :), pointer :: reconstructed_rho => null()
@@ -79,7 +79,7 @@ contains
   subroutine initialize(self, dt, grid_target, recon_operator_target)
     !< Constructor for the FVLEG operator
     class(local_evo_operator_t), intent(inout) :: self
-    class(grid_t), intent(in), target :: grid_target
+    class(grid_block_t), intent(in), target :: grid_target
     real(rk), intent(in) :: dt !< timestep
     class(abstract_reconstruction_t), intent(in), target :: recon_operator_target
 

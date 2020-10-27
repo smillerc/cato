@@ -32,7 +32,8 @@ module mod_fluid
   use mod_distinguisher, only: distinguish
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_bc_factory, only: bc_factory
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
@@ -72,6 +73,7 @@ module mod_fluid
     character(len=10) :: time_integration_scheme = 'ssp_rk2'
     real(rk) :: time = 0.0_rk !< current simulation time
     real(rk) :: dt = 0.0_rk   !< time step
+    real(rk) :: cfl = 0.0_rk  !< Courant–Friedrichs–Lewy condition (CFL)
     integer(ik) :: iteration = 0 !< current iteration number
 
     logical, public :: prim_vars_updated = .false.
@@ -128,17 +130,20 @@ contains
   function new_fluid(input, grid) result(fluid)
     !< Fluid constructor
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     type(fluid_t), pointer :: fluid
 
-    allocate(fluid)
-    call fluid%initialize(input, grid)
+    select type(grid)
+    class is (grid_block_2d_t)
+      allocate(fluid)
+      call fluid%initialize(input, grid)
+    end select
   end function new_fluid
 
   subroutine initialize(self, input, grid)
     class(fluid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     class(flux_solver_t), pointer :: solver => null()
     class(boundary_condition_t), pointer :: bc => null()
 
@@ -156,39 +161,39 @@ contains
 
     self%rho = field_2d(name='rho', long_name='Density', &
                         descrip='Cell Density', units='g/cm^3', &
-                        global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                        global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%rho_u = field_2d(name='rhou', long_name='rhou', descrip='Cell Conserved quantity (Density * X-Velocity)', &
-                            units='g cm/cm^2 s', &
-                            global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                          units='g cm/cm^2 s', &
+                          global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%rho_v = field_2d(name='rhov', long_name='rhov', descrip='Cell Conserved quantity (Density * Y-Velocity)', &
-                            units='g cm/cm^2 s', &
-                            global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                          units='g cm/cm^2 s', &
+                          global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%rho_E = field_2d(name='rhoE', long_name='rhoE', descrip='Cell Conserved quantity (Density * Total Energy)', &
-                            units='g erg / cm^3', &
-                            global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                          units='g erg / cm^3', &
+                          global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%u = field_2d(name='u', long_name='X Velocity', descrip='Cell X-Velocity', units='cm/s', &
-                        global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%v = field_2d(name='v', long_name='Y Velocity', descrip='Cell Y-Velocity', units='cm/s', &
-                        global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%p = field_2d(name='p', long_name='Pressure', descrip='Cell Pressure', units='barye', &
-                        global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%cs = field_2d(name='cs', long_name='Sound Speed', descrip='Cell Sound Speed', units='cm/s', &
-                         global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                       global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%mach_u = field_2d(name='mach_u', long_name='Mach X', descrip='Cell Mach number in x-direction', &
-                             units='dimensionless', &
-                             global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                           units='dimensionless', &
+                           global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%mach_v = field_2d(name='mach_v', long_name='Mach Y', descrip='Cell Mach number in y-direction', &
-                             units='dimensionless', &
-                             global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
+                           units='dimensionless', &
+                           global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
 
     self%smooth_residuals = input%smooth_residuals
 
@@ -469,21 +474,24 @@ contains
     !< Integrate in time
     class(fluid_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< time step
-    class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
+    class(grid_block_t), intent(in) :: grid !< grid class - the solver needs grid topology
     integer(ik), intent(out) :: error_code
-
+    
     if(enable_debug_print) call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
     self%time = self%time + dt
     self%dt = dt
 
-    select case(trim(self%time_integration_scheme))
-    case('ssp_rk2')
-      call self%ssp_rk2(grid, error_code)
-    case('ssp_rk3')
-      call self%ssp_rk3(grid, error_code)
-    case default
-      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
-                     message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
+    select type(grid)
+    class is (grid_block_2d_t)
+      select case(trim(self%time_integration_scheme))
+      case('ssp_rk2')
+        call self%ssp_rk2(grid, error_code)
+      case('ssp_rk3')
+        call self%ssp_rk3(grid, error_code)
+      case default
+        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
+                      message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
+      end select
     end select
   end subroutine integrate
 
@@ -492,7 +500,7 @@ contains
 
     ! Inputs/Output
     class(fluid_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid     !< grid class - the solver needs grid topology
+    class(grid_block_2d_t), intent(in) :: grid     !< grid class - the solver needs grid topology
     type(fluid_t), allocatable :: d_dt    !< dU/dt
     integer(ik), intent(in) :: stage      !< stage in the time integration scheme
 
@@ -507,6 +515,24 @@ contains
                            d_rho_E_dt=d_dt%rho_E)
 
   end function time_derivative
+
+  real(rk) function maximum_timestep(self, grid) result(delta_t)
+    class(fluid_t), intent(inout) :: self
+    class(grid_block_t), intent(in) :: grid
+
+    select type(grid)
+    class is (grid_block_2d_t)
+      associate(cfl => self%cfl, &
+                u => abs(self%u%data  (self%u%lbounds(1) :self%u%ubounds(1),  self%u%lbounds(2):self%u%ubounds(2))), &
+                v => abs(self%v%data  (self%v%lbounds(1) :self%v%ubounds(1),  self%v%lbounds(2):self%v%ubounds(2))), &
+                cs => self%cs%data   (self%cs%lbounds(1) :self%u%ubounds(1), self%cs%lbounds(2):self%u%ubounds(2)), &
+                dx => grid%cell_dx(grid%cell_lbounds(1), grid%cell_ubounds(1)), &
+                dy => grid%cell_dy(grid%cell_lbounds(2), grid%cell_ubounds(2)))
+
+        delta_t = minval(cfl / (((u + cs) / dx) + ((v + cs) / dy)))
+      end associate
+    end select
+  end function maximum_timestep
 
   subroutine calculate_derived_quantities(self)
     !< Find derived quantities like sound speed, mach number, primitive variables
@@ -737,7 +763,7 @@ contains
   subroutine ssp_rk3(U, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 3rd order
     class(fluid_t), intent(inout) :: U
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
@@ -782,7 +808,7 @@ contains
   subroutine ssp_rk2(U, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 2nd order
     class(fluid_t), intent(inout) :: U
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
 
     type(fluid_t), allocatable :: U_1 !< first stage
     integer(ik), intent(out) :: error_code

@@ -23,10 +23,32 @@ module mod_grid_block
   end type
 
   type, abstract :: grid_block_t
-    private
-    integer(ik), public :: host_image_id = 0  !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
-    integer(ik), public :: n_halo_cells = 0  !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
+    integer(ik) :: host_image_id = 0  !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
+    integer(ik) :: n_halo_cells = 0  !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
     logical :: is_axisymmetric = .false.     !< Is this an axisymmetric grid? (need for volume computation)
+
+    ! Bounds information
+    integer(ik), dimension(:), allocatable :: global_node_dims !< (i, j, k); # of array indices in each dimension
+    integer(ik), dimension(:), allocatable :: global_cell_dims !< (i, j, k); # of array indices in each dimension
+
+    integer(ik), dimension(:), allocatable :: domain_node_shape !< (i, j, k); # of array indices in each dimension
+    integer(ik), dimension(:), allocatable :: domain_cell_shape !< (i, j, k); # of array indices in each dimension
+
+    integer(ik), dimension(:), allocatable :: node_lbounds !< (i, j, k); lower bounds (not including halo cells)
+    integer(ik), dimension(:), allocatable :: node_ubounds !< (i, j, k); upper bounds (not including halo cells)
+
+    integer(ik), dimension(:), allocatable :: node_lbounds_halo !< (i, j, k); lower bounds (including halo cells)
+    integer(ik), dimension(:), allocatable :: node_ubounds_halo !< (i, j, k); upper bounds (including halo cells)
+
+    integer(ik), dimension(:), allocatable :: cell_lbounds !< (i, j, k); lower bounds (not including halo cells)
+    integer(ik), dimension(:), allocatable :: cell_ubounds !< (i, j, k); upper bounds (not including halo cells)
+
+    integer(ik), dimension(:), allocatable :: cell_lbounds_halo !< (i, j, k); lower bounds (including halo cells)
+    integer(ik), dimension(:), allocatable :: cell_ubounds_halo !< (i, j, k); upper bounds (including halo cells)
+
+    ! Boundary condition checks
+    logical, dimension(:,:), allocatable :: on_bc !< ((lo,hi),(i,j,k)) does this grid live on the ihi boundary?
+
   contains
     procedure(initialize), deferred :: initialize
   end type grid_block_t

@@ -843,7 +843,7 @@ CONTAINS
         ! Got a non-match.  If we've set our bookmarks, back up to one or both of them and retry.
         if(wbookmark /= NULL) then
           if(wildtext(wi:) /= wbookmark) then
-            wildtext = wbookmark;
+            wildtext = wbookmark; 
             wlen = len_trim(wbookmark)
             wi = 1
             ! Don't go this far back again.

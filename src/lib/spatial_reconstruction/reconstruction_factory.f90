@@ -28,7 +28,7 @@ module mod_reconstruction_factory
   use mod_piecewise_constant_reconstruction, only: piecewise_constant_reconstruction_t
   use mod_piecewise_linear_reconstruction, only: piecewise_linear_reconstruction_t
 
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
 
   implicit none
 

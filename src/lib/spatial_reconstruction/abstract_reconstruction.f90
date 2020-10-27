@@ -25,7 +25,7 @@ module mod_abstract_reconstruction
   use mod_slope_limiter, only: slope_limiter_t
   ! use mod_flux_limiter, only: flux_limiter_t
   use mod_input, only: input_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_globals, only: debug_print
 
   implicit none

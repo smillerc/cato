@@ -73,7 +73,7 @@ type(fclPlatform) :: chosenPlatform
 character(:), allocatable :: vendors(:)
 
 ! Get platforms
-platforms = fclGetPlatforms();
+platforms = fclGetPlatforms(); 
 ! Check for multiple vendors
 call splitStr(vendor, vendors, delimiters=',')
 
@@ -267,7 +267,7 @@ integer :: nDevice
 logical :: found
 
 ! Get platforms
-platforms = fclGetPlatforms();
+platforms = fclGetPlatforms(); 
 ! Count total number of system devices
 nDevice = 0
 do i = 1, size(platforms, 1)
