@@ -136,7 +136,7 @@ contains
     ! jhi = master%grid%cell_ubounds(2)
 
     ! if(.not. master%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
-    ! associate(dx => master%grid%cell_dx, dy => master%grid%cell_dy)
+    ! associate(dx => master%grid%dx, dy => master%grid%dy)
 
     !   delta_t = minval(cfl / &
     !                    (((abs(master%fluid%u%data(ilo:ihi, jlo:jhi)) + &

@@ -52,6 +52,9 @@ module mod_master_puppeteer
     real(rk) :: time = 0.0_rk    !< simulation time
     class(grid_block_t), allocatable :: grid   !< grid topology
     class(fluid_t), allocatable :: fluid !< fluid physics
+    logical :: is_1d = .false.
+    logical :: is_2d = .false.
+    logical :: is_3d = .false.
 
   contains
     procedure, public :: initialize
@@ -138,31 +141,48 @@ contains
   subroutine integrate(self, dt, error_code)
     !< Advance the simulation forward in time
     class(master_puppeteer_t), intent(inout) :: self
-    real(rk), intent(in) :: dt !< timestep
     integer(ik), intent(out) :: error_code
+    real(rk), optional, intent(in) :: dt
+
+    real(rk) :: max_dt
+
+    if (present(dt)) then
+      self%dt = dt
+    else
+      self%dt = 0.0_rk
+    end if
 
     self%iteration = self%iteration + 1
-    self%time = self%time + dt
+    
+    ! Get the maximum allowable timestep from each physics package
+    max_dt = self%fluid%get_timestep(self%grid)
+    if (self%dt > max_dt) then
+      write(*, '(a,i0,a,2(es16.6,a))') "Warning on image ",this_image(), &
+                   ", the input dt (",self%dt,&
+                   ") is larger than the max allowable dt (", max_dt, &
+                   ") based on the CFL condition"
+    else
+      self%dt = max_dt
+    end if 
+
+    self%time = self%time + self%dt
 
     select type(grid => self%grid)
     class is (grid_block_2d_t)
-      call self%fluid%integrate(dt=dt, grid=self%grid, error_code=error_code)
+      call self%fluid%integrate(dt=self%dt, grid=self%grid, error_code=error_code)
     end select
 
   end subroutine integrate
 
-  subroutine set_time(self, time, dt, iteration)
+  subroutine set_time(self, time, iteration)
     !< Set the time statistics
     class(master_puppeteer_t), intent(inout) :: self
     real(rk), intent(in) :: time          !< simulation time
-    real(rk), intent(in) :: dt            !< time-step
     integer(ik), intent(in) :: iteration  !< iteration
 
     self%time = time
     self%iteration = iteration
-    self%dt = dt
-
-    call self%fluid%set_time(time, dt, iteration)
+    call self%fluid%set_time(time, iteration)
   end subroutine set_time
 
 end module mod_master_puppeteer

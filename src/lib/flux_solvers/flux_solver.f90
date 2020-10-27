@@ -155,7 +155,7 @@ contains
       do i = ilo, ihi
 
         delta_l = grid%edge_lengths(:, i, j)
-        volume = grid%cell_volume(i, j)
+        volume = grid%volume(i, j)
 
         ! rho
         rho_edge_fluxes = [self%iflux(1, i, j) * delta_l(2), -self%iflux(1, i - 1, j) * delta_l(4), &

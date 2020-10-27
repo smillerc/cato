@@ -496,10 +496,10 @@ contains
             rhoE_flux = 0.0_rk
           end if
 
-          d_rho_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rho_flux
-          d_rhou_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhou_flux
-          d_rhov_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhov_flux
-          d_rhoE_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhoE_flux
+          d_rho_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rho_flux
+          d_rhou_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhou_flux
+          d_rhov_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhov_flux
+          d_rhoE_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhoE_flux
         end associate
 
       end do ! i

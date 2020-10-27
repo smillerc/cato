@@ -111,6 +111,7 @@ module mod_fluid
     ! Public methods
     procedure, public :: initialize
     procedure, public :: set_time
+    procedure, public :: get_timestep
     procedure, public :: integrate
     procedure, public :: t => time_derivative
     procedure, public :: force_finalization
@@ -161,39 +162,39 @@ contains
 
     self%rho = field_2d(name='rho', long_name='Density', &
                         descrip='Cell Density', units='g/cm^3', &
-                        global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                        global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%rho_u = field_2d(name='rhou', long_name='rhou', descrip='Cell Conserved quantity (Density * X-Velocity)', &
                           units='g cm/cm^2 s', &
-                          global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                          global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%rho_v = field_2d(name='rhov', long_name='rhov', descrip='Cell Conserved quantity (Density * Y-Velocity)', &
                           units='g cm/cm^2 s', &
-                          global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                          global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%rho_E = field_2d(name='rhoE', long_name='rhoE', descrip='Cell Conserved quantity (Density * Total Energy)', &
                           units='g erg / cm^3', &
-                          global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                          global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%u = field_2d(name='u', long_name='X Velocity', descrip='Cell X-Velocity', units='cm/s', &
-                      global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%v = field_2d(name='v', long_name='Y Velocity', descrip='Cell Y-Velocity', units='cm/s', &
-                      global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%p = field_2d(name='p', long_name='Pressure', descrip='Cell Pressure', units='barye', &
-                      global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%cs = field_2d(name='cs', long_name='Sound Speed', descrip='Cell Sound Speed', units='cm/s', &
-                       global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                       global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%mach_u = field_2d(name='mach_u', long_name='Mach X', descrip='Cell Mach number in x-direction', &
                            units='dimensionless', &
-                           global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                           global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%mach_v = field_2d(name='mach_v', long_name='Mach Y', descrip='Cell Mach number in y-direction', &
                            units='dimensionless', &
-                           global_dims=grid%global_cell_dims, n_halo_cells=input%n_ghost_layers)
+                           global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
 
     self%smooth_residuals = input%smooth_residuals
 
@@ -457,17 +458,15 @@ contains
     ! if(allocated(self%solver)) deallocate(self%solver)
   end subroutine finalize
 
-  subroutine set_time(self, time, dt, iteration)
+  subroutine set_time(self, time, iteration)
     !< Set the time statistics
     class(fluid_t), intent(inout) :: self
     real(rk), intent(in) :: time          !< simulation time
-    real(rk), intent(in) :: dt            !< time-step
     integer(ik), intent(in) :: iteration  !< iteration
 
     if(enable_debug_print) call debug_print('Running fluid_t%set_time()', __FILE__, __LINE__)
     self%time = time
     self%iteration = iteration
-    self%dt = dt
   end subroutine set_time
 
   subroutine integrate(self, dt, grid, error_code)
@@ -500,9 +499,9 @@ contains
 
     ! Inputs/Output
     class(fluid_t), intent(inout) :: self
-    class(grid_block_2d_t), intent(in) :: grid     !< grid class - the solver needs grid topology
-    type(fluid_t), allocatable :: d_dt    !< dU/dt
-    integer(ik), intent(in) :: stage      !< stage in the time integration scheme
+    class(grid_block_2d_t), intent(in) :: grid  !< grid class - the solver needs grid topology
+    type(fluid_t), allocatable :: d_dt          !< dU/dt
+    integer(ik), intent(in) :: stage            !< stage in the time integration scheme
 
     if(enable_debug_print) call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
@@ -516,23 +515,58 @@ contains
 
   end function time_derivative
 
-  real(rk) function maximum_timestep(self, grid) result(delta_t)
+  real(rk) function get_timestep(self, grid) result(delta_t)
     class(fluid_t), intent(inout) :: self
     class(grid_block_t), intent(in) :: grid
+    real(rk), save :: coarray_max_delta_t[*] !< the max allowable timestep on each subdomain/image
+    integer(ik) :: ierr
+    integer(ik) :: ilo, ihi, jlo, jhi ! fluid lo/hi indicies
+    integer(ik) :: g_ilo, g_ihi, g_jlo, g_jhi ! grid lo/hi indices
+    character(len=200) :: err_msg
 
+    real(rk), allocatable, save, dimension(:, :) :: dx, dy
+
+    g_ilo = grid%cell_lbounds(1)
+    g_ihi = grid%cell_ubounds(1)
+
+    g_jlo = grid%cell_lbounds(2)
+    g_jhi = grid%cell_ubounds(2)
+
+    if (.not. allocated(dx)) allocate(dx(g_ilo:g_ihi, g_jlo:g_jhi))
+    if (.not. allocated(dy)) allocate(dy(g_ilo:g_ihi, g_jlo:g_jhi))
+  
     select type(grid)
     class is (grid_block_2d_t)
-      associate(cfl => self%cfl, &
-                u => abs(self%u%data  (self%u%lbounds(1) :self%u%ubounds(1),  self%u%lbounds(2):self%u%ubounds(2))), &
-                v => abs(self%v%data  (self%v%lbounds(1) :self%v%ubounds(1),  self%v%lbounds(2):self%v%ubounds(2))), &
-                cs => self%cs%data   (self%cs%lbounds(1) :self%u%ubounds(1), self%cs%lbounds(2):self%u%ubounds(2)), &
-                dx => grid%cell_dx(grid%cell_lbounds(1), grid%cell_ubounds(1)), &
-                dy => grid%cell_dy(grid%cell_lbounds(2), grid%cell_ubounds(2)))
-
-        delta_t = minval(cfl / (((u + cs) / dx) + ((v + cs) / dy)))
-      end associate
+      dy = grid%dy(g_ilo:g_ihi, g_jlo:g_jhi)
+      dx = grid%dy(g_ilo:g_ihi, g_jlo:g_jhi)
     end select
-  end function maximum_timestep
+
+    err_msg = ''
+
+    ilo = self%u%lbounds(1)
+    ihi = self%u%ubounds(1)
+
+    jlo = self%u%lbounds(2)
+    jhi = self%u%ubounds(2)
+    print*,'fluid: ', ilo, ihi, jlo, jhi
+    print*,'grid : ', g_ilo, g_ihi, g_jlo, g_jhi
+
+    coarray_max_delta_t = minval(self%cfl / &
+                       (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
+                          self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
+                        ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
+                          self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
+    
+    sync all
+    ! Get the minimum timestep across all the images and save it on each image
+    call co_min(coarray_max_delta_t, stat=ierr)
+    if (ierr /= 0) then
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='get_timestep', &
+                     message="Unable to run the co_min() to get min timestep across images: err_msg=" // trim(err_msg), &
+                     file_name=__FILE__, line_number=__LINE__)
+    end if
+    delta_t = coarray_max_delta_t
+  end function get_timestep
 
   subroutine calculate_derived_quantities(self)
     !< Find derived quantities like sound speed, mach number, primitive variables

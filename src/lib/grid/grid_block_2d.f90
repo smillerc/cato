@@ -5,27 +5,84 @@ module mod_grid_block_2d
   use mod_input, only: input_t
   use mod_parallel, only: tile_indices
   use h5fortran, only: hdf5_file, hsize_t
+  use mod_quad_cell, only: quad_cell_t
+  use mod_error, only: error_msg
+  use mod_nondimensionalization, only: set_length_scale, l_0
+  use mod_units, only: um_to_cm
 
   implicit none(type, external)
 
   private
   public :: grid_block_2d_t, new_2d_grid_block
 
-  type, extends(grid_block_t) :: grid_block_2d_t
-    real(rk), dimension(:, :), allocatable :: cell_volume !< (i, j); volume of each cell
-    real(rk), dimension(:, :), allocatable :: cell_dx     !< (i, j); dx spacing of each cell
-    real(rk), dimension(:, :), allocatable :: cell_dy     !< (i, j); dy spacing of each cell
+  type :: grid_block_2d_t
+    logical :: is_uniform = .false.
+    real(rk), dimension(:, :), allocatable :: volume !< (i, j); volume of each cell
+    real(rk), dimension(:, :), allocatable :: dx     !< (i, j); dx spacing of each cell
+    real(rk), dimension(:, :), allocatable :: dy     !< (i, j); dy spacing of each cell
     real(rk), dimension(:, :), allocatable :: node_x      !< (i, j); x location of each node
     real(rk), dimension(:, :), allocatable :: node_y      !< (i, j); y location of each node
     real(rk), dimension(:, :), allocatable :: centroid_x  !< (i, j); x location of the cell centroid
     real(rk), dimension(:, :), allocatable :: centroid_y  !< (i, j); y location of the cell centroid
     real(rk), dimension(:, :, :), allocatable :: edge_lengths         !< ((edge_1:edge_n), i, j); length of each edge
     real(rk), dimension(:, :, :, :), allocatable :: edge_norm_vectors !< ((x,y), edge, i, j); normal direction vector of each face
+
+    integer(ik) :: host_image_id = 0
+    integer(ik) :: n_halo_cells = 0
+    integer(ik) :: total_cells = 0
+    integer(ik) :: total_cells_halo = 0
+    integer(ik) :: ni_cells = 0
+    integer(ik) :: nj_cells = 0
+    integer(ik) :: ni_cells_halo = 0
+    integer(ik) :: nj_cells_halo = 0
+
+    ! All quantities are with respect to the current local block, unless 'global' is specified.
+    ! The 'halo' suffix means that halo/ghost/bc cells are included
+    integer(ik) :: ilo_cell = 0 !< cell low i index (excluding halo)
+    integer(ik) :: jlo_cell = 0 !< cell low j index (excluding halo)
+    integer(ik) :: ihi_cell = 0 !< cell high i index (excluding halo)
+    integer(ik) :: jhi_cell = 0 !< cell high j index (excluding halo)
+    integer(ik) :: ilo_cell_halo = 0 !< cell low i index (including halo) 
+    integer(ik) :: jlo_cell_halo = 0 !< cell low j index (including halo) 
+    integer(ik) :: ihi_cell_halo = 0 !< cell high i index (including halo) 
+    integer(ik) :: jhi_cell_halo = 0 !< cell high j index (including halo) 
+    integer(ik) :: ilo_cell_global = 0 !< cell low i index (excluding halo) in the global scope
+    integer(ik) :: jlo_cell_global = 0 !< cell low j index (excluding halo) in the global scope
+    integer(ik) :: ihi_cell_global = 0 !< cell high i index (excluding halo) in the global scope
+    integer(ik) :: jhi_cell_global = 0 !< cell high j index (excluding halo) in the global scope
+    
+    integer(ik), dimension(2) :: cell_dim_global = 0 
+    !< (i, j); number of cells in each direction in the global scope (excluding halo)
+
+    integer(ik) :: ilo_node = 0
+    integer(ik) :: jlo_node = 0
+    integer(ik) :: ihi_node = 0
+    integer(ik) :: jhi_node = 0
+    integer(ik) :: ilo_node_halo = 0
+    integer(ik) :: jlo_node_halo = 0
+    integer(ik) :: ihi_node_halo = 0
+    integer(ik) :: jhi_node_halo = 0
+
+    logical :: on_ilo_bc = .false.
+    logical :: on_ihi_bc = .false.
+    logical :: on_jlo_bc = .false.
+    logical :: on_jhi_bc = .false.
+
+    ! Parallel neighbor information
+    integer(ik), dimension(8) :: neighbors = 0 !< (N, S, E, W, NE, SE, SW, NW); parallel neighbor image indices
   contains
-    procedure :: initialize => init_2d_block
-    procedure :: gather
-    procedure :: read_from_h5
-    procedure :: write_to_h5
+    ! Private methods
+    private
+    procedure :: populate_element_specifications
+    procedure :: scale_and_nondimensionalize
+    
+    ! Public methods
+    procedure, public :: initialize => init_2d_block
+    procedure, public :: gather
+    procedure, public :: read_from_h5
+    procedure, public :: write_to_h5
+
+    ! Finalize
     final :: finalize_2d_block
   end type grid_block_2d_t
 
@@ -42,154 +99,217 @@ contains
     class(input_t), intent(in) :: input
 
     type(hdf5_file) :: h5
-    integer(ik) :: global_node_dims(2)
-    integer(hsize_t), allocatable :: node_shape(:)
+    integer(hsize_t), allocatable :: cell_shape(:)
+    integer(ik) :: global_cell_dims(2) = 0
+    integer(ik) :: global_node_dims(2) = 0
+    integer(ik), dimension(2) :: lbounds = 0
+    integer(ik), dimension(2) :: ubounds = 0
     integer(ik) :: indices(4)
     integer(ik) :: alloc_status
 
     call h5%initialize(trim(input%initial_condition_file), status='old', action='r')
-    call h5%shape('/node_x', node_shape)
+    call h5%shape('/density', cell_shape)
+    call h5%read('/n_ghost_layers',self%n_halo_cells)
     call h5%finalize()
 
-    allocate(self%global_node_dims(2)); self%global_node_dims = 0
-    allocate(self%global_cell_dims(2)); self%global_cell_dims = 0
-    allocate(self%domain_node_shape(2)); self%domain_node_shape = 0
-    allocate(self%domain_cell_shape(2)); self%domain_cell_shape = 0
-    allocate(self%node_lbounds(2)); self%node_lbounds = 0
-    allocate(self%node_ubounds(2)); self%node_ubounds = 0
-    allocate(self%node_lbounds_halo(2)); self%node_lbounds_halo = 0
-    allocate(self%node_ubounds_halo(2)); self%node_ubounds_halo = 0
-    allocate(self%cell_lbounds(2)); self%cell_lbounds = 0
-    allocate(self%cell_ubounds(2)); self%cell_ubounds = 0
-    allocate(self%cell_lbounds_halo(2)); self%cell_lbounds_halo = 0
-    allocate(self%cell_ubounds_halo(2)); self%cell_ubounds_halo = 0
-    allocate(self%on_bc(2,2)); self%on_bc = .false.
+    ! The grid includes the ghost layer information. We want to tile based on
+    ! the real domain b/c it makes the book-keeping a bit easier.
+    ! There are two sets of ghost/halo/boundary cells for each direction
+    
+    ! Get the total # of cells in each direction
+    global_cell_dims = int(cell_shape, ik)
 
-    ! The shape from the hdf5 file must use hsize_t integers, this just converts so that
-    ! the tile_indicies function works (which expects int32 integers)
-    global_node_dims(1) = int(node_shape(1), ik)
-    global_node_dims(2) = int(node_shape(2), ik)
+    ! Remove the halo cell count for now, b/c this makes partitioning easier
+    global_cell_dims = global_cell_dims - (2*self%n_halo_cells)
+    self%ilo_cell_global = 1
+    self%jlo_cell_global = 1
+    self%ihi_cell_global = global_cell_dims(1)
+    self%jhi_cell_global = global_cell_dims(2)
+    self%cell_dim_global = global_cell_dims
 
-    ! Coarray domain-decomposition. The indices are tiled based on the number of available images
-    indices = tile_indices(global_node_dims)
+    ! Now partition via the tile_indices function (this splits based on current image number)
+    indices = tile_indices(global_cell_dims)
+    lbounds = indices([1, 3])
+    ubounds = indices([2, 4])
+    self%ilo_cell = lbounds(1)
+    self%jlo_cell = lbounds(2)
+    self%ihi_cell = ubounds(1)
+    self%jhi_cell = ubounds(2)
 
-    self%global_node_dims = global_node_dims
-    self%global_cell_dims = global_node_dims - 1
+    self%ilo_cell_halo = self%ilo_cell - self%n_halo_cells
+    self%jlo_cell_halo = self%jlo_cell - self%n_halo_cells
+    self%ihi_cell_halo = self%ihi_cell + self%n_halo_cells
+    self%jhi_cell_halo = self%jhi_cell + self%n_halo_cells
 
-    self%node_lbounds = indices([1, 3])
-    self%node_ubounds = indices([2, 4])
+    self%ilo_node = self%ilo_cell
+    self%jlo_node = self%jlo_cell
+    self%ihi_node = self%ihi_cell + 1
+    self%jhi_node = self%jhi_cell + 1
 
-    self%cell_lbounds = self%node_lbounds
-    self%cell_ubounds = self%node_ubounds - 1
+    self%ilo_node_halo = self%ilo_node - self%n_halo_cells
+    self%jlo_node_halo = self%jlo_node - self%n_halo_cells
+    self%ihi_node_halo = self%ihi_node + self%n_halo_cells
+    self%jhi_node_halo = self%jhi_node + self%n_halo_cells
 
-    ! The domain shape is exent in each direction
-    self%domain_node_shape(1) = self%node_ubounds(1) - self%node_lbounds(1) + 1 ! # of nodes in the i direction
-    self%domain_node_shape(2) = self%node_ubounds(2) - self%node_lbounds(2) + 1 ! # of nodes in the j direction
-
-    self%domain_cell_shape(1) = self%cell_ubounds(1) - self%cell_lbounds(1) + 1 ! # of cells in the i direction
-    self%domain_cell_shape(2) = self%cell_ubounds(2) - self%cell_lbounds(2) + 1 ! # of cells in the j direction
     self%host_image_id = this_image()
+    self%ni_cells = self%ihi_cell - self%ilo_cell + 1
+    self%nj_cells = self%jhi_cell - self%jlo_cell + 1
+    self%ni_cells_halo = self%ihi_cell_halo - self%ilo_cell_halo + 1
+    self%nj_cells_halo = self%jhi_cell_halo - self%jlo_cell_halo + 1
+    self%total_cells = self%ni_cells * self%nj_cells
+    self%total_cells_halo = self%ni_cells_halo * self%nj_cells_halo
 
-    ! Determine if this field (or subdomain) has an edge on one of the boundaries
-    ! When data is synced between images / subdomains, those on the boundary must
-    ! have the procedure done via the boundary condition classes. Those on the interior
-    ! of the domain just exchange info with their neighbors
-    if(self%node_lbounds(1) == 1) self%on_bc(1, 1) = .true.
-    if(self%node_lbounds(2) == 1) self%on_bc(1, 2) = .true.
-    if(self%node_ubounds(1) == self%global_node_dims(1)) self%on_bc(2, 1) = .true.
-    if(self%node_ubounds(2) == self%global_node_dims(2)) self%on_bc(2, 2) = .true.
-
-    self%cell_lbounds_halo = self%cell_lbounds - self%n_halo_cells
-    self%cell_ubounds_halo = self%cell_ubounds + self%n_halo_cells
-
-    self%node_lbounds_halo = self%node_lbounds - self%n_halo_cells
-    self%node_ubounds_halo = self%node_ubounds + self%n_halo_cells
+    ! Determine if this grid block has an edge on one of the global boundaries
+    if(self%ilo_cell == 1) self%on_ilo_bc = .true.
+    if(self%jlo_cell == 1) self%on_jlo_bc = .true.
+    if(self%ihi_cell == self%ihi_cell_global) self%on_ihi_bc = .true.
+    if(self%jhi_cell == self%jhi_cell_global) self%on_jhi_bc = .true.
 
     ! Allocate the node-based arrays
-    associate(ilo => self%node_lbounds(1), ihi => self%node_ubounds(1), &
-              jlo => self%node_lbounds(2), jhi => self%node_ubounds(2))
+    associate(ilo => self%ilo_node_halo, ihi => self%ihi_node_halo, &
+              jlo => self%jlo_node_halo, jhi => self%jhi_node_halo)
       allocate(self%node_x(ilo:ihi, jlo:jhi))  !< (i, j); x location of each node
       allocate(self%node_y(ilo:ihi, jlo:jhi))  !< (i, j); y location of each node
     end associate
 
     ! Allocate all of the cell-based arrays
-    associate(ilo => self%cell_lbounds(1), ihi => self%cell_ubounds(1), &
-              jlo => self%cell_lbounds(2), jhi => self%cell_ubounds(2))
-      allocate(self%cell_volume(ilo:ihi, jlo:jhi))             !< (i, j); volume of each cell
-      allocate(self%cell_dx(ilo:ihi, jlo:jhi))                 !< (i, j); dx spacing of each cell
-      allocate(self%cell_dy(ilo:ihi, jlo:jhi))                 !< (i, j); dy spacing of each cell
+    associate(ilo => self%ilo_cell_halo, ihi => self%ihi_cell_halo, &
+              jlo => self%jlo_cell_halo, jhi => self%jhi_cell_halo)
+      allocate(self%volume(ilo:ihi, jlo:jhi))             !< (i, j); volume of each cell
+      allocate(self%dx(ilo:ihi, jlo:jhi))                 !< (i, j); dx spacing of each cell
+      allocate(self%dy(ilo:ihi, jlo:jhi))                 !< (i, j); dy spacing of each cell
       allocate(self%centroid_x(ilo:ihi, jlo:jhi))              !< (i, j); x location of the cell centroid
       allocate(self%centroid_y(ilo:ihi, jlo:jhi))              !< (i, j); y location of the cell centroid
       allocate(self%edge_lengths(4, ilo:ihi, jlo:jhi))         !< ((edge_1:edge_n), i, j); length of each edge
       allocate(self%edge_norm_vectors(2, 4, ilo:ihi, jlo:jhi)) !< ((x,y), edge, i, j);
     end associate
 
-    self%cell_volume = 0.0_rk
-    self%cell_dx = 0.0_rk
-    self%cell_dy = 0.0_rk
+    self%volume = 0.0_rk
+    self%dx = 0.0_rk
+    self%dy = 0.0_rk
     self%node_x = 0.0_rk
     self%node_y = 0.0_rk
     self%centroid_x = 0.0_rk
     self%centroid_y = 0.0_rk
     self%edge_lengths = 0.0_rk
     self%edge_norm_vectors = 0.0_rk
+
+    call self%read_from_h5(input)
+    call self%populate_element_specifications()
+    call self%scale_and_nondimensionalize()
   end subroutine init_2d_block
+
+  subroutine print_grid_stats(self)
+    class(grid_block_2d_t), intent(in) :: self
+    integer :: ni, nj
+    if (this_image() == 1) then
+      ni = self%ihi_cell_global - self%ilo_cell_global + 1
+      nj = self%jhi_cell_global - self%jlo_cell_global + 1
+      write(*, '(a)') "Grid stats:"
+      write(*, '(a)') "========================="
+      write(*, '(a)') "Blocks"
+      write(*, '(a)') "-------------"
+      write(*, '(a, i0)')   "Number of blocks          : ", num_images()
+      write(*, '(2(a,i0))') "Average block size (cells): ", self%ni_cells, " x " , self%nj_cells
+      write(*, '(a, i6)')   "Number of halo cells      : ", self%n_halo_cells
+      write(*, '(a)') "Global"
+      write(*, '(a)') "-------------"
+      write(*, '(a, i0)') "Number of i cells: ", ni
+      write(*, '(a, i0)') "Number of j cells: ", nj
+      write(*, '(a, i0)') "Total cells      : ", ni*nj
+    end if
+  end subroutine print_grid_stats
 
   subroutine finalize_2d_block(self)
     type(grid_block_2d_t), intent(inout) :: self
 
     if(allocated(self%node_x)) deallocate(self%node_x)
     if(allocated(self%node_y)) deallocate(self%node_y)
-    if(allocated(self%cell_volume)) deallocate(self%cell_volume)
-    if(allocated(self%cell_dx)) deallocate(self%cell_dx)
-    if(allocated(self%cell_dy)) deallocate(self%cell_dy)
+    if(allocated(self%volume)) deallocate(self%volume)
+    if(allocated(self%dx)) deallocate(self%dx)
+    if(allocated(self%dy)) deallocate(self%dy)
     if(allocated(self%centroid_x)) deallocate(self%centroid_x)
     if(allocated(self%centroid_y)) deallocate(self%centroid_y)
     if(allocated(self%edge_lengths)) deallocate(self%edge_lengths)
-    if(allocated(self%edge_norm_vectors)) deallocate(self%edge_norm_vectors)
-    if(allocated(self%global_node_dims )) deallocate(self%global_node_dims )
-    if(allocated(self%global_cell_dims )) deallocate(self%global_cell_dims )
-    if(allocated(self%domain_node_shape)) deallocate(self%domain_node_shape)
-    if(allocated(self%domain_cell_shape)) deallocate(self%domain_cell_shape)
-    if(allocated(self%node_lbounds     )) deallocate(self%node_lbounds     )
-    if(allocated(self%node_ubounds     )) deallocate(self%node_ubounds     )
-    if(allocated(self%node_lbounds_halo)) deallocate(self%node_lbounds_halo)
-    if(allocated(self%node_ubounds_halo)) deallocate(self%node_ubounds_halo)
-    if(allocated(self%cell_lbounds     )) deallocate(self%cell_lbounds     )
-    if(allocated(self%cell_ubounds     )) deallocate(self%cell_ubounds     )
-    if(allocated(self%cell_lbounds_halo)) deallocate(self%cell_lbounds_halo)
-    if(allocated(self%cell_ubounds_halo)) deallocate(self%cell_ubounds_halo)
-    if(allocated(self%on_bc)) deallocate(self%on_bc)
-    
+    if(allocated(self%edge_norm_vectors)) deallocate(self%edge_norm_vectors)    
   end subroutine
 
   ! --------------------------------------------------------------------
   ! I/O for HDF5
   ! --------------------------------------------------------------------
-  subroutine read_from_h5(self, filename)
+  subroutine read_from_h5(self, input)
     !< Read in the data from an hdf5 file. This will read from the
     !< file and only grab the per-image data, e.g. each grid block will
     !< only read from the indices it has been assigned with respect
     !< to the global domain.
     class(grid_block_2d_t), intent(inout) :: self
-    character(len=*), intent(in) :: filename
+    class(input_t), intent(in) :: input
+
     type(hdf5_file) :: h5
+    integer(ik) :: alloc_status, ilo, ihi, jlo, jhi
+    logical :: file_exists
+    character(:), allocatable :: filename
+    character(32) :: str_buff = ''
+    character(300) :: msg = ''
+    real(rk), allocatable, dimension(:,:) :: x
+
+    integer(hsize_t), allocatable :: dims(:)
+
+    if(input%restart_from_file) then
+      filename = trim(input%restart_file)
+    else
+      filename = trim(input%initial_condition_file)
+    end if
+
+    file_exists = .false.
+    inquire(file=filename, exist=file_exists)
+
+    if(.not. file_exists) then
+      call error_msg(module_name='mod_grid_block_2d', class_name='grid_block_2d_t', &
+                     procedure_name='read_from_h5', &
+                     message='Error in regular_2d_grid_t%initialize_from_hdf5(); file not found: "'//filename//'"', &
+                     file_name=__FILE__, line_number=__LINE__)
+    end if
 
     call h5%initialize(filename=trim(filename), status='old', action='r')
 
-    ! TODO: what about reading from a 0-based hdf5 file?
-    ! Read on a per-image basis. The -1 is b/c hdf5 files are C-based
-    ! and therefore start at 0 instead of 1
-    associate(ilo => self%node_lbounds(1) - 1, ihi => self%node_ubounds(1) - 1, &
-              jlo => self%node_lbounds(2) - 1, jhi => self%node_ubounds(2) - 1)
+    call h5%read('/n_ghost_layers', self%n_halo_cells)
+    if(self%n_halo_cells /= input%n_ghost_layers) then
+      write(msg, '(2(a,i0),a)') "The number of ghost layers in the .hdf5 file (", self%n_halo_cells, ") does not match the"// &
+        " input requirement set by the edge interpolation scheme (", input%n_ghost_layers, ")"
 
-      call h5%read(dname='x', &
-                   value=self%node_x(ilo:ihi, jlo:jhi), &
-                   istart=[ilo, jhi], iend=[jlo, jhi])
-      call h5%read(dname='y', &
-                   value=self%node_y(ilo:ihi, jlo:jhi), &
-                   istart=[ilo, jhi], iend=[jlo, jhi])
-    end associate
+      call error_msg(module_name='mod_grid_block_2d', class_name='grid_block_2d_t', &
+                     procedure_name='read_from_h5', &
+                     message=msg, &
+                     file_name=__FILE__, line_number=__LINE__)
+    end if
+
+    ! I couldn't get the slice read to work, so we read the whole array
+    ! in and extract the slice later
+    call h5%shape('/x',dims)
+    allocate(x(dims(1), dims(2)))
+    
+    call h5%read(dname='/x',  value=x)
+    self%node_x = x(self%ilo_cell_halo:self%ihi_cell_halo, &
+                    self%jlo_cell_halo:self%jhi_cell_halo)
+    
+    call h5%read(dname='/y',  value=x)
+    self%node_y = x(self%ilo_cell_halo:self%ihi_cell_halo, &
+                    self%jlo_cell_halo:self%jhi_cell_halo)
+
+    if(input%restart_from_file) then
+      call h5%readattr('/x', 'units', str_buff)
+      select case(trim(str_buff))
+      case('um')
+        self%node_x = self%node_x * um_to_cm
+        self%node_y = self%node_y * um_to_cm
+      case('cm')
+        ! Do nothing, since cm is what the code works in
+      case default
+        error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
+      end select
+    end if
+
     call h5%finalize()
   end subroutine read_from_h5
 
@@ -218,18 +338,24 @@ contains
     character(len=*), intent(in) :: var
     real(rk), allocatable, dimension(:, :) :: gather
     real(rk), allocatable :: gather_coarray(:, :)[:]
+    integer(ik) :: ni, nj
 
+    ! This will have halo regions write over themselves, but this shouldn't be a problem b/c
+    ! they are the same
     select case(var)
     case('x', 'y')
-      allocate(gather_coarray(self%global_node_dims(1), self%global_node_dims(2))[*])
-      associate(is => self%node_lbounds(1), ie => self%node_ubounds(1), &
-                js => self%node_lbounds(2), je => self%node_ubounds(2))
+
+      ni = self%ihi_cell_global - self%ilo_cell_global + 2 ! the +2 is b/c of nodes vs cells
+      nj = self%jhi_cell_global - self%jlo_cell_global + 2 ! the +2 is b/c of nodes vs cells
+      allocate(gather_coarray(ni, nj)[*])
+      associate(ilo => self%ilo_node_halo, ihi => self%ihi_node_halo, &
+                jlo => self%jlo_node_halo, jhi => self%jhi_node_halo)
 
         select case(var)
         case('x')
-          gather_coarray(is:ie, js:je)[image] = self%node_x(is:ie, js:je)
+          gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_x(ilo:ihi, jlo:jhi)
         case('y')
-          gather_coarray(is:ie, js:je)[image] = self%node_y(is:ie, js:je)
+          gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_y(ilo:ihi, jlo:jhi)
         end select
 
         sync all
@@ -237,10 +363,13 @@ contains
       end associate
 
     case('volume')
-      allocate(gather_coarray(self%global_cell_dims(1), self%global_cell_dims(2))[*])
-      associate(is => self%cell_lbounds(1), ie => self%cell_ubounds(1), &
-                js => self%cell_lbounds(2), je => self%cell_ubounds(2))
-        gather_coarray(is:ie, js:je)[image] = self%cell_volume(is:ie, js:je)
+
+      ni = self%ihi_cell_global - self%ilo_cell_global + 1
+      nj = self%jhi_cell_global - self%jlo_cell_global + 1
+      allocate(gather_coarray(ni, nj)[*])
+      associate(ilo => self%ilo_cell_halo, ihi => self%ihi_cell_halo, &
+                jlo => self%jlo_cell_halo, jhi => self%jhi_cell_halo)
+        gather_coarray(ilo:ihi, jlo:jhi)[image] = self%volume(ilo:ihi, jlo:jhi)
         sync all
         if(this_image() == image) gather = gather_coarray
       end associate
@@ -249,4 +378,123 @@ contains
     deallocate(gather_coarray)
   end function gather
 
+  subroutine populate_element_specifications(self)
+    !< Summary: Fill the element arrays up with the geometric information
+    !< This seemed to be better for memory access patterns elsewhere in the code. Fortran prefers
+    !< and structure of arrays rather than an array of structures
+
+    class(grid_block_2d_t), intent(inout) :: self
+    type(quad_cell_t) :: quad
+    real(rk), dimension(4) :: x_coords
+    real(rk), dimension(4) :: y_coords
+
+    real(rk), dimension(8) :: p_x !< x coords of the cell corners and midpoints (c1,m1,c2,m2,c3,m3,c4,m4)
+    real(rk), dimension(8) :: p_y !< x coords of the cell corners and midpoints (c1,m1,c2,m2,c3,m3,c4,m4)
+
+    integer(ik) :: i, j
+
+    x_coords = 0.0_rk
+    y_coords = 0.0_rk
+
+    do j = self%jlo_cell_halo, self%jhi_cell_halo
+      do i = self%ilo_cell_halo, self%ihi_cell_halo
+        associate(x => self%node_x, y => self%node_y)
+          x_coords = [x(i, j), x(i + 1, j), x(i + 1, j + 1), x(i, j + 1)]
+          y_coords = [y(i, j), y(i + 1, j), y(i + 1, j + 1), y(i, j + 1)]
+
+          call quad%initialize(x_coords, y_coords)
+
+        end associate
+
+        self%volume(i, j) = quad%volume
+        self%centroid_x(i, j) = quad%centroid(1)
+        self%centroid_y(i, j) = quad%centroid(2)
+        self%edge_lengths(:, i, j) = quad%edge_lengths
+
+        ! call quad%get_cell_point_coords(p_x, p_y)
+        ! self%node_x(:, i, j) = p_x
+        ! self%node_y(:, i, j) = p_y
+
+        self%edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
+        self%dx(i, j) = quad%min_dx
+        self%dy(i, j) = quad%min_dy
+      end do
+    end do
+
+  end subroutine populate_element_specifications
+
+  subroutine scale_and_nondimensionalize(self)
+    !< Scale the grid so that the cells are of size close to 1. If the grid is uniform,
+    !< then everything (edge length and volume) are all 1. If not uniform, then the smallest
+    !< edge legnth is 1. The scaling is done via the smallest edge length. This also sets
+    !< the length scale for the non-dimensionalization module
+
+    class(grid_block_2d_t), intent(inout) :: self
+
+    real(rk) :: diff
+    real(rk), save :: min_edge_length[*]
+    real(rk), save :: max_edge_length[*]
+
+    min_edge_length = minval(self%edge_lengths)
+    max_edge_length = maxval(self%edge_lengths)
+
+    ! Now broadcast the global max/min to all the images
+    call co_max(max_edge_length)
+    call co_min(min_edge_length)
+
+    if(min_edge_length < tiny(1.0_rk)) error stop "Error in grid initialization, the cell min_edge_length = 0"
+
+    diff = max_edge_length - min_edge_length
+    if(diff < 2.0_rk * epsilon(1.0_rk)) then
+      self%is_uniform = .true.
+    end if
+
+    ! Set l_0 for the entire code
+    call set_length_scale(length_scale=min_edge_length)
+
+    ! Scale so that the minimum edge length is 1
+    self%node_x = self%node_x / min_edge_length
+    self%node_y = self%node_y / min_edge_length
+    self%edge_lengths = self%edge_lengths / min_edge_length
+    self%centroid_x = self%centroid_x / min_edge_length
+    self%centroid_y = self%centroid_y / min_edge_length
+    self%node_x = self%node_x / min_edge_length
+    self%node_y = self%node_y / min_edge_length
+    self%dx = self%dx / min_edge_length
+    self%dy = self%dy / min_edge_length
+
+    ! If the grid is uniform, then we can make it all difinitively 1
+    if(self%is_uniform) then
+      write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
+      self%volume = 1.0_rk
+      ! self%cell_edge_lengths = 1.0_rk
+      ! self%dx = 1.0_rk
+      ! self%dy = 1.0_rk
+      ! self%min_dx = 1.0_rk
+      ! self%max_dx = 1.0_rk
+    else
+      self%volume = self%volume / min_edge_length**2
+      ! self%min_dx = minval(self%node_x(lbound(self%node_x, 1) + 1:ubound(self%node_x, 1), :) - &
+      !                     self%node_x(lbound(self%node_x, 1):ubound(self%node_x, 1) - 1, :))
+      ! self%max_dx = maxval(self%node_x(lbound(self%node_x, 1) + 1:ubound(self%node_x, 1), :) - &
+      !                     self%node_x(lbound(self%node_x, 1):ubound(self%node_x, 1) - 1, :))
+
+      ! self%min_dy = minval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
+      !                     self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
+      ! self%max_dy = maxval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
+      !                     self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
+    end if
+
+    ! self%xmin = minval(self%node_x)
+    ! self%xmax = maxval(self%node_x)
+    ! self%ymin = minval(self%node_y)
+    ! self%ymax = maxval(self%node_y)
+
+    ! self%x_length = abs(self%xmax - self%xmin)
+    ! if(self%x_length <= 0) error stop "grid%x_length <= 0"
+
+    ! self%y_length = abs(self%ymax - self%ymin)
+    ! if(self%y_length <= 0) error stop "grid%x_length <= 0"
+
+  end subroutine scale_and_nondimensionalize
 end module

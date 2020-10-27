@@ -109,17 +109,17 @@ contains
           if(abs(d_dx) < EPS) then
             grad_x(i, j) = 0.0_rk
           else
-            grad_x(i, j) = d_dx / grid%cell_volume(i, j)
+            grad_x(i, j) = d_dx / grid%volume(i, j)
           end if
 
           if(abs(d_dy) < EPS) then
             grad_y(i, j) = 0.0_rk
           else
-            grad_y(i, j) = d_dy / grid%cell_volume(i, j)
+            grad_y(i, j) = d_dy / grid%volume(i, j)
           end if
         else
-          grad_x(i, j) = d_dx / grid%cell_volume(i, j)
-          grad_y(i, j) = d_dy / grid%cell_volume(i, j)
+          grad_x(i, j) = d_dx / grid%volume(i, j)
+          grad_y(i, j) = d_dy / grid%volume(i, j)
         end if
 
       end do

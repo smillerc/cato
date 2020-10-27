@@ -11,4 +11,4 @@ add_library(
   src/writer_lt.f90)
 
 target_include_directories(h5fortran PUBLIC ${HDF5_INCLUDE_DIRS})
-target_link_libraries(h5fortran ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
+target_link_libraries(h5fortran ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} ${Coarray_LIBRARIES})

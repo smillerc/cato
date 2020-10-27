@@ -219,7 +219,7 @@ contains
 
     gamma_m_one = self%gamma - 1.0_rk
 
-    E = (p / (rho * gamma_m_one)) + ((u * u + v * v) / 2.0_rk)
+    E = (p / (rho * gamma_m_one)) + (0.5_rk * (u * u + v * v))
 
   end subroutine total_energy_field_2d
 
@@ -232,7 +232,7 @@ contains
     class(field_2d_t), intent(in) :: p    !< pressure
     class(field_2d_t), intent(inout) :: H !< total enthalpy
 
-    H = (p / rho) * (self%gamma / (self%gamma - 1.0_rk)) + ((u * u + v * v) / 2.0_rk)
+    H = (p / rho) * (self%gamma / (self%gamma - 1.0_rk)) + (0.5_rk * (u * u + v * v))
 
   end subroutine total_enthalpy_field_2d
 
@@ -280,7 +280,7 @@ contains
 
     u = rho_u / rho
     v = rho_v / rho
-    p = rho * gamma_m_one * ((rho_E / rho) - ((u * u + v * v) / 2.0_rk))
+    p = rho * gamma_m_one * ((rho_E / rho) - (0.5_rk * (u * u + v * v)))
 
   end subroutine conserved_to_primitive_field_2d
 

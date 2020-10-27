@@ -10,9 +10,9 @@ module mod_grid_block_1d
   public :: grid_block_1d_t, new_1d_grid_block
 
   type, extends(grid_block_t) :: grid_block_1d_t
-    real(rk), dimension(:), allocatable :: cell_volume !< (i); volume of each cell
-    real(rk), dimension(:), allocatable :: cell_dx     !< (i); dx spacing of each cell
-    real(rk), dimension(:), allocatable :: cell_dy     !< (i); dy spacing of each cell
+    real(rk), dimension(:), allocatable :: volume !< (i); volume of each cell
+    real(rk), dimension(:), allocatable :: dx     !< (i); dx spacing of each cell
+    real(rk), dimension(:), allocatable :: dy     !< (i); dy spacing of each cell
     real(rk), dimension(:), allocatable :: node_x      !< (i); x location of each node
     real(rk), dimension(:), allocatable :: node_y      !< (i); y location of each node
     real(rk), dimension(:), allocatable :: centroid_x  !< (i); x location of the cell centroid
@@ -67,9 +67,9 @@ contains
     type(grid_block_1d_t), intent(inout) :: self
     if(allocated(self%node_x)) deallocate(self%node_x)
     if(allocated(self%node_y)) deallocate(self%node_y)
-    if(allocated(self%cell_volume)) deallocate(self%cell_volume)
-    if(allocated(self%cell_dx)) deallocate(self%cell_dx)
-    if(allocated(self%cell_dy)) deallocate(self%cell_dy)
+    if(allocated(self%volume)) deallocate(self%volume)
+    if(allocated(self%dx)) deallocate(self%dx)
+    if(allocated(self%dy)) deallocate(self%dy)
     if(allocated(self%centroid_x)) deallocate(self%centroid_x)
     if(allocated(self%centroid_y)) deallocate(self%centroid_y)
     if(allocated(self%edge_lengths)) deallocate(self%edge_lengths)

@@ -251,9 +251,9 @@ contains
     ! Check bounds and shape
     total_ni_cells = ni_cells + n_ghost_cells
     total_nj_cells = nj_cells + n_ghost_cells
-    @assertEqual([ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_volume))
-    @assertEqual([-1, -1], lbound(grid%cell_volume))
-    @assertEqual([total_ni_cells, total_nj_cells], ubound(grid%cell_volume))
+    @assertEqual([ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%volume))
+    @assertEqual([-1, -1], lbound(grid%volume))
+    @assertEqual([total_ni_cells, total_nj_cells], ubound(grid%volume))
 
     @assertEqual([ni_cells + 2 * (n_ghost_cells), nj_cells + 2 * (n_ghost_cells)], shape(grid%cell_centroid_x))
     @assertEqual([-1, -1], lbound(grid%cell_centroid_x))

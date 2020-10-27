@@ -95,9 +95,9 @@ module mod_grid
     ! element information. Use the element type to populate this
     ! once at the beginning of the simulation or on demand
 
-    real(rk), dimension(:, :), allocatable :: cell_volume !< (i,j); volume of each cell
-    real(rk), dimension(:, :), allocatable :: cell_dx !< ( i, j); dx spacing of each cell
-    real(rk), dimension(:, :), allocatable :: cell_dy !< ( i, j); dy spacing of each cell
+    real(rk), dimension(:, :), allocatable :: volume !< (i,j); volume of each cell
+    real(rk), dimension(:, :), allocatable :: dx !< ( i, j); dx spacing of each cell
+    real(rk), dimension(:, :), allocatable :: dy !< ( i, j); dy spacing of each cell
 
     !  Numbering convention for a 2D quadrilateral cell
     !

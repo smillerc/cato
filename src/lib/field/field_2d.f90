@@ -76,6 +76,7 @@ module mod_field
     logical, public :: on_jhi_bc = .false. !< does this field live on the -j boundary?
 
     ! Parallel neighbor information
+    ! TODO: change to !< (N, S, E, W, NE, SE, SW, NW)
     integer(ik), dimension(8) :: neighbors = 0 !< (lower_left, down, lower_right, left, right, upper_left, up, upper_right); parallel neighbor image indices
     integer(ik) :: host_image_id = 0 !< what image owns this field instance?
 
@@ -419,7 +420,7 @@ contains
     character(len=*), intent(in) :: long_name     !< long name, e.g. 'density'
     character(len=*), intent(in) :: units         !< physical units, e.g. 'g/cc'
     character(len=*), intent(in) :: descrip       !< description, e.g. 'Cell-centered density'
-    integer(ik), dimension(2), intent(in) :: global_dims !< (i,j); domain size in x and y
+    integer(ik), dimension(2), intent(in) :: global_dims !< (i,j); domain size in x and y (not including halo)
     integer(ik), intent(in) :: n_halo_cells
 
     ! Locals

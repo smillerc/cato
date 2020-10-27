@@ -194,39 +194,40 @@ contains
     time_w_dims = time * io_time_units * t_0
     delta_t_w_dims = master%dt * t_0
 
-    call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
-                                   status='new', action='w', comp_lvl=self%compression_level)
+    if (this_image() == 1) then
+      call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
+                                    status='new', action='w', comp_lvl=self%compression_level)
 
-    ! Header info
-    call self%hdf5_file%add('/title', master%title)
-    call self%hdf5_file%add('/iteration', iteration)
-    call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
-    call self%hdf5_file%writeattr('/iteration', 'units', 'dimensionless')
+      ! Header info
+      call self%hdf5_file%add('/title', master%title)
+      call self%hdf5_file%add('/iteration', iteration)
+      call self%hdf5_file%writeattr('/iteration', 'description', 'Iteration Count')
+      call self%hdf5_file%writeattr('/iteration', 'units', 'dimensionless')
 
-    call self%hdf5_file%add('/time', time_w_dims)
-    call self%hdf5_file%writeattr('/time', 'description', 'Simulation Time')
-    call self%hdf5_file%writeattr('/time', 'units', io_time_label)
+      call self%hdf5_file%add('/time', time_w_dims)
+      call self%hdf5_file%writeattr('/time', 'description', 'Simulation Time')
+      call self%hdf5_file%writeattr('/time', 'units', io_time_label)
 
-    call self%hdf5_file%add('/delta_t', delta_t_w_dims)
-    call self%hdf5_file%writeattr('/delta_t', 'description', 'Simulation Timestep')
-    call self%hdf5_file%writeattr('/delta_t', 'units', 'seconds')
+      call self%hdf5_file%add('/delta_t', delta_t_w_dims)
+      call self%hdf5_file%writeattr('/delta_t', 'description', 'Simulation Timestep')
+      call self%hdf5_file%writeattr('/delta_t', 'units', 'seconds')
 
-    call self%hdf5_file%add('/n_ghost_layers', n_ghost_layers)
+      call self%hdf5_file%add('/n_ghost_layers', n_ghost_layers)
 
-    ! Version info
-    if(.not. globals_set) call set_global_options()
+      ! Version info
+      if(.not. globals_set) call set_global_options()
 
-    call self%hdf5_file%add('/cato_info', 'CATO info')
-    call self%hdf5_file%writeattr('/cato_info', 'compiler_flags', compiler_flags_str)
-    call self%hdf5_file%writeattr('/cato_info', 'compiler_version', compiler_version_str)
-    call self%hdf5_file%writeattr('/cato_info', 'git_hash', git_hash)
-    call self%hdf5_file%writeattr('/cato_info', 'git_ref', git_ref)
-    call self%hdf5_file%writeattr('/cato_info', 'git_changes', git_local_changes)
-    call self%hdf5_file%writeattr('/cato_info', 'version', cato_version)
-    call self%hdf5_file%writeattr('/cato_info', 'compile_hostname', compile_host)
-    call self%hdf5_file%writeattr('/cato_info', 'compile_os', compile_os)
-    call self%hdf5_file%writeattr('/cato_info', 'build_type', build_type)
-
+      call self%hdf5_file%add('/cato_info', 'CATO info')
+      call self%hdf5_file%writeattr('/cato_info', 'compiler_flags', compiler_flags_str)
+      call self%hdf5_file%writeattr('/cato_info', 'compiler_version', compiler_version_str)
+      call self%hdf5_file%writeattr('/cato_info', 'git_hash', git_hash)
+      call self%hdf5_file%writeattr('/cato_info', 'git_ref', git_ref)
+      call self%hdf5_file%writeattr('/cato_info', 'git_changes', git_local_changes)
+      call self%hdf5_file%writeattr('/cato_info', 'version', cato_version)
+      call self%hdf5_file%writeattr('/cato_info', 'compile_hostname', compile_host)
+      call self%hdf5_file%writeattr('/cato_info', 'compile_os', compile_os)
+      call self%hdf5_file%writeattr('/cato_info', 'build_type', build_type)
+    end if
     ! ! Node Data
     ! ilo = self%ilo_node
     ! ihi = self%ihi_node
@@ -320,14 +321,14 @@ contains
 
     ! ! Volume
     ! dataset_name = '/volume'
-    ! io_data_buffer = master%grid%cell_volume(ilo:ihi, jlo:jhi) * l_0**2
+    ! io_data_buffer = master%grid%volume(ilo:ihi, jlo:jhi) * l_0**2
     ! io_data_buffer = io_data_buffer * io_volume_units
     ! call self%write_2d_real_data(data=io_data_buffer, name='/volume', &
     !                              description='Cell Volume', units=trim(io_volume_label))
 
     ! if(allocated(int_data_buffer)) deallocate(int_data_buffer)
     ! if(allocated(io_data_buffer)) deallocate(io_data_buffer)
-    call self%hdf5_file%finalize()
+    if (this_image() == 1) call self%hdf5_file%finalize()
   end subroutine write_hdf5
 
   subroutine write_xdmf(self, master, time, iteration)

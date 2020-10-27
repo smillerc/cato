@@ -41,7 +41,7 @@ module mod_input
     real(rk) :: reference_mach = 1.0_rk
 
     ! grid
-    character(len=32) :: grid_type = '2d_regular'  !< Structure/layout of the grid, e.g. '2d_regular'
+    character(len=32) :: grid_type = 'XY'  !< Structure/layout of the grid, e.g. '2d_regular'
     real(rk) :: xmin = 0.0_rk   !< Minimum extent of the grid in x (ignored for .h5 initial grids)
     real(rk) :: xmax = 0.0_rk   !< Maximum extent of the grid in x (ignored for .h5 initial grids)
     real(rk) :: ymin = 0.0_rk   !< Minimum extent of the grid in y (ignored for .h5 initial grids)
@@ -396,101 +396,103 @@ contains
   subroutine display_config(self)
     class(input_t), intent(in) :: self
 
-    write(*, '(a)') "Input settings:"
-    write(*, '(a)') "==============="
-    write(*, *)
-    write(*, '(a)') "[general]"
-    write(*, '(3(a))') "title = '", trim(self%title), "'"
-    write(*, '(3(a))') "unit_system = '", trim(self%unit_system), "'"
+    if (this_image() == 1) then
+      write(*, '(a)') "Input settings:"
+      write(*, '(a)') "==============="
+      write(*, *)
+      write(*, '(a)') "[general]"
+      write(*, '(3(a))') "title = '", trim(self%title), "'"
+      write(*, '(3(a))') "unit_system = '", trim(self%unit_system), "'"
 
-    write(*, *)
-    write(*, '(a)') "[time]"
-    write(*, '(a, es10.3)') "max_time = ", self%max_time
-    write(*, '(a, f5.3)') "cfl = ", self%cfl
-    write(*, '(a, l1)') "use_constant_delta_t = ", self%use_constant_delta_t
-    write(*, '(a, es10.3)') "initial_delta_t = ", self%initial_delta_t
-    write(*, '(a, i0)') "max_iterations = ", self%max_iterations
-    write(*, '(3(a))') "time_integration_strategy = '", trim(self%time_integration_strategy), "'"
+      write(*, *)
+      write(*, '(a)') "[time]"
+      write(*, '(a, es10.3)') "max_time = ", self%max_time
+      write(*, '(a, f5.3)') "cfl = ", self%cfl
+      write(*, '(a, l1)') "use_constant_delta_t = ", self%use_constant_delta_t
+      write(*, '(a, es10.3)') "initial_delta_t = ", self%initial_delta_t
+      write(*, '(a, i0)') "max_iterations = ", self%max_iterations
+      write(*, '(3(a))') "time_integration_strategy = '", trim(self%time_integration_strategy), "'"
 
-    write(*, *)
-    write(*, '(a)') "[grid]"
-    write(*, '(a, a)') "grid_type = ", self%grid_type
-    write(*, '(a, es10.3)') "xmin = ", self%xmin
-    write(*, '(a, es10.3)') "xmax = ", self%xmax
-    write(*, '(a, es10.3)') "ymin = ", self%ymin
-    write(*, '(a, es10.3)') "ymax = ", self%ymax
-    write(*, '(a, i0)') "ni_nodes = ", self%ni_nodes
-    write(*, '(a, i0)') "nj_nodes = ", self%nj_nodes
-    write(*, '(a, i0)') "n_ghost_layers = ", self%n_ghost_layers
+      write(*, *)
+      write(*, '(a)') "[grid]"
+      write(*, '(a, a)') "grid_type = ", self%grid_type
+      write(*, '(a, es10.3)') "xmin = ", self%xmin
+      write(*, '(a, es10.3)') "xmax = ", self%xmax
+      write(*, '(a, es10.3)') "ymin = ", self%ymin
+      write(*, '(a, es10.3)') "ymax = ", self%ymax
+      write(*, '(a, i0)') "ni_nodes = ", self%ni_nodes
+      write(*, '(a, i0)') "nj_nodes = ", self%nj_nodes
+      write(*, '(a, i0)') "n_ghost_layers = ", self%n_ghost_layers
 
-    write(*, *)
-    write(*, '(a)') "[reference_state]"
-    write(*, '(a, es10.3)') "reference_pressure = ", self%reference_pressure
-    write(*, '(a, es10.3)') "reference_density = ", self%reference_density
+      write(*, *)
+      write(*, '(a)') "[reference_state]"
+      write(*, '(a, es10.3)') "reference_pressure = ", self%reference_pressure
+      write(*, '(a, es10.3)') "reference_density = ", self%reference_density
 
-    write(*, *)
-    write(*, '(a)') "[initial_conditions]"
-    write(*, '(a, a)') "initial_condition_file = ", self%initial_condition_file
-    write(*, '(a, l1)') "read_init_cond_from_file = ", self%read_init_cond_from_file
-    write(*, '(a, es10.3)') "init_x_velocity = ", self%init_x_velocity
-    write(*, '(a, es10.3)') "init_y_velocity = ", self%init_y_velocity
-    write(*, '(a, es10.3)') "init_density  = ", self%init_density
-    write(*, '(a, es10.3)') "init_pressure = ", self%init_pressure
+      write(*, *)
+      write(*, '(a)') "[initial_conditions]"
+      write(*, '(a, a)') "initial_condition_file = ", self%initial_condition_file
+      write(*, '(a, l1)') "read_init_cond_from_file = ", self%read_init_cond_from_file
+      write(*, '(a, es10.3)') "init_x_velocity = ", self%init_x_velocity
+      write(*, '(a, es10.3)') "init_y_velocity = ", self%init_y_velocity
+      write(*, '(a, es10.3)') "init_density  = ", self%init_density
+      write(*, '(a, es10.3)') "init_pressure = ", self%init_pressure
 
-    write(*, *)
-    write(*, '(a)') "[restart]"
-    write(*, '(a, l1)') "restart_from_file = ", self%restart_from_file
-    write(*, '(3(a))') "restart_file = '", trim(self%restart_file), "'"
+      write(*, *)
+      write(*, '(a)') "[restart]"
+      write(*, '(a, l1)') "restart_from_file = ", self%restart_from_file
+      write(*, '(3(a))') "restart_file = '", trim(self%restart_file), "'"
 
-    write(*, *)
-    write(*, '(a)') "[source_terms]"
-    write(*, '(a, l1)') "enable_source_terms = ", self%enable_source_terms
-    write(*, '(a, a)') "source_term_type = ", self%source_term_type
-    write(*, '(a, l1)') "apply_constant_source = ", self%apply_constant_source
-    write(*, '(a, a)') "source_file = ", self%source_file
-    write(*, '(a, es10.3)') "constant_source_value = ", self%constant_source_value
-    write(*, '(a, es10.3)') "source_scale_factor   = ", self%source_scale_factor
-    write(*, '(a, i0)') "source_ilo = ", self%source_ilo
-    write(*, '(a, i0)') "source_ihi = ", self%source_ihi
-    write(*, '(a, i0)') "source_jlo = ", self%source_jlo
-    write(*, '(a, i0)') "source_jhi = ", self%source_jhi
+      write(*, *)
+      write(*, '(a)') "[source_terms]"
+      write(*, '(a, l1)') "enable_source_terms = ", self%enable_source_terms
+      write(*, '(a, a)') "source_term_type = ", self%source_term_type
+      write(*, '(a, l1)') "apply_constant_source = ", self%apply_constant_source
+      write(*, '(a, a)') "source_file = ", self%source_file
+      write(*, '(a, es10.3)') "constant_source_value = ", self%constant_source_value
+      write(*, '(a, es10.3)') "source_scale_factor   = ", self%source_scale_factor
+      write(*, '(a, i0)') "source_ilo = ", self%source_ilo
+      write(*, '(a, i0)') "source_ihi = ", self%source_ihi
+      write(*, '(a, i0)') "source_jlo = ", self%source_jlo
+      write(*, '(a, i0)') "source_jhi = ", self%source_jhi
 
-    write(*, *)
-    write(*, '(a)') "[boundary_conditions]"
-    write(*, '(a, a)') "bc_pressure_input_file = ", self%bc_pressure_input_file
-    write(*, '(a, l1)') "apply_constant_bc_pressure = ", self%apply_constant_bc_pressure
-    write(*, '(a, es10.3)') "constant_bc_pressure_value = ", self%constant_bc_pressure_value
-    write(*, '(a, es10.3)') "bc_pressure_scale_factor = ", self%bc_pressure_scale_factor
-    write(*, '(a, a)') "plus_x_bc = ", self%plus_x_bc
-    write(*, '(a, a)') "minus_x_bc = ", self%minus_x_bc
-    write(*, '(a, a)') "plus_y_bc  = ", self%plus_y_bc
-    write(*, '(a, a)') "minus_y_bc = ", self%minus_y_bc
+      write(*, *)
+      write(*, '(a)') "[boundary_conditions]"
+      write(*, '(a, a)') "bc_pressure_input_file = ", self%bc_pressure_input_file
+      write(*, '(a, l1)') "apply_constant_bc_pressure = ", self%apply_constant_bc_pressure
+      write(*, '(a, es10.3)') "constant_bc_pressure_value = ", self%constant_bc_pressure_value
+      write(*, '(a, es10.3)') "bc_pressure_scale_factor = ", self%bc_pressure_scale_factor
+      write(*, '(a, a)') "plus_x_bc = ", self%plus_x_bc
+      write(*, '(a, a)') "minus_x_bc = ", self%minus_x_bc
+      write(*, '(a, a)') "plus_y_bc  = ", self%plus_y_bc
+      write(*, '(a, a)') "minus_y_bc = ", self%minus_y_bc
 
-    write(*, *)
-    write(*, '(a)') "[scheme]"
-    write(*, '(a, l1)') "smooth_residuals = ", self%smooth_residuals
-    write(*, '(a, a)') "flux_solver = ", self%flux_solver
-    write(*, '(a, a)') "spatial_reconstruction = ", self%spatial_reconstruction
-    write(*, '(a, a)') "limiter = ", self%limiter
-    write(*, '(a, es10.3)') "tau = ", self%tau
+      write(*, *)
+      write(*, '(a)') "[scheme]"
+      write(*, '(a, l1)') "smooth_residuals = ", self%smooth_residuals
+      write(*, '(a, a)') "flux_solver = ", self%flux_solver
+      write(*, '(a, a)') "spatial_reconstruction = ", self%spatial_reconstruction
+      write(*, '(a, a)') "limiter = ", self%limiter
+      write(*, '(a, es10.3)') "tau = ", self%tau
 
-    write(*, *)
-    write(*, '(a)') "[physics]"
-    write(*, '(a, f5.3)') "polytropic_index = ", self%polytropic_index
+      write(*, *)
+      write(*, '(a)') "[physics]"
+      write(*, '(a, f5.3)') "polytropic_index = ", self%polytropic_index
 
-    write(*, *)
-    write(*, '(a)') "[io]"
-    write(*, '(a, a)') "contour_io_format = ", self%contour_io_format
-    write(*, '(a, es10.3)') "contour_interval_dt = ", self%contour_interval_dt
-    write(*, '(a, l1)') "append_date_to_result_folder = ", self%append_date_to_result_folder
-    write(*, '(a, l1)') "plot_reconstruction_states = ", self%plot_reconstruction_states
-    write(*, '(a, l1)') "plot_reference_states = ", self%plot_reference_states
-    write(*, '(a, l1)') "plot_evolved_states = ", self%plot_evolved_states
-    write(*, '(a, l1)') "plot_64bit = ", self%plot_64bit
-    write(*, '(a, l1)') "plot_ghost_cells = ", self%plot_ghost_cells
+      write(*, *)
+      write(*, '(a)') "[io]"
+      write(*, '(a, a)') "contour_io_format = ", self%contour_io_format
+      write(*, '(a, es10.3)') "contour_interval_dt = ", self%contour_interval_dt
+      write(*, '(a, l1)') "append_date_to_result_folder = ", self%append_date_to_result_folder
+      write(*, '(a, l1)') "plot_reconstruction_states = ", self%plot_reconstruction_states
+      write(*, '(a, l1)') "plot_reference_states = ", self%plot_reference_states
+      write(*, '(a, l1)') "plot_evolved_states = ", self%plot_evolved_states
+      write(*, '(a, l1)') "plot_64bit = ", self%plot_64bit
+      write(*, '(a, l1)') "plot_ghost_cells = ", self%plot_ghost_cells
 
-    write(*, '(a)') "==============="
-    print *
+      write(*, '(a)') "==============="
+      print *
+    endif
 
   end subroutine display_config
 end module mod_input

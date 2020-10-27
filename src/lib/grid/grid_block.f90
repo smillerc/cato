@@ -23,9 +23,11 @@ module mod_grid_block
   end type
 
   type, abstract :: grid_block_t
+
     integer(ik) :: host_image_id = 0  !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
-    integer(ik) :: n_halo_cells = 0  !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
-    logical :: is_axisymmetric = .false.     !< Is this an axisymmetric grid? (need for volume computation)
+    integer(ik) :: n_halo_cells = 0   !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
+    logical :: is_axisymmetric = .false. !< Is this an axisymmetric grid? (need for volume computation)
+    logical :: is_uniform = .false.      !< Are all the cells the same size/shape?
 
     ! Bounds information
     integer(ik), dimension(:), allocatable :: global_node_dims !< (i, j, k); # of array indices in each dimension
@@ -33,6 +35,12 @@ module mod_grid_block
 
     integer(ik), dimension(:), allocatable :: domain_node_shape !< (i, j, k); # of array indices in each dimension
     integer(ik), dimension(:), allocatable :: domain_cell_shape !< (i, j, k); # of array indices in each dimension
+
+    integer(ik), dimension(:), allocatable :: global_node_dims_halo !< (i, j, k); # of array indices in each dimension
+    integer(ik), dimension(:), allocatable :: global_cell_dims_halo !< (i, j, k); # of array indices in each dimension
+
+    integer(ik), dimension(:), allocatable :: domain_node_shape_halo !< (i, j, k); # of array indices in each dimension
+    integer(ik), dimension(:), allocatable :: domain_cell_shape_halo !< (i, j, k); # of array indices in each dimension
 
     integer(ik), dimension(:), allocatable :: node_lbounds !< (i, j, k); lower bounds (not including halo cells)
     integer(ik), dimension(:), allocatable :: node_ubounds !< (i, j, k); upper bounds (not including halo cells)
@@ -61,5 +69,6 @@ module mod_grid_block
     end subroutine
   end interface
 contains
+
 
 end module mod_grid_block

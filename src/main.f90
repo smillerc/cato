@@ -55,19 +55,24 @@ program cato
 
   open(std_error, file='std.err')
 
+
   ! ascii art for the heck of it :)
-  write(std_out, '(a)')
-  write(std_out, '(a)') "  ______      ___   .___________.  ______  "
-  write(std_out, '(a)') " /      |    /   \  |           | /  __  \ "
-  write(std_out, '(a)') "|  ,----'   /  ^  \ `---|  |----`|  |  |  |"
-  write(std_out, '(a)') "|  |       /  /_\  \    |  |     |  |  |  |"
-  write(std_out, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
-  write(std_out, '(a)') " \______|/__/     \__\  |__|      \______/ "
-  write(std_out, '(a)')
+  if (this_image() == 1) then
+    write(std_out, '(a)')
+    write(std_out, '(a)') "  ______      ___   .___________.  ______  "
+    write(std_out, '(a)') " /      |    /   \  |           | /  __  \ "
+    write(std_out, '(a)') "|  ,----'   /  ^  \ `---|  |----`|  |  |  |"
+    write(std_out, '(a)') "|  |       /  /_\  \    |  |     |  |  |  |"
+    write(std_out, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
+    write(std_out, '(a)') " \______|/__/     \__\  |__|      \______/ "
+    write(std_out, '(a)')
+    write(std_out, '(a, i0, a)') "Running with ", num_images(), " coarray images"
+  endif
 
 #ifdef USE_OPENMP
   write(std_out, '(a, i0, a)') "Running with ", omp_get_max_threads(), " OpenMP threads"
 #endif /* USE_OPENMP */
+
 
   call open_debug_files()
   call print_version_stats()
@@ -103,11 +108,13 @@ program cato
     call contour_writer%write_contour(master, time, iteration)
   end if
 
-  print *
-  write(std_out, '(a)') '--------------------------------------------'
-  write(std_out, '(a)') ' Starting time loop:'
-  write(std_out, '(a)') '--------------------------------------------'
-  print *
+  if (this_image() == 1) then
+    print *
+    write(std_out, '(a)') '--------------------------------------------'
+    write(std_out, '(a)') ' Starting time loop:'
+    write(std_out, '(a)') '--------------------------------------------'
+    print *
+  endif
 
   call timer%start()
   if(input%use_constant_delta_t) then
@@ -121,20 +128,28 @@ program cato
     endif
   end if
 
-  call master%set_time(time, delta_t, iteration)
+  call master%set_time(time, iteration)
 
-  ! if(input%restart_from_file) then
-  write(std_out, '(a, es10.3)') "Starting time:", time
-  write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
-  ! end if
-
+  if (this_image() == 1) then
+    write(std_out, '(a, es10.3)') "Starting time:", time
+    write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
+  endif
   do while(time < max_time .and. iteration < input%max_iterations)
 
-    write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
-      ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
-
+    if (this_image() == 1) then
+      write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
+        ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
+    endif
+    
     ! Integrate in time
-    call master%integrate(dt=delta_t, error_code=error_code)
+    if (input%use_constant_delta_t) then
+      call master%integrate(error_code=error_code, dt=input%initial_delta_t / t_0)
+    else
+      call master%integrate(error_code=error_code)
+    endif
+    delta_t = master%dt
+    time = master%time
+
     if(error_code /= ALL_OK) then
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
@@ -142,15 +157,13 @@ program cato
       error stop 1
     end if
 
-    if(.not. input%use_constant_delta_t) delta_t = get_timestep(cfl=input%cfl, master=master)
-
-    new_time = time + delta_t
-
     ! I/O
     if(abs(time - next_output_time) < epsilon(1.0_rk)) then
       next_output_time = next_output_time + contour_interval_dt
-      write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
-        next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
+      if (this_image() == 1) then
+        write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
+          next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
+      endif
       call contour_writer%write_contour(master, time, iteration)
       last_io_iteration = iteration
     end if
@@ -164,7 +177,6 @@ program cato
 
     time = new_time
     iteration = iteration + 1
-    call master%set_time(time, delta_t, iteration)
     call timer%log_time(iteration, delta_t)
   end do
 
