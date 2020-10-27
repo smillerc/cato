@@ -1,6 +1,7 @@
 add_library(
   h5fortran
   src/interface.f90
+  src/attributes.f90
   src/read.f90
   src/write.f90
   src/pathlib.f90

@@ -118,14 +118,14 @@ contains
     jlo = self%lbounds(2)
     jhi = self%ubounds(2)
 
-    d_rho_dt = field_2d_t(name='d_rho_dt  ', long_name='d/dt(rho)', descrip='', units='', &
-                          dims=[grid%ni_cell, grid%nj_cell])
-    d_rho_u_dt = field_2d_t(name='d_rho_u_dt', long_name='d/dt(rho u)', descrip='', units='', &
-                            dims=[grid%ni_cell, grid%nj_cell])
-    d_rho_v_dt = field_2d_t(name='d_rho_v_dt', long_name='d/dt(rho v)', descrip='', units='', &
-                            dims=[grid%ni_cell, grid%nj_cell])
-    d_rho_E_dt = field_2d_t(name='d_rho_E_dt', long_name='d/dt(rho E)', descrip='', units='', &
-                            dims=[grid%ni_cell, grid%nj_cell])
+    ! d_rho_dt = field_2d(name='d_rho_dt  ', long_name='d/dt(rho)', descrip='', units='', &
+    !                       dims=[grid%ni_cell, grid%nj_cell])
+    ! d_rho_u_dt = field_2d(name='d_rho_u_dt', long_name='d/dt(rho u)', descrip='', units='', &
+    !                         dims=[grid%ni_cell, grid%nj_cell])
+    ! d_rho_v_dt = field_2d(name='d_rho_v_dt', long_name='d/dt(rho v)', descrip='', units='', &
+    !                         dims=[grid%ni_cell, grid%nj_cell])
+    ! d_rho_E_dt = field_2d(name='d_rho_E_dt', long_name='d/dt(rho E)', descrip='', units='', &
+    !                         dims=[grid%ni_cell, grid%nj_cell])
 
     !                                   /\
     !                  jflux(i,j)  'R'  |

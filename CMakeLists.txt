@@ -2,23 +2,20 @@
 
 # Copyright (c) 2019 Sam Miller
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+# associated documentation files (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge, publish, distribute,
+# sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
+# The above copyright notice and this permission notice shall be included in all copies or
+# substantial portions of the Software.
 
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+# NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+# OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 cmake_minimum_required(VERSION 3.8)
 
 project(
@@ -52,20 +49,26 @@ if(USE_OPENMP_THREADS OR USE_OPENMP_SIMD)
   find_package(OpenMP REQUIRED Fortran)
 endif()
 
+option(USE_OPENMP_THREADS "Enable OpenMP parallelization" OFF)
+option(USE_OPENMP_SIMD "Enable OpenMP SIMD vectorization" OFF)
+if(USE_OPENMP_THREADS OR USE_OPENMP_SIMD)
+  find_package(OpenMP REQUIRED Fortran)
+endif()
+
 option(USE_OPENCL "Enable OpenCL to run portions on GPUs" OFF)
 if(USE_OPENCL)
   find_package(OpenCL)
 endif()
 
 option(ENABLE_COARRAY "Build with coarrays enabled" OFF)
-option(ENABLE_COARRAY_SINGLE "Build with coarrays but only for a single image (useful for debugging)" OFF)
+option(ENABLE_COARRAY_SINGLE
+       "Build with coarrays but only for a single image (useful for debugging)" OFF)
 option(BUILD_FOR_SHARED_MEMORY "Build for shared memory only (single node)" OFF)
 option(BUILD_FOR_DISTRIBUTED_MEMORY "Build for distributed memory (multiple nodes)" OFF)
-
 option(OUTPUT_OPTIMIZATION_REPORTS "Turn on optimization reports" OFF)
 option(USE_ASAN "Enable GCC's address sanitizer to check for leaks" OFF)
 option(USE_TSAN "Enable GCC's thread sanitizer to check for race conditions" OFF)
-option(ENABLE_TESTING "Enable OpenCL to run portions on GPUs" OFF)
+option(ENABLE_TESTING "Enable unit testing" OFF)
 option(ENABLE_PROFILING "Enable profile flags" OFF)
 
 # Determine the number of cores (useful for single machine, shared-memory build)
@@ -77,7 +80,6 @@ if(ENABLE_COARRAY OR ENABLE_COARRAY_SINGLE)
 endif()
 
 find_package(HDF5 REQUIRED Fortran HL)
-
 
 # Set compiler flags
 include(SetFortranFlags)
@@ -107,15 +109,14 @@ include_directories(${CMAKE_BINARY_DIR}/generated)
 
 add_subdirectory(src)
 
-# if(ENABLE_TESTING)
-#   find_package(PFUNIT REQUIRED)
-#   message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
-#   message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
-#   message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
-#   enable_testing()
-#   add_subdirectory(tests/unit)
-# endif()
-
+if(ENABLE_TESTING)
+  include(AddCoarrayCTest)
+  # find_package(PFUNIT REQUIRED) message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
+  # message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES}) message(STATUS "PFUNIT_INCLUDE_DIRS: "
+  # ${PFUNIT_INCLUDE_DIRS}) 
+  enable_testing()
+  add_subdirectory(tests/unit)
+endif()
 
 message("")
 message("===================================================")
@@ -123,7 +124,7 @@ message("         ${PROJECT_NAME} ${PROJECT_VERSION} build configuration")
 message("===================================================")
 message("USE_OPENMP_THREADS: ${USE_OPENMP_THREADS}")
 message("USE_OPENMP_SIMD: ${USE_OPENMP_SIMD}")
-if (OPENMP_FOUND)
+if(OPENMP_FOUND)
   message("OpenMP")
   message("  Version      : ${OpenMP_Fortran_VERSION}")
   message("  Libraries    : ${OpenMP_Fortran_FLAGS}")
@@ -131,7 +132,7 @@ if (OPENMP_FOUND)
 endif()
 
 message("USE_OPENCL: ${USE_OPENCL}")
-if (OPENCL_FOUND)
+if(OPENCL_FOUND)
   message("OpenCL")
   message("  Version      : ${OpenCL_VERSION_STRING}")
   message("  Include dirs : ${OpenCL_INCLUDE_DIRS}")
@@ -149,7 +150,7 @@ message("USE_TSAN: ${USE_TSAN}")
 message("ENABLE_TESTING: ${ENABLE_TESTING}")
 message("ENABLE_PROFILING: ${ENABLE_PROFILING}")
 
-if (HDF5_FOUND)
+if(HDF5_FOUND)
   message("HDF5")
   message("  Version       : ${HDF5_VERSION}")
   message("  Definitions   : ${HDF5_DEFINITIONS}")

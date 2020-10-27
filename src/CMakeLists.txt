@@ -6,10 +6,14 @@ add_library(
   lib/error.f90
   lib/units.f90
   lib/globals.f90
+  lib/mod_parallel.f90
   lib/non_dimensional.f90
-  lib/field/field_2d.f90
   lib/math_constants.f90
   lib/floating_point_utilities.f90)
+
+add_library(field lib/field/field_2d.f90 lib/field/field_2d_cpu_operators.f90
+                  lib/field/field_2d_gpu_operators.f90)
+target_link_libraries(field h5fortran globals)
 
 add_library(io lib/io/mod_hdf5.f90 lib/io/mod_input.f90)
 
@@ -18,8 +22,9 @@ add_library(eos lib/equation_of_state.f90)
 include_directories(${HDF5_INCLUDE_DIRS})
 target_include_directories(io PUBLIC ${HDF5_INCLUDE_DIRS})
 
-target_link_libraries(io PUBLIC globals ini_parser ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES} h5fortran)
-target_link_libraries(eos PUBLIC io)
+target_link_libraries(io PUBLIC globals field ini_parser ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES}
+                                h5fortran)
+target_link_libraries(eos PUBLIC io field)
 
 add_library(utilities lib/limiters/slope_limiter.f90 lib/limiters/flux_limiter.f90)
 target_link_libraries(utilities PUBLIC globals)
@@ -27,6 +32,9 @@ target_link_libraries(utilities PUBLIC globals)
 add_library(
   geometry
   lib/grid/grid_block.f90
+  lib/grid/grid_block_1d.f90
+  lib/grid/grid_block_2d.f90
+  lib/grid/grid_block_3d.f90
   lib/grid/grid_type.f90
   lib/grid/regular_2d_grid.f90
   lib/grid/grid_factory.f90
@@ -36,10 +44,9 @@ add_library(
   lib/geometry/vector.f90
   lib/geometry/quad_cell.f90)
 
-target_link_libraries(geometry PUBLIC globals io eos functional)
+target_link_libraries(geometry PUBLIC globals io eos functional h5fortran)
 
-# Pre-process: .fypp -> .f90 via Fypp
-# Create a list of the files to be preprocessed
+# Pre-process: .fypp -> .f90 via Fypp Create a list of the files to be preprocessed
 set(fyppFiles
     lib/spatial_reconstruction/muscl_tvd2.fypp
     # lib/spatial_reconstruction/muscl_tvd3.fypp lib/spatial_reconstruction/muscl_tvd5.fypp
@@ -81,7 +88,6 @@ add_library(
   # lib/mach_cone/mach_cone_utilities.f90
   # lib/mach_cone/mach_cone_collection.f90
   lib/mod_timing.f90
-  lib/mod_parallel.f90
   lib/io/contour_writer.f90
   lib/boundary_conditions/boundary_conditions.f90
   lib/boundary_conditions/zero_gradient_bc.f90
@@ -121,18 +127,20 @@ target_link_libraries(
          io
          finterp
          functional
+         field
          ${HDF5_LIBRARIES}
          ${HDF5_HL_LIBRARIES})
 
 add_executable(cato.x main.f90)
 
-if(ENABLE_COARRAY OR ENABLE_COARRAY_SINGLE)
+if(ENABLE_COARRAY)
   # Turn on coarray linking
   target_link_libraries(
     cato.x
     cato
-    functional
     finterp
+    functional
+    field
     ${HDF5_LIBRARIES}
     ${HDF5_HL_LIBRARIES}
     ${Coarray_LIBRARIES})

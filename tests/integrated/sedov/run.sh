@@ -1,8 +1,4 @@
 #!/bin/bash
-#module purge
-#module load pfunit
-#module load cgns
-#module load intel/2019.3
 
 export I_MPI_REMOVED_VAR_WARNING=0
 export I_MPI_VAR_CHECK_SPELLING=0
@@ -21,7 +17,7 @@ rm -rf step*
 cd ${cato_dir} && make -j && \
     cd ${run_dir} && \
     cp ${cato_dir}/bin/cato.x . &&\
-    ./cato.x input.ini
+    cafrun -np 2 ./cato.x input.ini
 
 if [ -f "std.err" ]; then
     echo

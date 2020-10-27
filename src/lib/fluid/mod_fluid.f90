@@ -22,7 +22,7 @@ module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
 
-  use mod_field, only: field_2d_t
+  use mod_field, only: field_2d_t, field_2d
   use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND, error_msg
   use mod_globals, only: enable_debug_print, debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
   use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
@@ -154,41 +154,41 @@ contains
                      file_name=__FILE__, line_number=__LINE__)
     end if
 
-    self%rho = field_2d_t(name='rho', long_name='Density', descrip='Cell Density', &
-                          units='g / cm^3', &
-                          dims=[grid%ni_cell, grid%nj_cell])
+    self%rho = field_2d(name='rho', long_name='Density', &
+                        descrip='Cell Density', units='g/cm^3', &
+                        global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%rho_u = field_2d_t(name='rhou', long_name='rhou', descrip='Cell Conserved quantity (Density * X-Velocity)', &
-                            units='g cm / cm^2 s', &
-                            dims=[grid%ni_cell, grid%nj_cell])
+    self%rho_u = field_2d(name='rhou', long_name='rhou', descrip='Cell Conserved quantity (Density * X-Velocity)', &
+                            units='g cm/cm^2 s', &
+                            global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%rho_v = field_2d_t(name='rhov', long_name='rhov', descrip='Cell Conserved quantity (Density * Y-Velocity)', &
-                            units='g cm / cm^2 s', &
-                            dims=[grid%ni_cell, grid%nj_cell])
+    self%rho_v = field_2d(name='rhov', long_name='rhov', descrip='Cell Conserved quantity (Density * Y-Velocity)', &
+                            units='g cm/cm^2 s', &
+                            global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%rho_E = field_2d_t(name='rhoE', long_name='rhoE', descrip='Cell Conserved quantity (Density * Total Energy)', &
+    self%rho_E = field_2d(name='rhoE', long_name='rhoE', descrip='Cell Conserved quantity (Density * Total Energy)', &
                             units='g erg / cm^3', &
-                            dims=[grid%ni_cell, grid%nj_cell])
+                            global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%u = field_2d_t(name='u', long_name='X Velocity', descrip='Cell X-Velocity', units='cm / s', &
-                        dims=[grid%ni_cell, grid%nj_cell])
+    self%u = field_2d(name='u', long_name='X Velocity', descrip='Cell X-Velocity', units='cm/s', &
+                        global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%v = field_2d_t(name='v', long_name='Y Velocity', descrip='Cell Y-Velocity', units='cm / s', &
-                        dims=[grid%ni_cell, grid%nj_cell])
+    self%v = field_2d(name='v', long_name='Y Velocity', descrip='Cell Y-Velocity', units='cm/s', &
+                        global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%p = field_2d_t(name='p', long_name='Pressure', descrip='Cell Pressure', units='barye', &
-                        dims=[grid%ni_cell, grid%nj_cell])
+    self%p = field_2d(name='p', long_name='Pressure', descrip='Cell Pressure', units='barye', &
+                        global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%cs = field_2d_t(name='cs', long_name='Sound Speed', descrip='Cell Sound Speed', units='cm / s', &
-                         dims=[grid%ni_cell, grid%nj_cell])
+    self%cs = field_2d(name='cs', long_name='Sound Speed', descrip='Cell Sound Speed', units='cm/s', &
+                         global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%mach_u = field_2d_t(name='mach_u', long_name='Mach X', descrip='Cell Mach number in x-direction', &
+    self%mach_u = field_2d(name='mach_u', long_name='Mach X', descrip='Cell Mach number in x-direction', &
                              units='dimensionless', &
-                             dims=[grid%ni_cell, grid%nj_cell])
+                             global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
-    self%mach_v = field_2d_t(name='mach_v', long_name='Mach Y', descrip='Cell Mach number in y-direction', &
+    self%mach_v = field_2d(name='mach_v', long_name='Mach Y', descrip='Cell Mach number in y-direction', &
                              units='dimensionless', &
-                             dims=[grid%ni_cell, grid%nj_cell])
+                             global_dims=[grid%ni_cell, grid%nj_cell], n_halo_cells=input%n_ghost_layers)
 
     self%smooth_residuals = input%smooth_residuals
 

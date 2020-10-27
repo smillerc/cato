@@ -8,8 +8,8 @@ module mod_parallel
 
   implicit none
 
-  private
-  public :: num_2d_tiles, tile_indices, tile_neighbors_1d, tile_neighbors_2d !, sync_edges
+  ! private
+  ! public :: num_2d_tiles, tile_indices, tile_neighbors_1d, tile_neighbors_2d !, sync_edges
 
   interface tile_indices
     module procedure :: tile_indices_1d, tile_indices_2d
@@ -29,8 +29,8 @@ contains
   end function denominators
 
   pure function num_2d_tiles(n)
-    ! Returns the optimal number of tiles in 2 dimensions
-    ! given total number of tiles n.
+    !< Returns the optimal number of tiles in 2 dimensions
+    !< given total number of tiles n.
     !
     ! Examples:
     !   * num_2d_tiles(1) = [1, 1]
@@ -40,8 +40,8 @@ contains
     !   * num_2d_tiles(5) = [5, 1]
     !   * num_2d_tiles(6) = [3, 2]
     !
-    integer(ik), intent(in) :: n
-    integer(ik) :: num_2d_tiles(2)
+    integer(ik), intent(in) :: n !< # of images
+    integer(ik) :: num_2d_tiles(2) !< (i, j); # of tiles in each dimension
     integer(ik), allocatable :: denoms(:)
     integer(ik), allocatable :: dim1(:), dim2(:)
     integer(ik) :: i, j, n1, n2
@@ -148,10 +148,21 @@ contains
   pure function tile_neighbors_2d(is_periodic) result(neighbors)
     ! Returns the neighbor image indices given.
     logical, intent(in) :: is_periodic
-    integer(ik) :: neighbors(4)
+    integer(ik) :: neighbors(8) !< (lower_left, down, lower_right, left, right, upper_left, up, upper_right)
     integer(ik) :: tiles(2), tiles_ij(2), itile, jtile
     integer(ik) :: left, right, down, up
-    integer(ik) :: ij_left(2), ij_right(2), ij_down(2), ij_up(2)
+    integer(ik) :: lower_left  !< image # to the lower left corner
+    integer(ik) :: lower_right !< image # to the lower right corner
+    integer(ik) :: upper_left  !< image # to the upper left corner
+    integer(ik) :: upper_right !< image # to the upper right corner
+    integer(ik), dimension(2) :: ij_left  !< (i, j); index of the tile to the left
+    integer(ik), dimension(2) :: ij_right !< (i, j); index of the tile to the right
+    integer(ik), dimension(2) :: ij_down  !< (i, j); index of the tile below
+    integer(ik), dimension(2) :: ij_up    !< (i, j); index of the tile above
+    integer(ik), dimension(2) :: ij_lower_left  !< (i, j); index of the tile to the lower left corner
+    integer(ik), dimension(2) :: ij_upper_left  !< (i, j); index of the tile to the upper left corner
+    integer(ik), dimension(2) :: ij_lower_right !< (i, j); index of the tile to the lower right corner
+    integer(ik), dimension(2) :: ij_upper_right !< (i, j); index of the tile to the upper right corner
 
     tiles = num_2d_tiles(num_images())
     tiles_ij = tile_n2ij(this_image())
@@ -160,7 +171,13 @@ contains
 
     ! i, j tile indices for each of the neighbors
     ij_left = [itile - 1, jtile]
+    ij_upper_left = [itile - 1, jtile + 1]
+    ij_lower_left = [itile - 1, jtile - 1]
+
     ij_right = [itile + 1, jtile]
+    ij_upper_right = [itile + 1, jtile + 1]
+    ij_lower_right = [itile + 1, jtile - 1]
+
     ij_down = [itile, jtile - 1]
     ij_up = [itile, jtile + 1]
 
@@ -170,12 +187,33 @@ contains
       if(ij_right(1) > tiles(1)) ij_right(1) = 1
       if(ij_down(2) < 1) ij_down(2) = tiles(2)
       if(ij_up(2) > tiles(2)) ij_up(2) = 1
+
+      if(ij_lower_left(1) < 1) ij_lower_left(1) = tiles(1)
+      if(ij_lower_left(2) < 1) ij_lower_left(2) = tiles(2)
+      if(ij_upper_left(1) < 1) ij_upper_left(1) = tiles(1)
+      if(ij_upper_left(2) > tiles(2)) ij_upper_left(2) = 1
+
+      if(ij_upper_right(1) > tiles(1)) ij_upper_right(1) = 1
+      if(ij_upper_right(2) > tiles(2)) ij_upper_right(2) = 1
+      if(ij_lower_right(1) > tiles(1)) ij_lower_right(1) = 1
+      if(ij_lower_right(2) < 1) ij_lower_right(2) = tiles(2)
+
     else
       ! set neighbor to 0 -- no neighbor
       if(ij_left(1) < 1) ij_left = 0
       if(ij_right(1) > tiles(1)) ij_right = 0
       if(ij_down(2) < 1) ij_down = 0
       if(ij_up(2) > tiles(2)) ij_up = 0
+
+      if(ij_upper_right(1) > tiles(1)) ij_upper_right(1) = 0
+      if(ij_upper_right(2) > tiles(2)) ij_upper_right(2) = 0
+      if(ij_lower_right(1) > tiles(1)) ij_lower_right(1) = 0
+      if(ij_lower_right(2) < 1) ij_lower_right(2) = 0
+
+      if(ij_lower_left(1) < 1) ij_lower_left(1) = 0
+      if(ij_lower_left(2) < 1) ij_lower_left(2) = 0
+      if(ij_upper_left(1) < 1) ij_upper_left(1) = 0
+      if(ij_upper_left(2) > tiles(2)) ij_upper_left(2) = 0
     end if
 
     left = tile_ij2n(ij_left)
@@ -183,7 +221,13 @@ contains
     down = tile_ij2n(ij_down)
     up = tile_ij2n(ij_up)
 
-    neighbors = [left, right, down, up]
+    lower_left = tile_ij2n(ij_lower_left)
+    upper_left = tile_ij2n(ij_upper_left)
+    lower_right = tile_ij2n(ij_lower_right)
+    upper_right = tile_ij2n(ij_upper_right)
+
+    neighbors = [lower_left, down, lower_right, left, &
+                 right, upper_left, up, upper_right]
   end function tile_neighbors_2d
 
   pure function tile_neighbors_3d(is_periodic) result(neighbors)
@@ -280,52 +324,4 @@ contains
       n = (ij(2) - 1) * tiles(1) + ij(1)
     end if
   end function tile_ij2n
-
-  ! subroutine sync_edges(a, indices)
-  !   real(rk), allocatable, intent(in out) :: a(:,:)
-  !   integer(ik), intent(in) :: indices(4)
-  !   real(rk), allocatable :: halo(:,:)[:]
-  !   integer(ik) :: tiles(2), neighbors(4)
-  !   integer(ik) :: is, ie, js, je
-  !   integer(ik) :: halo_size
-
-  !   if (.not. allocated(a)) then
-  !     error stop 'Error in update_halo: input array not allocated.'
-  !   end if
-
-  !   ! tile layout, neighbors, and indices
-  !   tiles = num_2d_tiles(num_images())
-  !   neighbors = tile_neighbors_2d(is_periodic=.true.)
-
-  !   is = indices(1)
-  !   ie = indices(2)
-  !   js = indices(3)
-  !   je = indices(4)
-
-  !   halo_size = max(ie-is+1, je-js+1)
-  !   call co_max(halo_size)
-  !   if (.not. allocated(halo)) allocate(halo(halo_size, 4)[*])
-  !   halo = 0
-
-  !   !sync images(neighbors) !TODO currently fails with OpenCoarrays-2.2.0
-  !   sync all
-
-  !   ! copy data into coarray buffer
-  !   halo(1:je-js+1,1)[neighbors(1)] = a(is,js:je) ! send left
-  !   halo(1:je-js+1,2)[neighbors(2)] = a(ie,js:je) ! send right
-  !   halo(1:ie-is+1,3)[neighbors(3)] = a(is:ie,js) ! send down
-  !   halo(1:ie-is+1,4)[neighbors(4)] = a(is:ie,je) ! send up
-
-  !   !sync images(neighbors) !TODO currently fails with OpenCoarrays-2.2.0
-  !   sync all
-
-  !   ! copy from halo buffer into array
-  !   a(is-1,js:je) = halo(1:je-js+1,2) ! from left
-  !   a(ie+1,js:je) = halo(1:je-js+1,1) ! from right
-  !   a(is:ie,js-1) = halo(1:ie-is+1,4) ! from down
-  !   a(is:ie,je+1) = halo(1:ie-is+1,3) ! from up
-
-  !   deallocate(halo)
-  ! end subroutine sync_edges
-
 end module mod_parallel
