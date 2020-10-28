@@ -201,7 +201,7 @@ contains
     write(stage_name, '(2(a, i0))') 'iter_', self%iteration, 'stage_', stage
 
     call reconstructor%set_cell_average_pointers(rho=rho, p=p, lbounds=lbounds)
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p,  &
                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
