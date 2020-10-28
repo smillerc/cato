@@ -102,13 +102,11 @@ contains
         d_ij_j = 0.0_rk
         if(abs(${F}$(i, j)) > 0.0_rk) then
           ! Eq 11a
-          d_ij_i = abs(((-one_sixth*${F}$(i - 2, j) + two_thirds*${F}$(i - 1, j) + &
-                         two_thirds*${F}$(i + 1, j) - one_sixth*${F}$(i + 2, j)) &
+  d_ij_i = abs(((-one_sixth*${F}$(i - 2, j) + two_thirds*${F}$(i - 1, j) + two_thirds*${F}$(i + 1, j) - one_sixth*${F}$(i + 2, j)) &
                         /${F}$(i, j)) - 1.0_rk)
 
           ! Eq 11b
-          d_ij_j = abs(((-one_sixth*${F}$(i, j - 2) + two_thirds*${F}$(i, j - 1) + &
-                         two_thirds*${F}$(i, j + 1) - one_sixth*${F}$(i, j + 2)) &
+  d_ij_j = abs(((-one_sixth*${F}$(i, j - 2) + two_thirds*${F}$(i, j - 1) + two_thirds*${F}$(i, j + 1) - one_sixth*${F}$(i, j + 2)) &
                         /${F}$(i, j)) - 1.0_rk)
         end if
         ! Eq 11c

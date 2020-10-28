@@ -1,9 +1,9 @@
 module mod_field
-  !> Summary: Provide the base 2D field class. This originates from https://github.com/modern-fortran/tsunami
-  !> Date: 08/18/2020
-  !> Author: Milan Curcic, Sam Miller (minor mods)
-  !> Notes:
-  !> References:
+  !< Summary: Provide the base 2D field class. This originates from https://github.com/modern-fortran/tsunami
+  !< Date: 08/18/2020
+  !< Author: Milan Curcic, Sam Miller (minor mods)
+  !< Notes:
+  !< References:
   !      [1] Milan Curcic, "Modern Fortran: Building efficient parallel applications", 2020
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit

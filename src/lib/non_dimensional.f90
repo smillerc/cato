@@ -62,18 +62,18 @@ contains
     real(rk), intent(in) :: density_scale
     real(rk), intent(in) :: pressure_scale
 
-    if(.not. length_scale_set) then
-      error stop "Error in mod_nondimensionalization::set_scale_factors(), "// &
-        "the length scale needs to be set first (via the grid)"
-    end if
+    ! if(.not. length_scale_set) then
+    !   error stop "Error in mod_nondimensionalization::set_scale_factors(), "// &
+    !     "the length scale needs to be set first (via the grid)"
+    ! end if
 
-    if(density_scale < 0.0_rk) then
-      error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
-    end if
+    ! if(density_scale < 0.0_rk) then
+    !   error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
+    ! end if
 
-    if(pressure_scale < 0.0_rk) then
-      error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
-    end if
+    ! if(pressure_scale < 0.0_rk) then
+    !   error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
+    ! end if
 
     rho_0 = density_scale
     p_0 = pressure_scale

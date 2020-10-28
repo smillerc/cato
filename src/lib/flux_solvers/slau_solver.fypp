@@ -87,11 +87,13 @@ module mod_slau_solver
     generic :: assignment(=) => copy
   end type slau_solver_t
 contains
-  subroutine initialize_slau(self, input)
+  subroutine initialize_slau(self, input, time)
     !< Constructor for the SLAU solver
     class(slau_solver_t), intent(inout) :: self
     class(input_t), intent(in) :: input
+    real(rk), intent(in) :: time
 
+    self%time = time
     self%input = input
     self%gamma = eos%get_gamma()
     self%name = 'SLAU_'//input%limiter
@@ -158,7 +160,7 @@ contains
     call debug_print('Running ausmpw_plus_solver_t%solve_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
-      call error_msg(module_name='mod_slau_solver', class_name='slau_solver_t', procedure_name='solve_slau', &
+      call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
                      message="The timestep dt is < tiny(1.0_rk)", &
                      file_name=__FILE__, line_number=__LINE__)
     end if
@@ -220,8 +222,7 @@ contains
                                                               eflux_lbounds=lbound(self%${DIR}$flux), &
                                                               rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
                                                               rho_edge=rho_${DIR}$_edges, u_edge=u_${DIR}$_edges, &
-                                                              v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, &
-                                                              edge_flux=self%${DIR}$flux)
+                                                         v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
     #:endfor
     #:endfor
     case default

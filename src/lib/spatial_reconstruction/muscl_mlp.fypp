@@ -30,10 +30,10 @@
 #endif
 
 module mod_muscl_mlp
-  !> Summary: Provide higher order MLP edge interpolation + limiting
-  !> Date: 08/15/2020
-  !> Author: Sam Miller
-  !> References:
+  !< Summary: Provide higher order MLP edge interpolation + limiting
+  !< Date: 08/15/2020
+  !< Author: Sam Miller
+  !< References:
   !<   [1] K.H. Kim, C. Kim, "Accurate, efficient and monotonic numerical methods for multi-dimensional compressible flows Part II: Multi-dimensional limiting process",
   !<       Journal of Computational Physics 208 (2005) 570–615, https://doi.org/10.1016/j.jcp.2005.02.022
 
@@ -91,7 +91,7 @@ contains
       #:endfor
       #:endfor
     case default
-      call error_msg(module_name='mod_muscl_mlp', class_name='muscl_mlp_t', procedure_name='interpolate_edge_values', &
+      call error_msg(module='mod_muscl_mlp', class='muscl_mlp_t', procedure='interpolate_edge_values', &
                      message="Unknown limiter type: '"//trim(self%limiter_name)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select

@@ -1,9 +1,9 @@
 module mod_muscl_interpolation
-  !> Summary: Provide the implementation and base class for standard MUSCL edge interpolation
-  !> Date: 08/03/2020
-  !> Author: Sam Miller
-  !> Notes:
-  !> References:
+  !< Summary: Provide the implementation and base class for standard MUSCL edge interpolation
+  !< Date: 08/03/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
   !      [1]
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit

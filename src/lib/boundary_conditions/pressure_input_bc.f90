@@ -36,6 +36,7 @@ module mod_pressure_input_bc
 
   type, extends(boundary_condition_t) :: pressure_input_bc_t
     logical :: constant_pressure = .false.
+    logical :: constant_density = .false.
     real(rk) :: pressure_input = 0.0_rk
     real(rk) :: temperature_input = 273.0_rk ! K
     real(rk) :: density_input = 5e-3_rk !< Boundary density g/cc
@@ -43,6 +44,7 @@ module mod_pressure_input_bc
 
     ! Temporal inputs
     type(linear_interp_1d) :: temporal_pressure_input
+    type(linear_interp_1d) :: temporal_density_input
     character(len=100) :: input_filename
 
     real(rk), dimension(:), allocatable :: edge_rho !< boundary (ghost/edge/etc) density
@@ -53,22 +55,25 @@ module mod_pressure_input_bc
   contains
     procedure, private :: read_pressure_input
     procedure, private :: get_desired_pressure
+    procedure, private :: get_desired_density
     procedure, public :: apply => apply_pressure_input_primitive_var_bc
     final :: finalize
   end type
 contains
 
-  function pressure_input_bc_constructor(location, input, grid) result(bc)
+  function pressure_input_bc_constructor(location, input, grid, time) result(bc)
     type(pressure_input_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
     class(grid_block_2d_t), intent(in) :: grid
+    real(rk), intent(in) :: time
 
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
     call bc%set_indices(grid)
 
+    bc%time = time
     bc%density_input = input%bc_density / rho_0
     bc%constant_pressure = input%apply_constant_bc_pressure
     bc%scale_factor = input%bc_pressure_scale_factor
@@ -86,8 +91,9 @@ contains
     !< makes it easy to get the input pressure at any given time
     class(pressure_input_bc_t), intent(inout) :: self
 
-    real(rk), dimension(:), allocatable :: time_sec
-    real(rk), dimension(:), allocatable :: pressure_barye
+    real(rk), dimension(:), allocatable :: time_sec       !< User input for time in seconds
+    real(rk), dimension(:), allocatable :: pressure_barye !< User input for pressure in barye
+    real(rk), dimension(:), allocatable :: density_gcc    !< User input for density in g/cc
     character(len=300) :: line_buffer
     logical :: has_header_line
     logical :: file_exists
@@ -127,11 +133,13 @@ contains
 
     allocate(time_sec(nlines))
     allocate(pressure_barye(nlines))
+    allocate(density_gcc(nlines))
     time_sec = 0.0_rk
     pressure_barye = 0.0_rk
+    density_gcc = 0.0_rk
 
     do line = 1, nlines
-      read(input_unit, *, iostat=io_status) time_sec(line), pressure_barye(line)
+      read(input_unit, *, iostat=io_status) time_sec(line), pressure_barye(line), density_gcc(line)
       if(io_status /= 0) exit
     end do
     close(input_unit)
@@ -139,6 +147,7 @@ contains
     ! Apply scaling and non-dimensionalization
     time_sec = time_sec / t_0
     pressure_barye = (pressure_barye / p_0) * self%scale_factor
+    density_gcc = (density_gcc / rho_0) * self%scale_factor
 
     self%max_time = maxval(time_sec)
 
@@ -147,12 +156,23 @@ contains
     if(interp_status /= 0) then
       write(*, *) time_sec
       write(*, *) pressure_barye
+      write(*, *) density_gcc
       write(*, *) interp_status
       error stop "Error initializing pressure_input_bc_t%temporal_pressure_input"
     end if
 
+    call self%temporal_density_input%initialize(time_sec, density_gcc, interp_status)
+    if(interp_status /= 0) then
+      write(*, *) time_sec
+      write(*, *) pressure_barye
+      write(*, *) density_gcc
+      write(*, *) interp_status
+      error stop "Error initializing pressure_input_bc_t%temporal_density_input"
+    end if
+
     deallocate(time_sec)
     deallocate(pressure_barye)
+    deallocate(density_gcc)
   end subroutine read_pressure_input
 
   real(rk) function get_desired_pressure(self) result(desired_pressure)
@@ -167,9 +187,33 @@ contains
         error stop "Unable to interpolate pressure within pressure_input_bc_t%get_desired_pressure()"
       end if
     end if
+
+    if(desired_pressure < tiny(1.0_rk)) then
+      error stop "Error in pressure_input_bc_t%get_desired_pressure: desired_pressure < tiny(1.0_rk)"
+    end if
+
   end function get_desired_pressure
 
-  subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p)
+  real(rk) function get_desired_density(self) result(desired_density)
+    class(pressure_input_bc_t), intent(inout) :: self
+    integer(ik) :: interp_stat
+
+    if(self%constant_pressure) then
+      desired_density = self%density_input
+    else
+      call self%temporal_density_input%evaluate(x=self%get_time(), f=desired_density, istat=interp_stat)
+
+      if(interp_stat /= 0) then
+        error stop "Unable to interpolate density within pressure_input_bc_t%get_desired_density()"
+      end if
+    end if
+
+    if(desired_density < tiny(1.0_rk)) then
+      error stop "Error in pressure_input_bc_t%get_desired_density: desired_density < tiny(1.0_rk)"
+    end if
+  end function get_desired_density
+
+  subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p, lbounds)
     !< Apply pressure_input boundary conditions to the conserved state vector field
     class(pressure_input_bc_t), intent(inout) :: self
     class(field_2d_t), intent(inout) :: rho
@@ -181,7 +225,9 @@ contains
     logical :: inflow
     logical :: outflow
 
-    real(rk) :: desired_boundary_pressure, boundary_density, gamma
+    real(rk) :: desired_boundary_density  !< user-specified boundary value for density
+    real(rk) :: desired_boundary_pressure !< user-specified boundary value for pressure
+    real(rk) :: boundary_density, gamma, boundary_cs
     real(rk) :: mach_u, mach_v, mach, cs
     real(rk), dimension(:), allocatable :: edge_pressure
     real(rk), dimension(:), allocatable :: domain_rho
@@ -195,7 +241,9 @@ contains
     inflow = .false.
     outflow = .false.
 
+    boundary_prim_vars = 0.0_rk
     desired_boundary_pressure = self%get_desired_pressure()
+    desired_boundary_density = self%get_desired_density()
 
     if(allocated(self%edge_rho)) deallocate(self%edge_rho)
     if(allocated(self%edge_u)) deallocate(self%edge_u)
@@ -259,25 +307,28 @@ contains
             domain_prim_vars = [rho_d, u_d, v_d, p_d]
 
             call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
+            call eos%sound_speed(p=desired_boundary_pressure, rho=desired_boundary_density, cs=boundary_cs)
             mach_u = u_d / cs
+            ! print*, 'domain mach', mach_u, 'ghost mach',  u_d / boundary_cs
+            ! print*, "maxval(domain_p) > desired_boundary_pressure ", maxval(domain_p(bottom:top)) > desired_boundary_pressure, maxval(domain_p(bottom:top)), desired_boundary_pressure
 
             if(mach_u > 0.0_rk) then ! outlet
-              if(mach_u > 1.0_rk) then
-
-                boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
-              else
+              if(mach_u <= 1.0_rk .or. maxval(domain_p(bottom:top)) < desired_boundary_pressure) then
+                ! print*, 'sub outlet'
+                ! error stop
                 boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
                                                      exit_pressure=desired_boundary_pressure, &
                                                      boundary_norm=boundary_norm)
+              else
+                boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
               end if
             else ! inlet
               if(abs(mach_u) > 1.0_rk) then
-                error stop 'Error in pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"'// &
-                  ': Supersonic inlet not configured yet'
+                boundary_prim_vars = [desired_boundary_density, u_d, v_d, desired_boundary_pressure]
               else
                 boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
                                                     boundary_norm=boundary_norm, &
-                                                    inlet_density=self%density_input, &
+                                                    inlet_density=desired_boundary_density, &
                                                     inlet_total_press=desired_boundary_pressure, &
                                                     inlet_flow_angle=0.0_rk)
               end if

@@ -77,17 +77,102 @@ module mod_flux_solver
       type(field_2d_t), intent(out)   :: d_rho_E_dt !< d/dt of the rhoE field
     end subroutine
 
-    subroutine initialize(self, input)
-      import :: flux_solver_t
+    subroutine initialize(self, input, time)
+      import :: flux_solver_t, rk
       import :: input_t
       class(flux_solver_t), intent(inout) :: self
       class(input_t), intent(in) :: input
+      real(rk), intent(in) :: time
     end subroutine
   end interface
 
 contains
 
-  subroutine flux_split_edges(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine init_boundary_conditions(self, grid, bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
+    class(flux_solver_t), intent(inout) :: self
+    class(grid_block_2d_t), intent(in) :: grid
+    class(boundary_condition_t), pointer :: bc => null()
+
+    class(boundary_condition_t), allocatable, intent(out):: bc_plus_x
+    class(boundary_condition_t), allocatable, intent(out):: bc_plus_y
+    class(boundary_condition_t), allocatable, intent(out):: bc_minus_x
+    class(boundary_condition_t), allocatable, intent(out):: bc_minus_y
+
+    ! Locals
+    integer(ik) :: alloc_status
+
+    ! Set boundary conditions
+    bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, grid=grid, time=self%time)
+    allocate(bc_plus_x, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
+    deallocate(bc)
+
+    bc => bc_factory(bc_type=self%input%plus_y_bc, location='+y', input=self%input, grid=grid, time=self%time)
+    allocate(bc_plus_y, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
+    deallocate(bc)
+
+    bc => bc_factory(bc_type=self%input%minus_x_bc, location='-x', input=self%input, grid=grid, time=self%time)
+    allocate(bc_minus_x, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
+    deallocate(bc)
+
+    bc => bc_factory(bc_type=self%input%minus_y_bc, location='-y', input=self%input, grid=grid, time=self%time)
+    allocate(bc_minus_y, source=bc, stat=alloc_status)
+    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
+    deallocate(bc)
+
+  end subroutine init_boundary_conditions
+
+  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p, &
+                                bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
+    class(flux_solver_t), intent(inout) :: self
+    integer(ik), dimension(2), intent(in) :: lbounds
+    class(field_2d_t), intent(inout) :: rho
+    class(field_2d_t), intent(inout) :: u
+    class(field_2d_t), intent(inout) :: v
+    class(field_2d_t), intent(inout) :: p
+    class(boundary_condition_t), intent(inout):: bc_plus_x
+    class(boundary_condition_t), intent(inout):: bc_plus_y
+    class(boundary_condition_t), intent(inout):: bc_minus_x
+    class(boundary_condition_t), intent(inout):: bc_minus_y
+
+    integer(ik) :: priority
+    integer(ik) :: max_priority_bc !< highest goes first
+
+    call debug_print('Running flux_solver_t%apply()', __FILE__, __LINE__)
+
+    max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
+                          bc_minus_x%priority, bc_minus_y%priority)
+
+    call bc_plus_x%set_time(time=self%time)
+    call bc_minus_x%set_time(time=self%time)
+    call bc_plus_y%set_time(time=self%time)
+    call bc_minus_y%set_time(time=self%time)
+
+    do priority = max_priority_bc, 0, -1
+
+      if(bc_plus_x%priority == priority) then
+        call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(bc_plus_y%priority == priority) then
+        call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(bc_minus_x%priority == priority) then
+        call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+      if(bc_minus_y%priority == priority) then
+        call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+      end if
+
+    end do
+
+  end subroutine apply_primitive_bc
+
+  subroutine flux_split_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
     class(edge_split_flux_solver_t), intent(in) :: self
     class(grid_block_2d_t), intent(in) :: grid          !< grid topology class

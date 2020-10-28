@@ -22,18 +22,6 @@ apply_perturbations = False
 if args.perturbed == "perturbed":
     apply_perturbations = True
 
-# Read the input file and make sure the spatial order is consistent
-config = ConfigParser()
-config.read("input.ini")
-config.sections()
-edge_interp = config["scheme"]["edge_interpolation_scheme"]
-edge_interp = edge_interp.strip("'").strip('"')
-
-if edge_interp in ["TVD3", "TVD5", "MLP3", "MLP5"]:
-    n_ghost_layers = 2
-else:
-    n_ghost_layers = 1
-
 # Physics
 gamma = 5.0 / 3.0
 init_pressure = 1e9 * ureg("barye")
@@ -67,6 +55,7 @@ domain = make_1d_layered_grid(
     layer_v,
     layer_pressure,
     layer_spacing=layer_spacing,
+    input_file="input.ini",
 )
 
 if apply_perturbations:

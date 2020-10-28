@@ -75,13 +75,15 @@ module mod_ausm_plus_solver
 
 contains
 
-  subroutine initialize_ausm_plus(self, input)
+  subroutine initialize_ausm_plus(self, input, time)
     class(ausm_plus_solver_t), intent(inout) :: self
     class(input_t), intent(in) :: input
+    real(rk), intent(in) :: time
 
     call debug_print('Running ausm_plus_solver_t%initialize_ausm_plus()', __FILE__, __LINE__)
 
     self%input = input
+    self%time = time
     self%M_inf_sq = input%reference_mach**2
 
     select case(trim(input%flux_solver))

@@ -1,12 +1,7 @@
 # -*- coding: utf-8 -*-
 """Make a simple 1D planar layered target for ICF-like implosions
 and apply a perturbation at the ice-ablator interface"""
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    pass
-
-from configparser import ConfigParser
+import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import os
@@ -14,30 +9,20 @@ import os
 sys.path.append(os.path.abspath("../../.."))
 from pycato import *
 
-# Read the input file and make sure the spatial order is consistent
-config = ConfigParser()
-config.read("input.ini")
-config.sections()
-edge_interp = config["scheme"]["limiter"]
-edge_interp = edge_interp.strip("'").strip('"')
-
-if edge_interp in ["TVD5", "MLP5"]:
-    n_ghost_layers = 3
-else:
-    n_ghost_layers = 2
-
 # Physics
-gamma = 5.0 / 3.0
+gamma = 1.6666666667
 init_pressure = 1e9 * ureg("barye")
 ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
 
-vacuum_pressure = 7e12 * ureg("barye")
-vacuum_density = 0.01 * ureg("g/cc")
+vacuum_pressure = 3.5e13 * ureg("barye")
+vacuum_density = 0.001 * ureg("g/cc")
 
+v_shell = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s").m
+print(v_shell)
 # Mesh
-interface_loc = 20.0
-layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
+interface_loc = 70.0
+layer_thicknesses = [interface_loc, 10, 10] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
 layer_resolution = [20, 20, 20] * ureg("1/um")
 
@@ -46,7 +31,7 @@ layer_n_cells = np.round(
 ).m.astype(int)
 
 layer_density = [ice_density, shell_density, vacuum_density]
-layer_u = [0, 0, 0] * ureg("cm/s")
+layer_u = [0, 0, -v_shell] * ureg("cm/s")
 layer_v = [0, 0, 0] * ureg("cm/s")
 layer_pressure = [init_pressure, init_pressure, vacuum_pressure]
 
@@ -59,23 +44,47 @@ domain = make_2d_layered_grid(
     layer_pressure,
     y_thickness=0,
     layer_spacing=layer_spacing,
-    n_ghost_layers=n_ghost_layers,
 )
+
+
+apply_perturbations = False
+if apply_perturbations:
+    print("Applying perturbations to the initial conditions")
+    x = domain["xc"].to("cm").m
+    y = domain["yc"].to("cm").m
+
+    # Perturbation
+    x0 = (68 * ureg("um")).to("cm").m
+    fwhm = (0.5 * ureg("um")).to("cm").m
+    gaussian_order = 1
+    perturbation_frac = -0.01
+
+    # 1D
+    perturbation = (-perturbation_frac) * np.exp(
+        -((((x - x0) ** 2) / fwhm ** 2) ** gaussian_order)
+    )
+
+    # Cutoff the perturbation below 1e-6 otherwise there
+    # will be weird noise issues
+    perturbation[perturbation < 1e-6] = 0.0
+
+    perturbation = 1.0 - perturbation
+    domain["rho"] = perturbation * domain["rho"]
 
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
-try:
-    plt.figure(figsize=(10, 2))
-    plt.pcolormesh(
-        domain["x"].m,
-        domain["y"].m,
-        domain["rho"].m,
-        ec="k",
-        lw=0.1,
-        antialiased=True,
-        cmap="viridis",
-    )
-    plt.axis("equal")
-    plt.show()
-except Exception:
-    pass
+# try:
+#     plt.figure(figsize=(10, 2))
+#     plt.pcolormesh(
+#         domain["x"].m,
+#         domain["y"].m,
+#         domain["rho"].m,
+#         ec="k",
+#         lw=0.1,
+#         antialiased=True,
+#         cmap="viridis",
+#     )
+#     plt.axis("equal")
+#     plt.show()
+# except Exception:
+#     pass

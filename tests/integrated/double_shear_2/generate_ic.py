@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
 """Make the double periodic shear test grid"""
 import matplotlib.pyplot as plt
+from configparser import ConfigParser
 import numpy as np
 import sys
 import os
 
 sys.path.append(os.path.abspath("../../.."))
-from pycato import make_uniform_grid, write_initial_hdf5, ureg
+from pycato import *
+
 
 # Make the empty grid
 domain = make_uniform_grid(
-    n_cells=(256, 256), xrange=(0, 2 * np.pi), yrange=(0, 2 * np.pi)
+    n_cells=(256, 256),
+    xrange=(0, 2 * np.pi),
+    yrange=(0, 2 * np.pi),
+    input_file="input.ini",
 )
 
 # Set the initial conditions

@@ -19,7 +19,7 @@
 ! SOFTWARE.
 
 module mod_bc_factory
-  use iso_fortran_env, only: ik => int32
+  use iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
   use mod_grid_block_2d, only: grid_block_2d_t
   use mod_boundary_conditions, only: boundary_condition_t
@@ -34,13 +34,14 @@ module mod_bc_factory
   public :: bc_factory
 contains
 
-  function bc_factory(bc_type, location, input, grid) result(bc)
+  function bc_factory(bc_type, location, input, grid, time) result(bc)
     !< Factory function to create a boundary condition object
     character(len=*), intent(in) :: bc_type
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(boundary_condition_t), pointer :: bc
     class(input_t), intent(in) :: input
     class(grid_block_2d_t), intent(in) :: grid
+    real(rk), intent(in) :: time
 
     select case(trim(bc_type))
     case('periodic')
@@ -50,7 +51,7 @@ contains
       bc => symmetry_bc_constructor(location, input, grid)
       bc%priority = 1
     case('pressure_input')
-      bc => pressure_input_bc_constructor(location, input, grid)
+      bc => pressure_input_bc_constructor(location, input, grid, time)
       bc%priority = 2
     case('zero_gradient')
       bc => zero_gradient_bc_constructor(location, input, grid)

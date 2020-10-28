@@ -30,6 +30,7 @@
 #define __W2_ALIGN__
 #endif
 
+
 module mod_m_ausmpw_plus_solver
   !< Summary: Provide a solver based on the M-AUSMPW+ family of schemes
   !< Date: 07/15/2020
@@ -84,12 +85,14 @@ module mod_m_ausmpw_plus_solver
     generic :: assignment(=) => copy
   end type m_ausmpw_plus_solver_t
 contains
-  subroutine initialize_m_ausmpw_plus(self, input)
+  subroutine initialize_m_ausmpw_plus(self, input, time)
     !< Constructor for the M-AUSMPW+ solver
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
     class(input_t), intent(in) :: input
+    real(rk), intent(in) :: time
 
     self%input = input
+    self%time = time
     self%gamma = eos%get_gamma()
     self%name = 'M-AUSMPW+_'//input%limiter
     self%apply_low_mach_fix = input%apply_low_mach_fix
@@ -160,21 +163,10 @@ contains
     real(rk), dimension(:, :, :), allocatable ::   p_i_edges_sb   !< ((1:2), i, j) i-interface (L/R state) values for pressure
     real(rk), dimension(:, :, :), allocatable ::   p_j_edges_sb   !< ((1:2), i, j) j-interface (L/R state) values for pressure
 
-    real(rk) :: denom_xi           !< scalar used to aid in the compuation of w_2_xi
-    real(rk) :: numer_xi           !< scalar used to aid in the compuation of w_2_xi
-    real(rk) :: w_2_xi_first_term  !< scalar used to aid in the compuation of w_2_xi
-    real(rk) :: denom_eta          !< scalar used to aid in the compuation of w_2_eta
-    real(rk) :: numer_eta          !< scalar used to aid in the compuation of w_2_eta
-    real(rk) :: w_2_eta_first_term !< scalar used to aid in the compuation of w_2_eta
-    real(rk), dimension(:, :), allocatable :: w_2_xi
-    real(rk), dimension(:, :), allocatable :: w_2_eta
-
     call debug_print('Running m_ausmpw_plus_solver_t%solve_m_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
-      call error_msg(module_name='mod_m_ausmpw_plus_solver', &
-                     class_name='m_ausmpw_plus_solver_t', &
-                     procedure_name='solve_m_ausmpw_plus', &
+      call error_msg(module='mod_m_ausmpw_plus_solver', class='m_ausmpw_plus_solver_t', procedure='solve_m_ausmpw_plus', &
                      message="The timestep dt is < tiny(1.0_rk)", &
                      file_name=__FILE__, line_number=__LINE__)
     end if
@@ -202,6 +194,7 @@ contains
     call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
 
     sb_edge_interpolator => muscl_interpolator_factory(self%input, limiter_name='superbee')
+    call sb_edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
     call sb_edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges_sb, j_edges=rho_j_edges_sb)
     call sb_edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, i_edges=u_i_edges_sb, j_edges=u_j_edges_sb)
     call sb_edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, i_edges=v_i_edges_sb, j_edges=v_j_edges_sb)
@@ -236,76 +229,31 @@ contains
     jlo_bc = grid%jlo_bc_cell
     jhi_bc = grid%jhi_bc_cell
 
-    ! Find the shock sensor values w_2_xi and w_2_eta
-    allocate(w_2_xi(ilo_bc:ihi_bc, jlo_bc:jhi_bc))  !dir$ attributes align:__ALIGNBYTES__ :: w_2_xi
-    allocate(w_2_eta(ilo_bc:ihi_bc, jlo_bc:jhi_bc)) !dir$ attributes align:__ALIGNBYTES__ :: w_2_eta
-    w_2_xi = 0.0_rk
-    w_2_eta = 0.0_rk
-
-    ! !$omp parallel default(none), &
-    ! !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    ! !$omp private(i, j, denom_xi, numer_xi, w_2_xi_first_term, denom_eta, numer_eta, w_2_eta_first_term) &
-    ! !$omp shared(p, w_2_xi, w_2_eta)
-    ! !$omp do
-    ! do j = jlo, jhi
-    !   !$omp simd __W2_ALIGN__
-    !   !dir$ vector aligned
-    !   do i = ilo, ihi
-    !     ! Xi direction (i)
-    !     denom_xi = p(i + 1, j + 1) + p(i, j + 1) - p(i + 1, j - 1) - p(i, j - 1)
-    !     numer_xi = p(i + 1, j) - p(i, j)
-    !     if(abs(numer_xi) < epsilon(1.0_rk)) then
-    !       w_2_xi_first_term = 0.0_rk
-    !     else if (abs(denom_xi) < epsilon(1.0_rk)) then
-    !       w_2_xi_first_term = 1.0_rk
-    !     else
-    !       w_2_xi_first_term = min(1.0_rk, numer_xi / (0.25_rk * denom_xi))
-    !     end if
-    !     w_2_xi(i, j) = (1.0_rk - w_2_xi_first_term)**2 * (1.0_rk - min(p(i, j) / p(i + 1, j), p(i + 1, j) / p(i, j)))**2
-
-    !     ! Eta direction (j)
-    !     denom_eta = (p(i + 1, j + 1) + p(i + 1, j) - p(i - 1, j + 1) - p(i - 1, j))
-    !     numer_eta = p(i, j + 1) - p(i, j)
-    !     if(abs(numer_eta) < epsilon(1.0_rk)) then
-    !       w_2_eta_first_term = 0.0_rk
-    !     else if (abs(denom_eta) < epsilon(1.0_rk)) then
-    !       w_2_eta_first_term = 1.0_rk
-    !     else
-    !       w_2_eta_first_term = min(1.0_rk, numer_eta / (0.25_rk * denom_eta))
-    !     end if
-    !     w_2_eta(i, j) = (1.0_rk - w_2_eta_first_term)**2 * (1.0_rk - min(p(i, j) / p(i, j + 1), p(i, j + 1) / p(i, j)))**2
-    !   end do
-    ! end do
-    ! !$omp end do
-    ! !$omp end parallel
-
     call self%get_iflux(grid=grid, &
                         lbounds=lbound(rho_i_edges), &
                         eflux_lbounds=lbound(self%iflux), &
-                        rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
+                        rho_bar=rho, u_bar=u, v_bar=v, p_bar=p, &
                         rho_edge=rho_i_edges, u_edge=u_i_edges, &
                         v_edge=v_i_edges, p_edge=p_i_edges, &
                         rho_edge_sb=rho_i_edges_sb, u_edge_sb=u_i_edges_sb, &
                         v_edge_sb=v_i_edges_sb, p_edge_sb=p_i_edges_sb, &
-                        w2=w_2_xi, edge_flux=self%iflux)
+                        edge_flux=self%iflux)
 
     call self%get_jflux(grid=grid, &
                         lbounds=lbound(rho_j_edges), &
                         eflux_lbounds=lbound(self%jflux), &
-                        rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
+                        rho_bar=rho, u_bar=u, v_bar=v, p_bar=p, &
                         rho_edge=rho_j_edges, u_edge=u_j_edges, &
                         v_edge=v_j_edges, p_edge=p_j_edges, &
                         rho_edge_sb=rho_j_edges_sb, u_edge_sb=u_j_edges_sb, &
                         v_edge_sb=v_j_edges_sb, p_edge_sb=p_j_edges_sb, &
-                        w2=w_2_eta, edge_flux=self%jflux)
+                        edge_flux=self%jflux)
 
     ! Now flux the edges to get the next solution
     call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
 
     deallocate(edge_interpolator)
     deallocate(sb_edge_interpolator)
-    deallocate(w_2_eta)
-    deallocate(w_2_xi)
 
     deallocate(rho_i_edges)
     deallocate(rho_j_edges)
@@ -336,15 +284,15 @@ contains
   #:for DIR in DIRECTIONS
   subroutine get_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, &
                              rho_edge_sb, u_edge_sb, v_edge_sb, p_edge_sb, &
-                             rho_ave, u_ave, v_ave, p_ave, w2, eflux_lbounds, edge_flux)
+                             rho_bar, u_bar, v_bar, p_bar, eflux_lbounds, edge_flux)
     !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_ave    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
+    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_bar    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
+    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_bar    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
+    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_bar    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
+    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_bar    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
 
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
@@ -356,12 +304,12 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
 
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: w2 !< shock sensing function (determines if shock exists in transversal direction to the interface)
     integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux
+    real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux !< ((rho, u, v, p), i, j); edge fluxes
 
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
+    real(rk) :: w2
     real(rk) :: gamma      !< polytropic gas index
     real(rk) :: rho_L      !< density left state w/ limiter of choice
     real(rk) :: rho_R      !< density right state w/ limiter of choice
@@ -415,15 +363,15 @@ contains
     real(rk) :: M_R_minus       !< right split Mach function
     real(rk) :: n_x             !< normal vectors of each face
     real(rk) :: n_y             !< normal vectors of each face
-    real(rk) :: M_star, M_star_2, M_star_1
-    real(rk) :: vel_ave, vel_ave_2
+    real(rk) :: M_star_i, M_star_ip1, M_star_1
+    real(rk) :: U_i, U_ip1
     real(rk) :: mass_flux_L, mass_flux_R
     real(rk) :: u_LHS_fix !< apply fix from Ref [4] for low Mach flows
     real(rk) :: u_RHS_fix !< apply fix from Ref [4] for low Mach flows
     real(rk) :: v_LHS_fix !< apply fix from Ref [4] for low Mach flows
     real(rk) :: v_RHS_fix !< apply fix from Ref [4] for low Mach flows
     real(rk) :: cs_L, cs_R
-    real(rk) :: M_LHS, M_RHS, f_M
+    real(rk) :: M_LHS, M_RHS, f_M, min_term, numer_w2, denom_w2
     logical :: apply_low_mach_fix
 
     integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
@@ -476,10 +424,10 @@ contains
     !$omp private(H_L_half, H_R_half, H_normal, M_L, M_R, H_L, H_R, f_L, f_R, w1, w,c_s ,c_half, a) &
     !$omp private(M_bar_L_plus, M_bar_R_minus, P_L_plus, P_R_minus, M_L_plus, M_R_minus) &
     !$omp private(mass_flux_L, mass_flux_R) &
-    !$omp private(M_star, M_star_2, M_star_1, vel_ave, vel_ave_2) &
+    !$omp private(M_star_i, M_star_ip1, M_star_1, U_i, U_ip1) &
     !$omp private(u_LHS_fix, u_RHS_fix, v_LHS_fix, v_RHS_fix) &
-    !$omp private(cs_L, cs_R, M_LHS, M_RHS, f_M) &
-    !$omp shared(rho_ave, u_ave, v_ave, p_ave) &
+    !$omp private(cs_L, cs_R, M_LHS, M_RHS, f_M, min_term, numer_w2, denom_w2) &
+    !$omp shared(rho_bar, u_bar, v_bar, p_bar) &
     !$omp shared(grid, w2, rho_edge, u_edge, v_edge, p_edge, rho_edge_sb, u_edge_sb, v_edge_sb, p_edge_sb, edge_flux)
     !$omp do
     do j = jlo, jhi
@@ -567,15 +515,6 @@ contains
         ! across a normal shock
         c_s = sqrt(2.0_rk * ((gamma - 1.0_rk) / (gamma + 1.0_rk)) * H_normal)
 
-        ! Intermediate charactersistic Mach numbers M*
-        ! M_star = sqrt(u_ave(i, j)**2 + v_ave(i, j)**2) / c_s ! M*(i)
-
-        ! #:if DIR == 'i'
-        !   M_star_2 = sqrt(u_ave(i + 1, j)**2 + v_ave(i + 1, j)**2) / c_s ! M*(i+1)
-        ! #:else
-        !   M_star_2 = sqrt(u_ave(i, j + 1)**2 + v_ave(i, j + 1)**2) / c_s ! M*(j+1)
-        ! #:endif
-
         ! Interface sound speed
         if(0.5_rk * (U_L + U_R) < 0.0_rk) then  ! part (ii) in the paper after Eq 3
           c_half = c_s**2 / max(abs(U_R), c_s)
@@ -600,73 +539,150 @@ contains
           M_R_minus = -0.25_rk * (M_R - 1.0_rk)**2
         endif
 
-        !   vel_ave = sqrt(u_ave(i, j)**2 + v_ave(i, j)**2)
+        ! Pressure splitting functions: Eq. 39 or Eq 4, in Ref [1]
+        ! ------------------------------------------------------------------------------------------
+
+        ! Use all of the M-AUSMPW+ logic in the paper (this has some issues and I'm not sure why yet...)
+
+        ! Intermediate characteristic Mach numbers M*. This is used to to account for a sonic transition
+        ! point that occurs within a single cell (between the cell center and cell edge interface)
+
+        ! Current cell i
+        ! U_i = sqrt(u_bar(i, j)**2 + v_bar(i, j)**2) ! U(i)
+        ! M_star_i = U_i / sqrt(gamma * p_bar(i, j) / rho_bar(i, j))! M*i
+
         ! #:if DIR == 'i'
-        !   vel_ave_2 = sqrt(u_ave(i + 1, j)**2 + v_ave(i + 1, j)**2)
-        ! #:else
-        !   vel_ave_2 = sqrt(u_ave(i, j + 1)**2 + v_ave(i, j + 1)**2)
+        !   ! Cell to the right, e.g. i + 1
+        !   U_ip1 = sqrt(u_bar(i + 1, j)**2 + v_bar(i + 1, j)**2) ! U(i+1)
+        !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar(i + 1, j) / rho_bar(i + 1, j)) ! M*(i+1)
+
+        ! #:elif DIR == 'j'
+        !   ! Cell above, e.g. j + 1
+        !   U_ip1 = sqrt(u_bar(i, j + 1)**2 + v_bar(i, j + 1)**2) ! U(i+1)
+        !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar(i, j + 1) / rho_bar(i, j + 1)) ! M*(j+1)
         ! #:endif
 
-        ! ! Pressure splitting functions
-        ! ! Eq. 38a in Ref [1]
-        ! if(M_star > 1.0_rk .and. M_star_2 < 1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
+        ! ! P_R-
+        ! if(M_star_i > 1.0_rk .and. M_star_ip1 < 1.0_rk .and. (0.0_rk < M_star_i * M_star_ip1 .and. M_star_i * M_star_ip1 < 1.0_rk)) then
+        !   ! P-(i+1)
         !   #:if DIR == 'i'
-        !     P_R_minus = 1.0_rk - ((rho_ave(i, j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i, j)) / p_ave(i + 1, j))
-        !   #:else
-        !     P_R_minus = 1.0_rk - ((rho_ave(i, j) * vel_ave * (vel_ave - vel_ave_2) + p_ave(i, j)) / p_ave(i, j + 1))
+        !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar(i,j) * U_i * (U_i - U_ip1) + p_bar(i,j)) / p_bar(i + 1, j))))
+        !   #:elif DIR == 'j'
+        !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar(i,j) * U_i * (U_i - U_ip1) + p_bar(i,j)) / p_bar(i, j + 1))))
+
         !   #:endif
         ! else
-        !   ! or Eq 4, in Ref [1]
+        !   if(abs(M_R) > 1.0_rk) then
+        !     P_R_minus = 0.5_rk * (1.0_rk - sign(1.0_rk, M_R))
+        !   else ! |M_R| <= 1
+        !     P_R_minus = 0.25_rk * ((M_R - 1.0_rk)**2) * (2.0_rk + M_R)
+        !   end if
+        ! end if
+
+        ! ! P_L+
+        ! if(M_star_i < -1.0_rk .and. M_star_ip1 < -1.0_rk .and. (0.0_rk < M_star_i * M_star_ip1 .and. M_star_i * M_star_ip1 < 1.0_rk)) then
+        !   ! P+(i)
+        !   #:if DIR == 'i'
+        !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar(i + 1,j) * U_ip1 * (U_ip1 - U_i) + p_bar(i + 1,j)) / p_bar(i, j))))
+        !   #:elif DIR == 'j'
+        !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar(i,j + 1) * U_ip1 * (U_ip1 - U_i) + p_bar(i,j + 1)) / p_bar(i, j))))
+        !   #:endif
+        ! else
+        !   if(abs(M_L) > 1.0_rk) then
+        !     P_L_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M_L))
+        !   else ! |M_R| <= 1
+        !     P_L_plus = 0.25_rk * ((M_L + 1.0_rk)**2) * (2.0_rk - M_L)
+        !   end if
+        ! end if
+
+        ! ------------------------------------------------------------------------------------------
+
+        ! Or just use the AUSMPW+ version
         if(abs(M_R) > 1.0_rk) then
           P_R_minus = 0.5_rk * (1.0_rk - sign(1.0_rk, M_R))
         else ! |M_R| <= 1
           P_R_minus = 0.25_rk * ((M_R - 1.0_rk)**2) * (2.0_rk + M_R)
         end if
-        ! end if
 
-        ! ! Eq, 38b in Ref [1]
-        ! if(M_star < -1.0_rk .and. M_star_2 < -1.0_rk .and. 0.0_rk < M_star * M_star_2 .and. M_star * M_star_2 < 1.0_rk) then
-        !   #:if DIR == 'i'
-        !     P_L_plus = 1.0_rk - ((rho_ave(i + 1, j) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i + 1, j)) / p_ave(i, j))
-        !   #:else
-        !     P_L_plus = 1.0_rk - ((rho_ave(i, j + 1) * vel_ave_2 * (vel_ave_2 - vel_ave) + p_ave(i, j + 1)) / p_ave(i, j))
-        !   #:endif
-        ! else
-        !   ! or Eq 4, in Ref [1]
         if(abs(M_L) > 1.0_rk) then
           P_L_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M_L))
         else ! |M_R| <= 1
           P_L_plus = 0.25_rk * ((M_L + 1.0_rk)**2) * (2.0_rk - M_L)
         end if
+        ! ------------------------------------------------------------------------------------------
+
+        ! ------------------------------------------------------------------------------------------
+        ! M-AUSMPW+ version
+        ! Eq. 30b: w1 detects whether a shock exists in the normal direction to a cell-interface or not
+        ! min_term = min(p_L / p_R, p_R / p_L)
+        ! w1 = 1.0_rk - (min_term * min_term * min_term)
+
+        ! #:if DIR == 'i'
+        !   numer_w2 = p_bar(i + 1, j) - p_bar(i, j)
+        !   denom_w2 = 0.25_rk * (p_bar(i + 1, j + 1) + p_bar(i, j + 1) - p_bar(i + 1, j - 1) - p_bar(i, j - 1))
+
+        !   if(abs(numer_w2) < epsilon(1.0_rk)) then
+        !     ! The shock is aligned well with the cell interface
+        !     w2 = (1.0_rk - min(p_bar(i, j) / p_bar(i + 1, j), p_bar(i + 1, j) / p_bar(i, j)))**2
+        !   else if (abs(denom_w2) < epsilon(1.0_rk)) then
+        !     w2 = 0.0_rk
+        !   else
+        !     w2 = (1.0_rk - min(1.0_rk, numer_w2 / denom_w2))**2 * &
+        !           (1.0_rk - min(p_bar(i, j) / p_bar(i + 1, j), p_bar(i + 1, j) / p_bar(i, j)))**2
+        !   end if
+        !   #:elif DIR == 'j'
+
+        !   numer_w2 = p_bar(i, j + 1) - p_bar(i, j)
+        !   denom_w2 = 0.25_rk * (p_bar(i + 1, j + 1) + p_bar(i + 1, j) - p_bar(i - 1, j + 1) - p_bar(i - 1, j))
+        !   if(abs(numer_w2) < epsilon(1.0_rk)) then
+        !     ! The shock is aligned well with the cell interface
+        !     w2 = (1.0_rk - min(p_bar(i, j) / p_bar(i, j + 1), p_bar(i, j + 1) / p_bar(i, j)))**2
+        !   else if (abs(denom_w2) < epsilon(1.0_rk)) then
+        !     w2 = 0.0_rk
+        !   else
+        !     w2 = (1.0_rk - min(1.0_rk, numer_w2 / denom_w2))**2 *  &
+        !           (1.0_rk - min(p_bar(i, j) / p_bar(i, j + 1), p_bar(i, j + 1) / p_bar(i, j)))**2
+        !   end if
+        ! #:endif
+
+        ! ! Eq. 29
+        ! w = max(w1, w2)
+
+        ! ! Determine the pressure weighting function f
+        ! p_s = p_L * P_L_plus + p_R * P_R_minus
+        ! if (abs(p_s) > epsilon(1.0_rk)) then ! p_s /= 0
+        !   f_L = ((p_L/ p_s) - 1.0_rk) * (1.0_rk - w2)
+        !   f_R = ((p_R/ p_s) - 1.0_rk) * (1.0_rk - w2)
+        ! else
+        !   f_L = 0.0_rk
+        !   f_R = 0.0_rk
         ! end if
 
-        ! p_s = p_L * P_L_plus + p_R * P_R_minus
-        ! w1 = w_1(p_L=p_L, p_R=p_R)
-        ! w = max(w1, w2(i, j))
-
-        ! f_L = f(p=p_L, p_s=p_s, w_2=w2(i, j))
-        ! f_R = f(p=p_R, p_s=p_s, w_2=w2(i, j))
-
+        ! AUSMPW+ version
+        ! ------------------------------------------------------------------------------------------
         p_s = p_L * P_L_plus + p_R * P_R_minus
-        w = get_w(p_L=p_L, p_R=p_R)
+        min_term = min(p_L / p_R, p_R / p_L)
+        w = 1.0_rk - (min_term * min_term * min_term)
 
         #:if DIR == 'i'
         call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
-                   p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
+                   p1_L=p_bar(i, j - 1), p1_R=p_bar(i + 1, j - 1), &
+                   p2_L=p_bar(i, j + 1), p2_R=p_bar(i + 1, j + 1), &
                    f_L=f_L, f_R=f_R)
         #:else
         call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
-                   p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
+                   p1_L=p_bar(i + 1, j), p1_R=p_bar(i + 1, j + 1), &
+                   p2_L=p_bar(i - 1, j), p2_R=p_bar(i - 1, j + 1), &
                    f_L=f_L, f_R=f_R)
         #:endif
+        ! ------------------------------------------------------------------------------------------
 
-        ! Eq. 2 in Ref [1]
-        if(M_L_plus + M_R_minus < 0.0_rk) then
+        ! Determine the Mach number interpolation functions
+        if(M_L_plus + M_R_minus < 0.0_rk) then ! Eq. 2b in Ref [1]
           M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
           M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
-        else
+
+        else ! Eq. 2a in Ref [1]
           M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
           M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
         end if
@@ -757,10 +773,13 @@ contains
     real(rk), intent(in) :: phi_L_superbee !< limited primitive interface LHS variable w/ the superbee limiter
     real(rk), intent(in) :: a              !< supersonic function (a=0 in subsonic); a = 1 - min(1, max(|M_L|, |M_R|))^2
 
-    phi_L_half = phi_L + max(0.0_rk, &
-                             ((phi_R - phi_L) * (phi_L_superbee - phi_L)) / &
-                             ((phi_R - phi_L) * abs(phi_L_superbee - phi_L) + 1e-16_rk)) &
-                 * min(a, 0.5_rk * abs(phi_R - phi_L), abs(phi_L_superbee - phi_L))
+    if(abs(phi_R - phi_L) < 1.0_rk .or. abs(phi_L_superbee - phi_L) < epsilon(1.0_rk)) then
+      phi_L_half = phi_L
+    else
+      phi_L_half = phi_L + max(0.0_rk,(phi_R - phi_L) * (phi_L_superbee - phi_L)) / &
+                   ((phi_R - phi_L) * abs(phi_L_superbee - phi_L)) &
+                   * min(a, 0.5_rk * abs(phi_R - phi_L), abs(phi_L_superbee - phi_L))
+    endif
 
   end function phi_L_half
 
@@ -771,10 +790,13 @@ contains
     real(rk), intent(in) :: phi_R_superbee !< limited primitive interface RHS variable w/ the superbee limiter
     real(rk), intent(in) :: a              !< supersonic function (a=0 in subsonic); a = 1 - min(1, max(|M_L|, |M_R|))^2
 
-    phi_R_half = phi_R + max(0.0_rk, &
-                             ((phi_L - phi_R) * (phi_R_superbee - phi_R)) / &
-                             ((phi_L - phi_R) * abs(phi_R_superbee - phi_R) + 1e-16_rk)) &
-                 * min(a, 0.5_rk * abs(phi_L - phi_R), abs(phi_R_superbee - phi_R))
+    if(abs(phi_L - phi_R) < epsilon(1.0_rk) .or. abs(phi_R_superbee - phi_R) < 1.0_rk) then
+      phi_R_half = phi_R
+    else
+      phi_R_half = phi_R + max(0.0_rk,(phi_L - phi_R) * (phi_R_superbee - phi_R)) / &
+                   ((phi_L - phi_R) * abs(phi_R_superbee - phi_R)) &
+                   * min(a, 0.5_rk * abs(phi_L - phi_R), abs(phi_R_superbee - phi_R))
+    endif
   end function phi_R_half
 
   pure subroutine get_f(p_L, p_R, p_s, p1_L, p1_R, p2_L, p2_R, f_L, f_R)

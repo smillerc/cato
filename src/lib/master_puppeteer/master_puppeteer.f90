@@ -36,8 +36,9 @@ module mod_master_puppeteer
   ! use mod_grid_block_3d, only: grid_block_3d_t
   use mod_grid_factory, only: grid_factory
   use hdf5_interface, only: hdf5_file
-  use mod_nondimensionalization, only: set_scale_factors
+  use mod_nondimensionalization, only: set_scale_factors, t_0
   use mod_fluid, only: fluid_t, new_fluid
+  use mod_source, only: source_t, new_source
 
   implicit none
   private
@@ -55,6 +56,9 @@ module mod_master_puppeteer
     logical :: is_1d = .false.
     logical :: is_2d = .false.
     logical :: is_3d = .false.
+    class(source_t), allocatable :: source_term !< source_term, i.e. gravity, laser, etc..
+
+    logical :: do_source_terms = .false.
 
   contains
     procedure, public :: initialize
@@ -86,6 +90,7 @@ contains
     ! Locals
     class(grid_block_t), pointer :: grid => null()
     class(fluid_t), pointer :: fluid => null()
+    class(source_t), pointer :: source_term => null()
     type(hdf5_file) :: h5
     integer(ik) :: alloc_status
     character(32) :: str_buff
@@ -93,6 +98,8 @@ contains
     alloc_status = 0
 
     call debug_print('Initializing master_puppeteer_t', __FILE__, __LINE__)
+
+    self%do_source_terms = input%enable_source_terms
 
     if(input%restart_from_file) then
       call h5%initialize(filename=trim(input%restart_file), status='old', action='r')
@@ -124,10 +131,20 @@ contains
     call set_scale_factors(pressure_scale=input%reference_pressure, &
                            density_scale=input%reference_density)
 
-    fluid => new_fluid(input, self%grid)
+    self%time = self%time / t_0
+
+    fluid => new_fluid(input, self%grid, time=self%time)
     allocate(self%fluid, source=fluid, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%fluid"
     deallocate(fluid)
+
+    if(input%enable_source_terms) then
+      source_term => new_source(input, self%grid, time=self%time)
+      allocate(self%source_term, source=source_term, stat=alloc_status)
+      if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%source_term"
+      deallocate(source_term)
+    endif
+
   end subroutine initialize
 
   subroutine finalize(self)
@@ -170,11 +187,14 @@ contains
     end if
 
     self%time = self%time + self%dt
+    if(self%do_source_terms) call self%source_term%integrate(dt=dt)
 
     select type(grid => self%grid)
     class is(grid_block_2d_t)
-      call self%fluid%integrate(dt=self%dt, grid=self%grid, error_code=error_code)
+      call self%fluid%integrate(dt=dt, source_term=self%source_term, &
+                                grid=self%grid, error_code=error_code)
     end select
+
 
   end subroutine integrate
 

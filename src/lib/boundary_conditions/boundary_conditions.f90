@@ -35,7 +35,7 @@ module mod_boundary_conditions
   type, abstract :: boundary_condition_t
     character(len=32) :: name = ''
     character(len=2) :: location = '' !< Location (+x, -x, +y, or -y)
-    real(rk), private :: time = 0.0_rk ! Solution time (for time dependent bc's)
+    real(rk) :: time = 0.0_rk ! Solution time (for time dependent bc's)
     real(rk) :: max_time = 0.0_rk !< Max time in source (e.g. stop after this)
     integer(ik) :: priority = 0 !< Certain b.c.'s take priority over others in terms of when they are applied (periodic is last)
     integer(ik) :: io_unit = 0

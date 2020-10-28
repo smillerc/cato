@@ -79,12 +79,14 @@ module mod_ausmpw_plus_solver
     final :: finalize
   end type ausmpw_plus_solver_t
 contains
-  subroutine initialize_ausmpw_plus(self, input)
+  subroutine initialize_ausmpw_plus(self, input, time)
     !< Constructor for the AUSMPW+ solver
     class(ausmpw_plus_solver_t), intent(inout) :: self
     class(input_t), intent(in) :: input
+    real(rk), intent(in) :: time
 
     self%input = input
+    self%time = time
     self%gamma = eos%get_gamma()
     self%name = 'AUSMPW+_'//input%limiter
     self%apply_low_mach_fix = input%apply_low_mach_fix
@@ -127,6 +129,22 @@ contains
     real(rk), dimension(:, :, :), allocatable ::   p_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for pressure
 
     call debug_print('Running ausmpw_plus_solver_t%solve_ausmpw_plus()', __FILE__, __LINE__)
+
+    if(dt < tiny(1.0_rk)) then
+      call error_msg(module='mod_ausmpw_plus_solver', class='ausmpw_plus_solver_t', procedure='solve_ausmpw_plus', &
+                     message="The timestep dt is < tiny(1.0_rk)", &
+                     file_name=__FILE__, line_number=__LINE__)
+    end if
+
+    self%time = self%time + dt
+    self%dt = dt
+    self%iteration = self%iteration + 1
+
+    call self%init_boundary_conditions(grid, bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                       bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
+                                 bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                 bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
     edge_interpolator => muscl_interpolator_factory(self%input)
 
@@ -410,13 +428,13 @@ contains
 
         #:if DIR == 'i'
         call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave%data(i, j - 1), p1_R=p_ave%data(i + 1, j - 1), &
-                   p2_L=p_ave%data(i, j + 1), p2_R=p_ave%data(i + 1, j + 1), &
+                   p1_L=p_ave(i, j - 1), p1_R=p_ave(i + 1, j - 1), &
+                   p2_L=p_ave(i, j + 1), p2_R=p_ave(i + 1, j + 1), &
                    f_L=f_L, f_R=f_R)
-        #:elif DIR == 'j'
+        #:else
         call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_ave%data(i + 1, j), p1_R=p_ave%data(i + 1, j + 1), &
-                   p2_L=p_ave%data(i - 1, j), p2_R=p_ave%data(i - 1, j + 1), &
+                   p1_L=p_ave(i + 1, j), p1_R=p_ave(i + 1, j + 1), &
+                   p2_L=p_ave(i - 1, j), p2_R=p_ave(i - 1, j + 1), &
                    f_L=f_L, f_R=f_R)
         #:endif
 

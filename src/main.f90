@@ -98,7 +98,7 @@ program cato
   max_time = input%max_time / t_0
 
   if(input%restart_from_file) then
-    time = master%time / t_0
+    time = master%time
     next_output_time = time + contour_interval_dt
     iteration = master%iteration
   else

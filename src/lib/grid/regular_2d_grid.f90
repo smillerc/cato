@@ -183,7 +183,8 @@ contains
     end associate
 
     call self%populate_element_specifications()
-    call self%scale_and_nondimensionalize()
+
+    if(input%non_dimensionalize) call self%scale_and_nondimensionalize()
 
     call self%get_corner_persistent_vectors(scale=.false., shift=.false.)
     call self%get_midpoint_persistent_vectors(edge='left', scale=.false., shift=.false.)
