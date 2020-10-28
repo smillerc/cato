@@ -242,22 +242,22 @@ contains
     deallocate(solver)
 
     ! Set boundary conditions
-    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, grid=grid)
+    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, grid=grid, time=self%time)
     allocate(self%bc_plus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, grid=grid)
+    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, grid=grid, time=self%time)
     allocate(self%bc_plus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, grid=grid)
+    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, grid=grid, time=self%time)
     allocate(self%bc_minus_x, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
     deallocate(bc)
 
-    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, grid=grid)
+    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, grid=grid, time=self%time)
     allocate(self%bc_minus_y, source=bc, stat=alloc_status)
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
     deallocate(bc)
@@ -517,7 +517,7 @@ contains
 
     ! Inputs/Output
     class(fluid_t), intent(inout) :: self
-    class(grid_block_2d_t), intent(in) :: grid  !< grid class - the solver needs grid topology
+    class(grid_block_t), intent(in) :: grid  !< grid class - the solver needs grid topology
     type(fluid_t), allocatable :: d_dt          !< dU/dt
     integer(ik), intent(in) :: stage            !< stage in the time integration scheme
     class(source_t), allocatable, intent(in) :: source_term
@@ -525,20 +525,24 @@ contains
     if(enable_debug_print) call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
     allocate(d_dt, source=self)
-    call self%solver%solve(grid=grid, &
-                           rho=self%rho, u=self%u, v=self%v, p=self%p, &
-                           d_rho_dt=d_dt%rho, &
-                           d_rho_u_dt=d_dt%rho_u, &
-                           d_rho_v_dt=d_dt%rho_v, &
-                           d_rho_E_dt=d_dt%rho_E)
 
-    if(allocated(source_term)) then
-      if(self%time <= source_term%max_time) then
-        if(source_term%source_type == 'energy') then
-          d_dt%rho_E = source_term%data + d_dt%rho_E
+    select type(grid)
+    class is (grid_block_2d_t)
+      call self%solver%solve(dt=self%dt, grid=grid, &
+                            rho=self%rho, u=self%u, v=self%v, p=self%p, &
+                            d_rho_dt=d_dt%rho, &
+                            d_rho_u_dt=d_dt%rho_u, &
+                            d_rho_v_dt=d_dt%rho_v, &
+                            d_rho_E_dt=d_dt%rho_E)
+
+      if(allocated(source_term)) then
+        if(self%time <= source_term%max_time) then
+          if(source_term%source_type == 'energy') then
+            d_dt%rho_E = source_term%data + d_dt%rho_E
+          end if
         end if
       end if
-    end if
+    end select
   end function time_derivative
 
   real(rk) function get_timestep(self, grid) result(delta_t)
@@ -869,7 +873,7 @@ contains
     !< reference, the increase in stage number is more than offset by the allowable increase in CFL number.
 
     class(fluid_t), intent(inout) :: U
-    class(grid_block_2d_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     class(source_t), allocatable, intent(in) :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
@@ -881,33 +885,33 @@ contains
     real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
     real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
 
-    call debug_print('Running fluid_t%ssp_rk_4_3()', __FILE__, __LINE__)
+    ! call debug_print('Running fluid_t%ssp_rk_4_3()', __FILE__, __LINE__)
 
-    dt = U%dt
+    ! dt = U%dt
 
-    ! 1st stage
-    allocate(U_1, source=U)
-    U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * 0.5_rk * dt
+    ! ! 1st stage
+    ! allocate(U_1, source=U)
+    ! U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * 0.5_rk * dt
 
-    ! 2nd stage
-    allocate(U_2, source=U)
-    U_2 = U_1 + U_1%t(grid=grid, source_term=source_term, stage=2) * 0.5_rk * dt
+    ! ! 2nd stage
+    ! allocate(U_2, source=U)
+    ! U_2 = U_1 + U_1%t(grid=grid, source_term=source_term, stage=2) * 0.5_rk * dt
 
-    ! 3rd stage
-    allocate(U_3, source=U)
-    U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid=grid, source_term=source_term, stage=3) * one_sixth * dt)
-    call U_3%residual_smoother()
+    ! ! 3rd stage
+    ! allocate(U_3, source=U)
+    ! U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid=grid, source_term=source_term, stage=3) * one_sixth * dt)
+    ! call U_3%residual_smoother()
 
-    ! Final stage
-    U = U_3 + (U_3%t(grid=grid, source_term=source_term, stage=4) * 0.5_rk * dt)
-    call U%sanity_check(error_code)
+    ! ! Final stage
+    ! U = U_3 + (U_3%t(grid=grid, source_term=source_term, stage=4) * 0.5_rk * dt)
+    ! call U%sanity_check(error_code)
 
-    ! Convergence history
-    call write_residual_history(first_stage=U_1, last_stage=U)
+    ! ! Convergence history
+    ! call write_residual_history(first_stage=U_1, last_stage=U)
 
-    deallocate(U_1)
-    deallocate(U_2)
-    deallocate(U_3)
+    ! deallocate(U_1)
+    ! deallocate(U_2)
+    ! deallocate(U_3)
 
   end subroutine ssp_rk_4_3
 

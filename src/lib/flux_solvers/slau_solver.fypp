@@ -160,7 +160,7 @@ contains
     call debug_print('Running ausmpw_plus_solver_t%solve_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
-      call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
+      call error_msg(module_name='mod_slau_solver', class_name='slau_solver_t', procedure_name='solve_slau', &
                      message="The timestep dt is < tiny(1.0_rk)", &
                      file_name=__FILE__, line_number=__LINE__)
     end if

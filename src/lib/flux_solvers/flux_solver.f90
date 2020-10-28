@@ -63,11 +63,12 @@ module mod_flux_solver
   end type edge_split_flux_solver_t
 
   abstract interface
-    subroutine solve(self, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    subroutine solve(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
       !< Solve and flux the edges
-      import :: flux_solver_t
+      import :: flux_solver_t, rk
       import :: grid_block_2d_t, field_2d_t
       class(flux_solver_t), intent(inout) :: self
+      real(rk), intent(in) :: dt !< timestep delta t
       class(grid_block_2d_t), intent(in) :: grid
       class(field_2d_t), intent(inout) :: rho !< density
       class(field_2d_t), intent(inout) :: u   !< x-velocity

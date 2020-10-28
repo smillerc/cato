@@ -28,6 +28,7 @@ module mod_source
   use linear_interpolation_module, only: linear_interp_1d
   use mod_input, only: input_t
   use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_error, only: error_msg
   use mod_nondimensionalization, only: t_0, rho_0, l_0, v_0, p_0, e_0
 
@@ -35,6 +36,7 @@ module mod_source
 
   type :: source_t
 
+    integer(ik) :: io_unit = 0
     character(len=:), allocatable :: source_type !< what type of source, e.g. energy, force, etc.?
     character(len=:), allocatable :: source_geometry !< Shape of the source, e.g. uniform, constant, or 1D/2D gaussian
 
@@ -103,6 +105,8 @@ contains
     new_source%source_geometry = trim(input%source_geometry)
     new_source%constant_source = input%apply_constant_source
 
+    select type (grid)
+    class is (grid_block_2d_t)
     new_source%volume => grid%volume
 
     if(.not. new_source%constant_source) then
@@ -121,7 +125,7 @@ contains
       new_source%centroid_y => grid%centroid_y
     case default
       call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
-                     module='mod_source', class='source_t', procedure='new_source', file_name=__FILE__, line_number=__LINE__)
+                     module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
     end select
 
     ! Determine the extents of the source term (if any)
@@ -140,7 +144,7 @@ contains
 
       if(new_source%gaussian_order < 1) then
         call error_msg(message="Source term gaussian order is invalid (< 1)", &
-                       module='mod_source', class='source_t', procedure='new_source', file_name=__FILE__, line_number=__LINE__)
+                       module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
       end if
 
       if(new_source%fwhm_x > 0.0_rk .and. new_source%fwhm_y <= 0.0_rk) then
@@ -152,7 +156,7 @@ contains
 
     allocate(new_source%data, mold=grid%centroid_x)
     new_source%data = 0.0_rk
-
+  end select
   end function new_source
 
   subroutine read_input_file(self)

@@ -91,7 +91,7 @@ contains
       #:endfor
       #:endfor
     case default
-      call error_msg(module='mod_muscl_mlp', class='muscl_mlp_t', procedure='interpolate_edge_values', &
+      call error_msg(module_name='mod_muscl_mlp', class_name='muscl_mlp_t', procedure_name='interpolate_edge_values', &
                      message="Unknown limiter type: '"//trim(self%limiter_name)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
