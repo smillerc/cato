@@ -213,7 +213,7 @@ contains
     end if
   end function get_desired_density
 
-  subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p, lbounds)
+  subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p)
     !< Apply pressure_input boundary conditions to the conserved state vector field
     class(pressure_input_bc_t), intent(inout) :: self
     class(field_2d_t), intent(inout) :: rho

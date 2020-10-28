@@ -46,6 +46,8 @@ module mod_flux_solver
     integer(ik), dimension(2) :: lbounds = 0 !< (i,j); lower cell bounds
     integer(ik), dimension(2) :: ubounds = 0 !< (i,j); upper cell bounds
   contains
+    procedure, public :: init_boundary_conditions
+    procedure, public :: apply_primitive_bc
     ! Deferred methods
     procedure(initialize), deferred, public :: initialize
     procedure(solve), deferred, public :: solve
@@ -124,10 +126,9 @@ contains
 
   end subroutine init_boundary_conditions
 
-  subroutine apply_primitive_bc(self, lbounds, rho, u, v, p, &
+  subroutine apply_primitive_bc(self, rho, u, v, p, &
                                 bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
     class(flux_solver_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
     class(field_2d_t), intent(inout) :: rho
     class(field_2d_t), intent(inout) :: u
     class(field_2d_t), intent(inout) :: v
@@ -153,26 +154,26 @@ contains
     do priority = max_priority_bc, 0, -1
 
       if(bc_plus_x%priority == priority) then
-        call bc_plus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+        call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
       end if
 
       if(bc_plus_y%priority == priority) then
-        call bc_plus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+        call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
       end if
 
       if(bc_minus_x%priority == priority) then
-        call bc_minus_x%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+        call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
       end if
 
       if(bc_minus_y%priority == priority) then
-        call bc_minus_y%apply(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+        call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
       end if
 
     end do
 
   end subroutine apply_primitive_bc
 
-  subroutine flux_split_edges(self, grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine flux_split_edges(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
     class(edge_split_flux_solver_t), intent(in) :: self
     class(grid_block_2d_t), intent(in) :: grid          !< grid topology class

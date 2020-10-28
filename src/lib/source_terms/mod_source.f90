@@ -27,7 +27,7 @@ module mod_source
   use math_constants, only: pi
   use linear_interpolation_module, only: linear_interp_1d
   use mod_input, only: input_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_error, only: error_msg
   use mod_nondimensionalization, only: t_0, rho_0, l_0, v_0, p_0, e_0
 
@@ -75,9 +75,9 @@ module mod_source
 
     ! Field data
     real(rk), allocatable, dimension(:, :) :: data !< (i,j); actual source data to apply
-    real(rk), pointer, dimension(:, :) :: cell_centroid_x => null() !< (i,j); cell x centroid used to apply positional source data
-    real(rk), pointer, dimension(:, :) :: cell_centroid_y => null() !< (i,j); cell y centroid used to apply positional source data
-    real(rk), pointer, dimension(:, :) :: cell_volume => null()
+    real(rk), pointer, dimension(:, :) :: centroid_x => null() !< (i,j); cell x centroid used to apply positional source data
+    real(rk), pointer, dimension(:, :) :: centroid_y => null() !< (i,j); cell y centroid used to apply positional source data
+    real(rk), pointer, dimension(:, :) :: volume => null()
   contains
     private
     procedure, public :: integrate
@@ -92,7 +92,7 @@ contains
     !< Source constructor
     type(source_t), pointer :: new_source
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in), target :: grid
+    class(grid_block_t), intent(in), target :: grid
     real(rk), intent(in) :: time
     allocate(new_source)
 
@@ -103,7 +103,7 @@ contains
     new_source%source_geometry = trim(input%source_geometry)
     new_source%constant_source = input%apply_constant_source
 
-    new_source%cell_volume => grid%cell_volume
+    new_source%volume => grid%volume
 
     if(.not. new_source%constant_source) then
       new_source%input_filename = trim(input%source_file)
@@ -117,8 +117,8 @@ contains
       ! case('constant_xy', '1d_gaussian', '2d_gaussian')
     case('constant_xy', '1d_gaussian')
       ! Get the cell centroid data since the source is position dependant
-      new_source%cell_centroid_x => grid%cell_centroid_x
-      new_source%cell_centroid_y => grid%cell_centroid_y
+      new_source%centroid_x => grid%centroid_x
+      new_source%centroid_y => grid%centroid_y
     case default
       call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
                      module='mod_source', class='source_t', procedure='new_source', file_name=__FILE__, line_number=__LINE__)
@@ -150,7 +150,7 @@ contains
       end if
     end select
 
-    allocate(new_source%data, mold=grid%cell_centroid_x)
+    allocate(new_source%data, mold=grid%centroid_x)
     new_source%data = 0.0_rk
 
   end function new_source
@@ -279,13 +279,13 @@ contains
       case('uniform')
         self%data = source_value
       case('constant_xy')
-        where(self%cell_centroid_x < self%xhi .and. self%cell_centroid_x > self%xlo .and. &
-              self%cell_centroid_y < self%yhi .and. self%cell_centroid_x > self%ylo)
+        where(self%centroid_x < self%xhi .and. self%centroid_x > self%xlo .and. &
+              self%centroid_y < self%yhi .and. self%centroid_x > self%ylo)
         self%data = 1.0_rk
         end where
       case('1d_gaussian')
         if(self%constant_in_y) then
-          associate(x => self%cell_centroid_x, x0 => self%x_center, &
+          associate(x => self%centroid_x, x0 => self%x_center, &
                     fwhm => self%fwhm_x, order => self%gaussian_order)
 
             c = fwhm * fwhm_to_c
@@ -295,15 +295,15 @@ contains
           end associate
         else
           error stop "not done yet"
-          associate(y => self%cell_centroid_y, y0 => self%y_center, &
+          associate(y => self%centroid_y, y0 => self%y_center, &
                     fwhm => self%fwhm_y, order => self%gaussian_order)
             self%data = exp(-((((y - y0)**2) / fwhm**2)**order))
           end associate
         end if
       case('2d_gaussian')
 
-        associate(x => self%cell_centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &
-                  y => self%cell_centroid_y, y0 => self%y_center, fwhm_y => self%fwhm_y, &
+        associate(x => self%centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &
+                  y => self%centroid_y, y0 => self%y_center, fwhm_y => self%fwhm_y, &
                   order => self%gaussian_order)
           self%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
                              (((y - y0)**2) / fwhm_y**2))**order))
@@ -318,8 +318,8 @@ contains
       ! write(*,'(a, 10(es16.6))') "min/max: ", minval(self%data), maxval(self%data)
       ! write(*,'(a, es16.6)') "source_value", source_value
       ! write(*,'(a, es16.6)') "sum(self%data)", sum(self%data)
-      ! write(*,'(a, es16.6)') "sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)", sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)
-      self%data = self%data / sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)
+      ! write(*,'(a, es16.6)') "sum(self%volume, mask=abs(self%data) > 0.0_rk)", sum(self%volume, mask=abs(self%data) > 0.0_rk)
+      self%data = self%data / sum(self%volume, mask=abs(self%data) > 0.0_rk)
       ! write(*,'(a, es16.6)') "self%data", sum(self%data)
     end if
     ! error stop
@@ -333,8 +333,8 @@ contains
     if(allocated(self%source_type)) deallocate(self%source_type)
     if(allocated(self%source_geometry)) deallocate(self%source_geometry)
     if(allocated(self%input_filename)) deallocate(self%input_filename)
-    if(associated(self%cell_centroid_x)) deallocate(self%cell_centroid_x)
-    if(associated(self%cell_centroid_y)) deallocate(self%cell_centroid_y)
-    if(associated(self%cell_volume)) deallocate(self%cell_volume)
+    if(associated(self%centroid_x)) deallocate(self%centroid_x)
+    if(associated(self%centroid_y)) deallocate(self%centroid_y)
+    if(associated(self%volume)) deallocate(self%volume)
   end subroutine finalize
 end module mod_source

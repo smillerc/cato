@@ -459,10 +459,10 @@ contains
       write(*, '(a, a)') "source_file = ", self%source_file
       write(*, '(a, es10.3)') "constant_source_value = ", self%constant_source_value
       write(*, '(a, es10.3)') "source_scale_factor   = ", self%source_scale_factor
-      write(*, '(a, i0)') "source_ilo = ", self%source_ilo
-      write(*, '(a, i0)') "source_ihi = ", self%source_ihi
-      write(*, '(a, i0)') "source_jlo = ", self%source_jlo
-      write(*, '(a, i0)') "source_jhi = ", self%source_jhi
+      write(*, '(a, i0)') "source_ilo = ", self%source_xlo
+      write(*, '(a, i0)') "source_ihi = ", self%source_xhi
+      write(*, '(a, i0)') "source_jlo = ", self%source_ylo
+      write(*, '(a, i0)') "source_jhi = ", self%source_yhi
 
       write(*, *)
       write(*, '(a)') "[boundary_conditions]"
