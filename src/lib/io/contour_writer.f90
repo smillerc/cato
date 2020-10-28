@@ -24,6 +24,9 @@ module mod_contour_writer
   use mod_master_puppeteer, only: master_puppeteer_t
   use mod_globals, only: n_ghost_layers
   use mod_fluid, only: fluid_t
+  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
+  use mod_error, only: error_msg
   use mod_units
   use mod_nondimensionalization, only: rho_0, v_0, p_0, t_0, l_0, e_0
   use mod_eos, only: eos
@@ -116,12 +119,14 @@ contains
     writer%plot_ghost_cells = input%plot_ghost_cells
     writer%plot_64bit = input%plot_64bit
 
-    write(*, '(a)') "Contour Writer Info"
-    write(*, '(a)') "==================="
-    write(*, '(a, a)') 'Output folder: ', writer%results_folder
-    write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
-    write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
-    write(*, *)
+    if(this_image() == 1) then
+      write(*, '(a)') "Contour Writer Info"
+      write(*, '(a)') "==================="
+      write(*, '(a, a)') 'Output folder: ', writer%results_folder
+      write(*, '(a, l1)') 'plot_64bit: ', writer%plot_64bit
+      write(*, '(a, l1)') 'plot_ghost_cells: ', writer%plot_ghost_cells
+      write(*, *)
+    endif
 
   end function
 
@@ -144,28 +149,28 @@ contains
     self%xdmf_filename = trim(char_buff)//'.xdmf'
 
     if(self%plot_ghost_cells) then
-      self%ilo_cell = master%grid%cell_lbounds_halo(1)
-      self%ihi_cell = master%grid%cell_ubounds_halo(1)
-      self%jlo_cell = master%grid%cell_lbounds_halo(2)
-      self%jhi_cell = master%grid%cell_ubounds_halo(2)
+      self%ilo_cell = master%grid%lbounds_halo(1)
+      self%ihi_cell = master%grid%ubounds_halo(1)
+      self%jlo_cell = master%grid%lbounds_halo(2)
+      self%jhi_cell = master%grid%ubounds_halo(2)
 
-      self%ilo_node = master%grid%node_lbounds_halo(1)
-      self%ihi_node = master%grid%node_ubounds_halo(1)
-      self%jlo_node = master%grid%node_lbounds_halo(2)
-      self%jhi_node = master%grid%node_ubounds_halo(2)
+      self%ilo_node = master%grid%lbounds_halo(1)
+      self%ihi_node = master%grid%ubounds_halo(1) + 1
+      self%jlo_node = master%grid%lbounds_halo(2)
+      self%jhi_node = master%grid%ubounds_halo(2) + 1
     else
-      self%ilo_cell = master%grid%cell_lbounds(1)
-      self%ihi_cell = master%grid%cell_ubounds(1)
-      self%jlo_cell = master%grid%cell_lbounds(2)
-      self%jhi_cell = master%grid%cell_ubounds(2)
+      self%ilo_cell = master%grid%lbounds(1)
+      self%ihi_cell = master%grid%ubounds(1)
+      self%jlo_cell = master%grid%lbounds(2)
+      self%jhi_cell = master%grid%ubounds(2)
 
-      self%ilo_node = master%grid%node_lbounds(1)
-      self%ihi_node = master%grid%node_ubounds(1)
-      self%jlo_node = master%grid%node_lbounds(2)
-      self%jhi_node = master%grid%node_ubounds(2)
+      self%ilo_node = master%grid%lbounds(1)
+      self%ihi_node = master%grid%ubounds(1) + 1
+      self%jlo_node = master%grid%lbounds(2)
+      self%jhi_node = master%grid%ubounds(2) + 1
     end if
 
-    write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
+    if (this_image() == 1) write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
     case('xdmf')
       call self%write_hdf5(master, time, iteration)
@@ -173,8 +178,9 @@ contains
     case('hdf5', 'h5')
       call self%write_hdf5(master, time, iteration)
     case default
-      print *, 'Contour format:', self%format
-      error stop "Unsupported I/O contour format"
+      call error_msg(module_name='mod_contour_writer', class_name='contour_writer_t', procedure_name='write_contour', &
+                     message="Unsupported I/O contour format'"// self%format // "' (must be .xdmf .h5 or .hdf5)", &
+                     file_name=__FILE__, line_number=__LINE__)
     end select
 
   end subroutine write_contour
@@ -194,9 +200,9 @@ contains
     time_w_dims = time * io_time_units * t_0
     delta_t_w_dims = master%dt * t_0
 
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
-                                    status='new', action='w', comp_lvl=self%compression_level)
+                                     status='new', action='w', comp_lvl=self%compression_level)
 
       ! Header info
       call self%hdf5_file%add('/title', master%title)
@@ -328,7 +334,7 @@ contains
 
     ! if(allocated(int_data_buffer)) deallocate(int_data_buffer)
     ! if(allocated(io_data_buffer)) deallocate(io_data_buffer)
-    if (this_image() == 1) call self%hdf5_file%finalize()
+    if(this_image() == 1) call self%hdf5_file%finalize()
   end subroutine write_hdf5
 
   subroutine write_xdmf(self, master, time, iteration)

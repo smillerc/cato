@@ -36,7 +36,7 @@ module mod_ausm_plus_solver
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
-  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
 
   implicit none
@@ -142,7 +142,7 @@ contains
   subroutine solve_ausm_plus(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(ausm_plus_solver_t), intent(inout) :: self
-    class(grid_block_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density

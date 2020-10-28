@@ -36,32 +36,32 @@ contains
     class(grid_block_3d_t), intent(inout) :: self
     class(input_t), intent(in) :: input
 
-    allocate(self%global_node_dims (3))
-    self%global_node_dims  = 0
-    allocate(self%global_cell_dims (3))
-    self%global_cell_dims  = 0
+    allocate(self%global_node_dims(3))
+    self%global_node_dims = 0
+    allocate(self%global_cell_dims(3))
+    self%global_cell_dims = 0
     allocate(self%domain_node_shape(3))
     self%domain_node_shape = 0
     allocate(self%domain_cell_shape(3))
     self%domain_cell_shape = 0
-    allocate(self%node_lbounds     (3))
-    self%node_lbounds      = 0
-    allocate(self%node_ubounds     (3))
-    self%node_ubounds      = 0
+    allocate(self%node_lbounds(3))
+    self%node_lbounds = 0
+    allocate(self%node_ubounds(3))
+    self%node_ubounds = 0
     allocate(self%node_lbounds_halo(3))
     self%node_lbounds_halo = 0
     allocate(self%node_ubounds_halo(3))
     self%node_ubounds_halo = 0
-    allocate(self%cell_lbounds     (3))
-    self%cell_lbounds      = 0
-    allocate(self%cell_ubounds     (3))
-    self%cell_ubounds      = 0
+    allocate(self%cell_lbounds(3))
+    self%cell_lbounds = 0
+    allocate(self%cell_ubounds(3))
+    self%cell_ubounds = 0
     allocate(self%cell_lbounds_halo(3))
     self%cell_lbounds_halo = 0
     allocate(self%cell_ubounds_halo(3))
     self%cell_ubounds_halo = 0
-    allocate(self%on_bc            (2,3))
-    self%on_bc             = .false.
+    allocate(self%on_bc(2, 3))
+    self%on_bc = .false.
 
   end subroutine
 
@@ -76,16 +76,16 @@ contains
     if(allocated(self%centroid_y)) deallocate(self%centroid_y)
     if(allocated(self%edge_lengths)) deallocate(self%edge_lengths)
     if(allocated(self%edge_norm_vectors)) deallocate(self%edge_norm_vectors)
-    if(allocated(self%global_node_dims )) deallocate(self%global_node_dims )
-    if(allocated(self%global_cell_dims )) deallocate(self%global_cell_dims )
+    if(allocated(self%global_node_dims)) deallocate(self%global_node_dims)
+    if(allocated(self%global_cell_dims)) deallocate(self%global_cell_dims)
     if(allocated(self%domain_node_shape)) deallocate(self%domain_node_shape)
     if(allocated(self%domain_cell_shape)) deallocate(self%domain_cell_shape)
-    if(allocated(self%node_lbounds     )) deallocate(self%node_lbounds     )
-    if(allocated(self%node_ubounds     )) deallocate(self%node_ubounds     )
+    if(allocated(self%node_lbounds)) deallocate(self%node_lbounds)
+    if(allocated(self%node_ubounds)) deallocate(self%node_ubounds)
     if(allocated(self%node_lbounds_halo)) deallocate(self%node_lbounds_halo)
     if(allocated(self%node_ubounds_halo)) deallocate(self%node_ubounds_halo)
-    if(allocated(self%cell_lbounds     )) deallocate(self%cell_lbounds     )
-    if(allocated(self%cell_ubounds     )) deallocate(self%cell_ubounds     )
+    if(allocated(self%cell_lbounds)) deallocate(self%cell_lbounds)
+    if(allocated(self%cell_ubounds)) deallocate(self%cell_ubounds)
     if(allocated(self%cell_lbounds_halo)) deallocate(self%cell_lbounds_halo)
     if(allocated(self%cell_ubounds_halo)) deallocate(self%cell_ubounds_halo)
     if(allocated(self%on_bc)) deallocate(self%on_bc)

@@ -21,7 +21,7 @@
 module mod_bc_factory
   use iso_fortran_env, only: ik => int32
   use mod_input, only: input_t
-  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_periodic_bc, only: periodic_bc_t, periodic_bc_constructor
   use mod_symmetry_bc, only: symmetry_bc_t, symmetry_bc_constructor
@@ -40,7 +40,7 @@ contains
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(boundary_condition_t), pointer :: bc
     class(input_t), intent(in) :: input
-    class(grid_block_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
 
     select case(trim(bc_type))
     case('periodic')

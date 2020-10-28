@@ -23,40 +23,28 @@ module mod_grid_block
   end type
 
   type, abstract :: grid_block_t
-
-    integer(ik) :: host_image_id = 0  !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
-    integer(ik) :: n_halo_cells = 0   !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
     logical :: is_axisymmetric = .false. !< Is this an axisymmetric grid? (need for volume computation)
     logical :: is_uniform = .false.      !< Are all the cells the same size/shape?
+    integer(ik) :: host_image_id = 0     !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
+    integer(ik) :: n_halo_cells = 0      !< # of halo cells used in this block; typically 2 or 3 depending on spatial order
+    integer(ik) :: total_cells = 0       !<
+    integer(ik), dimension(3) :: block_dims = 0   !< (ni,nj,nk); local block cell dimensions
+    integer(ik), dimension(3) :: global_dims = 0   !< (ni,nj,nk); global cell dimensions
+    integer(ik), dimension(3) :: lbounds = 0   !< (i,j,k); block lower cell bounds excluding halo cells
+    integer(ik), dimension(3) :: ubounds = 0   !< (i,j,k); block upper cell bounds excluding halo cells
+    integer(ik), dimension(3) :: lbounds_global = 0 !< (i,j,k); block lower cell bounds excluding halo cells
+    integer(ik), dimension(3) :: ubounds_global = 0 !< (i,j,k); block upper cell bounds excluding halo cells
+    integer(ik), dimension(3) :: lbounds_halo = 0   !< (i,j,k); block lower cell bounds including halo cells
+    integer(ik), dimension(3) :: ubounds_halo = 0   !< (i,j,k); block upper cell bounds including halo cells
 
-    ! Bounds information
-    integer(ik), dimension(:), allocatable :: global_node_dims !< (i, j, k); # of array indices in each dimension
-    integer(ik), dimension(:), allocatable :: global_cell_dims !< (i, j, k); # of array indices in each dimension
+    logical :: on_ilo_bc = .false.
+    logical :: on_ihi_bc = .false.
+    logical :: on_jlo_bc = .false.
+    logical :: on_jhi_bc = .false.
+    logical :: on_klo_bc = .false.
+    logical :: on_khi_bc = .false.
 
-    integer(ik), dimension(:), allocatable :: domain_node_shape !< (i, j, k); # of array indices in each dimension
-    integer(ik), dimension(:), allocatable :: domain_cell_shape !< (i, j, k); # of array indices in each dimension
-
-    integer(ik), dimension(:), allocatable :: global_node_dims_halo !< (i, j, k); # of array indices in each dimension
-    integer(ik), dimension(:), allocatable :: global_cell_dims_halo !< (i, j, k); # of array indices in each dimension
-
-    integer(ik), dimension(:), allocatable :: domain_node_shape_halo !< (i, j, k); # of array indices in each dimension
-    integer(ik), dimension(:), allocatable :: domain_cell_shape_halo !< (i, j, k); # of array indices in each dimension
-
-    integer(ik), dimension(:), allocatable :: node_lbounds !< (i, j, k); lower bounds (not including halo cells)
-    integer(ik), dimension(:), allocatable :: node_ubounds !< (i, j, k); upper bounds (not including halo cells)
-
-    integer(ik), dimension(:), allocatable :: node_lbounds_halo !< (i, j, k); lower bounds (including halo cells)
-    integer(ik), dimension(:), allocatable :: node_ubounds_halo !< (i, j, k); upper bounds (including halo cells)
-
-    integer(ik), dimension(:), allocatable :: cell_lbounds !< (i, j, k); lower bounds (not including halo cells)
-    integer(ik), dimension(:), allocatable :: cell_ubounds !< (i, j, k); upper bounds (not including halo cells)
-
-    integer(ik), dimension(:), allocatable :: cell_lbounds_halo !< (i, j, k); lower bounds (including halo cells)
-    integer(ik), dimension(:), allocatable :: cell_ubounds_halo !< (i, j, k); upper bounds (including halo cells)
-
-    ! Boundary condition checks
-    logical, dimension(:,:), allocatable :: on_bc !< ((lo,hi),(i,j,k)) does this grid live on the ihi boundary?
-
+    integer(ik), dimension(:), allocatable :: neighbors !< (direction); neighbor image
   contains
     procedure(initialize), deferred :: initialize
   end type grid_block_t
@@ -69,6 +57,5 @@ module mod_grid_block
     end subroutine
   end interface
 contains
-
 
 end module mod_grid_block

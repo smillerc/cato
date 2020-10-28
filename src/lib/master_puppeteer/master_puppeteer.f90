@@ -31,9 +31,9 @@ module mod_master_puppeteer
   use mod_input, only: input_t
   use mod_eos, only: eos
   use mod_grid_block, only: grid_block_t
-  use mod_grid_block_1d, only: grid_block_1d_t
+  ! use mod_grid_block_1d, only: grid_block_1d_t
   use mod_grid_block_2d, only: grid_block_2d_t
-  use mod_grid_block_3d, only: grid_block_3d_t
+  ! use mod_grid_block_3d, only: grid_block_3d_t
   use mod_grid_factory, only: grid_factory
   use hdf5_interface, only: hdf5_file
   use mod_nondimensionalization, only: set_scale_factors
@@ -146,29 +146,33 @@ contains
 
     real(rk) :: max_dt
 
-    if (present(dt)) then
+    if(present(dt)) then
       self%dt = dt
     else
       self%dt = 0.0_rk
     end if
 
     self%iteration = self%iteration + 1
-    
+
     ! Get the maximum allowable timestep from each physics package
-    max_dt = self%fluid%get_timestep(self%grid)
-    if (self%dt > max_dt) then
-      write(*, '(a,i0,a,2(es16.6,a))') "Warning on image ",this_image(), &
-                   ", the input dt (",self%dt,&
-                   ") is larger than the max allowable dt (", max_dt, &
-                   ") based on the CFL condition"
+    select type(grid => self%grid)
+    class is(grid_block_2d_t)
+      max_dt = self%fluid%get_timestep(self%grid)
+    end select
+
+    if(self%dt > max_dt) then
+      write(*, '(a,i0,a,2(es16.6,a))') "Warning on image ", this_image(), &
+        ", the input dt (", self%dt, &
+        ") is larger than the max allowable dt (", max_dt, &
+        ") based on the CFL condition"
     else
       self%dt = max_dt
-    end if 
+    end if
 
     self%time = self%time + self%dt
 
     select type(grid => self%grid)
-    class is (grid_block_2d_t)
+    class is(grid_block_2d_t)
       call self%fluid%integrate(dt=self%dt, grid=self%grid, error_code=error_code)
     end select
 

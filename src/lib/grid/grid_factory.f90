@@ -24,9 +24,9 @@ module mod_grid_factory
   use mod_globals, only: debug_print, set_domain_dimensionality
   use mod_input, only: input_t
   use mod_grid_block, only: grid_block_t
-  use mod_grid_block_1d, only: new_1d_grid_block
+  ! use mod_grid_block_1d, only: new_1d_grid_block
   use mod_grid_block_2d, only: new_2d_grid_block
-  use mod_grid_block_3d, only: new_3d_grid_block
+  ! use mod_grid_block_3d, only: new_3d_grid_block
   implicit none
 
   private
@@ -41,18 +41,18 @@ contains
 
     call debug_print('Creating a grid in grid_factory', __FILE__, __LINE__)
 
-    ! select case(trim(input%grid_type))
-    ! case('X')
-    !   grid => new_1d_grid_block(input)
-    ! case('XY')
-    !   grid => new_2d_grid_block(input)
-    !   ! call set_domain_dimensionality(dimensionality='2D_XY', &
-    !   !                                grid_orthogonality=.true., num_ghost_layers=grid%n_halo_cells)
-    ! ! case('RZ')
-    ! case('XYZ')
-    !   grid => new_3d_grid_block(input)
-    ! case default
-    !   error stop 'Unsupported grid type in grid_factory'
-    ! end select
+    select case(trim(input%grid_type))
+      ! case('X')
+      ! grid => new_1d_grid_block(input)
+    case('XY')
+      grid => new_2d_grid_block(input)
+      ! call set_domain_dimensionality(dimensionality='2D_XY', &
+      !                                grid_orthogonality=.true., num_ghost_layers=grid%n_halo_cells)
+      ! case('RZ')
+      ! case('XYZ')
+      !   grid => new_3d_grid_block(input)
+    case default
+      error stop 'Unsupported grid type in grid_factory'
+    end select
   end function grid_factory
 end module mod_grid_factory

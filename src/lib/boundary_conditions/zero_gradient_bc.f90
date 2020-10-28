@@ -22,7 +22,7 @@ module mod_zero_gradient_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: enable_debug_print, debug_print
   use mod_field, only: field_2d_t
-  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
 
@@ -42,7 +42,7 @@ contains
     type(zero_gradient_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
-    class(grid_block_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
 
     allocate(bc)
     bc%name = 'zero_gradient'

@@ -135,7 +135,7 @@ contains
     type(fluid_t), pointer :: fluid
 
     select type(grid)
-    class is (grid_block_2d_t)
+    class is(grid_block_2d_t)
       allocate(fluid)
       call fluid%initialize(input, grid)
     end select
@@ -162,39 +162,39 @@ contains
 
     self%rho = field_2d(name='rho', long_name='Density', &
                         descrip='Cell Density', units='g/cm^3', &
-                        global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                        global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%rho_u = field_2d(name='rhou', long_name='rhou', descrip='Cell Conserved quantity (Density * X-Velocity)', &
                           units='g cm/cm^2 s', &
-                          global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                          global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%rho_v = field_2d(name='rhov', long_name='rhov', descrip='Cell Conserved quantity (Density * Y-Velocity)', &
                           units='g cm/cm^2 s', &
-                          global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                          global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%rho_E = field_2d(name='rhoE', long_name='rhoE', descrip='Cell Conserved quantity (Density * Total Energy)', &
                           units='g erg / cm^3', &
-                          global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                          global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%u = field_2d(name='u', long_name='X Velocity', descrip='Cell X-Velocity', units='cm/s', &
-                      global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%v = field_2d(name='v', long_name='Y Velocity', descrip='Cell Y-Velocity', units='cm/s', &
-                      global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%p = field_2d(name='p', long_name='Pressure', descrip='Cell Pressure', units='barye', &
-                      global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                      global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%cs = field_2d(name='cs', long_name='Sound Speed', descrip='Cell Sound Speed', units='cm/s', &
-                       global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                       global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%mach_u = field_2d(name='mach_u', long_name='Mach X', descrip='Cell Mach number in x-direction', &
                            units='dimensionless', &
-                           global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                           global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%mach_v = field_2d(name='mach_v', long_name='Mach Y', descrip='Cell Mach number in y-direction', &
                            units='dimensionless', &
-                           global_dims=grid%cell_dim_global, n_halo_cells=input%n_ghost_layers)
+                           global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%smooth_residuals = input%smooth_residuals
 
@@ -371,19 +371,21 @@ contains
     call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
                                     rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
-    write(*, '(a)') 'Initial fluid stats'
-    write(*, '(a)') '==================================================='
-    write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]:     ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]:     ', minval(pressure) * p_0, maxval(pressure) * p_0
-    write(*, '(a)') '==================================================='
-    write(*, *)
+    if (this_image() == 1) then
+      write(*, '(a)') 'Initial fluid stats'
+      write(*, '(a)') '==================================================='
+      write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]:     ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]:     ', minval(pressure) * p_0, maxval(pressure) * p_0
+      write(*, '(a)') '==================================================='
+      write(*, *)
+    endif
 
   end subroutine initialize_from_hdf5
 
@@ -475,22 +477,19 @@ contains
     real(rk), intent(in) :: dt !< time step
     class(grid_block_t), intent(in) :: grid !< grid class - the solver needs grid topology
     integer(ik), intent(out) :: error_code
-    
+
     if(enable_debug_print) call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
     self%time = self%time + dt
     self%dt = dt
 
-    select type(grid)
-    class is (grid_block_2d_t)
-      select case(trim(self%time_integration_scheme))
-      case('ssp_rk2')
-        call self%ssp_rk2(grid, error_code)
-      case('ssp_rk3')
-        call self%ssp_rk3(grid, error_code)
-      case default
-        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
-                      message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
-      end select
+    select case(trim(self%time_integration_scheme))
+    case('ssp_rk2')
+      call self%ssp_rk2(grid, error_code)
+    case('ssp_rk3')
+      call self%ssp_rk3(grid, error_code)
+    case default
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
+                     message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
     end select
   end subroutine integrate
 
@@ -526,19 +525,21 @@ contains
 
     real(rk), allocatable, save, dimension(:, :) :: dx, dy
 
-    g_ilo = grid%cell_lbounds(1)
-    g_ihi = grid%cell_ubounds(1)
-
-    g_jlo = grid%cell_lbounds(2)
-    g_jhi = grid%cell_ubounds(2)
-
-    if (.not. allocated(dx)) allocate(dx(g_ilo:g_ihi, g_jlo:g_jhi))
-    if (.not. allocated(dy)) allocate(dy(g_ilo:g_ihi, g_jlo:g_jhi))
-  
+    ! This seems silly to have to do, but the master class requires
+    ! that the grid is a grid_block_t type, even though this fluid class
+    ! will always use a grid_block_2d_t type.
     select type(grid)
-    class is (grid_block_2d_t)
+    class is(grid_block_2d_t)
+      g_ilo = grid%lbounds(1)
+      g_ihi = grid%ubounds(1)
+      g_jlo = grid%lbounds(2)
+      g_jhi = grid%ubounds(2)
+
+      if(.not. allocated(dx)) allocate(dx(g_ilo:g_ihi, g_jlo:g_jhi))
+      if(.not. allocated(dy)) allocate(dy(g_ilo:g_ihi, g_jlo:g_jhi))
+
+      dx = grid%dx(g_ilo:g_ihi, g_jlo:g_jhi)
       dy = grid%dy(g_ilo:g_ihi, g_jlo:g_jhi)
-      dx = grid%dy(g_ilo:g_ihi, g_jlo:g_jhi)
     end select
 
     err_msg = ''
@@ -548,21 +549,20 @@ contains
 
     jlo = self%u%lbounds(2)
     jhi = self%u%ubounds(2)
-    print*,'fluid: ', ilo, ihi, jlo, jhi
-    print*,'grid : ', g_ilo, g_ihi, g_jlo, g_jhi
 
+    ! I would have put this in a cleaner associate block, but GFortran+OpenCoarrays bugs out on this
     coarray_max_delta_t = minval(self%cfl / &
-                       (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
-                          self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
-                        ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
-                          self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
-    
+                                 (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
+                                    self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
+                                  ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
+                                    self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
+
     sync all
     ! Get the minimum timestep across all the images and save it on each image
     call co_min(coarray_max_delta_t, stat=ierr)
-    if (ierr /= 0) then
+    if(ierr /= 0) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='get_timestep', &
-                     message="Unable to run the co_min() to get min timestep across images: err_msg=" // trim(err_msg), &
+                     message="Unable to run the co_min() to get min timestep across images: err_msg="//trim(err_msg), &
                      file_name=__FILE__, line_number=__LINE__)
     end if
     delta_t = coarray_max_delta_t
@@ -797,7 +797,7 @@ contains
   subroutine ssp_rk3(U, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 3rd order
     class(fluid_t), intent(inout) :: U
-    class(grid_block_2d_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
@@ -810,25 +810,29 @@ contains
     allocate(U_1, source=U)
     allocate(U_2, source=U)
 
-    ! 1st stage
+    select type(grid)
+    class is(grid_block_2d_t)
+      ! 1st stage
     if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk3() 1st stage'//new_line('a'), __FILE__, __LINE__)
-    call U%apply_bc()
-    U_1 = U + U%t(grid, stage=1) * dt
+      call U%apply_bc()
+      U_1 = U + U%t(grid, stage=1) * dt
 
-    ! 2nd stage
+      ! 2nd stage
     if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk3() 2nd stage'//new_line('a'), __FILE__, __LINE__)
-    call U_1%apply_bc()
-    U_2 = U * (3.0_rk / 4.0_rk) &
-          + U_1 * (1.0_rk / 4.0_rk) &
-          + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
+      call U_1%apply_bc()
+      U_2 = U * (3.0_rk / 4.0_rk) &
+            + U_1 * (1.0_rk / 4.0_rk) &
+            + U_1%t(grid, stage=2) * ((1.0_rk / 4.0_rk) * dt)
 
-    ! Final stage
+      ! Final stage
     if(enable_debug_print) call debug_print(new_line('a')//'Running fluid_t%ssp_rk2() 3rd stage'//new_line('a'), __FILE__, __LINE__)
-    call U_2%apply_bc()
-    U = U * (1.0_rk / 3.0_rk) &
-        + U_2 * (2.0_rk / 3.0_rk) &
-        + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
+      call U_2%apply_bc()
+      U = U * (1.0_rk / 3.0_rk) &
+          + U_2 * (2.0_rk / 3.0_rk) &
+          + U_2%t(grid, stage=3) * ((2.0_rk / 3.0_rk) * dt)
+    end select
 
+    ! Check for NaNs and improper negatives (e.g. in pressure and density)
     call U%sanity_check(error_code)
 
     ! Convergence history
@@ -842,7 +846,7 @@ contains
   subroutine ssp_rk2(U, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 2nd order
     class(fluid_t), intent(inout) :: U
-    class(grid_block_2d_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
 
     type(fluid_t), allocatable :: U_1 !< first stage
     integer(ik), intent(out) :: error_code
@@ -855,20 +859,25 @@ contains
 
     ! 1st stage
     if(enable_debug_print) then
-      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), &
+      call debug_print('Running fluid_t%ssp_rk2_t() 1st stage', &
                        __FILE__, __LINE__)
     end if
-    call U%apply_bc()
-    U_1 = U + U%t(grid, stage=1) * dt
 
-    ! Final stage
-    if(enable_debug_print) then
-      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), &
-                       __FILE__, __LINE__)
-    end if
-    call U_1%apply_bc()
-    U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, stage=2) * (0.5_rk * dt)
+    select type(grid)
+    class is(grid_block_2d_t)
+      call U%apply_bc()
+      U_1 = U + U%t(grid, stage=1) * dt
 
+      ! Final stage
+      if(enable_debug_print) then
+        call debug_print('Running fluid_t%ssp_rk2_t() 2nd stage', &
+                         __FILE__, __LINE__)
+      end if
+      call U_1%apply_bc()
+      U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, stage=2) * (0.5_rk * dt)
+    end select
+
+    ! Check for NaNs and improper negatives (e.g. in pressure and density)
     call U%sanity_check(error_code)
 
     ! Convergence history

@@ -81,17 +81,19 @@ contains
     e_0 = p_0
     t_0 = l_0 / v_0
 
-    print *
-    write(*, '(a)') "Scale factors (CATO is non-dimensional)"
-    write(*, '(a)') "========================================"
-    write(*, '(a, es10.3)') "Time scale factor (t_0):      ", t_0
-    write(*, '(a, es10.3)') "Density scale factor (rho_0): ", rho_0
-    write(*, '(a, es10.3)') "Length scale factor (l_0):    ", l_0
-    write(*, '(a, es10.3)') "Pressure scale factor (p_0):  ", p_0
-    write(*, '(a, es10.3)') "Velocity scale factor (v_0):  ", v_0
-    write(*, '(a, es10.3)') "Energy scale factor (e_0):    ", e_0
-    write(*, '(a)') "========================================"
-    print *
+    if (this_image() == 1) then
+      print *
+      write(*, '(a)') "Scale factors (CATO is non-dimensional)"
+      write(*, '(a)') "========================================"
+      write(*, '(a, es10.3)') "Time scale factor (t_0):      ", t_0
+      write(*, '(a, es10.3)') "Density scale factor (rho_0): ", rho_0
+      write(*, '(a, es10.3)') "Length scale factor (l_0):    ", l_0
+      write(*, '(a, es10.3)') "Pressure scale factor (p_0):  ", p_0
+      write(*, '(a, es10.3)') "Velocity scale factor (v_0):  ", v_0
+      write(*, '(a, es10.3)') "Energy scale factor (e_0):    ", e_0
+      write(*, '(a)') "========================================"
+      print *
+    end if
 
     scale_factors_set = .true.
 

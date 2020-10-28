@@ -210,13 +210,13 @@ contains
 
     @assertEqual(-1, grid%ilo_bc_node)
     @assertEqual(-1, grid%jlo_bc_node)
-    @assertEqual(-1, grid%cell_lbounds_halo(1))
-    @assertEqual(-1, grid%cell_lbounds_halo(2))
+    @assertEqual(-1, grid%lbounds_halo(1))
+    @assertEqual(-1, grid%lbounds_halo(2))
 
     @assertEqual(7, grid%ihi_bc_node)
     @assertEqual(5, grid%jhi_bc_node)
-    @assertEqual(6, grid%cell_ubounds_halo(1))
-    @assertEqual(4, grid%cell_ubounds_halo(2))
+    @assertEqual(6, grid%ubounds_halo(1))
+    @assertEqual(4, grid%ubounds_halo(2))
 
     @assertEqual(1.0_rk, grid%min_dx)
     @assertEqual(2.0_rk, grid%min_dy)
@@ -232,8 +232,8 @@ contains
     @assertEqual([-3.0_rk, 3.0_rk],[grid%get_x(0, 0), grid%get_x(6, 0)])
 
     @assertEqual(2.0_rk, grid%get_cell_volumes(1, 1))
-    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%cell_lbounds_halo(1), grid%cell_lbounds_halo(2)))
-    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%cell_ubounds_halo(1), grid%cell_ubounds_halo(2)))
+    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%lbounds_halo(1), grid%lbounds_halo(2)))
+    @assertEqual(2.0_rk, grid%get_cell_volumes(grid%ubounds_halo(1), grid%ubounds_halo(2)))
 
     i = 1; j = 1
     ! Corners

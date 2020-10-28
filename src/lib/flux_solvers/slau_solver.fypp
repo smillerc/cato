@@ -51,7 +51,7 @@ module mod_slau_solver
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
-  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
 
   implicit none
@@ -120,7 +120,7 @@ contains
   subroutine solve_slau(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(slau_solver_t), intent(inout) :: self
-    class(grid_block_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
@@ -196,10 +196,10 @@ contains
     !
     ! This is the numbering convention that this module uses
 
-    ilo = grid%ilo_cell
-    ihi = grid%ihi_cell
-    jlo = grid%jlo_cell
-    jhi = grid%jhi_cell
+    ilo = grid%lbounds(1)
+    ihi = grid%ubounds(1)
+    jlo = grid%lbounds(2)
+    jhi = grid%ubounds(2)
 
     if(allocated(self%iflux)) deallocate(self%iflux)
     if(allocated(self%jflux)) deallocate(self%jflux)
@@ -207,8 +207,8 @@ contains
     allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
     allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
 
-    ilo_bc = grid%cell_lbounds_halo(1)
-    ihi_bc = grid%cell_ubounds_halo(1)
+    ilo_bc = grid%lbounds_halo(1)
+    ihi_bc = grid%ubounds_halo(1)
     jlo_bc = grid%jlo_bc_cell
     jhi_bc = grid%jhi_bc_cell
 
@@ -259,7 +259,7 @@ contains
                                                            rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
     !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
     class(slau_solver_t), intent(inout) :: self
-    class(grid_block_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_ave    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
     real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs

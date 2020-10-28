@@ -61,8 +61,8 @@ contains
 
     print *, "Setting up the periodic grid"
     ! These are normally handled by the master puppeteer, but for now we make them ourselves
-    associate(left => grid%cell_lbounds_halo(1), right => grid%cell_ubounds_halo(1), &
-              bottom => grid%cell_lbounds_halo(2), top => grid%cell_ubounds_halo(2))
+    associate(left => grid%lbounds_halo(1), right => grid%ubounds_halo(1), &
+              bottom => grid%lbounds_halo(2), top => grid%ubounds_halo(2))
 
       if(allocated(rho)) deallocate(rho)
       allocate(rho(left:right, bottom:top), stat=alloc_status)
@@ -85,7 +85,7 @@ contains
 
     !   Domain cartoon layout
     !   |---|---||---|---|---|---||---|---|
-    ! 6  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=6; aka top_ghost (grid%cell_ubounds_halo(2))
+    ! 6  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=6; aka top_ghost (grid%ubounds_halo(2))
     !    |---|---||---|---|---|---||---|---|
     ! 5  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 |
     !    |===|===||===|===|===|===||===|===|
@@ -99,14 +99,14 @@ contains
     !    |===|===||===|===|===|===||===|===|
     ! 0  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 |
     !    |---|---||---|---|---|---||---|---|
-    ! -1 | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=-1; aka bottom_ghost (grid%cell_lbounds_halo(2))
+    ! -1 | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
     !    |---|---||---|---|---|---||---|---|
     !     -1   0    1   2   3   4    5   6
 
-    ! i0; aka left_ghost, grid%cell_lbounds_halo(1)
+    ! i0; aka left_ghost, grid%lbounds_halo(1)
     ! i1; aka left, grid%cell_lbounds(1)
     ! i4; aka right, grid%cell_ubounds(1)
-    ! i5; aka right_ghost grid%cell_ubounds_halo(1)
+    ! i5; aka right_ghost grid%ubounds_halo(1)
 
     ! Test the conserved var state
     rho = 0.0_rk
@@ -127,8 +127,8 @@ contains
 
     associate(left => grid%cell_lbounds(1), right => grid%cell_ubounds(1), &
               bottom => grid%cell_lbounds(2), top => grid%cell_ubounds(2), &
-              left_ghost => grid%cell_lbounds_halo(1), right_ghost => grid%cell_ubounds_halo(1), &
-              bottom_ghost => grid%cell_lbounds_halo(2), top_ghost => grid%cell_ubounds_halo(2))
+              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
+              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
       print *, "Initial conditions:"
       do j = top_ghost, bottom_ghost, -1
         write(*, '(i3, a, 10(f6.0))') j, " : ", rho(:, j)
@@ -162,8 +162,8 @@ contains
     ! Now test the results
     associate(left => grid%cell_lbounds(1), right => grid%cell_ubounds(1), &
               bottom => grid%cell_lbounds(2), top => grid%cell_ubounds(2), &
-              left_ghost => grid%cell_lbounds_halo(1), right_ghost => grid%cell_ubounds_halo(1), &
-              bottom_ghost => grid%cell_lbounds_halo(2), top_ghost => grid%cell_ubounds_halo(2))
+              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
+              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
       ! Print out in all it's glory
       print *, "After BC's applied"
@@ -211,8 +211,8 @@ contains
     ! Now test the results
     associate(left => grid%cell_lbounds(1), right => grid%cell_ubounds(1), &
               bottom => grid%cell_lbounds(2), top => grid%cell_ubounds(2), &
-              left_ghost => grid%cell_lbounds_halo(1), right_ghost => grid%cell_ubounds_halo(1), &
-              bottom_ghost => grid%cell_lbounds_halo(2), top_ghost => grid%cell_ubounds_halo(2))
+              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
+              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
       ! Print out in all it's glory
       print *, "After BC's applied"
@@ -260,8 +260,8 @@ contains
     ! Now test the results
     associate(left => grid%cell_lbounds(1), right => grid%cell_ubounds(1), &
               bottom => grid%cell_lbounds(2), top => grid%cell_ubounds(2), &
-              left_ghost => grid%cell_lbounds_halo(1), right_ghost => grid%cell_ubounds_halo(1), &
-              bottom_ghost => grid%cell_lbounds_halo(2), top_ghost => grid%cell_ubounds_halo(2))
+              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
+              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
       ! Print out in all it's glory
       print *, "After BC's applied"
@@ -309,8 +309,8 @@ contains
     ! Now test the results
     associate(left => grid%cell_lbounds(1), right => grid%cell_ubounds(1), &
               bottom => grid%cell_lbounds(2), top => grid%cell_ubounds(2), &
-              left_ghost => grid%cell_lbounds_halo(1), right_ghost => grid%cell_ubounds_halo(1), &
-              bottom_ghost => grid%cell_lbounds_halo(2), top_ghost => grid%cell_ubounds_halo(2))
+              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
+              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
       ! Print out in all it's glory
       print *, "After BC's applied"
@@ -369,8 +369,8 @@ contains
     ! Now test the results
     associate(left => grid%cell_lbounds(1), right => grid%cell_ubounds(1), &
               bottom => grid%cell_lbounds(2), top => grid%cell_ubounds(2), &
-              left_ghost => grid%cell_lbounds_halo(1), right_ghost => grid%cell_ubounds_halo(1), &
-              bottom_ghost => grid%cell_lbounds_halo(2), top_ghost => grid%cell_ubounds_halo(2))
+              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
+              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
       ! Print out in all it's glory
       print *, "After BC's applied"
@@ -436,15 +436,15 @@ contains
     real(rk), dimension(4) ::  right_sym_col = 0.0_rk
     real(rk), dimension(4) ::   left_sym_col = 0.0_rk
 
-    bottom_ghost = grid%cell_lbounds_halo(2)
-    top_ghost = grid%cell_ubounds_halo(2)
+    bottom_ghost = grid%lbounds_halo(2)
+    top_ghost = grid%ubounds_halo(2)
 
-    left_ghost = grid%cell_lbounds_halo(1)
-    right_ghost = grid%cell_ubounds_halo(1)
+    left_ghost = grid%lbounds_halo(1)
+    right_ghost = grid%ubounds_halo(1)
 
     ! These are normally handled by the master puppeteer, but for now we make them ourselves
-    associate(left => grid%cell_lbounds_halo(1), right => grid%cell_ubounds_halo(1), &
-              bottom => grid%cell_lbounds_halo(2), top => grid%cell_ubounds_halo(2))
+    associate(left => grid%lbounds_halo(1), right => grid%ubounds_halo(1), &
+              bottom => grid%lbounds_halo(2), top => grid%ubounds_halo(2))
 
       if(allocated(rho)) deallocate(rho)
       allocate(rho(left:right, bottom:top), stat=alloc_status)
@@ -483,7 +483,7 @@ contains
 
     !   Domain cartoon layout
     !   |---|---||---|---|---|---||---|---|
-    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=6; aka top_ghost (grid%cell_ubounds_halo(2))
+    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=6; aka top_ghost (grid%ubounds_halo(2))
     !   |---|---||---|---|---|---||---|---|
     !   | - | - || 4 | 7 | 7 | 3 || - | - |
     !   |===|===||===|===|===|===||===|===|
@@ -497,14 +497,14 @@ contains
     !   |===|===||===|===|===|===||===|===|
     !   | - | - || 1 | 5 | 5 | 2 || - | - |
     !   |---|---||---|---|---|---||---|---|
-    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=-1; aka bottom_ghost (grid%cell_lbounds_halo(2))
+    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
     !   |---|---||---|---|---|---||---|---|
     !    i0   i1  i2  i3  i4   i5
 
-    ! i0; aka left_ghost, grid%cell_lbounds_halo(1)
+    ! i0; aka left_ghost, grid%lbounds_halo(1)
     ! i1; aka left, grid%cell_lbounds(1)
     ! i4; aka right, grid%cell_ubounds(1)
-    ! i5; aka right_ghost grid%cell_ubounds_halo(1)
+    ! i5; aka right_ghost grid%ubounds_halo(1)
 
     ! Set unique values along the (real) edges so I can test the bc routines
     associate(left => grid%cell_lbounds(1), right => grid%cell_ubounds(1), &
@@ -530,8 +530,8 @@ contains
     ! Now test the results
     associate(left => grid%cell_lbounds(1), right => grid%cell_ubounds(1), &
               bottom => grid%cell_lbounds(2), top => grid%cell_ubounds(2), &
-              left_ghost => grid%cell_lbounds_halo(1), right_ghost => grid%cell_ubounds_halo(1), &
-              bottom_ghost => grid%cell_lbounds_halo(2), top_ghost => grid%cell_ubounds_halo(2))
+              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
+              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
       ! Print out in all it's glory
       print *, "After BC's applied"

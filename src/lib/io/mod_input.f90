@@ -396,7 +396,7 @@ contains
   subroutine display_config(self)
     class(input_t), intent(in) :: self
 
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       write(*, '(a)') "Input settings:"
       write(*, '(a)') "==============="
       write(*, *)

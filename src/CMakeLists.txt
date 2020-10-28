@@ -138,9 +138,9 @@ add_library(
   lib/io/mod_hdf5.f90
   lib/io/mod_input.f90
   lib/grid/grid_block.f90
-  lib/grid/grid_block_1d.f90
+  # lib/grid/grid_block_1d.f90
   lib/grid/grid_block_2d.f90
-  lib/grid/grid_block_3d.f90
+  # lib/grid/grid_block_3d.f90
   # lib/grid/grid_type.f90
   # lib/grid/regular_2d_grid.f90
   lib/grid/grid_factory.f90

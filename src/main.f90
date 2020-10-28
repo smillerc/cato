@@ -55,9 +55,8 @@ program cato
 
   open(std_error, file='std.err')
 
-
   ! ascii art for the heck of it :)
-  if (this_image() == 1) then
+  if(this_image() == 1) then
     write(std_out, '(a)')
     write(std_out, '(a)') "  ______      ___   .___________.  ______  "
     write(std_out, '(a)') " /      |    /   \  |           | /  __  \ "
@@ -72,7 +71,6 @@ program cato
 #ifdef USE_OPENMP
   write(std_out, '(a, i0, a)') "Running with ", omp_get_max_threads(), " OpenMP threads"
 #endif /* USE_OPENMP */
-
 
   call open_debug_files()
   call print_version_stats()
@@ -108,7 +106,7 @@ program cato
     call contour_writer%write_contour(master, time, iteration)
   end if
 
-  if (this_image() == 1) then
+  if(this_image() == 1) then
     print *
     write(std_out, '(a)') '--------------------------------------------'
     write(std_out, '(a)') ' Starting time loop:'
@@ -130,19 +128,19 @@ program cato
 
   call master%set_time(time, iteration)
 
-  if (this_image() == 1) then
+  if(this_image() == 1) then
     write(std_out, '(a, es10.3)') "Starting time:", time
     write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
   endif
   do while(time < max_time .and. iteration < input%max_iterations)
 
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
         ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
     endif
-    
+
     ! Integrate in time
-    if (input%use_constant_delta_t) then
+    if(input%use_constant_delta_t) then
       call master%integrate(error_code=error_code, dt=input%initial_delta_t / t_0)
     else
       call master%integrate(error_code=error_code)
@@ -160,7 +158,7 @@ program cato
     ! I/O
     if(abs(time - next_output_time) < epsilon(1.0_rk)) then
       next_output_time = next_output_time + contour_interval_dt
-      if (this_image() == 1) then
+      if(this_image() == 1) then
         write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
           next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
       endif

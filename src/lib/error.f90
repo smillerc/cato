@@ -20,13 +20,14 @@ contains
     logical, intent(in), optional :: error_stop
 
     if(present(class_name)) then
-      write(std_err, '(a, i0)') "Error: "//trim(message)//"; in "//module_name &
+      write(std_out, '(a, i0)') "Error: "//trim(message)//"; in "//module_name &
         //"::"//class_name//"%"//procedure_name// &
         "() in "//file_name//":", line_number
     else
-      write(std_err, '(a, i0)') "Error: "//trim(message)//"; in "//module_name &
+      write(std_out, '(a, i0)') "Error: "//trim(message)//"; in "//module_name &
         //"::"//procedure_name//"() in "//file_name//":", line_number
     end if
+
 
     ! Catch-all error code
     if(present(error_stop)) then
@@ -34,6 +35,7 @@ contains
     else
       error stop 1
     end if
+    flush(std_err)
   end subroutine error_msg
 
 end module mod_error

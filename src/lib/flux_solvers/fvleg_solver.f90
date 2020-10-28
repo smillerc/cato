@@ -35,7 +35,7 @@ module mod_fvleg_solver
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use mod_flux_array, only: get_fluxes, flux_array_t
-  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
 
   implicit none
@@ -96,7 +96,7 @@ contains
                          d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(fvleg_solver_t), intent(inout) :: self
-    class(grid_block_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
@@ -165,8 +165,8 @@ contains
 
     call debug_print('Running fvleg_t%solve_fvleg()', __FILE__, __LINE__)
 
-    associate(imin => grid%cell_lbounds_halo(1), imax => grid%cell_ubounds_halo(1), &
-              jmin => grid%cell_lbounds_halo(2), jmax => grid%cell_ubounds_halo(2))
+    associate(imin => grid%lbounds_halo(1), imax => grid%ubounds_halo(1), &
+              jmin => grid%lbounds_halo(2), jmax => grid%ubounds_halo(2))
 
       allocate(rho_recon_state(1:8, imin:imax, jmin:jmax))
       allocate(u_recon_state(1:8, imin:imax, jmin:jmax))
@@ -325,7 +325,7 @@ contains
                         evolved_du_mid_rho, evolved_du_mid_u, evolved_du_mid_v, evolved_du_mid_p, &
                         d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
     !< Evaluate the fluxes along the edges. This is equation 13 in the paper
-    class(grid_block_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
 
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
@@ -339,10 +339,10 @@ contains
     real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
     real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
     real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
-    real(rk), dimension(grid%cell_lbounds_halo(1):, grid%cell_lbounds_halo(2):), contiguous, intent(inout) :: d_rho_dt
-    real(rk), dimension(grid%cell_lbounds_halo(1):, grid%cell_lbounds_halo(2):), contiguous, intent(inout) :: d_rhou_dt
-    real(rk), dimension(grid%cell_lbounds_halo(1):, grid%cell_lbounds_halo(2):), contiguous, intent(inout) :: d_rhov_dt
-    real(rk), dimension(grid%cell_lbounds_halo(1):, grid%cell_lbounds_halo(2):), contiguous, intent(inout) :: d_rhoE_dt
+    real(rk), dimension(grid%lbounds_halo(1):, grid%lbounds_halo(2):), contiguous, intent(inout) :: d_rho_dt
+    real(rk), dimension(grid%lbounds_halo(1):, grid%lbounds_halo(2):), contiguous, intent(inout) :: d_rhou_dt
+    real(rk), dimension(grid%lbounds_halo(1):, grid%lbounds_halo(2):), contiguous, intent(inout) :: d_rhov_dt
+    real(rk), dimension(grid%lbounds_halo(1):, grid%lbounds_halo(2):), contiguous, intent(inout) :: d_rhoE_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j, k, edge, xy
@@ -507,8 +507,8 @@ contains
     !$omp end do simd
     !$omp end parallel
 
-    ilo = grid%cell_lbounds_halo(1); ihi = grid%cell_ubounds_halo(1)
-    jlo = grid%cell_lbounds_halo(2); jhi = grid%cell_ubounds_halo(2)
+    ilo = grid%lbounds_halo(1); ihi = grid%ubounds_halo(1)
+    jlo = grid%lbounds_halo(2); jhi = grid%ubounds_halo(2)
     d_rho_dt(ilo, :) = 0.0_rk
     d_rho_dt(ihi, :) = 0.0_rk
     d_rho_dt(:, jlo) = 0.0_rk
