@@ -24,7 +24,7 @@ module mod_flux_solver
   !< Author: Sam Miller
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_field, only: field_2d_t
+  use mod_field, only: field_2d_t, field_2d
   use mod_globals, only: debug_print
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_grid_block_2d, only: grid_block_2d_t
@@ -200,19 +200,19 @@ contains
     real(rk) :: ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold
 
     ! Block bounds
-    ilo = self%lbounds(1)
-    ihi = self%ubounds(1)
-    jlo = self%lbounds(2)
-    jhi = self%ubounds(2)
+    ilo = grid%lbounds(1)
+    ihi = grid%ubounds(1)
+    jlo = grid%lbounds(2)
+    jhi = grid%ubounds(2)
 
-    ! d_rho_dt = field_2d(name='d_rho_dt  ', long_name='d/dt(rho)', descrip='', units='', &
-    !                       dims=[grid%ni_cell, grid%nj_cell])
-    ! d_rho_u_dt = field_2d(name='d_rho_u_dt', long_name='d/dt(rho u)', descrip='', units='', &
-    !                         dims=[grid%ni_cell, grid%nj_cell])
-    ! d_rho_v_dt = field_2d(name='d_rho_v_dt', long_name='d/dt(rho v)', descrip='', units='', &
-    !                         dims=[grid%ni_cell, grid%nj_cell])
-    ! d_rho_E_dt = field_2d(name='d_rho_E_dt', long_name='d/dt(rho E)', descrip='', units='', &
-    !                         dims=[grid%ni_cell, grid%nj_cell])
+    d_rho_dt = field_2d(name='d_rho_dt  ', long_name='d/dt(rho)', descrip='', units='', &
+                          global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
+    d_rho_u_dt = field_2d(name='d_rho_u_dt', long_name='d/dt(rho u)', descrip='', units='', &
+                          global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
+    d_rho_v_dt = field_2d(name='d_rho_v_dt', long_name='d/dt(rho v)', descrip='', units='', &
+                          global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
+    d_rho_E_dt = field_2d(name='d_rho_E_dt', long_name='d/dt(rho E)', descrip='', units='', &
+                          global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
 
     !                                   /\
     !                  jflux(i,j)  'R'  |

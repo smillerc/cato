@@ -140,10 +140,10 @@ contains
 
     ! Because this is an edge-based array, the indexing is # cells + 1, and
     ! only goes into the single nearest ghost layer
-    ilo = q%lbounds(1) + n_ghost_layers - 1
-    jlo = q%lbounds(2) + n_ghost_layers - 1
-    ihi = q%ubounds(1) - n_ghost_layers
-    jhi = q%ubounds(2) - n_ghost_layers
+    ilo = q%lbounds(1) - 1
+    jlo = q%lbounds(2) - 1
+    ihi = q%ubounds(1)
+    jhi = q%ubounds(2)
 
 #:if DIR == 'i'
     allocate(edge_values(1:2, ilo - 1:ihi, jlo:jhi))

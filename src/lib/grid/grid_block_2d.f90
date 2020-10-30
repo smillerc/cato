@@ -400,7 +400,9 @@ contains
 
     ! If the grid is uniform, then we can make it all difinitively 1
     if(self%is_uniform) then
-      write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
+      if (this_image() == 1) then
+        write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
+      endif
       self%volume = 1.0_rk
       ! self%cell_edge_lengths = 1.0_rk
       ! self%dx = 1.0_rk

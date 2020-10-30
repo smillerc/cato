@@ -161,7 +161,7 @@ contains
     integer(ik), intent(out) :: error_code
     real(rk), optional, intent(in) :: dt
 
-    real(rk) :: max_dt
+    real(rk) :: min_dt
 
     if(present(dt)) then
       self%dt = dt
@@ -174,16 +174,16 @@ contains
     ! Get the maximum allowable timestep from each physics package
     select type(grid => self%grid)
     class is(grid_block_2d_t)
-      max_dt = self%fluid%get_timestep(self%grid)
+      min_dt = self%fluid%get_timestep(self%grid)
     end select
 
-    if(self%dt > max_dt) then
+    if(self%dt > min_dt) then
       write(*, '(a,i0,a,2(es16.6,a))') "Warning on image ", this_image(), &
         ", the input dt (", self%dt, &
-        ") is larger than the max allowable dt (", max_dt, &
+        ") is larger than the max allowable dt (", min_dt, &
         ") based on the CFL condition"
     else
-      self%dt = max_dt
+      self%dt = min_dt
     end if
 
     self%time = self%time + self%dt
@@ -191,7 +191,7 @@ contains
 
     select type(grid => self%grid)
     class is(grid_block_2d_t)
-      call self%fluid%integrate(dt=dt, source_term=self%source_term, &
+      call self%fluid%integrate(dt=self%dt, source_term=self%source_term, &
                                 grid=self%grid, error_code=error_code)
     end select
 

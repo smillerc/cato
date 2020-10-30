@@ -165,6 +165,7 @@ contains
     integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi, io
 
     self%time = time
+    self%cfl = input%cfl
 
     alloc_status = 0
     if(enable_debug_print) call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
@@ -490,9 +491,10 @@ contains
   subroutine integrate(self, dt, grid, source_term, error_code)
     !< Integrate in time
     class(fluid_t), intent(inout) :: self
-    class(source_t), allocatable, intent(in) :: source_term
     real(rk), intent(in) :: dt !< time step
     class(grid_block_t), intent(in) :: grid !< grid class - the solver needs grid topology
+    class(source_t), allocatable, intent(in) :: source_term
+
     integer(ik), intent(out) :: error_code
 
     if(enable_debug_print) call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
@@ -514,8 +516,6 @@ contains
 
   function time_derivative(self, grid, source_term, stage) result(d_dt)
     !< Implementation of the time derivative
-
-    ! Inputs/Output
     class(fluid_t), intent(inout) :: self
     class(grid_block_t), intent(in) :: grid  !< grid class - the solver needs grid topology
     type(fluid_t), allocatable :: d_dt          !< dU/dt
@@ -548,7 +548,7 @@ contains
   real(rk) function get_timestep(self, grid) result(delta_t)
     class(fluid_t), intent(inout) :: self
     class(grid_block_t), intent(in) :: grid
-    real(rk), save :: coarray_max_delta_t[*] !< the max allowable timestep on each subdomain/image
+    real(rk), save :: coarray_min_delta_t[*] !< the max allowable timestep on each subdomain/image
     integer(ik) :: ierr
     integer(ik) :: ilo, ihi, jlo, jhi ! fluid lo/hi indicies
     integer(ik) :: g_ilo, g_ihi, g_jlo, g_jhi ! grid lo/hi indices
@@ -582,21 +582,20 @@ contains
     jhi = self%u%ubounds(2)
 
     ! I would have put this in a cleaner associate block, but GFortran+OpenCoarrays bugs out on this
-    coarray_max_delta_t = minval(self%cfl / &
+    coarray_min_delta_t = minval(self%cfl / &
                                  (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
                                     self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
                                   ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
                                     self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
-
     sync all
     ! Get the minimum timestep across all the images and save it on each image
-    call co_min(coarray_max_delta_t, stat=ierr)
+    call co_min(coarray_min_delta_t, stat=ierr)
     if(ierr /= 0) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='get_timestep', &
                      message="Unable to run the co_min() to get min timestep across images: err_msg="//trim(err_msg), &
                      file_name=__FILE__, line_number=__LINE__)
     end if
-    delta_t = coarray_max_delta_t
+    delta_t = coarray_min_delta_t
   end function get_timestep
 
   subroutine calculate_derived_quantities(self)
