@@ -7,6 +7,3 @@ add_caf_test(
   LINK_LIBRARIES
   caf_testing
   cato)
-
-# add_caf_test(test_data_layout N_IMAGES 1 SOURCES test_data_layout.f90 LINK_LIBRARIES
-# OpenMP::OpenMP_Fortran)

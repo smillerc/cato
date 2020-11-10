@@ -155,8 +155,8 @@ program test_field
   implicit none(type, external)
 
   ! sync all
-  ! if(this_image() == 1) print*, new_line('') // "Running test_halo_exchange" // new_line('') 
-  ! call test_halo_exchange()
+  if(this_image() == 1) print*, new_line('') // "Running test_halo_exchange" // new_line('') 
+  call test_halo_exchange()
 
   if (num_images() /= 4) then
     error stop "test_field is designed to run with 4 images, currently num_images() /= 4"
