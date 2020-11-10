@@ -198,6 +198,10 @@ contains
 
   end subroutine integrate
 
+  real(rk) function get_timestep(self) result(dt)
+    class(master_puppeteer_t), intent(inout) :: self
+  end function
+
   subroutine set_time(self, time, iteration)
     !< Set the time statistics
     class(master_puppeteer_t), intent(inout) :: self

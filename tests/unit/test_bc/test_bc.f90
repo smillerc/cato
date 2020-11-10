@@ -41,15 +41,22 @@ module test_mod
 contains
 
   subroutine startup()
-
-    input = input_t(spatial_reconstruction='MUSCL', &
-                    flux_solver='AUSM+-up', &
-                    n_ghost_layers=2, &
-                    ni_nodes=ni_nodes, nj_nodes=nj_nodes, &
-                    read_init_cond_from_file=.false., &
-                    xmin=-2.0_rk, xmax=2.0_rk, ymin=-2.0_rk, ymax=2.0_rk)
+    input = input_t(spatial_reconstruction='minmod', flux_solver='AUSMPW+')
+    input%initial_condition_file = 'simple.h5'
 
     grid => new_2d_grid_block(input)
+
+    rho = field_2d(name='', long_name='', descrip='', units='', &
+                   global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
+
+    u = field_2d(name='', long_name='', descrip='', units='', &
+                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
+    
+    v = field_2d(name='', long_name='', descrip='', units='', &
+                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
+    
+    p = field_2d(name='', long_name='', descrip='', units='', &
+                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
 
   end subroutine startup
 
@@ -62,15 +69,6 @@ contains
     integer(ik) :: i, j
 
     print *, "Setting up the periodic grid"
-
-    rho = field_2d(name='', long_name='', descrip='', units='', &
-                   global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
-    u = field_2d(name='', long_name='', descrip='', units='', &
-                   global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
-    v = field_2d(name='', long_name='', descrip='', units='', &
-                   global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
-    p = field_2d(name='', long_name='', descrip='', units='', &
-                   global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
 
     ! ! These are normally handled by the master puppeteer, but for now we make them ourselves
     ! associate(left => grid%lbounds_halo(1), right => grid%ubounds_halo(1), &
@@ -156,7 +154,7 @@ contains
     
     integer(ik) :: i, j
 
-    print *, "Running test_plus_x_periodic()"
+    if(this_image() == 1) print*, new_line('') // "Running test_plus_x_periodic" // new_line('')
     input%plus_x_bc = 'zero_gradient'
     input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'zero_gradient'
@@ -191,6 +189,9 @@ contains
     end associate
 
     deallocate(bc_plus_x)
+
+    sync all
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_plus_x_periodic]"
   end subroutine test_plus_x_periodic
 
   subroutine test_plus_y_periodic()
@@ -199,7 +200,7 @@ contains
     
     integer(ik) :: i, j
 
-    print *, "Running test_plus_y_periodic()"
+    if(this_image() == 1) print*, new_line('') // "Running test_plus_y_periodic" // new_line('')
     input%plus_x_bc = 'zero_gradient'
     input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'zero_gradient'
@@ -234,6 +235,8 @@ contains
 
     deallocate(bc_plus_y)
 
+    sync all
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_plus_y_periodic]"
   end subroutine test_plus_y_periodic
 
   subroutine test_minus_x_periodic()
@@ -242,7 +245,7 @@ contains
     
     integer(ik) :: i, j
 
-    print *, "Running test_minus_x_periodic()"
+    if(this_image() == 1) print*, new_line('') // "Running test_minus_x_periodic" // new_line('')
     input%plus_x_bc = 'zero_gradient'
     input%plus_y_bc = 'zero_gradient'
     input%minus_x_bc = 'periodic'
@@ -276,6 +279,9 @@ contains
     end associate
 
     deallocate(bc_minus_x)
+
+    sync all
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_minus_x_periodic]"
   end subroutine test_minus_x_periodic
 
   subroutine test_minus_y_periodic()
@@ -284,7 +290,7 @@ contains
     
     integer(ik) :: i, j
 
-    print *, "Running test_minus_y_periodic()"
+    if(this_image() == 1) print*, new_line('') // "Running test_minus_y_periodic" // new_line('')
     input%plus_x_bc = 'zero_gradient'
     input%plus_y_bc = 'zero_gradient'
     input%minus_x_bc = 'zero_gradient'
@@ -318,6 +324,9 @@ contains
     end associate
 
     if(associated(bc_minus_y)) deallocate(bc_minus_y)
+
+    sync all
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_minus_y_periodic]"
   end subroutine test_minus_y_periodic
 
   subroutine test_periodic_all()
@@ -329,7 +338,7 @@ contains
     
     integer(ik) :: i, j
 
-    print *, "Running test_periodic_all()"
+    if(this_image() == 1) print*, new_line('') // "Running test_periodic_all" // new_line('')
     input%plus_x_bc = 'periodic'
     input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'periodic'
@@ -397,6 +406,9 @@ contains
     deallocate(bc_plus_y)
     deallocate(bc_minus_x)
     deallocate(bc_minus_y)
+
+    sync all
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_periodic_all]"
   end subroutine test_periodic_all
 
   subroutine test_symmetry()
@@ -414,6 +426,7 @@ contains
     real(rk), dimension(4) ::  right_sym_col = 0.0_rk
     real(rk), dimension(4) ::   left_sym_col = 0.0_rk
 
+    if(this_image() == 1) print*, new_line('') // "Running test_symmetry" // new_line('')
     bottom_ghost = grid%lbounds_halo(2)
     top_ghost = grid%ubounds_halo(2)
 
@@ -580,6 +593,9 @@ contains
     deallocate(bc_plus_y)
     deallocate(bc_minus_x)
     deallocate(bc_minus_y)
+
+    sync all
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_symmetry]"
   end subroutine test_symmetry
 end module test_mod
 
@@ -587,9 +603,13 @@ program test_bc
   use test_mod
   implicit none(type, external)
 
-  call startup()
-  if(this_image() == 1) print*, new_line('') // "Running test_symmetry" // new_line('') 
+  call startup() 
   call test_symmetry()
+  call test_plus_x_periodic()
+  call test_plus_y_periodic()
+  call test_minus_x_periodic()
+  call test_minus_y_periodic()
+  call test_periodic_all()
 
   call cleanup()
 end program test_bc

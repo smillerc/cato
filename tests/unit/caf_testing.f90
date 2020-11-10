@@ -229,7 +229,7 @@ subroutine assert_equal_str(desired, actual, compare_trimed)
 
   if (.not. correct) then
     write(*,'(a)') "Assertion Failure (=)"
-    write(*,'(a,i0)') "Image", this_image()
+    write(*,'(a,i0)') "Image: ", this_image()
     if (do_trim) then
       write(*,'(3(a))') "Desired Value: '", trim(desired), "'"
       write(*,'(3(a))') "Actual Value:  '", trim(actual), "'"
@@ -264,7 +264,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (=)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,es16.6)') "Desired Value: ", desired
       write(*,'(a,es16.6)') "Actual Value:  ", actual
       write(*,'(a,es16.6)') "Difference:    ", desired - actual
@@ -796,7 +796,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (=)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,es16.6)') "Desired Value: ", desired
       write(*,'(a,es16.6)') "Actual Value:  ", actual
       write(*,'(a,es16.6)') "Difference:    ", desired - actual
@@ -1324,7 +1324,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (=)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       write(*,'(a,i0)') "Difference:    ", desired - actual
@@ -1739,7 +1739,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (=)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       write(*,'(a,i0)') "Difference:    ", desired - actual
@@ -2157,7 +2157,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (=)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,l)') "Desired Value: ", desired
       write(*,'(a,l)') "Actual Value:  ", actual
       error stop "Test failure"
@@ -2562,7 +2562,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (<)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       error stop "Test failure"
@@ -3042,7 +3042,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (<)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       error stop "Test failure"
@@ -3522,7 +3522,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (<)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       error stop "Test failure"
@@ -4002,7 +4002,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (<)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       error stop "Test failure"
@@ -4482,7 +4482,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (>)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       error stop "Test failure"
@@ -4962,7 +4962,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (>)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       error stop "Test failure"
@@ -5442,7 +5442,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (>)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       error stop "Test failure"
@@ -5922,7 +5922,7 @@ end subroutine
 
     if(.not. correct) then
       write(*,'(a)') "Assertion Failure (>)"
-      write(*,'(a,i0)') "Image", this_image()
+      write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
       error stop "Test failure"

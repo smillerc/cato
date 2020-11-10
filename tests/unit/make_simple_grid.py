@@ -148,7 +148,7 @@ def write_initial_hdf5(filename, initial_condition_dict):
 
 
 # Make a simple grid with dummy initial conditions
-simple = make_uniform_grid(n_cells=(4, 2), xrange=(-2, 2), yrange=(-2, 2))
+simple = make_uniform_grid(n_cells=(4, 4), xrange=(-4, 4), yrange=(-2, 2), n_ghost_layers=2)
 simple["rho"] = simple["rho"] * 1
 simple["u"] = simple["u"] * -2
 simple["v"] = simple["v"] * 3
