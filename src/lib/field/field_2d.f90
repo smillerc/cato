@@ -8,21 +8,14 @@ module mod_field
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: iso_c_binding
-  use h5fortran, only: hdf5_file
+  use h5fortran, only: hdf5_file, hsize_t
+  use mod_error, only: error_msg
   use mod_parallel, only: tile_indices, tile_neighbors_2d
+  use mod_parallel, only: LOWER_LEFT, DOWN, LOWER_RIGHT, LEFT, &
+                          RIGHT, UPPER_LEFT, UP, UPPER_RIGHT
   use mod_globals, only: enable_debug_print, debug_print
-
+  
   implicit none(type, external)
-
-  ! Neighbor image indices
-  integer(ik), parameter :: lower_left = 1  !< lower left neighbor image
-  integer(ik), parameter :: down = 2        !< neighbor image below
-  integer(ik), parameter :: lower_right = 3 !< lower right neigbor image
-  integer(ik), parameter :: left = 4        !< neighbor image to the left
-  integer(ik), parameter :: right = 5       !< neighbor image to the right
-  integer(ik), parameter :: upper_left = 6  !< upper left neighbor image
-  integer(ik), parameter :: up = 7          !< neighbor image above
-  integer(ik), parameter :: upper_right = 8 !< upper right neighbor image
 
   private
   public :: field_2d_t, field_2d
@@ -584,15 +577,15 @@ contains
       ! the # of halo cells >= 1, we need to account for variable sizes.
 
       ! Send the current image's edge cells to become the halo of the neighbor
-      right_edge(:, :)[neighbors(left)] = self%data(ilo:ilo + nh - 1, jlo:jhi) ! send to left
-      left_edge(:, :)[neighbors(right)] = self%data(ihi - nh + 1:ihi, jlo:jhi) ! send to right
-      top_edge(:, :)[neighbors(down)] = self%data(ilo:ihi, jlo:jlo + nh - 1)   ! send to below
-      bottom_edge(:, :)[neighbors(up)] = self%data(ilo:ihi, jhi - nh + 1:jhi)  ! send to above
+      right_edge(:, :)[neighbors(LEFT)] = self%data(ilo:ilo + nh - 1, jlo:jhi) ! send to left
+      left_edge(:, :)[neighbors(RIGHT)] = self%data(ihi - nh + 1:ihi, jlo:jhi) ! send to right
+      top_edge(:, :)[neighbors(DOWN)] = self%data(ilo:ihi, jlo:jlo + nh - 1)   ! send to below
+      bottom_edge(:, :)[neighbors(UP)] = self%data(ilo:ihi, jhi - nh + 1:jhi)  ! send to above
 
-      upper_left_corner(:, :)[neighbors(lower_right)] = self%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1) ! send lower-right corner
-      lower_left_corner(:, :)[neighbors(upper_right)] = self%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi) ! send upper-right corner
-      upper_right_corner(:, :)[neighbors(lower_left)] = self%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1) ! send lower-left corner
-      lower_right_corner(:, :)[neighbors(upper_left)] = self%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi) ! send upper-left corner
+      upper_left_corner(:, :)[neighbors(LOWER_RIGHT)] = self%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1) ! send lower-right corner
+      lower_left_corner(:, :)[neighbors(UPPER_RIGHT)] = self%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi) ! send upper-right corner
+      upper_right_corner(:, :)[neighbors(LOWER_LEFT)] = self%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1) ! send lower-left corner
+      lower_right_corner(:, :)[neighbors(UPPER_LEFT)] = self%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi) ! send upper-left corner
 
       sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
       if(sync_stat /= 0) then
@@ -676,24 +669,40 @@ contains
   ! --------------------------------------------------------------------
   subroutine read_from_h5(self, filename, dataset)
     !< Read in the data from an hdf5 file. This will read from the
-    !< file and only grab the per-image data, e.g. each field will
+    !< file and only grab the per-image data, e.g. each grid block will
     !< only read from the indices it has been assigned with respect
     !< to the global domain.
     class(field_2d_t), intent(inout) :: self
     character(len=*), intent(in) :: filename
     character(len=*), intent(in) :: dataset
+
     type(hdf5_file) :: h5
+    integer(ik) :: alloc_status, ilo, ihi, jlo, jhi
+    logical :: file_exists
+    character(32) :: str_buff = ''
+    character(300) :: msg = ''
+    real(rk), allocatable, dimension(:, :) :: data
+
+    integer(hsize_t), allocatable :: dims(:)
+
+    file_exists = .false.
+    inquire(file=filename, exist=file_exists)
+
+    if(.not. file_exists) then
+      call error_msg(module_name='mod_field', class_name='field_2d_t', &
+                     procedure_name='read_from_h5', &
+                     message='file not found: "'//filename//'"', &
+                     file_name=__FILE__, line_number=__LINE__)
+    end if
 
     call h5%initialize(filename=trim(filename), status='old', action='r')
-
-    ! Read on a per-image basis
-    associate(ilo => self%ilo, ihi => self%ihi, jlo => self%jlo, jhi => self%jhi)
-      call h5%read(dname=dataset, value=self%data(ilo:ihi, jlo:jhi), &
-                   istart=[ilo, jhi], iend=[jlo, jhi])
-
-      call h5%readattr(dname=dataset, attr='units', attrval=self%units)
-      call h5%readattr(dname=dataset, attr='description', attrval=self%description)
-    end associate
+    ! I couldn't get the slice read to work, so we read the whole array
+    ! in and extract the slice later
+    call h5%shape(dataset, dims)
+    allocate(data(dims(1), dims(2)))
+    call h5%read(dname=dataset, value=data)
+    self%data = data(self%lbounds_halo(1) + self%n_halo_cells:self%ubounds_halo(1) + self%n_halo_cells, &
+                     self%lbounds_halo(2) + self%n_halo_cells:self%ubounds_halo(2) + self%n_halo_cells)
     call h5%finalize()
   end subroutine read_from_h5
 

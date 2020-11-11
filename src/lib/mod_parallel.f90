@@ -15,6 +15,16 @@ module mod_parallel
     module procedure :: tile_indices_1d, tile_indices_2d
   end interface tile_indices
 
+  ! Neighbor image indices
+  integer(ik), parameter, public :: LOWER_LEFT = 1  !< lower left neighbor image
+  integer(ik), parameter, public :: DOWN = 2        !< neighbor image below
+  integer(ik), parameter, public :: LOWER_RIGHT = 3 !< lower right neigbor image
+  integer(ik), parameter, public :: LEFT = 4        !< neighbor image to the left
+  integer(ik), parameter, public :: RIGHT = 5       !< neighbor image to the right
+  integer(ik), parameter, public :: UPPER_LEFT = 6  !< upper left neighbor image
+  integer(ik), parameter, public :: UP = 7          !< neighbor image above
+  integer(ik), parameter, public :: UPPER_RIGHT = 8 !< upper right neighbor image
+
 contains
 
   pure function denominators(n)

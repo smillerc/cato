@@ -20,13 +20,17 @@
 
 module mod_periodic_bc
 
-  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use mod_error, only: error_msg
   use mod_functional, only: reverse, operator(.reverse.)
   use mod_field, only: field_2d_t
   use mod_globals, only: enable_debug_print, debug_print
   use mod_grid_block_2d, only: grid_block_2d_t
   use mod_boundary_conditions, only: boundary_condition_t
+  use mod_parallel, only: LOWER_LEFT, DOWN, LOWER_RIGHT, LEFT, &
+                          RIGHT, UPPER_LEFT, UP, UPPER_RIGHT
   use mod_input, only: input_t
+  use mod_functional, only: set
 
   implicit none
 
@@ -75,155 +79,176 @@ contains
     integer(ik) :: donor_istart, donor_iend, receiver_istart, receiver_iend
     integer(ik) :: donor_j, receiver_j
 
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
-              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
+    integer(ik) :: sync_stat           !< syncronization status
+    character(len=200) :: sync_err_msg !< syncronization error message (if any)
+    integer(ik), dimension(8) :: neighbors = 0 !< parallel neighbor image indices
+
+    real(rk), dimension(:, :), allocatable, save :: left_edge[:]   !< (i, j)[image]; Coarray buffer to copy left neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: right_edge[:]  !< (i, j)[image]; Coarray buffer to copy right neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: top_edge[:]    !< (i, j)[image]; Coarray buffer to copy top neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: bottom_edge[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+
+    real(rk), dimension(:, :), allocatable, save :: upper_left_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: upper_right_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: lower_left_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: lower_right_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+
+    if(enable_debug_print) call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() ', __FILE__, __LINE__)
+    sync_stat = 0
+    sync_err_msg = ''
+
+    ! Only allocate once, b/c this will cause an implicit sync all due to the coarray index
+    associate(ni => rho%domain_shape(1), nj => rho%domain_shape(2), n_halo => rho%n_halo_cells)
+      if(.not. allocated(left_edge)) allocate(left_edge(n_halo, nj)[*])
+      if(.not. allocated(right_edge)) allocate(right_edge(n_halo, nj)[*])
+      if(.not. allocated(top_edge)) allocate(top_edge(ni, n_halo)[*])
+      if(.not. allocated(bottom_edge)) allocate(bottom_edge(ni, n_halo)[*])
+
+      if(.not. allocated(upper_left_corner)) allocate(upper_left_corner(n_halo, n_halo)[*])
+      if(.not. allocated(lower_left_corner)) allocate(lower_left_corner(n_halo, n_halo)[*])
+      if(.not. allocated(upper_right_corner)) allocate(upper_right_corner(n_halo, n_halo)[*])
+      if(.not. allocated(lower_right_corner)) allocate(lower_right_corner(n_halo, n_halo)[*])
+    end associate
+
+    neighbors = set(rho%neighbors)
+    upper_left_corner = 0.0_rk
+    upper_right_corner = 0.0_rk
+    lower_left_corner = 0.0_rk
+    lower_right_corner = 0.0_rk
+    left_edge = 0.0_rk
+    right_edge = 0.0_rk
+    top_edge = 0.0_rk
+    bottom_edge = 0.0_rk
+
+    associate(ilo => rho%lbounds(1), ihi => rho%ubounds(1), &
+              jlo => rho%lbounds(2), jhi => rho%ubounds(2), &
+              ilo_halo => rho%lbounds_halo(1), ihi_halo => rho%ubounds_halo(1), &
+              jlo_halo => rho%lbounds_halo(2), jhi_halo => rho%ubounds_halo(2), &
+              nh => rho%n_halo_cells, &
+              neighbors => rho%neighbors)
 
       select case(self%location)
-      case('+x')
-        call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() +x', __FILE__, __LINE__)
+      case('+x', '-x')
+        if(rho%on_ilo_bc .or. rho%on_ihi_bc) then
+          sync images(set([rho%host_image_id, neighbors(LEFT), neighbors(RIGHT)]), stat=sync_stat, errmsg=sync_err_msg)
+          if(sync_stat /= 0) then
+            call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                          procedure_name='apply_periodic_primitive_var_bc', &
+                          message="Error: unable to sync images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                          file_name=__FILE__, line_number=__LINE__)
+          end if
+          
+          ! Put to the coarray buffer
+          left_edge(:, :)[neighbors(RIGHT)] = rho%data(ihi - nh + 1:ihi, jlo:jhi)
+          right_edge(:, :)[neighbors(LEFT)] = rho%data(ilo:ilo + nh - 1, jlo:jhi)
 
-        do i = 1, self%n_ghost_layers
-          #:for f in ['rho','u','v','p']
-          ${f}$%data(right_ghost(i), bottom:top) = ${f}$%data(left + (i - 1), bottom:top)
-          #:endfor
-        end do
+          sync images(set([rho%host_image_id, neighbors(LEFT), neighbors(RIGHT)]), stat=sync_stat, errmsg=sync_err_msg)
+          if(sync_stat /= 0) then
+            call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                          procedure_name='apply_periodic_primitive_var_bc', &
+                          message="Error: unable to sync images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                          file_name=__FILE__, line_number=__LINE__)
+          end if
 
-        if(self%do_corners) then
-          ! Values for the donor and reciever indices
-          donor_istart = left
-          donor_iend = left + self%n_ghost_layers - 1
-          receiver_istart = right_ghost(1)
-          receiver_iend = receiver_istart + self%n_ghost_layers - 1
+          ! Get from the coarray buffer
+          if (rho%on_ihi_bc) rho%data(ihi + 1:ihi_halo, jlo:jhi) = right_edge
+          if (rho%on_ilo_bc) rho%data(ilo_halo:ilo - 1, jlo:jhi) = left_edge
+        endif ! on ilo or ihi bc
+        
+      case('+y', '-y')
+        if(rho%on_jlo_bc .or. rho%on_jhi_bc) then
+          sync images([rho%host_image_id, neighbors(DOWN), neighbors(UP)], stat=sync_stat, errmsg=sync_err_msg)
+          if(sync_stat /= 0) then
+            call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                           procedure_name='apply_periodic_primitive_var_bc', &
+                           message="Error: unable to sync images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                           file_name=__FILE__, line_number=__LINE__)
+          end if
 
-          ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
-          ! assigns them one j layer at a time
-          do j = 1, self%n_ghost_layers
-            donor_j = bottom + (j - 1)
-            receiver_j = top_ghost(j)
+          ! Put to the coarray buffer
+          bottom_edge(:, :)[neighbors(UP)] = rho%data(ilo:ihi, jhi - nh + 1:jhi)
+          top_edge(:, :)[neighbors(DOWN)] = rho%data(ilo:ihi, jlo:jlo + nh - 1)
 
-            #:for f in ['rho','u','v','p']
-            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
-            #:endfor
+          sync images([rho%host_image_id, neighbors(DOWN), neighbors(UP)], stat=sync_stat, errmsg=sync_err_msg)
+          if(sync_stat /= 0) then
+            call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                          procedure_name='apply_periodic_primitive_var_bc', &
+                          message="Error: unable to sync images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                          file_name=__FILE__, line_number=__LINE__)
+          end if
 
-            donor_j = top - (j - 1)
-            receiver_j = bottom_ghost(j)
+          ! Get from the coarray buffer
+          if (rho%on_jlo_bc) rho%data(ilo:ihi, jlo_halo:jlo - 1) = bottom_edge
+          if (rho%on_jhi_bc) rho%data(ilo:ihi, jhi + 1:jhi_halo) = top_edge
+        endif ! on jlo or jhi bc
 
-            #:for f in ['rho','u','v','p']
-            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
-            #:endfor
-          end do
-        end if
 
-      case('-x')
-        call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() -x', __FILE__, __LINE__)
+      !   ! Get from the coarray buffer
+      !   if(rho%on_jlo_bc) then
+      !     sync images([rho%host_image_id, neighbors(DOWN)], stat=sync_stat, errmsg=sync_err_msg)
+      !     if(sync_stat /= 0) then
+      !       call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+      !                      procedure_name='apply_periodic_primitive_var_bc', &
+      !                      message="Error: unable to sync images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+      !                      file_name=__FILE__, line_number=__LINE__)
+      !     end if
 
-        do i = 1, self%n_ghost_layers
-            #:for f in ['rho','u','v','p']
-          ${f}$%data(left_ghost(i), bottom:top) = ${f}$%data(right - (i - 1), bottom:top)
-            #:endfor
-        end do
+      !     rho%data(ilo:ihi, jlo_halo:jlo - 1) = top_edge    ! get the top edge from neighbor below
+      !   end if
 
-        if(self%do_corners) then
-          ! Values for the donor and reciever indices
-          donor_istart = right - self%n_ghost_layers + 1
-          donor_iend = right
-          receiver_istart = left_ghost(1) - self%n_ghost_layers + 1
-          receiver_iend = left_ghost(1)
+      !   if(rho%on_jhi_bc) then
+      !     sync images([rho%host_image_id, neighbors(UP)], stat=sync_stat, errmsg=sync_err_msg)
+      !     if(sync_stat /= 0) then
+      !       call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+      !                      procedure_name='apply_periodic_primitive_var_bc', &
+      !                      message="Error: unable to sync images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+      !                      file_name=__FILE__, line_number=__LINE__)
+      !     end if
 
-          ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
-          ! assigns them one j layer at a time
-          do j = 1, self%n_ghost_layers
-            donor_j = bottom + (j - 1)
-            receiver_j = top_ghost(j)
-
-              #:for f in ['rho','u','v','p']
-            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
-              #:endfor
-
-            donor_j = top - (j - 1)
-            receiver_j = bottom_ghost(j)
-
-              #:for f in ['rho','u','v','p']
-            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
-              #:endfor
-          end do
-        end if
-
-      case('+y')
-        call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() +y', __FILE__, __LINE__)
-
-        do i = 1, self%n_ghost_layers
-          #:for f in ['rho','u','v','p']
-          ${f}$%data(left:right, top_ghost(i)) = ${f}$%data(left:right, bottom + (i - 1))
-          #:endfor
-        end do
-
-        if(self%do_corners) then
-          ! Values for the donor and reciever indices
-          donor_istart = left
-          donor_iend = left + self%n_ghost_layers - 1
-          receiver_istart = right_ghost(1)
-          receiver_iend = receiver_istart + self%n_ghost_layers - 1
-
-          ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
-          ! assigns them one j layer at a time
-          do j = 1, self%n_ghost_layers
-            donor_j = bottom + (j - 1)
-            receiver_j = top_ghost(j)
-
-                #:for f in ['rho','u','v','p']
-            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
-                #:endfor
-
-            donor_j = top - (j - 1)
-            receiver_j = bottom_ghost(j)
-
-                #:for f in ['rho','u','v','p']
-            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
-                #:endfor
-          end do
-        end if
-
-      case('-y')
-        call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() -y', __FILE__, __LINE__)
-
-        do i = 1, self%n_ghost_layers
-          #:for f in ['rho','u','v','p']
-          ${f}$%data(left:right, bottom_ghost(i)) = ${f}$%data(left:right, top - (i - 1))
-          #:endfor
-        end do
-
-        if(self%do_corners) then
-          ! Values for the donor and reciever indices
-          donor_istart = right - self%n_ghost_layers + 1
-          donor_iend = right
-          receiver_istart = left_ghost(1) - self%n_ghost_layers + 1
-          receiver_iend = left_ghost(1)
-
-          ! Do this one j "chunk" at a time. It grabs all of the i indices, e.g. ilo:ihi and
-          ! assigns them one j layer at a time
-          do j = 1, self%n_ghost_layers
-            donor_j = bottom + (j - 1)
-            receiver_j = top_ghost(j)
-
-                #:for f in ['rho','u','v','p']
-            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
-                #:endfor
-
-            donor_j = top - (j - 1)
-            receiver_j = bottom_ghost(j)
-
-                #:for f in ['rho','u','v','p']
-            ${f}$%data(receiver_istart:receiver_iend, receiver_j) = ${f}$%data(donor_istart:donor_iend, donor_j)
-                #:endfor
-          end do
-        end if
-
-      case default
-        error stop "Unsupported location to apply the bc at in periodic_bc_t%apply_periodic_cell_gradient_bc()"
+      !     rho%data(ilo:ihi, jhi + 1:jhi_halo) = bottom_edge ! get the bottom edge from neighbor above
+      !   end if
       end select
     end associate
+
+    !   if(self%do_corners) then
+      
+    !   end if
+
+
+    !   ! Copy data into the coarray buffer.
+    !   ! We are transfering the cells from inside the real domain onto 
+    !   ! the halo cells of the neighbor domain. Since
+    !   ! the # of halo cells >= 1, we need to account for variable sizes.
+
+    !   ! Send the current image's edge cells to become the halo of the neighbor
+    !   right_edge(:, :)[neighbors(LEFT)] = rho%data(ilo:ilo + nh - 1, jlo:jhi) ! send to left
+    !   left_edge(:, :)[neighbors(RIGHT)] = rho%data(ihi - nh + 1:ihi, jlo:jhi) ! send to right
+    !   top_edge(:, :)[neighbors(DOWN)] = rho%data(ilo:ihi, jlo:jlo + nh - 1)   ! send to below
+    !   bottom_edge(:, :)[neighbors(UP)] = rho%data(ilo:ihi, jhi - nh + 1:jhi)  ! send to above
+
+    !   upper_left_corner(:, :)[neighbors(LOWER_RIGHT)] = rho%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1) ! send lower-right corner
+    !   lower_left_corner(:, :)[neighbors(UPPER_RIGHT)] = rho%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi) ! send upper-right corner
+    !   upper_right_corner(:, :)[neighbors(LOWER_LEFT)] = rho%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1) ! send lower-left corner
+    !   lower_right_corner(:, :)[neighbors(UPPER_LEFT)] = rho%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi) ! send upper-left corner
+
+    !   sync images(set(rho%neighbors), stat=sync_stat, errmsg=sync_err_msg)
+    !   if(sync_stat /= 0) then
+    !   write(std_err, '(a, i0, a)') "Error: unable to sync images in "//__FILE__//":", &
+    !     __LINE__, " sync_err_msg: '"//trim(sync_err_msg)//"'"
+    !   error stop "Unable to sync images, see standard error unit for more information"
+    !   endif
+
+    !   ! Now copy the edge data to the halo cells of the current image
+    !   if(.not. rho%on_ilo_bc) rho%data(ilo_halo:ilo - 1, jlo:jhi) = right_edge  ! get the right edge from left neigbor
+    !   if(.not. rho%on_ihi_bc) rho%data(ihi + 1:ihi_halo, jlo:jhi) = left_edge   ! get the left edge from right neigbor
+    !   if(.not. rho%on_jlo_bc) rho%data(ilo:ihi, jlo_halo:jlo - 1) = top_edge    ! get the top edge from neighbor below
+    !   if(.not. rho%on_jhi_bc) rho%data(ilo:ihi, jhi + 1:jhi_halo) = bottom_edge ! get the bottom edge from neighbor above
+
+    !   if(.not. rho%on_ihi_bc .and. .not. rho%on_jhi_bc) rho%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = lower_left_corner ! get the lower-left corner from upper-right neighbor
+    !   if(.not. rho%on_ilo_bc .and. .not. rho%on_jhi_bc) rho%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = lower_right_corner ! get the lower-right corner from upper-left neighbor
+    !   if(.not. rho%on_ihi_bc .and. .not. rho%on_jlo_bc) rho%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = upper_left_corner ! get the upper-left corner from lower-right neighbor
+    !   if(.not. rho%on_ilo_bc .and. .not. rho%on_jlo_bc) rho%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = upper_right_corner ! get the upper-right corner from lower-left neighbor
+    ! end associate
 
   end subroutine apply_periodic_primitive_var_bc
 

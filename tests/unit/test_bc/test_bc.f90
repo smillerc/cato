@@ -38,62 +38,8 @@ module test_mod
   integer(ik), parameter :: right_edge = 2  !< cell right edge index
   integer(ik), parameter :: top_edge = 3    !< cell top edge index
   integer(ik), parameter :: left_edge = 4   !< cell left edge index
-contains
 
-  subroutine startup()
-    input = input_t(spatial_reconstruction='minmod', flux_solver='AUSMPW+')
-    input%initial_condition_file = 'simple.h5'
-
-    grid => new_2d_grid_block(input)
-
-    rho = field_2d(name='', long_name='', descrip='', units='', &
-                   global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
-
-    u = field_2d(name='', long_name='', descrip='', units='', &
-                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
-    
-    v = field_2d(name='', long_name='', descrip='', units='', &
-                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
-    
-    p = field_2d(name='', long_name='', descrip='', units='', &
-                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
-
-  end subroutine startup
-
-  subroutine cleanup()
-    deallocate(grid)
-  end subroutine cleanup
-
-  subroutine setup_periodic()
-    ! Set up the periodic grid to test against
-    integer(ik) :: i, j
-
-    print *, "Setting up the periodic grid"
-
-    ! ! These are normally handled by the master puppeteer, but for now we make them ourselves
-    ! associate(left => grid%lbounds_halo(1), right => grid%ubounds_halo(1), &
-    !           bottom => grid%lbounds_halo(2), top => grid%ubounds_halo(2))
-
-    !   if(allocated(rho)) deallocate(rho)
-    !   allocate(rho%data(left:right, bottom:top), stat=alloc_status)
-    !   if(alloc_status /= 0) error stop "Unable to allocate rho"
-
-    !   if(allocated(u)) deallocate(u)
-    !   allocate(u%data(left:right, bottom:top), stat=alloc_status)
-    !   if(alloc_status /= 0) error stop "Unable to allocate u"
-
-    !   if(allocated(v)) deallocate(v)
-    !   allocate(v%data(left:right, bottom:top), stat=alloc_status)
-    !   if(alloc_status /= 0) error stop "Unable to allocate v"
-
-    !   if(allocated(p)) deallocate(p)
-    !   allocate(p%data(left:right, bottom:top), stat=alloc_status)
-    !   if(alloc_status /= 0) error stop "Unable to allocate p"
-    ! end associate
-
-    ! the boundary routines
-
-    !   Domain cartoon layout
+    !   Domain used for BC testing (read in from simple.h5)
     !   |---|---||---|---|---|---||---|---|
     ! 6  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=6; aka top_ghost (grid%ubounds_halo(2))
     !    |---|---||---|---|---|---||---|---|
@@ -101,9 +47,9 @@ contains
     !    |===|===||===|===|===|===||===|===|
     ! 4  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 | <- j=4; aka top (grid%ubounds(2))
     !    |---|---||---|---|---|---||---|---|
-    ! 3  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 |
+    ! 3  | 0 | 6 || 8 | 9 | 9 | 6 || 8 | 0 |
     !    |---|---||---|---|---|---||---|---|
-    ! 2  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 |
+    ! 2  | 0 | 6 || 8 | 9 | 9 | 6 || 8 | 0 |
     !    |---|---||---|---|---|---||---|---|
     ! 1  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 | <- j=1; aka bottom (grid%lbounds(2))
     !    |===|===||===|===|===|===||===|===|
@@ -118,53 +64,57 @@ contains
     ! i4; aka right, grid%ubounds(1)
     ! i5; aka right_ghost grid%ubounds_halo(1)
 
-    ! Test the conserved var state
-    rho = 0.0_rk
-    u = 0.0_rk
-    v = 0.0_rk
-    p = 0.0_rk
+contains
 
-    ! Set unique values along the (real) edges so I can test the bc routines
-    associate(left => grid%lbounds(1), right => grid%ubounds(1), &
-              bottom => grid%lbounds(2), top => grid%ubounds(2))
+  subroutine startup()
+    input = input_t(spatial_reconstruction='minmod', flux_solver='AUSMPW+')
+    input%initial_condition_file = 'simple.h5'
 
-      rho%data(left:right, top) = [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
-      rho%data(left:right, bottom) = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
-      rho%data(left, bottom + 1:top - 1) = 8.0_rk
-      rho%data(right, bottom + 1:top - 1) = 6.0_rk
+    grid => new_2d_grid_block(input)
 
-    end associate
+    rho = field_2d(name='', long_name='', descrip='', units='', &
+                   global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
+    call rho%read_from_h5(filename='simple.h5', dataset='/density')
 
-    associate(left => grid%lbounds(1), right => grid%ubounds(1), &
-              bottom => grid%lbounds(2), top => grid%ubounds(2), &
-              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
-              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
-      print *, "Initial conditions:"
-      do j = top_ghost, bottom_ghost, -1
-        write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
-      end do
-      print *
-    end associate
+    u = field_2d(name='', long_name='', descrip='', units='', &
+                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
+    call u%read_from_h5(filename='simple.h5', dataset='/x_velocity')
 
-  end subroutine setup_periodic
+    v = field_2d(name='', long_name='', descrip='', units='', &
+                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
+    call v%read_from_h5(filename='simple.h5', dataset='/y_velocity')
 
-  subroutine test_plus_x_periodic()
+    p = field_2d(name='', long_name='', descrip='', units='', &
+                 global_dims=grid%global_dims, n_halo_cells=n_ghost_layers)
+    call p%read_from_h5(filename='simple.h5', dataset='/pressure')
+
+  end subroutine startup
+
+  subroutine cleanup()
+    deallocate(grid)
+  end subroutine cleanup
+
+  subroutine test_x_periodic()
     !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_minus_x
     class(boundary_condition_t), pointer :: bc_plus_x
-    
     integer(ik) :: i, j
 
-    if(this_image() == 1) print*, new_line('') // "Running test_plus_x_periodic" // new_line('')
-    input%plus_x_bc = 'zero_gradient'
+    if(this_image() == 1) print*, new_line('') // "Running test_x_periodic" // new_line('')
+    input%plus_x_bc = 'periodic'
     input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'zero_gradient'
     input%minus_y_bc = 'zero_gradient'
 
-    call setup_periodic()
+    ! call setup_periodic()
+
+    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid, time=0.0_rk)
+    call assert_equal('-x', bc_minus_x%location)
 
     bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid, time=0.0_rk)
     call assert_equal('+x', bc_plus_x%location)
 
+    call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
     call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
 
     ! Now test the results
@@ -173,134 +123,66 @@ contains
               left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
               bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
-      ! Print out in all it's glory
-      print *, "After BC's applied"
-      do j = top_ghost, bottom_ghost, -1
-        write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
-      end do
-      print *
+      select case(num_images())
+      case(4)
+        select case(this_image())
+        case(1)
+          call assert_equal([5.0_rk, 9.0_rk], rho%data(left_ghost, bottom:top))
+          call assert_equal([2.0_rk, 6.0_rk], rho%data(left_ghost + 1, bottom:top))
+        case(2)
+          call assert_equal([5.0_rk, 9.0_rk], rho%data(right_ghost, bottom:top))
+          call assert_equal([1.0_rk, 8.0_rk], rho%data(right_ghost - 1, bottom:top))
+        case(3)
+          call assert_equal([9.0_rk, 7.0_rk], rho%data(left_ghost, bottom:top))
+          call assert_equal([6.0_rk, 3.0_rk], rho%data(left_ghost + 1, bottom:top))
+        case(4)
+          call assert_equal([9.0_rk, 7.0_rk], rho%data(right_ghost, bottom:top))
+          call assert_equal([8.0_rk, 4.0_rk], rho%data(right_ghost - 1, bottom:top))
+        end select
+      case(1)
+        ! right ghost layer
+        right_col = [0.0_rk, 0.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 0.0_rk, 0.0_rk]
+        call assert_equal(right_col, rho%data(right_ghost - 1, :))
 
-      ! right ghost layer
-      right_col = [0.0_rk, 0.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 0.0_rk, 0.0_rk]
-      call assert_equal(right_col, rho%data(right_ghost - 1, :))
-
-      right_col = [0.0_rk, 0.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 0.0_rk, 0.0_rk]
-      call assert_equal(right_col, rho%data(right_ghost, :))
+        right_col = [0.0_rk, 0.0_rk, 5.0_rk, 9.0_rk, 9.0_rk, 7.0_rk, 0.0_rk, 0.0_rk]
+        call assert_equal(right_col, rho%data(right_ghost, :))
+      case default
+        error stop "Test failed. This is only configured to test for 1 or 4 images"
+      end select
     end associate
 
     deallocate(bc_plus_x)
-
-    sync all
-    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_plus_x_periodic]"
-  end subroutine test_plus_x_periodic
-
-  subroutine test_plus_y_periodic()
-    !< Test the periodic boundary condition
-    class(boundary_condition_t), pointer :: bc_plus_y
-    
-    integer(ik) :: i, j
-
-    if(this_image() == 1) print*, new_line('') // "Running test_plus_y_periodic" // new_line('')
-    input%plus_x_bc = 'zero_gradient'
-    input%plus_y_bc = 'periodic'
-    input%minus_x_bc = 'zero_gradient'
-    input%minus_y_bc = 'zero_gradient'
-
-    call setup_periodic()
-    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid, time=0.0_rk)
-    call assert_equal('+y', bc_plus_y%location)
-
-    call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
-
-    ! Now test the results
-    associate(left => grid%lbounds(1), right => grid%ubounds(1), &
-              bottom => grid%lbounds(2), top => grid%ubounds(2), &
-              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
-              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
-
-      ! Print out in all it's glory
-      print *, "After BC's applied"
-      do j = top_ghost, bottom_ghost, -1
-        write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
-      end do
-      print *
-
-      ! top ghost layer
-      top_row = [0.0_rk, 0.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 0.0_rk, 0.0_rk]
-      call assert_equal(top_row, rho%data(:, top_ghost))
-
-      top_row = [0.0_rk, 0.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 0.0_rk, 0.0_rk]
-      call assert_equal(top_row, rho%data(:, top_ghost - 1))
-    end associate
-
-    deallocate(bc_plus_y)
-
-    sync all
-    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_plus_y_periodic]"
-  end subroutine test_plus_y_periodic
-
-  subroutine test_minus_x_periodic()
-    !< Test the periodic boundary condition
-    class(boundary_condition_t), pointer :: bc_minus_x
-    
-    integer(ik) :: i, j
-
-    if(this_image() == 1) print*, new_line('') // "Running test_minus_x_periodic" // new_line('')
-    input%plus_x_bc = 'zero_gradient'
-    input%plus_y_bc = 'zero_gradient'
-    input%minus_x_bc = 'periodic'
-    input%minus_y_bc = 'zero_gradient'
-
-    call setup_periodic()
-    bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid, time=0.0_rk)
-    call assert_equal('-x', bc_minus_x%location)
-
-    call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
-
-    ! Now test the results
-    associate(left => grid%lbounds(1), right => grid%ubounds(1), &
-              bottom => grid%lbounds(2), top => grid%ubounds(2), &
-              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
-              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
-
-      ! Print out in all it's glory
-      print *, "After BC's applied"
-      do j = top_ghost, bottom_ghost, -1
-        write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
-      end do
-      print *
-
-      ! left ghost layer
-      left_col = [0.0_rk, 0.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 0.0_rk, 0.0_rk]
-      call assert_equal(left_col, rho%data(left_ghost + 1, :))
-
-      left_col = [0.0_rk, 0.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 0.0_rk, 0.0_rk]
-      call assert_equal(left_col, rho%data(left_ghost, :))
-    end associate
-
     deallocate(bc_minus_x)
 
     sync all
-    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_minus_x_periodic]"
-  end subroutine test_minus_x_periodic
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_plus_x_periodic]"
+  end subroutine test_x_periodic
 
-  subroutine test_minus_y_periodic()
+  subroutine test_y_periodic()
     !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_plus_y
     class(boundary_condition_t), pointer :: bc_minus_y
     
     integer(ik) :: i, j
 
-    if(this_image() == 1) print*, new_line('') // "Running test_minus_y_periodic" // new_line('')
-    input%plus_x_bc = 'zero_gradient'
-    input%plus_y_bc = 'zero_gradient'
+    if(this_image() == 1) print*, new_line('') // "Running test_y_periodic" // new_line('')
+    input%plus_x_bc = 'periodic'
+    input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'zero_gradient'
-    input%minus_y_bc = 'periodic'
-
-    call setup_periodic()
+    input%minus_y_bc = 'zero_gradient'
 
     bc_minus_y => bc_factory(bc_type='periodic', location='-y', input=input, grid=grid, time=0.0_rk)
     call assert_equal('-y', bc_minus_y%location)
+    bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid, time=0.0_rk)
+    call assert_equal('+y', bc_plus_y%location)
+
+    call rho%zero_out_halo()
+    call u%zero_out_halo()
+    call v%zero_out_halo()
+    call p%zero_out_halo()
     call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
+    call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
+    sync all
 
     ! Now test the results
     associate(left => grid%lbounds(1), right => grid%ubounds(1), &
@@ -308,26 +190,40 @@ contains
               left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
               bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
-      ! Print out in all it's glory
-      print *, "After BC's applied"
-      do j = top_ghost, bottom_ghost, -1
-        write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
-      end do
-      print *
-
-      ! bottom ghost layers
-      bottom_row = [0.0_rk, 0.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 0.0_rk, 0.0_rk]
-      call assert_equal(bottom_row, rho%data(:, bottom_ghost + 1))
-
-      bottom_row = [0.0_rk, 0.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 0.0_rk, 0.0_rk]
-      call assert_equal(bottom_row, rho%data(:, bottom_ghost))
+      select case(num_images())
+      case(4)
+        select case(this_image())
+        case(1)
+          call assert_equal([4.0_rk, 7.0_rk], rho%data(left:right, bottom_ghost + 1))
+          call assert_equal([8.0_rk, 9.0_rk], rho%data(left:right, bottom_ghost))
+        case(2)
+          call assert_equal([7.0_rk, 3.0_rk], rho%data(left:right, bottom_ghost + 1))
+          call assert_equal([9.0_rk, 6.0_rk], rho%data(left:right, bottom_ghost))
+        case(3)
+          call assert_equal([8.0_rk, 9.0_rk], rho%data(left:right, top_ghost))
+          call assert_equal([1.0_rk, 5.0_rk], rho%data(left:right, top_ghost - 1))
+        case(4)
+          call assert_equal([9.0_rk, 6.0_rk], rho%data(left:right, top_ghost))
+          call assert_equal([5.0_rk, 2.0_rk], rho%data(left:right, top_ghost - 1))
+        end select
+      case(1)
+        ! top ghost layer
+        top_row = [0.0_rk, 0.0_rk, 8.0_rk, 9.0_rk, 9.0_rk, 6.0_rk, 0.0_rk, 0.0_rk]
+        call assert_equal(top_row, rho%data(:, top_ghost))
+  
+        top_row = [0.0_rk, 0.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 0.0_rk, 0.0_rk]
+        call assert_equal(top_row, rho%data(:, top_ghost - 1))
+      case default
+        error stop "Test failed. This is only configured to test for 1 or 4 images"
+      end select
     end associate
 
-    if(associated(bc_minus_y)) deallocate(bc_minus_y)
+    deallocate(bc_minus_y)
+    deallocate(bc_plus_y)
 
     sync all
-    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_minus_y_periodic]"
-  end subroutine test_minus_y_periodic
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_plus_y_periodic]"
+  end subroutine test_y_periodic
 
   subroutine test_periodic_all()
     !< Test the periodic boundary condition
@@ -343,7 +239,7 @@ contains
     input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'periodic'
     input%minus_y_bc = 'periodic'
-    call setup_periodic()
+    ! call setup_periodic()
 
     bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid, time=0.0_rk)
     bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid, time=0.0_rk)
@@ -597,6 +493,24 @@ contains
     sync all
     write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_symmetry]"
   end subroutine test_symmetry
+
+  function gather(f, image)
+    !< Performs a gather of field data to image.
+    class(field_2d_t), intent(in) :: f
+    integer(ik), intent(in) :: image
+    real(rk) :: gather(f%global_dims(1), f%global_dims(2))
+
+    real(rk), allocatable :: gather_coarray(:, :)[:]
+    allocate(gather_coarray(f%global_dims(1), f%global_dims(2))[*])
+
+    associate(is => f%lbounds(1), ie => f%ubounds(1), &
+              js => f%lbounds(2), je => f%ubounds(2))
+      gather_coarray(is:ie, js:je)[image] = f%data(is:ie, js:je)
+      sync all
+      if(this_image() == image) gather = gather_coarray
+    end associate
+    deallocate(gather_coarray)
+  end function gather
 end module test_mod
 
 program test_bc
@@ -604,12 +518,10 @@ program test_bc
   implicit none(type, external)
 
   call startup() 
-  call test_symmetry()
-  call test_plus_x_periodic()
-  call test_plus_y_periodic()
-  call test_minus_x_periodic()
-  call test_minus_y_periodic()
-  call test_periodic_all()
+  ! call test_symmetry()
+  call test_x_periodic()
+  call test_y_periodic()
+  ! call test_periodic_all()
 
   call cleanup()
 end program test_bc

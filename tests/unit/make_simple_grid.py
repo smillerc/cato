@@ -149,9 +149,40 @@ def write_initial_hdf5(filename, initial_condition_dict):
 
 # Make a simple grid with dummy initial conditions
 simple = make_uniform_grid(n_cells=(4, 4), xrange=(-4, 4), yrange=(-2, 2), n_ghost_layers=2)
-simple["rho"] = simple["rho"] * 1
-simple["u"] = simple["u"] * -2
-simple["v"] = simple["v"] * 3
-simple["p"] = simple["p"] * 4
+
+
+# !   Domain cartoon layout
+# Note: this is what the unit tests will expect (w/o the ghost layer population)
+# ! j  |---|---||---|---|---|---||---|---|
+# ! 6  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=6; aka top_ghost (grid%ubounds_halo(2))
+# !    |---|---||---|---|---|---||---|---|
+# ! 5  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 |
+# !    |===|===||===|===|===|===||===|===|
+# ! 4  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 | <- j=4; aka top (grid%ubounds(2))
+# !    |---|---||---|---|---|---||---|---|
+# ! 3  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 |
+# !    |---|---||---|---|---|---||---|---|
+# ! 2  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 |
+# !    |---|---||---|---|---|---||---|---|
+# ! 1  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 | <- j=1; aka bottom (grid%lbounds(2))
+# !    |===|===||===|===|===|===||===|===|
+# ! 0  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 |
+# !    |---|---||---|---|---|---||---|---|
+# ! -1 | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
+# !    |---|---||---|---|---|---||---|---|
+# !     -1   0    1   2   3   4    5   6    i
+
+data = np.zeros_like(simple["rho"])
+
+data[2:6,2] = [1, 5, 5, 2]
+data[2:6,3] = [8, 9, 9, 6]
+data[2:6,4] = [8, 9, 9, 6]
+data[2:6,5] = [4, 7, 7, 3]
+
+print(data.T)
+simple["rho"] = data * ureg('g/cc')
+simple["u"] = -data * ureg('cm/s')
+simple["v"] = data * ureg('cm/s')
+simple["p"] = data * ureg('barye')
 
 write_initial_hdf5(filename="simple", initial_condition_dict=simple)
