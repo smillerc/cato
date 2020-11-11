@@ -1,4 +1,4 @@
-module test_mod
+module test_bc_mod
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
   use mod_bc_factory, only: bc_factory
@@ -106,7 +106,7 @@ contains
     input%minus_x_bc = 'zero_gradient'
     input%minus_y_bc = 'zero_gradient'
 
-    ! call setup_periodic()
+    
 
     bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid, time=0.0_rk)
     call assert_equal('-x', bc_minus_x%location)
@@ -239,8 +239,7 @@ contains
     input%plus_y_bc = 'periodic'
     input%minus_x_bc = 'periodic'
     input%minus_y_bc = 'periodic'
-    ! call setup_periodic()
-
+    
     bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid, time=0.0_rk)
     bc_plus_y => bc_factory(bc_type='periodic', location='+y', input=input, grid=grid, time=0.0_rk)
     bc_minus_x => bc_factory(bc_type='periodic', location='-x', input=input, grid=grid, time=0.0_rk)
@@ -255,46 +254,60 @@ contains
     call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
     call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
     call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
+
     ! Now test the results
     associate(left => grid%lbounds(1), right => grid%ubounds(1), &
               bottom => grid%lbounds(2), top => grid%ubounds(2), &
               left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
               bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
-      ! Print out in all it's glory
-      print *, "After BC's applied"
-      do j = top_ghost, bottom_ghost, -1
-        write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
-      end do
-      print *
+      select case(num_images())
+      case(4)
+        select case(this_image())
+        case(1) ! lower left image
+          call assert_equal([7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk], rho%data(left_ghost:right, bottom_ghost + 1))
+          call assert_equal([9.0_rk, 6.0_rk, 8.0_rk, 9.0_rk], rho%data(left_ghost:right, bottom_ghost))
+        case(2) ! lower right image
+          call assert_equal([7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk], rho%data(left:right_ghost, bottom_ghost + 1))
+          call assert_equal([9.0_rk, 6.0_rk, 8.0_rk, 9.0_rk], rho%data(left:right_ghost, bottom_ghost))
+        case(3) ! upper left image
+          call assert_equal([4.0_rk, 7.0_rk, 8.0_rk, 9.0_rk], rho%data(left_ghost:right, top_ghost))
+          call assert_equal([8.0_rk, 9.0_rk, 1.0_rk, 5.0_rk], rho%data(left_ghost:right, top_ghost - 1))
+        case(4) ! upper right image
+          call assert_equal([9.0_rk, 6.0_rk, 8.0_rk, 9.0_rk], rho%data(left:right_ghost, top_ghost))
+          call assert_equal([5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk], rho%data(left:right_ghost, top_ghost - 1))
+        end select
+      case(1)
+        ! bottom ghost layers
+        bottom_row = [7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk]
+        call assert_equal(bottom_row, rho%data(:, bottom_ghost + 1))
 
-      ! bottom ghost layers
-      bottom_row = [7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk]
-      call assert_equal(bottom_row, rho%data(:, bottom_ghost + 1))
+        bottom_row = [0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk]
+        call assert_equal(bottom_row, rho%data(:, bottom_ghost))
 
-      bottom_row = [0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk]
-      call assert_equal(bottom_row, rho%data(:, bottom_ghost))
+        ! top ghost layer
+        top_row = [0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk]
+        call assert_equal(top_row, rho%data(:, top_ghost))
 
-      ! top ghost layer
-      top_row = [0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk, 8.0_rk, 0.0_rk]
-      call assert_equal(top_row, rho%data(:, top_ghost))
+        top_row = [5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk]
+        call assert_equal(top_row, rho%data(:, top_ghost - 1))
 
-      top_row = [5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk]
-      call assert_equal(top_row, rho%data(:, top_ghost - 1))
+        ! right ghost layer
+        right_col = [8.0_rk, 4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk, 8.0_rk]
+        call assert_equal(right_col, rho%data(right_ghost - 1, :))
 
-      ! right ghost layer
-      right_col = [8.0_rk, 4.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 1.0_rk, 8.0_rk]
-      call assert_equal(right_col, rho%data(right_ghost - 1, :))
+        right_col = [0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk]
+        call assert_equal(right_col, rho%data(right_ghost, :))
 
-      right_col = [0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk]
-      call assert_equal(right_col, rho%data(right_ghost, :))
+        ! left ghost layer
+        left_col = [6.0_rk, 3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk, 6.0_rk]
+        call assert_equal(left_col, rho%data(left_ghost + 1, :))
 
-      ! left ghost layer
-      left_col = [6.0_rk, 3.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 2.0_rk, 6.0_rk]
-      call assert_equal(left_col, rho%data(left_ghost + 1, :))
-
-      left_col = [0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk]
-      call assert_equal(left_col, rho%data(left_ghost, :))
+        left_col = [0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk, 5.0_rk, 0.0_rk]
+        call assert_equal(left_col, rho%data(left_ghost, :))
+      case default
+        error stop "Test failed. This is only configured to test for 1 or 4 images"
+      end select
 
     end associate
 
@@ -511,17 +524,17 @@ contains
     end associate
     deallocate(gather_coarray)
   end function gather
-end module test_mod
+end module test_bc_mod
 
 program test_bc
-  use test_mod
-  implicit none(type, external)
+  use test_bc_mod
+  implicit none
 
   call startup() 
   ! call test_symmetry()
   call test_x_periodic()
   call test_y_periodic()
-  ! call test_periodic_all()
+  call test_periodic_all()
 
   call cleanup()
 end program test_bc

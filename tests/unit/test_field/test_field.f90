@@ -1,4 +1,4 @@
-module test_mod
+module test_field_mod
   use iso_fortran_env
   use mod_field
   use mod_parallel
@@ -148,10 +148,10 @@ contains
 
     write(*, '(a, i0, a)') "Image: ", this_image(), " Success"
   end subroutine test_mult_arithmetic
-end module test_mod
+end module test_field_mod
 
 program test_field
-  use test_mod
+  use test_field_mod
   implicit none(type, external)
 
   ! sync all
