@@ -38,146 +38,7 @@ module mod_symmetry_bc
     final :: finalize
   end type
 
-  ! These are not type-bound, b/c they are no-pass functions, e.g. they don't use "self"
-  interface operator(.iflip.)
-    procedure :: flip_on_right_left_edge
-  end interface
-
-  interface operator(.jflip.)
-    procedure :: flip_on_top_bottom_edge
-  end interface
-
 contains
-
-  pure function flip_on_right_left_edge(recon_data) result(flipped)
-    !< Helper function to flip the reconstructed cell data along the right (+i) or left (-i) edge
-    real(rk), dimension(:), intent(in) :: recon_data !< reconstructed cell data
-    real(rk), dimension(size(recon_data)) :: flipped
-
-    select case(size(recon_data))
-    case(4)
-
-      !     recon_data              flipped
-      !  |-----E3-----|    |    |-----E3-----|
-      !  |            |    |    |            |
-      !  E4          E2   ->    E2          E4
-      !  |            |    |    |            |
-      !  |-----E1-----|    |    |-----E1-----|
-      !                    |
-      !       flip (mirror) on this edge
-      !
-      !                    or
-      !
-      !      flipped              recon_data
-      !  |-----E3-----|    |    |-----E3-----|
-      !  |            |    |    |            |
-      !  E2          E4   <-    E4          E2
-      !  |            |    |    |            |
-      !  |-----E1-----|    |    |-----E1-----|
-      !                    |
-      !       flip (mirror) on this edge
-
-      flipped(1) = recon_data(1)
-      flipped(2) = recon_data(4)
-      flipped(3) = recon_data(3)
-      flipped(4) = recon_data(2)
-    case(8)
-
-      !     recon_data              flipped
-      !  P7----P6----P5    |    P5----P6----P7
-      !  |            |    |    |            |
-      !  P8          P4   ->    P4          P8
-      !  |            |    |    |            |
-      !  P1----P2----P3    |    P3----P2----P1
-      !                    |
-      !       flip (mirror) on this edge
-      !
-      !                   or
-      !
-      !      flipped              recon_data
-      !  P5----P6----P7    |    P7----P6----P5
-      !  |            |    |    |            |
-      !  P4          P8   <-    P8          P4
-      !  |            |    |    |            |
-      !  P3----P2----P1    |    P1----P2----P3
-      !                    |
-      !       flip (mirror) on this edge
-
-      flipped(1) = recon_data(3)
-      flipped(2) = recon_data(2)
-      flipped(3) = recon_data(1)
-      flipped(4) = recon_data(8)
-      flipped(5) = recon_data(7)
-      flipped(6) = recon_data(6)
-      flipped(7) = recon_data(5)
-      flipped(8) = recon_data(4)
-    case default
-      error stop "Error in mod_symmetry_bc%flip_on_right_edge(); only reconstructed data that is of size 4 or 8 is handled"
-    end select
-  end function flip_on_right_left_edge
-
-  pure function flip_on_top_bottom_edge(recon_data) result(flipped)
-    !< Helper function to flip the reconstructed cell data along the top (+j) or bottom (-j) edge
-    real(rk), dimension(:), intent(in) :: recon_data !< reconstructed cell data
-    real(rk), dimension(size(recon_data)) :: flipped
-
-    select case(size(recon_data))
-    case(4)
-
-      !
-      !      flipped
-      !  |-----E1-----|
-      !  |            |
-      !  E4          E2
-      !  |            |
-      !  |-----E3-----|
-      !
-      !  -------------- flip on this edge
-      !
-      !  |-----E3-----|
-      !  |            |
-      !  E4          E2
-      !  |            |
-      !  |-----E1-----|
-      !    recon_data
-      !
-
-      flipped(1) = recon_data(3)
-      flipped(2) = recon_data(2)
-      flipped(3) = recon_data(1)
-      flipped(4) = recon_data(4)
-    case(8)
-
-      !
-      !     flipped
-      !  P1----P2----P3
-      !  |            |
-      !  P8          P4
-      !  |            |
-      !  P7----P6----P5
-      !
-      !  -------------- flip on this edge
-      !
-      !  P7----P6----P5
-      !  |            |
-      !  P8          P4
-      !  |            |
-      !  P1----P2----P3
-      !    recon_data
-      !
-
-      flipped(1) = recon_data(7)
-      flipped(2) = recon_data(6)
-      flipped(3) = recon_data(5)
-      flipped(4) = recon_data(4)
-      flipped(5) = recon_data(3)
-      flipped(6) = recon_data(2)
-      flipped(7) = recon_data(1)
-      flipped(8) = recon_data(8)
-    case default
-      error stop "Error in mod_symmetry_bc%flip_on_top_bottom_edge(); only reconstructed data that is of size 4 or 8 is handled"
-    end select
-  end function flip_on_top_bottom_edge
 
   function symmetry_bc_constructor(location, input, grid) result(bc)
     type(symmetry_bc_t), pointer :: bc
@@ -207,49 +68,54 @@ contains
 
       select case(self%location)
       case('+x')
-        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
+        if(rho%on_ihi_bc) then
+          if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
 
-        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
-        do g = 1, self%n_ghost_layers
-          rho%data(right_ghost(g), :) = rho%data(right - (g - 1), :)
-          u%data(right_ghost(g), :) = -u%data(right - (g - 1), :)
-          v%data(right_ghost(g), :) = v%data(right - (g - 1), :)
-          p%data(right_ghost(g), :) = p%data(right - (g - 1), :)
-        end do
+          ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
+          do g = 1, self%n_ghost_layers
+            rho%data(right_ghost(g), :) = rho%data(right - (g - 1), :)
+            u%data(right_ghost(g), :) = -u%data(right - (g - 1), :)
+            v%data(right_ghost(g), :) = v%data(right - (g - 1), :)
+            p%data(right_ghost(g), :) = p%data(right - (g - 1), :)
+          end do
+        endif
 
       case('-x')
-        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
+        if (rho%on_ilo_bc) then
+          if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
 
-        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
-        do g = 1, self%n_ghost_layers
-          rho%data(left_ghost(g), :) = rho%data(left + (g - 1), :)
-          u%data(left_ghost(g), :) = -u%data(left + (g - 1), :)
-          v%data(left_ghost(g), :) = v%data(left + (g - 1), :)
-          p%data(left_ghost(g), :) = p%data(left + (g - 1), :)
-        end do
-
+          ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
+          do g = 1, self%n_ghost_layers
+            rho%data(left_ghost(g), :) = rho%data(left + (g - 1), :)
+            u%data(left_ghost(g), :) = -u%data(left + (g - 1), :)
+            v%data(left_ghost(g), :) = v%data(left + (g - 1), :)
+            p%data(left_ghost(g), :) = p%data(left + (g - 1), :)
+          end do
+        end if
       case('+y')
-        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
+        if (rho%on_jhi_bc) then
+          if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
 
-        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
-        do g = 1, self%n_ghost_layers
-          rho%data(:, top_ghost(g)) = rho%data(:, top - (g - 1))
-          u%data(:, top_ghost(g)) = u%data(:, top - (g - 1))
-          v%data(:, top_ghost(g)) = -v%data(:, top - (g - 1))
-          p%data(:, top_ghost(g)) = p%data(:, top - (g - 1))
-        end do
-
+          ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
+          do g = 1, self%n_ghost_layers
+            rho%data(:, top_ghost(g)) = rho%data(:, top - (g - 1))
+            u%data(:, top_ghost(g)) = u%data(:, top - (g - 1))
+            v%data(:, top_ghost(g)) = -v%data(:, top - (g - 1))
+            p%data(:, top_ghost(g)) = p%data(:, top - (g - 1))
+          end do
+        end if
       case('-y')
-        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
+        if (rho%on_jlo_bc) then
+          if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
 
-        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
-        do g = 1, self%n_ghost_layers
-          rho%data(:, bottom_ghost(g)) = rho%data(:, bottom + (g - 1))
-          u%data(:, bottom_ghost(g)) = u%data(:, bottom + (g - 1))
-          v%data(:, bottom_ghost(g)) = -v%data(:, bottom + (g - 1))
-          p%data(:, bottom_ghost(g)) = p%data(:, bottom + (g - 1))
-        end do
-
+          ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
+          do g = 1, self%n_ghost_layers
+            rho%data(:, bottom_ghost(g)) = rho%data(:, bottom + (g - 1))
+            u%data(:, bottom_ghost(g)) = u%data(:, bottom + (g - 1))
+            v%data(:, bottom_ghost(g)) = -v%data(:, bottom + (g - 1))
+            p%data(:, bottom_ghost(g)) = p%data(:, bottom + (g - 1))
+          end do
+        endif
       case default
         call error_msg(module_name='mod_symmetry_bc', &
                        class_name='symmetry_bc_t', &

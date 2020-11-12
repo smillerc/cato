@@ -40,22 +40,22 @@ module mod_test_bc
   integer(ik), parameter :: left_edge = 4   !< cell left edge index
 
     !   Domain used for BC testing (read in from simple.h5)
-    !   |---|---||---|---|---|---||---|---|
-    ! 6  | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=6; aka top_ghost (grid%ubounds_halo(2))
+    !    |---|---||---|---|---|---||---|---|
+    ! 6  | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 | <- j=6; aka top_ghost (grid%ubounds_halo(2))
     !    |---|---||---|---|---|---||---|---|
     ! 5  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 |
     !    |===|===||===|===|===|===||===|===|
     ! 4  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 | <- j=4; aka top (grid%ubounds(2))
     !    |---|---||---|---|---|---||---|---|
-    ! 3  | 0 | 6 || 8 | 9 | 9 | 6 || 8 | 0 |
+    ! 3  | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 |
     !    |---|---||---|---|---|---||---|---|
-    ! 2  | 0 | 6 || 8 | 9 | 9 | 6 || 8 | 0 |
+    ! 2  | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 |
     !    |---|---||---|---|---|---||---|---|
     ! 1  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 | <- j=1; aka bottom (grid%lbounds(2))
     !    |===|===||===|===|===|===||===|===|
     ! 0  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 |
     !    |---|---||---|---|---|---||---|---|
-    ! -1 | 0 | 6 || 8 | 0 | 0 | 6 || 8 | 0 | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
+    ! -1 | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
     !    |---|---||---|---|---|---||---|---|
     !     -1   0    1   2   3   4    5   6
 
@@ -113,6 +113,11 @@ contains
 
     bc_plus_x => bc_factory(bc_type='periodic', location='+x', input=input, grid=grid, time=0.0_rk)
     call assert_equal('+x', bc_plus_x%location)
+
+    call rho%zero_out_halo()
+    call u%zero_out_halo()
+    call v%zero_out_halo()
+    call p%zero_out_halo()
 
     call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
     call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
@@ -180,6 +185,7 @@ contains
     call u%zero_out_halo()
     call v%zero_out_halo()
     call p%zero_out_halo()
+
     call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
     call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
     sync all
@@ -255,6 +261,26 @@ contains
     call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
     call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
 
+    !    Expected domain after periodic BCs are applied
+    !    |---|---||---|---|---|---||---|---|
+    ! 6  | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 | <- j=6; aka top_ghost (grid%ubounds_halo(2))
+    !    |---|---||---|---|---|---||---|---|
+    ! 5  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 |
+    !    |===|===||===|===|===|===||===|===|
+    ! 4  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 | <- j=4; aka top (grid%ubounds(2))
+    !    |---|---||---|---|---|---||---|---|
+    ! 3  | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 |
+    !    |---|---||---|---|---|---||---|---|
+    ! 2  | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 |
+    !    |---|---||---|---|---|---||---|---|
+    ! 1  | 5 | 2 || 1 | 5 | 5 | 2 || 1 | 5 | <- j=1; aka bottom (grid%lbounds(2))
+    !    |===|===||===|===|===|===||===|===|
+    ! 0  | 7 | 3 || 4 | 7 | 7 | 3 || 4 | 7 |
+    !    |---|---||---|---|---|---||---|---|
+    ! -1 | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
+    !    |---|---||---|---|---|---||---|---|
+    !     -1   0    1   2   3   4    5   6
+
     ! Now test the results
     associate(left => grid%lbounds(1), right => grid%ubounds(1), &
               bottom => grid%lbounds(2), top => grid%ubounds(2), &
@@ -265,15 +291,23 @@ contains
       case(4)
         select case(this_image())
         case(1) ! lower left image
+          call assert_equal([5.0_rk, 9.0_rk], rho%data(left_ghost, bottom:top))
+          call assert_equal([2.0_rk, 6.0_rk], rho%data(left_ghost + 1, bottom:top))
           call assert_equal([7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk], rho%data(left_ghost:right, bottom_ghost + 1))
           call assert_equal([9.0_rk, 6.0_rk, 8.0_rk, 9.0_rk], rho%data(left_ghost:right, bottom_ghost))
         case(2) ! lower right image
+          call assert_equal([5.0_rk, 9.0_rk], rho%data(right_ghost, bottom:top))
+          call assert_equal([1.0_rk, 8.0_rk], rho%data(right_ghost - 1, bottom:top))
           call assert_equal([7.0_rk, 3.0_rk, 4.0_rk, 7.0_rk], rho%data(left:right_ghost, bottom_ghost + 1))
           call assert_equal([9.0_rk, 6.0_rk, 8.0_rk, 9.0_rk], rho%data(left:right_ghost, bottom_ghost))
         case(3) ! upper left image
+          call assert_equal([9.0_rk, 7.0_rk], rho%data(left_ghost, bottom:top))
+          call assert_equal([6.0_rk, 3.0_rk], rho%data(left_ghost + 1, bottom:top))
           call assert_equal([4.0_rk, 7.0_rk, 8.0_rk, 9.0_rk], rho%data(left_ghost:right, top_ghost))
           call assert_equal([8.0_rk, 9.0_rk, 1.0_rk, 5.0_rk], rho%data(left_ghost:right, top_ghost - 1))
         case(4) ! upper right image
+          call assert_equal([9.0_rk, 7.0_rk], rho%data(right_ghost, bottom:top))
+          call assert_equal([8.0_rk, 4.0_rk], rho%data(right_ghost - 1, bottom:top))
           call assert_equal([9.0_rk, 6.0_rk, 8.0_rk, 9.0_rk], rho%data(left:right_ghost, top_ghost))
           call assert_equal([5.0_rk, 2.0_rk, 1.0_rk, 5.0_rk], rho%data(left:right_ghost, top_ghost - 1))
         end select
@@ -342,28 +376,6 @@ contains
     left_ghost = grid%lbounds_halo(1)
     right_ghost = grid%ubounds_halo(1)
 
-    ! ! These are normally handled by the master puppeteer, but for now we make them ourselves
-    ! associate(left => grid%lbounds_halo(1), right => grid%ubounds_halo(1), &
-    !           bottom => grid%lbounds_halo(2), top => grid%ubounds_halo(2))
-
-    !   if(allocated(rho)) deallocate(rho)
-    !   allocate(rho%data(left:right, bottom:top), stat=alloc_status)
-    !   if(alloc_status /= 0) error stop "Unable to allocate rho"
-
-    !   if(allocated(u)) deallocate(u)
-    !   allocate(u%data(left:right, bottom:top), stat=alloc_status)
-    !   if(alloc_status /= 0) error stop "Unable to allocate u"
-
-    !   if(allocated(v)) deallocate(v)
-    !   allocate(v%data(left:right, bottom:top), stat=alloc_status)
-    !   if(alloc_status /= 0) error stop "Unable to allocate v"
-
-    !   if(allocated(p)) deallocate(p)
-    !   allocate(p%data(left:right, bottom:top), stat=alloc_status)
-    !   if(alloc_status /= 0) error stop "Unable to allocate p"
-
-    ! end associate
-
     bc_plus_x => bc_factory(bc_type='symmetry', location='+x', input=input, grid=grid, time=0.0_rk)
     bc_plus_y => bc_factory(bc_type='symmetry', location='+y', input=input, grid=grid, time=0.0_rk)
     bc_minus_x => bc_factory(bc_type='symmetry', location='-x', input=input, grid=grid, time=0.0_rk)
@@ -374,29 +386,25 @@ contains
     call assert_equal('-x', bc_minus_x%location)
     call assert_equal('-y', bc_minus_y%location)
 
-    ! Test the conserved var state
-    rho = 0.0_rk
-    u = 0.0_rk
-    v = 0.0_rk
-    p = 0.0_rk
 
-    !   Domain cartoon layout
+
+    !   Domain cartoon with symmetry applied to all the boundaries
     !   |---|---||---|---|---|---||---|---|
-    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=6; aka top_ghost (grid%ubounds_halo(2))
+    !   | - | - || 8 | 9 | 9 | 6 || - | - | <- j=6; aka top_ghost (grid%ubounds_halo(2))
     !   |---|---||---|---|---|---||---|---|
     !   | - | - || 4 | 7 | 7 | 3 || - | - |
     !   |===|===||===|===|===|===||===|===|
     !   | 7 | 4 || 4 | 7 | 7 | 3 || 3 | 7 | <- j=4; aka top (grid%ubounds(2))
     !   |---|---||---|---|---|---||---|---|
-    !   | 0 | 8 || 8 | 0 | 0 | 6 || 6 | 0 |
+    !   | 9 | 8 || 8 | 9 | 9 | 6 || 6 | 9 |
     !   |---|---||---|---|---|---||---|---|
-    !   | 0 | 8 || 8 | 0 | 0 | 6 || 6 | 0 |
+    !   | 9 | 8 || 8 | 9 | 9 | 6 || 6 | 9 |
     !   |---|---||---|---|---|---||---|---|
     !   | 5 | 1 || 1 | 5 | 5 | 2 || 2 | 5 | <- j=1; aka bottom (grid%lbounds(2))
     !   |===|===||===|===|===|===||===|===|
     !   | - | - || 1 | 5 | 5 | 2 || - | - |
     !   |---|---||---|---|---|---||---|---|
-    !   | - | - || 8 | 0 | 0 | 6 || - | - | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
+    !   | - | - || 8 | 9 | 9 | 6 || - | - | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
     !   |---|---||---|---|---|---||---|---|
     !    i0   i1  i2  i3  i4   i5
 
@@ -405,21 +413,10 @@ contains
     ! i4; aka right, grid%ubounds(1)
     ! i5; aka right_ghost grid%ubounds_halo(1)
 
-    ! Set unique values along the (real) edges so I can test the bc routines
-    associate(left => grid%lbounds(1), right => grid%ubounds(1), &
-              bottom => grid%lbounds(2), top => grid%ubounds(2))
-
-      rho%data(left:right, top) = [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
-      rho%data(left:right, bottom) = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
-      rho%data(left, bottom + 1:top - 1) = 8.0_rk
-      rho%data(right, bottom + 1:top - 1) = 6.0_rk
-
-    end associate
-
-    ! Copy to the other arrays
-    u = rho
-    v = rho
-    p = rho
+    call rho%zero_out_halo()
+    call u%zero_out_halo()
+    call v%zero_out_halo()
+    call p%zero_out_halo()
 
     call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
     call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
@@ -432,70 +429,161 @@ contains
               left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
               bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
 
-      ! Print out in all it's glory
-      print *, "After BC's applied"
-      do j = top_ghost, bottom_ghost, -1
-        write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
-      end do
-      print *
+      select case(num_images())
+      case(4)
+        select case(this_image())
+        case(1) ! lower left image
+          ! jlo side
+          call assert_equal([1.0_rk, 5.0_rk], rho%data(left:right, bottom_ghost + 1))
+          call assert_equal([8.0_rk, 9.0_rk], rho%data(left:right, bottom_ghost))
+          call assert_equal([1.0_rk, 5.0_rk], u%data(left:right, bottom_ghost + 1))
+          call assert_equal([8.0_rk, 9.0_rk], u%data(left:right, bottom_ghost))
+          call assert_equal(-[1.0_rk, 5.0_rk], v%data(left:right, bottom_ghost + 1))
+          call assert_equal(-[8.0_rk, 9.0_rk], v%data(left:right, bottom_ghost))
+          call assert_equal([1.0_rk, 5.0_rk], p%data(left:right, bottom_ghost + 1))
+          call assert_equal([8.0_rk, 9.0_rk], p%data(left:right, bottom_ghost))
 
-      ! -- Bottom --
-      ! first ghost layer
-      bottom_sym_row = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
-      call assert_equal(bottom_sym_row, rho%data(left:right, bottom_ghost + 1))
-      call assert_equal(bottom_sym_row, u%data(left:right, bottom_ghost + 1))
-      call assert_equal(-bottom_sym_row, v%data(left:right, bottom_ghost + 1))
-      call assert_equal(bottom_sym_row, p%data(left:right, bottom_ghost + 1))
+          ! ilo side
+          call assert_equal([5.0_rk, 9.0_rk], rho%data(left_ghost, bottom:top))
+          call assert_equal([1.0_rk, 8.0_rk], rho%data(left_ghost + 1, bottom:top))
+          call assert_equal(-[5.0_rk, 9.0_rk], u%data(left_ghost, bottom:top))
+          call assert_equal(-[1.0_rk, 8.0_rk], u%data(left_ghost + 1, bottom:top))
+          call assert_equal([5.0_rk, 9.0_rk], v%data(left_ghost, bottom:top))
+          call assert_equal([1.0_rk, 8.0_rk], v%data(left_ghost + 1, bottom:top))
+          call assert_equal([5.0_rk, 9.0_rk], p%data(left_ghost, bottom:top))
+          call assert_equal([1.0_rk, 8.0_rk], p%data(left_ghost + 1, bottom:top))
+        case(2) ! lower right image
+          ! ihi side
+          call assert_equal([5.0_rk, 9.0_rk],  rho%data(right_ghost, bottom:top))
+          call assert_equal([2.0_rk, 6.0_rk],  rho%data(right_ghost - 1, bottom:top))
+          call assert_equal(-[5.0_rk, 9.0_rk], u%data(right_ghost, bottom:top))
+          call assert_equal(-[2.0_rk, 6.0_rk], u%data(right_ghost - 1, bottom:top))
+          call assert_equal([5.0_rk, 9.0_rk],  v%data(right_ghost, bottom:top))
+          call assert_equal([2.0_rk, 6.0_rk],  v%data(right_ghost - 1, bottom:top))
+          call assert_equal([5.0_rk, 9.0_rk],  p%data(right_ghost, bottom:top))
+          call assert_equal([2.0_rk, 6.0_rk],  p%data(right_ghost - 1, bottom:top))
 
-      ! 2nd ghost layer (down 1 layer)
-      bottom_sym_row = [8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk]
-      call assert_equal(bottom_sym_row, rho%data(left:right, bottom_ghost))
-      call assert_equal(bottom_sym_row, u%data(left:right, bottom_ghost))
-      call assert_equal(-bottom_sym_row, v%data(left:right, bottom_ghost))
-      call assert_equal(bottom_sym_row, p%data(left:right, bottom_ghost))
+          ! jlo side
+          call assert_equal([5.0_rk, 2.0_rk],  rho%data(left:right, bottom_ghost + 1))
+          call assert_equal([9.0_rk, 6.0_rk],  rho%data(left:right, bottom_ghost))
+          call assert_equal([5.0_rk, 2.0_rk],  u%data(left:right, bottom_ghost + 1))
+          call assert_equal([9.0_rk, 6.0_rk],  u%data(left:right, bottom_ghost))
+          call assert_equal(-[5.0_rk, 2.0_rk], v%data(left:right, bottom_ghost + 1))
+          call assert_equal(-[9.0_rk, 6.0_rk], v%data(left:right, bottom_ghost))
+          call assert_equal([5.0_rk, 2.0_rk],  p%data(left:right, bottom_ghost + 1))
+          call assert_equal([9.0_rk, 6.0_rk],  p%data(left:right, bottom_ghost))
 
-      ! Top --
-      top_sym_row = [8.0_rk, 0.0_rk, 0.0_rk, 6.0_rk]
-      call assert_equal(top_sym_row, rho%data(left:right, top_ghost))
-      call assert_equal(top_sym_row, u%data(left:right, top_ghost))
-      call assert_equal(-top_sym_row, v%data(left:right, top_ghost))
-      call assert_equal(top_sym_row, p%data(left:right, top_ghost))
+        case(3) ! upper left image
+          ! ilo side
+          call assert_equal([9.0_rk, 7.0_rk], rho%data(left_ghost, bottom:top))
+          call assert_equal([8.0_rk, 4.0_rk], rho%data(left_ghost + 1, bottom:top))
+          call assert_equal(-[9.0_rk, 7.0_rk], u%data(left_ghost, bottom:top))
+          call assert_equal(-[8.0_rk, 4.0_rk], u%data(left_ghost + 1, bottom:top))
+          call assert_equal([9.0_rk, 7.0_rk], v%data(left_ghost, bottom:top))
+          call assert_equal([8.0_rk, 4.0_rk], v%data(left_ghost + 1, bottom:top))
+          call assert_equal([9.0_rk, 7.0_rk], p%data(left_ghost, bottom:top))
+          call assert_equal([8.0_rk, 4.0_rk], p%data(left_ghost + 1, bottom:top))
 
-      ! 2nd ghost layer (down 1 layer)
-      top_sym_row = [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
-      call assert_equal(top_sym_row, rho%data(left:right, top_ghost - 1))
-      call assert_equal(top_sym_row, u%data(left:right, top_ghost - 1))
-      call assert_equal(-top_sym_row, v%data(left:right, top_ghost - 1))
-      call assert_equal(top_sym_row, p%data(left:right, top_ghost - 1))
+          ! jhi side
+          call assert_equal([8.0_rk, 9.0_rk], rho%data(left:right, top_ghost))
+          call assert_equal([4.0_rk, 7.0_rk], rho%data(left:right, top_ghost - 1))
+          call assert_equal([8.0_rk, 9.0_rk], u%data(left:right, top_ghost))
+          call assert_equal([4.0_rk, 7.0_rk], u%data(left:right, top_ghost - 1))
+          call assert_equal(-[8.0_rk, 9.0_rk], v%data(left:right, top_ghost))
+          call assert_equal(-[4.0_rk, 7.0_rk], v%data(left:right, top_ghost - 1))
+          call assert_equal([8.0_rk, 9.0_rk], p%data(left:right, top_ghost))
+          call assert_equal([4.0_rk, 7.0_rk], p%data(left:right, top_ghost - 1))
 
-      ! -- Right --
-      right_sym_col = [2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk]
-      call assert_equal(right_sym_col, rho%data(right_ghost - 1, bottom:top))
-      call assert_equal(-right_sym_col, u%data(right_ghost - 1, bottom:top))
-      call assert_equal(right_sym_col, v%data(right_ghost - 1, bottom:top))
-      call assert_equal(right_sym_col, p%data(right_ghost - 1, bottom:top))
+        case(4) ! upper right image
 
-      ! 2nd ghost layer
-      right_sym_col = [5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk]
-      call assert_equal(right_sym_col, rho%data(right_ghost, bottom:top))
-      call assert_equal(-right_sym_col, u%data(right_ghost, bottom:top))
-      call assert_equal(right_sym_col, v%data(right_ghost, bottom:top))
-      call assert_equal(right_sym_col, p%data(right_ghost, bottom:top))
+          ! jhi side
+          call assert_equal([9.0_rk, 6.0_rk], rho%data(left:right, top_ghost))
+          call assert_equal([7.0_rk, 3.0_rk], rho%data(left:right, top_ghost - 1))
+          call assert_equal([9.0_rk, 6.0_rk], u%data(left:right, top_ghost))
+          call assert_equal([7.0_rk, 3.0_rk], u%data(left:right, top_ghost - 1))
+          call assert_equal(-[9.0_rk, 6.0_rk], v%data(left:right, top_ghost))
+          call assert_equal(-[7.0_rk, 3.0_rk], v%data(left:right, top_ghost - 1))
+          call assert_equal([9.0_rk, 6.0_rk], p%data(left:right, top_ghost))
+          call assert_equal([7.0_rk, 3.0_rk], p%data(left:right, top_ghost - 1))
 
-      ! -- Left --
-      left_sym_col = [1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk]
-      call assert_equal(left_sym_col, rho%data(left_ghost + 1, bottom:top))
-      call assert_equal(-left_sym_col, u%data(left_ghost + 1, bottom:top))
-      call assert_equal(left_sym_col, v%data(left_ghost + 1, bottom:top))
-      call assert_equal(left_sym_col, p%data(left_ghost + 1, bottom:top))
+          ! ihi side
+          call assert_equal([9.0_rk, 7.0_rk], rho%data(right_ghost, bottom:top))
+          call assert_equal([6.0_rk, 3.0_rk], rho%data(right_ghost - 1, bottom:top))
+          call assert_equal(-[9.0_rk, 7.0_rk], u%data(right_ghost, bottom:top))
+          call assert_equal(-[6.0_rk, 3.0_rk], u%data(right_ghost - 1, bottom:top))
+          call assert_equal([9.0_rk, 7.0_rk], v%data(right_ghost, bottom:top))
+          call assert_equal([6.0_rk, 3.0_rk], v%data(right_ghost - 1, bottom:top))
+          call assert_equal([9.0_rk, 7.0_rk], p%data(right_ghost, bottom:top))
+          call assert_equal([6.0_rk, 3.0_rk], p%data(right_ghost - 1, bottom:top))
+        end select
+      case(1)
 
-      ! 2nd ghost layer
-      left_sym_col = [5.0_rk, 0.0_rk, 0.0_rk, 7.0_rk]
-      call assert_equal(left_sym_col, rho%data(left_ghost, bottom:top))
-      call assert_equal(-left_sym_col, u%data(left_ghost, bottom:top))
-      call assert_equal(left_sym_col, v%data(left_ghost, bottom:top))
-      call assert_equal(left_sym_col, p%data(left_ghost, bottom:top))
+        ! Print out in all it's glory
+        print *, "After BC's applied"
+        do j = top_ghost, bottom_ghost, -1
+          write(*, '(i3, a, 10(f6.0))') j, " : ", u%data(:, j)
+        end do
+        print *
 
+
+        ! -- Bottom --
+        bottom_sym_row = [1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk]
+        call assert_equal(bottom_sym_row, rho%data(left:right, bottom_ghost + 1))
+        call assert_equal(bottom_sym_row, u%data(left:right, bottom_ghost + 1))
+        call assert_equal(-bottom_sym_row, v%data(left:right, bottom_ghost + 1))
+        call assert_equal(bottom_sym_row, p%data(left:right, bottom_ghost + 1))
+
+        ! 2nd ghost layer (down 1 layer)
+        bottom_sym_row = [8.0_rk, 9.0_rk, 9.0_rk, 6.0_rk]
+        call assert_equal(bottom_sym_row, rho%data(left:right, bottom_ghost))
+        call assert_equal(bottom_sym_row, u%data(left:right, bottom_ghost))
+        call assert_equal(-bottom_sym_row, v%data(left:right, bottom_ghost))
+        call assert_equal(bottom_sym_row, p%data(left:right, bottom_ghost))
+
+        ! Top --
+        top_sym_row = [8.0_rk, 9.0_rk, 9.0_rk, 6.0_rk]
+        call assert_equal(top_sym_row, rho%data(left:right, top_ghost))
+        call assert_equal(top_sym_row, u%data(left:right, top_ghost))
+        call assert_equal(-top_sym_row, v%data(left:right, top_ghost))
+        call assert_equal(top_sym_row, p%data(left:right, top_ghost))
+
+        ! 2nd ghost layer (down 1 layer)
+        top_sym_row = [4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk]
+        call assert_equal(top_sym_row, rho%data(left:right, top_ghost - 1))
+        call assert_equal(top_sym_row, u%data(left:right, top_ghost - 1))
+        call assert_equal(-top_sym_row, v%data(left:right, top_ghost - 1))
+        call assert_equal(top_sym_row, p%data(left:right, top_ghost - 1))
+
+        ! -- Right --
+        right_sym_col = [2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk]
+        call assert_equal(right_sym_col, rho%data(right_ghost - 1, bottom:top))
+        call assert_equal(-right_sym_col, u%data(right_ghost - 1, bottom:top))
+        call assert_equal(right_sym_col, v%data(right_ghost - 1, bottom:top))
+        call assert_equal(right_sym_col, p%data(right_ghost - 1, bottom:top))
+
+        ! 2nd ghost layer
+        right_sym_col = [5.0_rk, 9.0_rk, 9.0_rk, 7.0_rk]
+        call assert_equal(right_sym_col, rho%data(right_ghost, bottom:top))
+        call assert_equal(-right_sym_col, u%data(right_ghost, bottom:top))
+        call assert_equal(right_sym_col, v%data(right_ghost, bottom:top))
+        call assert_equal(right_sym_col, p%data(right_ghost, bottom:top))
+
+        ! -- Left --
+        left_sym_col = [1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk]
+        call assert_equal(left_sym_col, rho%data(left_ghost + 1, bottom:top))
+        call assert_equal(-left_sym_col, u%data(left_ghost + 1, bottom:top))
+        call assert_equal(left_sym_col, v%data(left_ghost + 1, bottom:top))
+        call assert_equal(left_sym_col, p%data(left_ghost + 1, bottom:top))
+
+        ! 2nd ghost layer
+        left_sym_col = [5.0_rk, 9.0_rk, 9.0_rk, 7.0_rk]
+        call assert_equal(left_sym_col, rho%data(left_ghost, bottom:top))
+        call assert_equal(-left_sym_col, u%data(left_ghost, bottom:top))
+        call assert_equal(left_sym_col, v%data(left_ghost, bottom:top))
+        call assert_equal(left_sym_col, p%data(left_ghost, bottom:top))
+      case default
+        error stop "Test failed. This is only configured to test for 1 or 4 images"
+      end select
     end associate
 
     deallocate(bc_plus_x)

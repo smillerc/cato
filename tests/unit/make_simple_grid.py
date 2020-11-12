@@ -181,7 +181,7 @@ data[2:6,5] = [4, 7, 7, 3]
 
 print(data.T)
 simple["rho"] = data * ureg('g/cc')
-simple["u"] = -data * ureg('cm/s')
+simple["u"] = data * ureg('cm/s')
 simple["v"] = data * ureg('cm/s')
 simple["p"] = data * ureg('barye')
 

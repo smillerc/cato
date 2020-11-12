@@ -3,7 +3,7 @@ program test_bc
   implicit none
 
   call startup() 
-  ! call test_symmetry()
+  call test_symmetry()
   call test_x_periodic()
   call test_y_periodic()
   call test_periodic_all()
