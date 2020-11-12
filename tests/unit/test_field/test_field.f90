@@ -17,9 +17,9 @@ contains
                      descrip='Cell-centered mass density', &
                      units='g/cc', global_dims=[8, 8], n_halo_cells=2)
 
-    call assert_equal(desired=4, actual=field%domain_shape(1))
-    call assert_equal(desired=4, actual=field%domain_shape(2))
-    call assert_equal(desired=2, actual=field%n_halo_cells)
+    call assert_equal(desired=4, actual=field%domain_shape(1), file=__FILE__, line=__LINE__)
+    call assert_equal(desired=4, actual=field%domain_shape(2), file=__FILE__, line=__LINE__)
+    call assert_equal(desired=2, actual=field%n_halo_cells, file=__FILE__, line=__LINE__)
 
     if(this_image() == 1) then
       field%data = 1.0_real64
@@ -103,47 +103,47 @@ contains
     select case(this_image())
     case (1)
       field_sum = field%sum()
-      call assert_equal(desired=16.0_real64, actual=field_sum)
+      call assert_equal(desired=16.0_real64, actual=field_sum, file=__FILE__, line=__LINE__)
     case (2)
       field_sum = field%sum()
-      call assert_equal(desired=32.0_real64, actual=field_sum)
+      call assert_equal(desired=32.0_real64, actual=field_sum, file=__FILE__, line=__LINE__)
     case (3)
       field_sum = field%sum()
-      call assert_equal(desired=48.0_real64, actual=field_sum)
+      call assert_equal(desired=48.0_real64, actual=field_sum, file=__FILE__, line=__LINE__)
     case (4)
       field_sum = field%sum()
-      call assert_equal(desired=64.0_real64, actual=field_sum)
+      call assert_equal(desired=64.0_real64, actual=field_sum, file=__FILE__, line=__LINE__)
     end select
     
     field = field * x_2d
     select case(this_image())
     case (1)
-      call assert_equal(desired=160.0_real64, actual=field%sum())
+      call assert_equal(desired=160.0_real64, actual=field%sum(), file=__FILE__, line=__LINE__)
     case (2)
-      call assert_equal(desired=320.0_real64, actual=field%sum())
+      call assert_equal(desired=320.0_real64, actual=field%sum(), file=__FILE__, line=__LINE__)
     case (3)
-      call assert_equal(desired=480.0_real64, actual=field%sum())
+      call assert_equal(desired=480.0_real64, actual=field%sum(), file=__FILE__, line=__LINE__)
     case (4)
-      call assert_equal(desired=640.0_real64, actual=field%sum())
+      call assert_equal(desired=640.0_real64, actual=field%sum(), file=__FILE__, line=__LINE__)
     end select
 
     field = field / 10.0_real64
     select case(this_image())
     case (1)
-      call assert_equal(desired=16.0_real64, actual=field%sum())
+      call assert_equal(desired=16.0_real64, actual=field%sum(), file=__FILE__, line=__LINE__)
     case (2)
-      call assert_equal(desired=32.0_real64, actual=field%sum())
+      call assert_equal(desired=32.0_real64, actual=field%sum(), file=__FILE__, line=__LINE__)
     case (3)
-      call assert_equal(desired=48.0_real64, actual=field%sum())
+      call assert_equal(desired=48.0_real64, actual=field%sum(), file=__FILE__, line=__LINE__)
     case (4)
-      call assert_equal(desired=64.0_real64, actual=field%sum())
+      call assert_equal(desired=64.0_real64, actual=field%sum(), file=__FILE__, line=__LINE__)
     end select
 
     sync all
 
     global = field%gather(image=1)
     if (this_image() == 1) then
-      call assert_equal(desired=160.0_real64, actual=sum(global))
+      call assert_equal(desired=160.0_real64, actual=sum(global), file=__FILE__, line=__LINE__)
     end if
 
     write(*, '(a, i0, a)') "Image: ", this_image(), " Success"

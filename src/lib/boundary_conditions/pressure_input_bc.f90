@@ -237,18 +237,23 @@ contains
     real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
     real(rk), dimension(2) :: boundary_norm
 
-    gamma = eos%get_gamma()
-    inflow = .false.
-    outflow = .false.
+    
+    if (rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
+        rho%on_jhi_bc .or. rho%on_jlo_bc) then
 
-    boundary_prim_vars = 0.0_rk
-    desired_boundary_pressure = self%get_desired_pressure()
-    desired_boundary_density = self%get_desired_density()
+      gamma = eos%get_gamma()
+      inflow = .false.
+      outflow = .false.
+  
+      boundary_prim_vars = 0.0_rk
+      desired_boundary_pressure = self%get_desired_pressure()
+      desired_boundary_density = self%get_desired_density()
 
-    if(allocated(self%edge_rho)) deallocate(self%edge_rho)
-    if(allocated(self%edge_u)) deallocate(self%edge_u)
-    if(allocated(self%edge_v)) deallocate(self%edge_v)
-    if(allocated(self%edge_p)) deallocate(self%edge_p)
+      if(allocated(self%edge_rho)) deallocate(self%edge_rho)
+      if(allocated(self%edge_u)) deallocate(self%edge_u)
+      if(allocated(self%edge_v)) deallocate(self%edge_v)
+      if(allocated(self%edge_p)) deallocate(self%edge_p)
+    endif
 
     associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
               left_ghost => minval(self%ilo_ghost), &
@@ -259,93 +264,101 @@ contains
 
       select case(self%location)
       case('+x', '-x')
-        allocate(self%edge_rho(bottom_ghost:top_ghost))
-        allocate(self%edge_u(bottom_ghost:top_ghost))
-        allocate(self%edge_v(bottom_ghost:top_ghost))
-        allocate(self%edge_p(bottom_ghost:top_ghost))
-        allocate(domain_rho(bottom_ghost:top_ghost))
-        allocate(domain_u(bottom_ghost:top_ghost))
-        allocate(domain_v(bottom_ghost:top_ghost))
-        allocate(domain_p(bottom_ghost:top_ghost))
+        if (rho%on_ihi_bc .or. rho%on_ilo_bc) then
+          allocate(self%edge_rho(bottom_ghost:top_ghost))
+          allocate(self%edge_u(bottom_ghost:top_ghost))
+          allocate(self%edge_v(bottom_ghost:top_ghost))
+          allocate(self%edge_p(bottom_ghost:top_ghost))
+          allocate(domain_rho(bottom_ghost:top_ghost))
+          allocate(domain_u(bottom_ghost:top_ghost))
+          allocate(domain_v(bottom_ghost:top_ghost))
+          allocate(domain_p(bottom_ghost:top_ghost))
+        end if
       case('+y', '-y')
-        allocate(self%edge_rho(left_ghost:right_ghost))
-        allocate(self%edge_u(left_ghost:right_ghost))
-        allocate(self%edge_v(left_ghost:right_ghost))
-        allocate(self%edge_p(left_ghost:right_ghost))
-        allocate(domain_rho(left_ghost:right_ghost))
-        allocate(domain_u(left_ghost:right_ghost))
-        allocate(domain_v(left_ghost:right_ghost))
-        allocate(domain_p(left_ghost:right_ghost))
+        if (rho%on_jhi_bc .or. rho%on_jlo_bc) then
+          allocate(self%edge_rho(left_ghost:right_ghost))
+          allocate(self%edge_u(left_ghost:right_ghost))
+          allocate(self%edge_v(left_ghost:right_ghost))
+          allocate(self%edge_p(left_ghost:right_ghost))
+          allocate(domain_rho(left_ghost:right_ghost))
+          allocate(domain_u(left_ghost:right_ghost))
+          allocate(domain_v(left_ghost:right_ghost))
+          allocate(domain_p(left_ghost:right_ghost))
+        end if
       end select
 
-      self%edge_rho = 0.0_rk
-      self%edge_u = 0.0_rk
-      self%edge_v = 0.0_rk
-      self%edge_p = 0.0_rk
+      if (rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
+          rho%on_jhi_bc .or. rho%on_jlo_bc) then
+        self%edge_rho = 0.0_rk
+        self%edge_u = 0.0_rk
+        self%edge_v = 0.0_rk
+        self%edge_p = 0.0_rk
 
-      domain_rho = 0.0_rk
-      domain_u = 0.0_rk
-      domain_v = 0.0_rk
-      domain_p = 0.0_rk
+        domain_rho = 0.0_rk
+        domain_u = 0.0_rk
+        domain_v = 0.0_rk
+        domain_p = 0.0_rk
+      end if
 
       select case(self%location)
       case('+x')
-        if(enable_debug_print) then
-          call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', &
-                           __FILE__, __LINE__)
+        if (rho%on_ihi_bc) then
+          if(enable_debug_print) then
+            call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', &
+                            __FILE__, __LINE__)
+          end if
+
+          domain_rho = rho%data(right, bottom_ghost:top_ghost)
+          domain_u = u%data(right, bottom_ghost:top_ghost)
+          domain_v = 0.0_rk
+          domain_p = p%data(right, bottom_ghost:top_ghost)
+          boundary_norm = [1.0_rk, 0.0_rk] ! outward normal vector at +x
+
+          do j = bottom, top
+            associate(rho_d => domain_rho(j), u_d => domain_u(j), &
+                      v_d => domain_v(j), p_d => domain_p(j))
+              domain_prim_vars = [rho_d, u_d, v_d, p_d]
+
+              call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
+              call eos%sound_speed(p=desired_boundary_pressure, rho=desired_boundary_density, cs=boundary_cs)
+              mach_u = u_d / cs
+
+              if(mach_u > 0.0_rk) then ! outlet
+                if(mach_u <= 1.0_rk .or. maxval(domain_p(bottom:top)) < desired_boundary_pressure) then
+                  boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
+                                                      exit_pressure=desired_boundary_pressure, &
+                                                      boundary_norm=boundary_norm)
+                else
+                  boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
+                end if
+              else ! inlet
+                if(abs(mach_u) > 1.0_rk) then
+                  boundary_prim_vars = [desired_boundary_density, u_d, v_d, desired_boundary_pressure]
+                else
+                  boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
+                                                      boundary_norm=boundary_norm, &
+                                                      inlet_density=desired_boundary_density, &
+                                                      inlet_total_press=desired_boundary_pressure, &
+                                                      inlet_flow_angle=0.0_rk)
+                end if
+              end if
+            end associate
+            self%edge_rho(j) = boundary_prim_vars(1)
+            self%edge_u(j) = boundary_prim_vars(2)
+            self%edge_v(j) = 0.0_rk
+            self%edge_p(j) = boundary_prim_vars(4)
+          end do
+
+          do i = 1, self%n_ghost_layers
+            print*, 'desired_boundary_pressure', desired_boundary_pressure
+            print*, 'self%ihi_ghost(i)', self%ihi_ghost(i)
+            print*, 'self%edge_p(bottom:top)', self%edge_p(bottom:top)
+            rho%data(self%ihi_ghost(i), bottom:top) = self%edge_rho(bottom:top)
+            u%data(self%ihi_ghost(i), bottom:top) = self%edge_u(bottom:top)
+            v%data(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
+            p%data(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
+          end do
         end if
-
-        domain_rho = rho%data(right, bottom_ghost:top_ghost)
-        domain_u = u%data(right, bottom_ghost:top_ghost)
-        domain_v = 0.0_rk
-        domain_p = p%data(right, bottom_ghost:top_ghost)
-        boundary_norm = [1.0_rk, 0.0_rk] ! outward normal vector at +x
-
-        do j = bottom, top
-          associate(rho_d => domain_rho(j), u_d => domain_u(j), &
-                    v_d => domain_v(j), p_d => domain_p(j))
-            domain_prim_vars = [rho_d, u_d, v_d, p_d]
-
-            call eos%sound_speed(p=p_d, rho=rho_d, cs=cs)
-            call eos%sound_speed(p=desired_boundary_pressure, rho=desired_boundary_density, cs=boundary_cs)
-            mach_u = u_d / cs
-            ! print*, 'domain mach', mach_u, 'ghost mach',  u_d / boundary_cs
-            ! print*, "maxval(domain_p) > desired_boundary_pressure ", maxval(domain_p(bottom:top)) > desired_boundary_pressure, maxval(domain_p(bottom:top)), desired_boundary_pressure
-
-            if(mach_u > 0.0_rk) then ! outlet
-              if(mach_u <= 1.0_rk .or. maxval(domain_p(bottom:top)) < desired_boundary_pressure) then
-                ! print*, 'sub outlet'
-                ! error stop
-                boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
-                                                     exit_pressure=desired_boundary_pressure, &
-                                                     boundary_norm=boundary_norm)
-              else
-                boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
-              end if
-            else ! inlet
-              if(abs(mach_u) > 1.0_rk) then
-                boundary_prim_vars = [desired_boundary_density, u_d, v_d, desired_boundary_pressure]
-              else
-                boundary_prim_vars = subsonic_inlet(domain_prim_vars=domain_prim_vars, &
-                                                    boundary_norm=boundary_norm, &
-                                                    inlet_density=desired_boundary_density, &
-                                                    inlet_total_press=desired_boundary_pressure, &
-                                                    inlet_flow_angle=0.0_rk)
-              end if
-            end if
-          end associate
-          self%edge_rho(j) = boundary_prim_vars(1)
-          self%edge_u(j) = boundary_prim_vars(2)
-          self%edge_v(j) = 0.0_rk
-          self%edge_p(j) = boundary_prim_vars(4)
-        end do
-
-        do i = 1, self%n_ghost_layers
-          rho%data(self%ihi_ghost(i), bottom:top) = self%edge_rho(bottom:top)
-          u%data(self%ihi_ghost(i), bottom:top) = self%edge_u(bottom:top)
-          v%data(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
-          p%data(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
-        end do
       case default
         error stop "Unsupported location to apply the bc at in "// &
           "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"

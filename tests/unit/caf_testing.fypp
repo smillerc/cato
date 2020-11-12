@@ -68,9 +68,11 @@ contains
 ! -------------------------------------------------------
 ! Character assertions
 ! -------------------------------------------------------
-subroutine assert_equal_str(desired, actual, compare_trimed)
+subroutine assert_equal_str(desired, actual, compare_trimed, file, line)
   character(len=*), intent(in) :: desired
   character(len=*), intent(in) :: actual
+  character(len=*), intent(in) :: file
+  integer, intent(in) :: line
   logical, optional :: compare_trimed  !< trim the strings before compare?
 
   logical :: do_trim 
@@ -82,14 +84,14 @@ subroutine assert_equal_str(desired, actual, compare_trimed)
 
   if (do_trim) then
     if (len_trim(desired) /= len_trim(actual)) then
-      write(*,'(a)') "Assertion Failure (=): len_trim(desired) /= len_trim(actual)"
+      write(*,'((3(a), i0))') "Assertion Failure (=): len_trim(desired) /= len_trim(actual) in ", trim(file), ":", line
       error stop "Test failure"
     end if
 
     if (trim(desired) == trim(actual)) correct = .true.
   else
     if (len(desired) /= len(actual)) then
-      write(*,'(a)') "Assertion Failure (=): len(desired) /= len(actual)"
+      write(*,'((3(a), i0))') "Assertion Failure (=): len(desired) /= len(actual) in ", trim(file), ":", line
       error stop "Test failure"
     end if
 
@@ -97,7 +99,7 @@ subroutine assert_equal_str(desired, actual, compare_trimed)
   endif
 
   if (.not. correct) then
-    write(*,'(a)') "Assertion Failure (=)"
+    write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
     write(*,'(a,i0)') "Image: ", this_image()
     if (do_trim) then
       write(*,'(3(a))') "Desired Value: '", trim(desired), "'"
@@ -116,11 +118,13 @@ end subroutine
 ! -------------------------------------------------------
 #:for PREC in REAL_PRECISIONS
 #:for ACTUAL_RANK, RANK in ACTUAL_RANK_PAIR
-  subroutine assert_r${RANK}$_equal_r${ACTUAL_RANK}$_${PREC}$(desired, actual, tol)
+  subroutine assert_r${RANK}$_equal_r${ACTUAL_RANK}$_${PREC}$(desired, actual, tol, file, line)
     real(${PREC}$), intent(in) :: desired${ranksuffix(RANK)}$
     real(${PREC}$), intent(in) :: actual${ranksuffix(ACTUAL_RANK)}$
     real(${PREC}$), intent(in), optional :: tol !< Optional user-specified floating point tolerance
     real(${PREC}$) :: eps !< Floating point epsilon
+    character(len=*), intent(in) :: file
+    integer, intent(in) :: line
     #:set LOOP_INDEX_NAMES = ['i'+str(n) for n in range(1,ACTUAL_RANK + 1)]
     #:set LOOP_INDEX_NUMS = [n for n in range(1,ACTUAL_RANK + 1)]
     #:if ACTUAL_RANK > 0
@@ -131,7 +135,7 @@ end subroutine
     correct = .false.
     #:if RANK > 0
     if (size(desired) /= size(actual)) then
-      write(*,'(a)') "Assertion Failure (=): size(desired) /= size(actual)"
+      write(*,'((3(a), i0))') "Assertion Failure (=): size(desired) /= size(actual) in ", trim(file), ":", line
       error stop "Test failure"
     end if
     #:endif
@@ -146,7 +150,7 @@ end subroutine
     if(abs(desired - actual) < eps) correct = .true.
 
     if(.not. correct) then
-      write(*,'(a)') "Assertion Failure (=)"
+      write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
       write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,es16.6)') "Desired Value: ", desired
       write(*,'(a,es16.6)') "Actual Value:  ", actual
@@ -164,7 +168,7 @@ end subroutine
       do ${NAME}$ = lbound(actual, dim=${ACTUAL_RANK-IDX}$), ubound(actual, dim=${ACTUAL_RANK-IDX}$)
       #:endfor
         if(abs(desired${rankindex(RANK)}$ - actual${rankindex(ACTUAL_RANK)}$) > eps) then
-            write(*,'(a)')             "Assertion Failure (=)"
+            write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')          "Image:         ", this_image()
             write(*,'(a,es16.6)')      "Desired Value: ", desired${rankindex(RANK)}$
             write(*,'(a,es16.6)')      "Actual Value:  ", actual${rankindex(ACTUAL_RANK)}$
@@ -189,9 +193,11 @@ end subroutine
 ! -------------------------------------------------------
 #:for PREC in INT_PRECISIONS
 #:for ACTUAL_RANK, RANK in ACTUAL_RANK_PAIR
-  subroutine assert_r${RANK}$_equal_r${ACTUAL_RANK}$_${PREC}$(desired, actual)
+  subroutine assert_r${RANK}$_equal_r${ACTUAL_RANK}$_${PREC}$(desired, actual, file, line)
     integer(${PREC}$), intent(in) :: desired${ranksuffix(RANK)}$
     integer(${PREC}$), intent(in) :: actual${ranksuffix(ACTUAL_RANK)}$
+    character(len=*), intent(in) :: file
+    integer, intent(in) :: line
     #:set LOOP_INDEX_NAMES = ['i'+str(n) for n in range(1,ACTUAL_RANK + 1)]
     #:set LOOP_INDEX_NUMS = [n for n in range(1,ACTUAL_RANK + 1)]
     #:if ACTUAL_RANK > 0
@@ -203,7 +209,7 @@ end subroutine
 
     #:if RANK > 0
     if (size(desired) /= size(actual)) then
-      write(*,'(a)') "Assertion Failure (=): size(desired) /= size(actual)"
+      write(*,'((3(a), i0))') "Assertion Failure (=): size(desired) /= size(actual) in ", trim(file), ":", line
       error stop "Test failure"
     end if
     #:endif
@@ -211,7 +217,7 @@ end subroutine
     if(desired == actual) correct = .true.
 
     if(.not. correct) then
-      write(*,'(a)') "Assertion Failure (=)"
+      write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
       write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
@@ -228,11 +234,11 @@ end subroutine
       do ${NAME}$ = lbound(actual, dim=${ACTUAL_RANK-IDX}$), ubound(actual, dim=${ACTUAL_RANK-IDX}$)
       #:endfor
         if(desired${rankindex(RANK)}$ /= actual${rankindex(ACTUAL_RANK)}$) then
-            write(*,'(a)')             "Assertion Failure (=)"
-            write(*,'(a,i0)')          "Image:         ", this_image()
-            write(*,'(a,i0)')      "Desired Value: ", desired${rankindex(RANK)}$
-            write(*,'(a,i0)')      "Actual Value:  ", actual${rankindex(ACTUAL_RANK)}$
-            write(*,'(a,i0)')      "Difference:    ", desired${rankindex(RANK)}$ - actual${rankindex(ACTUAL_RANK)}$
+            write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
+            write(*,'(a,i0)')       "Image:         ", this_image()
+            write(*,'(a,i0)')       "Desired Value: ", desired${rankindex(RANK)}$
+            write(*,'(a,i0)')       "Actual Value:  ", actual${rankindex(ACTUAL_RANK)}$
+            write(*,'(a,i0)')       "Difference:    ", desired${rankindex(RANK)}$ - actual${rankindex(ACTUAL_RANK)}$
             write(*, '(a,10(i0, 1x))') "At index:      ", ${indexlist(ACTUAL_RANK)}$
             error stop "Test failure"
         end if
@@ -251,9 +257,11 @@ end subroutine
 ! Logical assertions
 ! -------------------------------------------------------
 #:for ACTUAL_RANK, RANK in ACTUAL_RANK_PAIR
-  subroutine assert_r${RANK}$_equal_r${ACTUAL_RANK}$_logical(desired, actual)
+  subroutine assert_r${RANK}$_equal_r${ACTUAL_RANK}$_logical(desired, actual, file, line)
     logical, intent(in) :: desired${ranksuffix(RANK)}$
     logical, intent(in) :: actual${ranksuffix(ACTUAL_RANK)}$
+    character(len=*), intent(in) :: file
+    integer, intent(in) :: line
     #:set LOOP_INDEX_NAMES = ['i'+str(n) for n in range(1,ACTUAL_RANK + 1)]
     #:set LOOP_INDEX_NUMS = [n for n in range(1,ACTUAL_RANK + 1)]
     #:if ACTUAL_RANK > 0
@@ -264,7 +272,7 @@ end subroutine
 
     #:if RANK > 0
     if (size(desired) /= size(actual)) then
-      write(*,'(a)') "Assertion Failure (=): size(desired) /= size(actual)"
+      write(*,'((3(a), i0))') "Assertion Failure (=): size(desired) /= size(actual) in ", trim(file), ":", line
       error stop "Test failure"
     end if
     #:endif
@@ -272,7 +280,7 @@ end subroutine
     if(desired .eqv. actual) correct = .true.
 
     if(.not. correct) then
-      write(*,'(a)') "Assertion Failure (=)"
+      write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
       write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,l)') "Desired Value: ", desired
       write(*,'(a,l)') "Actual Value:  ", actual
@@ -289,7 +297,7 @@ end subroutine
       do ${NAME}$ = lbound(actual, dim=${ACTUAL_RANK-IDX}$), ubound(actual, dim=${ACTUAL_RANK-IDX}$)
       #:endfor
         if(desired${rankindex(RANK)}$ .neqv. actual${rankindex(ACTUAL_RANK)}$) then
-            write(*,'(a)')        "Assertion Failure (=)"
+          write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
             write(*,'(a,l)')      "Desired Value: ", desired${rankindex(RANK)}$
             write(*,'(a,l)')      "Actual Value:  ", actual${rankindex(ACTUAL_RANK)}$
@@ -311,9 +319,11 @@ end subroutine
 #:for OP, OP_NAMES in OPS_NAMES
 #:for T, PREC in TYPE_PREC
 #:for ACTUAL_RANK, RANK in ACTUAL_RANK_PAIR
-  subroutine assert_r${RANK}$_${OP_NAMES}$_r${ACTUAL_RANK}$_${PREC}$(desired, actual)
+  subroutine assert_r${RANK}$_${OP_NAMES}$_r${ACTUAL_RANK}$_${PREC}$(desired, actual, file, line)
     ${T}$(${PREC}$), intent(in) :: desired${ranksuffix(RANK)}$
     ${T}$(${PREC}$), intent(in) :: actual${ranksuffix(ACTUAL_RANK)}$
+    character(len=*), intent(in) :: file
+    integer, intent(in) :: line
     logical :: correct
     #:set LOOP_INDEX_NAMES = ['i'+str(n) for n in range(1,ACTUAL_RANK + 1)]
     #:set LOOP_INDEX_NUMS = [n for n in range(1,ACTUAL_RANK + 1)]
@@ -324,7 +334,7 @@ end subroutine
 
     #:if RANK > 0
     if (size(desired) /= size(actual)) then
-      write(*,'(a)') "Assertion Failure (${OP}$): size(desired) /= size(actual)"
+      write(*,'((3(a), i0))') "Assertion Failure (=): size(desired) /= size(actual) in ", trim(file), ":", line
       error stop "Test failure"
     end if
     #:endif
@@ -333,7 +343,7 @@ end subroutine
     if(desired ${OP}$ actual) correct = .true.
 
     if(.not. correct) then
-      write(*,'(a)') "Assertion Failure (${OP}$)"
+      write(*,'((3(a), i0))') "Assertion Failure (${OP}$) in ", trim(file), ":", line
       write(*,'(a,i0)') "Image: ", this_image()
       write(*,'(a,i0)') "Desired Value: ", desired
       write(*,'(a,i0)') "Actual Value:  ", actual
@@ -348,7 +358,7 @@ end subroutine
       do ${NAME}$ = lbound(actual, dim=${ACTUAL_RANK-IDX}$), ubound(actual, dim=${ACTUAL_RANK-IDX}$)
       #:endfor
         if(.not. (desired${rankindex(RANK)}$ ${OP}$ actual${rankindex(ACTUAL_RANK)}$)) then
-            write(*,'(a)')             "Assertion Failure (${OP}$)"
+            write(*,'((3(a), i0))')    "Assertion Failure (${OP}$) in ", trim(file), ":", line
             write(*,*)                 "Image:         ", this_image()
             write(*,*)                 "Desired Value: ", desired${rankindex(RANK)}$
             write(*,*)                 "Actual Value:  ", actual${rankindex(ACTUAL_RANK)}$

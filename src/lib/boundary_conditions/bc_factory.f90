@@ -21,6 +21,7 @@
 module mod_bc_factory
   use iso_fortran_env, only: ik => int32, rk => real64
   use mod_input, only: input_t
+  use mod_error, only: error_msg
   use mod_grid_block_2d, only: grid_block_2d_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_periodic_bc, only: periodic_bc_t, periodic_bc_constructor
@@ -57,8 +58,10 @@ contains
       bc => zero_gradient_bc_constructor(location, input, grid)
       bc%priority = 1
     case default
-      write(*, '(3(a))') "Unsupported boundary condition type in bc_factory: '", trim(bc_type), "'"
-      error stop "Unsupported boundary condition type in bc_factory"
+      call error_msg(module_name='mod_bc_factory', &
+                     procedure_name='bc_factory', &
+                     message="Unsupported boundary condition type in bc_factory: '" // trim(bc_type) // "'", &
+                     file_name=__FILE__, line_number=__LINE__)
     end select
 
   end function bc_factory

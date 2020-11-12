@@ -60,6 +60,13 @@ contains
 
     integer(ik) :: i
 
+    ! associate(ilo => rho%lbounds(1), ihi => rho%ubounds(1), &
+    !           jlo => rho%lbounds(2), jhi => rho%ubounds(2), &
+    !           ilo_halo => rho%lbounds_halo(1), ihi_halo => rho%ubounds_halo(1), &
+    !           jlo_halo => rho%lbounds_halo(2), jhi_halo => rho%ubounds_halo(2), &
+    !           nh => rho%n_halo_cells, &
+    !           neighbors => rho%neighbors)
+
     associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
               left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
               bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
@@ -72,10 +79,10 @@ contains
                             __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
-            rho%data(right_ghost(i), :) = rho%data(right - (i - 1), :)
-            u%data(right_ghost(i), :) = u%data(right - (i - 1), :)
-            v%data(right_ghost(i), :) = v%data(right - (i - 1), :)
-            p%data(right_ghost(i), :) = p%data(right - (i - 1), :)
+            rho%data(right_ghost(i), :) = rho%data(right, :)
+            u%data(right_ghost(i), :) = u%data(right, :)
+            v%data(right_ghost(i), :) = v%data(right, :)
+            p%data(right_ghost(i), :) = p%data(right, :)
           end do
         end if
       case('-x')
@@ -85,10 +92,10 @@ contains
                             __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
-            rho%data(left_ghost(i), :) = rho%data(left + (i - 1), :)
-            u%data(left_ghost(i), :) = u%data(left + (i - 1), :)
-            v%data(left_ghost(i), :) = v%data(left + (i - 1), :)
-            p%data(left_ghost(i), :) = p%data(left + (i - 1), :)
+            rho%data(left_ghost(i), :) = rho%data(left, :)
+            u%data(left_ghost(i), :) = u%data(left, :)
+            v%data(left_ghost(i), :) = v%data(left, :)
+            p%data(left_ghost(i), :) = p%data(left, :)
           end do
         end if
       case('+y')
@@ -98,10 +105,10 @@ contains
                             __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
-            rho%data(:, top_ghost(i)) = rho%data(:, top - (i - 1))
-            u%data(:, top_ghost(i)) = u%data(:, top - (i - 1))
-            v%data(:, top_ghost(i)) = v%data(:, top - (i - 1))
-            p%data(:, top_ghost(i)) = p%data(:, top - (i - 1))
+            rho%data(:, top_ghost(i)) = rho%data(:, top)
+            u%data(:, top_ghost(i)) = u%data(:, top)
+            v%data(:, top_ghost(i)) = v%data(:, top)
+            p%data(:, top_ghost(i)) = p%data(:, top)
           end do
         end if
       case('-y')
@@ -111,10 +118,10 @@ contains
                             __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
-            rho%data(:, bottom_ghost(i)) = rho%data(:, bottom + (i - 1))
-            u%data(:, bottom_ghost(i)) = u%data(:, bottom + (i - 1))
-            v%data(:, bottom_ghost(i)) = v%data(:, bottom + (i - 1))
-            p%data(:, bottom_ghost(i)) = p%data(:, bottom + (i - 1))
+            rho%data(:, bottom_ghost(i)) = rho%data(:, bottom)
+            u%data(:, bottom_ghost(i)) = u%data(:, bottom)
+            v%data(:, bottom_ghost(i)) = v%data(:, bottom)
+            p%data(:, bottom_ghost(i)) = p%data(:, bottom)
           end do
         end if
       case default

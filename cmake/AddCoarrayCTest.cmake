@@ -64,5 +64,5 @@ function(add_caf_test test_target)
 
   # Each test must end with a print*, "Success." (or some variant) to succeed
   set_property(TEST ${test_target} PROPERTY PASS_REGULAR_EXPRESSION "Success")
-  set_property (TEST ${test_target} PROPERTY FAIL_REGULAR_EXPRESSION "Test failure")
+  set_property (TEST ${test_target} PROPERTY FAIL_REGULAR_EXPRESSION "[^a-z]Error;ERROR;Fail")
 endfunction(add_caf_test)
