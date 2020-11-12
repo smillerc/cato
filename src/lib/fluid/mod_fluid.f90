@@ -388,7 +388,7 @@ contains
     call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
                                     rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       write(*, '(a)') 'Initial fluid stats'
       write(*, '(a)') '==================================================='
       write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
@@ -527,13 +527,13 @@ contains
     allocate(d_dt, source=self)
 
     select type(grid)
-    class is (grid_block_2d_t)
+    class is(grid_block_2d_t)
       call self%solver%solve(dt=self%dt, grid=grid, &
-                            rho=self%rho, u=self%u, v=self%v, p=self%p, &
-                            d_rho_dt=d_dt%rho, &
-                            d_rho_u_dt=d_dt%rho_u, &
-                            d_rho_v_dt=d_dt%rho_v, &
-                            d_rho_E_dt=d_dt%rho_E)
+                             rho=self%rho, u=self%u, v=self%v, p=self%p, &
+                             d_rho_dt=d_dt%rho, &
+                             d_rho_u_dt=d_dt%rho_u, &
+                             d_rho_v_dt=d_dt%rho_v, &
+                             d_rho_E_dt=d_dt%rho_E)
 
       if(allocated(source_term)) then
         if(self%time <= source_term%max_time) then

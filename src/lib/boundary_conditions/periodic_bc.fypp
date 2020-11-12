@@ -136,31 +136,31 @@ contains
       select case(self%location)
       case('+x', '-x')
         if(rho%on_ilo_bc .or. rho%on_ihi_bc) then
-          sync images(set([rho%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), stat=sync_stat, errmsg=sync_err_msg)
+        sync images(set([rho%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), stat=sync_stat, errmsg=sync_err_msg)
           if(sync_stat /= 0) then
             call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                          procedure_name='apply_periodic_primitive_var_bc', &
-                          message="Error: unable to sync ilo/ihi images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                          file_name=__FILE__, line_number=__LINE__)
+                           procedure_name='apply_periodic_primitive_var_bc', &
+                           message="Error: unable to sync ilo/ihi images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                           file_name=__FILE__, line_number=__LINE__)
           end if
-          
+
           ! Put to the coarray buffer
           ilo_edge(:, :)[neighbors(ihi_neighbor)] = rho%data(ihi - nh + 1:ihi, jlo:jhi) ! ihi -> ilo
           ihi_edge(:, :)[neighbors(ilo_neighbor)] = rho%data(ilo:ilo + nh - 1, jlo:jhi)  ! ilo -> ihi
 
-          sync images(set([rho%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), stat=sync_stat, errmsg=sync_err_msg)
+        sync images(set([rho%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), stat=sync_stat, errmsg=sync_err_msg)
           if(sync_stat /= 0) then
             call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                          procedure_name='apply_periodic_primitive_var_bc', &
-                          message="Error: unable to sync ilo/ihi images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                          file_name=__FILE__, line_number=__LINE__)
+                           procedure_name='apply_periodic_primitive_var_bc', &
+                           message="Error: unable to sync ilo/ihi images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                           file_name=__FILE__, line_number=__LINE__)
           end if
 
           ! Get from the coarray buffer
-          if (rho%on_ihi_bc) rho%data(ihi + 1:ihi_halo, jlo:jhi) = ihi_edge
-          if (rho%on_ilo_bc) rho%data(ilo_halo:ilo - 1, jlo:jhi) = ilo_edge
+          if(rho%on_ihi_bc) rho%data(ihi + 1:ihi_halo, jlo:jhi) = ihi_edge
+          if(rho%on_ilo_bc) rho%data(ilo_halo:ilo - 1, jlo:jhi) = ilo_edge
         endif ! on ilo or ihi bc
-        
+
       case('+y', '-y')
         if(rho%on_jlo_bc .or. rho%on_jhi_bc) then
           sync images([rho%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)], stat=sync_stat, errmsg=sync_err_msg)
@@ -178,14 +178,14 @@ contains
           sync images([rho%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)], stat=sync_stat, errmsg=sync_err_msg)
           if(sync_stat /= 0) then
             call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                          procedure_name='apply_periodic_primitive_var_bc', &
-                          message="Error: unable to sync jlo/jhi images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                          file_name=__FILE__, line_number=__LINE__)
+                           procedure_name='apply_periodic_primitive_var_bc', &
+                           message="Error: unable to sync jlo/jhi images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                           file_name=__FILE__, line_number=__LINE__)
           end if
 
           ! Get from the coarray buffer
-          if (rho%on_jlo_bc) rho%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
-          if (rho%on_jhi_bc) rho%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
+          if(rho%on_jlo_bc) rho%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
+          if(rho%on_jhi_bc) rho%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
         endif ! on jlo or jhi bc
       end select
 
@@ -201,9 +201,9 @@ contains
                       stat=sync_stat, errmsg=sync_err_msg)
           if(sync_stat /= 0) then
             call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                          procedure_name='apply_periodic_primitive_var_bc', &
-                          message="Error: unable to sync corner images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                          file_name=__FILE__, line_number=__LINE__)
+                           procedure_name='apply_periodic_primitive_var_bc', &
+                           message="Error: unable to sync corner images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                           file_name=__FILE__, line_number=__LINE__)
           end if
 
           ! Put to the coarray buffer
@@ -218,16 +218,16 @@ contains
                       stat=sync_stat, errmsg=sync_err_msg)
           if(sync_stat /= 0) then
             call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                          procedure_name='apply_periodic_primitive_var_bc', &
-                          message="Error: unable to sync corner images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                          file_name=__FILE__, line_number=__LINE__)
+                           procedure_name='apply_periodic_primitive_var_bc', &
+                           message="Error: unable to sync corner images, sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                           file_name=__FILE__, line_number=__LINE__)
           end if
 
           ! Get from the coarray buffer
-          if (rho%on_ilo_bc .and. rho%on_jlo_bc) rho%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = ihi_jhi_corner
-          if (rho%on_ihi_bc .and. rho%on_jlo_bc) rho%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = ilo_jhi_corner
-          if (rho%on_ilo_bc .and. rho%on_jhi_bc) rho%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = ihi_jlo_corner
-          if (rho%on_ihi_bc .and. rho%on_jhi_bc) rho%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = ilo_jlo_corner
+          if(rho%on_ilo_bc .and. rho%on_jlo_bc) rho%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = ihi_jhi_corner
+          if(rho%on_ihi_bc .and. rho%on_jlo_bc) rho%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = ilo_jhi_corner
+          if(rho%on_ilo_bc .and. rho%on_jhi_bc) rho%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = ihi_jlo_corner
+          if(rho%on_ihi_bc .and. rho%on_jhi_bc) rho%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = ilo_jlo_corner
 
         endif
       end if ! do_corners

@@ -30,7 +30,6 @@
 #define __W2_ALIGN__
 #endif
 
-
 module mod_m_ausmpw_plus_solver
   !< Summary: Provide a solver based on the M-AUSMPW+ family of schemes
   !< Date: 07/15/2020
@@ -166,7 +165,7 @@ contains
     call debug_print('Running m_ausmpw_plus_solver_t%solve_m_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
-      call error_msg(module_name='mod_m_ausmpw_plus_solver', class_name='m_ausmpw_plus_solver_t', procedure_name='solve_m_ausmpw_plus', &
+ call error_msg(module_name='mod_m_ausmpw_plus_solver', class_name='m_ausmpw_plus_solver_t', procedure_name='solve_m_ausmpw_plus', &
                      message="The timestep dt is < tiny(1.0_rk)", &
                      file_name=__FILE__, line_number=__LINE__)
     end if
@@ -179,7 +178,7 @@ contains
                                        bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                        bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p,  &
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, &
                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 

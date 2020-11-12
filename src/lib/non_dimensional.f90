@@ -81,7 +81,7 @@ contains
     e_0 = p_0
     t_0 = l_0 / v_0
 
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       print *
       write(*, '(a)') "Scale factors (CATO is non-dimensional)"
       write(*, '(a)') "========================================"

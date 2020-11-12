@@ -14,7 +14,7 @@ module mod_field
   use mod_parallel, only: LOWER_LEFT, DOWN, LOWER_RIGHT, LEFT, &
                           RIGHT, UPPER_LEFT, UP, UPPER_RIGHT
   use mod_globals, only: enable_debug_print, debug_print
-  
+
   implicit none(type, external)
 
   private

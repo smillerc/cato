@@ -143,7 +143,7 @@ contains
 
     call self%init_boundary_conditions(grid, bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                        bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p,  &
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, &
                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 

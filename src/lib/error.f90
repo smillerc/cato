@@ -28,7 +28,6 @@ contains
         //"::"//procedure_name//"() in "//file_name//":", line_number
     end if
 
-
     ! Catch-all error code
     if(present(error_stop)) then
       if(error_stop) error stop 1

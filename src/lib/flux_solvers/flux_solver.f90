@@ -206,7 +206,7 @@ contains
     jhi = grid%ubounds(2)
 
     d_rho_dt = field_2d(name='d_rho_dt  ', long_name='d/dt(rho)', descrip='', units='', &
-                          global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
+                        global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
     d_rho_u_dt = field_2d(name='d_rho_u_dt', long_name='d/dt(rho u)', descrip='', units='', &
                           global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
     d_rho_v_dt = field_2d(name='d_rho_v_dt', long_name='d/dt(rho v)', descrip='', units='', &

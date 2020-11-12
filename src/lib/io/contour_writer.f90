@@ -170,7 +170,7 @@ contains
       self%jhi_node = master%grid%ubounds(2) + 1
     end if
 
-    if (this_image() == 1) write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
+    if(this_image() == 1) write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
     case('xdmf')
       call self%write_hdf5(master, time, iteration)
@@ -179,7 +179,7 @@ contains
       call self%write_hdf5(master, time, iteration)
     case default
       call error_msg(module_name='mod_contour_writer', class_name='contour_writer_t', procedure_name='write_contour', &
-                     message="Unsupported I/O contour format'"// self%format // "' (must be .xdmf .h5 or .hdf5)", &
+                     message="Unsupported I/O contour format'"//self%format//"' (must be .xdmf .h5 or .hdf5)", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
 

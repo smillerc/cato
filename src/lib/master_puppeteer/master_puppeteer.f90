@@ -195,7 +195,6 @@ contains
                                 grid=self%grid, error_code=error_code)
     end select
 
-
   end subroutine integrate
 
   real(rk) function get_timestep(self) result(dt)

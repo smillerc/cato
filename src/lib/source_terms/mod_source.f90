@@ -105,58 +105,58 @@ contains
     new_source%source_geometry = trim(input%source_geometry)
     new_source%constant_source = input%apply_constant_source
 
-    select type (grid)
-    class is (grid_block_2d_t)
-    new_source%volume => grid%volume
+    select type(grid)
+    class is(grid_block_2d_t)
+      new_source%volume => grid%volume
 
-    if(.not. new_source%constant_source) then
-      new_source%input_filename = trim(input%source_file)
-      call new_source%read_input_file()
-    else
-      new_source%constant_source_value = input%constant_source_value
-    end if
-
-    select case(new_source%source_geometry)
-    case('uniform')
-      ! case('constant_xy', '1d_gaussian', '2d_gaussian')
-    case('constant_xy', '1d_gaussian')
-      ! Get the cell centroid data since the source is position dependant
-      new_source%centroid_x => grid%centroid_x
-      new_source%centroid_y => grid%centroid_y
-    case default
-      call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
-                     module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
-    end select
-
-    ! Determine the extents of the source term (if any)
-    select case(new_source%source_geometry)
-    case('constant_xy')
-      new_source%xlo = input%source_xlo / l_0
-      new_source%xhi = input%source_xhi / l_0
-      new_source%ylo = input%source_ylo / l_0
-      new_source%yhi = input%source_yhi / l_0
-    case('1d_gaussian', '2d_gaussian')
-      new_source%x_center = input%source_center_x / l_0
-      new_source%y_center = input%source_center_y / l_0
-      new_source%fwhm_x = input%source_gaussian_fwhm_x / l_0
-      new_source%fwhm_y = input%source_gaussian_fwhm_y / l_0
-      new_source%gaussian_order = input%source_gaussian_order
-
-      if(new_source%gaussian_order < 1) then
-        call error_msg(message="Source term gaussian order is invalid (< 1)", &
-                       module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
+      if(.not. new_source%constant_source) then
+        new_source%input_filename = trim(input%source_file)
+        call new_source%read_input_file()
+      else
+        new_source%constant_source_value = input%constant_source_value
       end if
 
-      if(new_source%fwhm_x > 0.0_rk .and. new_source%fwhm_y <= 0.0_rk) then
-        new_source%constant_in_y = .true.
-      else if(new_source%fwhm_y > 0.0_rk .and. new_source%fwhm_x <= 0.0_rk) then
-        new_source%constant_in_x = .true.
-      end if
-    end select
+      select case(new_source%source_geometry)
+      case('uniform')
+        ! case('constant_xy', '1d_gaussian', '2d_gaussian')
+      case('constant_xy', '1d_gaussian')
+        ! Get the cell centroid data since the source is position dependant
+        new_source%centroid_x => grid%centroid_x
+        new_source%centroid_y => grid%centroid_y
+      case default
+        call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
+             module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
+      end select
 
-    allocate(new_source%data, mold=grid%centroid_x)
-    new_source%data = 0.0_rk
-  end select
+      ! Determine the extents of the source term (if any)
+      select case(new_source%source_geometry)
+      case('constant_xy')
+        new_source%xlo = input%source_xlo / l_0
+        new_source%xhi = input%source_xhi / l_0
+        new_source%ylo = input%source_ylo / l_0
+        new_source%yhi = input%source_yhi / l_0
+      case('1d_gaussian', '2d_gaussian')
+        new_source%x_center = input%source_center_x / l_0
+        new_source%y_center = input%source_center_y / l_0
+        new_source%fwhm_x = input%source_gaussian_fwhm_x / l_0
+        new_source%fwhm_y = input%source_gaussian_fwhm_y / l_0
+        new_source%gaussian_order = input%source_gaussian_order
+
+        if(new_source%gaussian_order < 1) then
+          call error_msg(message="Source term gaussian order is invalid (< 1)", &
+             module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
+        end if
+
+        if(new_source%fwhm_x > 0.0_rk .and. new_source%fwhm_y <= 0.0_rk) then
+          new_source%constant_in_y = .true.
+        else if(new_source%fwhm_y > 0.0_rk .and. new_source%fwhm_x <= 0.0_rk) then
+          new_source%constant_in_x = .true.
+        end if
+      end select
+
+      allocate(new_source%data, mold=grid%centroid_x)
+      new_source%data = 0.0_rk
+    end select
   end function new_source
 
   subroutine read_input_file(self)
