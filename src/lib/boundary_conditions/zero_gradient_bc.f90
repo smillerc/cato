@@ -66,51 +66,57 @@ contains
 
       select case(self%location)
       case('+x')
-        if(enable_debug_print) then
-          call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', &
-                           __FILE__, __LINE__)
+        if(rho%on_ihi_bc) then
+          if(enable_debug_print) then
+            call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', &
+                            __FILE__, __LINE__)
+          end if
+          do i = 1, self%n_ghost_layers
+            rho%data(right_ghost(i), :) = rho%data(right - (i - 1), :)
+            u%data(right_ghost(i), :) = u%data(right - (i - 1), :)
+            v%data(right_ghost(i), :) = v%data(right - (i - 1), :)
+            p%data(right_ghost(i), :) = p%data(right - (i - 1), :)
+          end do
         end if
-        do i = 1, self%n_ghost_layers
-          rho%data(right_ghost(i), :) = rho%data(right - (i - 1), :)
-          u%data(right_ghost(i), :) = u%data(right - (i - 1), :)
-          v%data(right_ghost(i), :) = v%data(right - (i - 1), :)
-          p%data(right_ghost(i), :) = p%data(right - (i - 1), :)
-        end do
-
       case('-x')
-        if(enable_debug_print) then
-          call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -x', &
-                           __FILE__, __LINE__)
+        if(rho%on_ilo_bc) then
+          if(enable_debug_print) then
+            call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -x', &
+                            __FILE__, __LINE__)
+          end if
+          do i = 1, self%n_ghost_layers
+            rho%data(left_ghost(i), :) = rho%data(left + (i - 1), :)
+            u%data(left_ghost(i), :) = u%data(left + (i - 1), :)
+            v%data(left_ghost(i), :) = v%data(left + (i - 1), :)
+            p%data(left_ghost(i), :) = p%data(left + (i - 1), :)
+          end do
         end if
-        do i = 1, self%n_ghost_layers
-          rho%data(left_ghost(i), :) = rho%data(left + (i - 1), :)
-          u%data(left_ghost(i), :) = u%data(left + (i - 1), :)
-          v%data(left_ghost(i), :) = v%data(left + (i - 1), :)
-          p%data(left_ghost(i), :) = p%data(left + (i - 1), :)
-        end do
-
       case('+y')
-        if(enable_debug_print) then
-          call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', &
-                           __FILE__, __LINE__)
+        if(rho%on_jhi_bc) then
+          if(enable_debug_print) then
+            call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', &
+                            __FILE__, __LINE__)
+          end if
+          do i = 1, self%n_ghost_layers
+            rho%data(:, top_ghost(i)) = rho%data(:, top - (i - 1))
+            u%data(:, top_ghost(i)) = u%data(:, top - (i - 1))
+            v%data(:, top_ghost(i)) = v%data(:, top - (i - 1))
+            p%data(:, top_ghost(i)) = p%data(:, top - (i - 1))
+          end do
         end if
-        do i = 1, self%n_ghost_layers
-          rho%data(:, top_ghost(i)) = rho%data(:, top - (i - 1))
-          u%data(:, top_ghost(i)) = u%data(:, top - (i - 1))
-          v%data(:, top_ghost(i)) = v%data(:, top - (i - 1))
-          p%data(:, top_ghost(i)) = p%data(:, top - (i - 1))
-        end do
       case('-y')
-        if(enable_debug_print) then
-          call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', &
-                           __FILE__, __LINE__)
+        if(rho%on_jlo_bc) then
+          if(enable_debug_print) then
+            call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', &
+                            __FILE__, __LINE__)
+          end if
+          do i = 1, self%n_ghost_layers
+            rho%data(:, bottom_ghost(i)) = rho%data(:, bottom + (i - 1))
+            u%data(:, bottom_ghost(i)) = u%data(:, bottom + (i - 1))
+            v%data(:, bottom_ghost(i)) = v%data(:, bottom + (i - 1))
+            p%data(:, bottom_ghost(i)) = p%data(:, bottom + (i - 1))
+          end do
         end if
-        do i = 1, self%n_ghost_layers
-          rho%data(:, bottom_ghost(i)) = rho%data(:, bottom + (i - 1))
-          u%data(:, bottom_ghost(i)) = u%data(:, bottom + (i - 1))
-          v%data(:, bottom_ghost(i)) = v%data(:, bottom + (i - 1))
-          p%data(:, bottom_ghost(i)) = p%data(:, bottom + (i - 1))
-        end do
       case default
         error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc()"
       end select

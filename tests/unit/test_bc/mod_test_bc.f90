@@ -595,6 +595,121 @@ contains
     write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_symmetry]"
   end subroutine test_symmetry
 
+  subroutine test_zero_gradient()
+    !< Test the periodic boundary condition
+    class(boundary_condition_t), pointer :: bc_plus_x
+    class(boundary_condition_t), pointer :: bc_plus_y
+    class(boundary_condition_t), pointer :: bc_minus_x
+    class(boundary_condition_t), pointer :: bc_minus_y
+    
+    integer(ik) :: i, j
+
+    if(this_image() == 1) print*, new_line('') // "Running test_zero_gradient" // new_line('')
+    input%plus_x_bc = 'zero_gradient'
+    input%plus_y_bc = 'zero_gradient'
+    input%minus_x_bc = 'zero_gradient'
+    input%minus_y_bc = 'zero_gradient'
+    
+    bc_plus_x => bc_factory(bc_type='zero_gradient', location='+x', input=input, grid=grid, time=0.0_rk)
+    bc_plus_y => bc_factory(bc_type='zero_gradient', location='+y', input=input, grid=grid, time=0.0_rk)
+    bc_minus_x => bc_factory(bc_type='zero_gradient', location='-x', input=input, grid=grid, time=0.0_rk)
+    bc_minus_y => bc_factory(bc_type='zero_gradient', location='-y', input=input, grid=grid, time=0.0_rk)
+
+    call assert_equal('+x', bc_plus_x%location)
+    call assert_equal('+y', bc_plus_y%location)
+    call assert_equal('-x', bc_minus_x%location)
+    call assert_equal('-y', bc_minus_y%location)
+
+    call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
+    call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
+    call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
+    call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
+
+    !    Expected domain after periodic BCs are applied
+    !    |---|---||---|---|---|---||---|---|
+    ! 6  | 0 | 0 || 4 | 7 | 7 | 3 || 0 | 0 | <- j=6; aka top_ghost (grid%ubounds_halo(2))
+    !    |---|---||---|---|---|---||---|---|
+    ! 5  | 0 | 0 || 4 | 7 | 7 | 3 || 0 | 0 |
+    !    |===|===||===|===|===|===||===|===|
+    ! 4  | 4 | 4 || 4 | 7 | 7 | 3 || 3 | 3 | <- j=4; aka top (grid%ubounds(2))
+    !    |---|---||---|---|---|---||---|---|
+    ! 3  | 8 | 8 || 8 | 9 | 9 | 6 || 6 | 6 |
+    !    |---|---||---|---|---|---||---|---|
+    ! 2  | 8 | 8 || 8 | 9 | 9 | 6 || 6 | 6 |
+    !    |---|---||---|---|---|---||---|---|
+    ! 1  | 1 | 1 || 1 | 5 | 5 | 2 || 2 | 2 | <- j=1; aka bottom (grid%lbounds(2))
+    !    |===|===||===|===|===|===||===|===|
+    ! 0  | 0 | 0 || 1 | 5 | 5 | 2 || 0 | 0 |
+    !    |---|---||---|---|---|---||---|---|
+    ! -1 | 0 | 0 || 1 | 5 | 5 | 2 || 0 | 0 | <- j=-1; aka bottom_ghost (grid%lbounds_halo(2))
+    !    |---|---||---|---|---|---||---|---|
+    !     -1   0    1   2   3   4    5   6
+
+    ! Now test the results
+    associate(left => grid%lbounds(1), right => grid%ubounds(1), &
+              bottom => grid%lbounds(2), top => grid%ubounds(2), &
+              left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
+              bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
+
+      select case(num_images())
+      case(4)
+        select case(this_image())
+        case(1) ! lower left image
+          call assert_equal([1.0_rk, 8.0_rk], rho%data(left_ghost, bottom:top))
+          call assert_equal([1.0_rk, 8.0_rk], rho%data(left_ghost + 1, bottom:top))
+          call assert_equal([1.0_rk, 5.0_rk], rho%data(left:right, bottom_ghost + 1))
+          call assert_equal([1.0_rk, 5.0_rk], rho%data(left:right, bottom_ghost))
+        case(2) ! lower right image
+          call assert_equal([2.0_rk, 6.0_rk], rho%data(right_ghost, bottom:top))
+          call assert_equal([2.0_rk, 6.0_rk], rho%data(right_ghost - 1, bottom:top))
+          call assert_equal([5.0_rk, 2.0_rk], rho%data(left:right, bottom_ghost + 1))
+          call assert_equal([5.0_rk, 2.0_rk], rho%data(left:right, bottom_ghost))
+        case(3) ! upper left image
+          call assert_equal([8.0_rk, 4.0_rk], rho%data(left_ghost, bottom:top))
+          call assert_equal([8.0_rk, 4.0_rk], rho%data(left_ghost + 1, bottom:top))
+          call assert_equal([4.0_rk, 7.0_rk], rho%data(left:right, top_ghost))
+          call assert_equal([4.0_rk, 7.0_rk], rho%data(left:right, top_ghost - 1))
+        case(4) ! upper right image
+          call assert_equal([6.0_rk, 3.0_rk], rho%data(right_ghost, bottom:top))
+          call assert_equal([6.0_rk, 3.0_rk], rho%data(right_ghost - 1, bottom:top))
+          call assert_equal([7.0_rk, 3.0_rk], rho%data(left:right, top_ghost))
+          call assert_equal([7.0_rk, 3.0_rk], rho%data(left:right, top_ghost - 1))
+        end select
+      case(1)
+        ! bottom ghost layers
+        bottom_row = [0.0_rk, 0.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 0.0_rk, 0.0_rk]
+        call assert_equal(bottom_row, rho%data(:, bottom_ghost + 1))
+        call assert_equal(bottom_row, rho%data(:, bottom_ghost))
+
+        ! top ghost layer
+        top_row = [0.0_rk, 0.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 0.0_rk, 0.0_rk]
+        call assert_equal(top_row, rho%data(:, top_ghost))
+        call assert_equal(top_row, rho%data(:, top_ghost - 1))
+
+        ! right ghost layer
+        right_col = [0.0_rk, 0.0_rk, 2.0_rk, 6.0_rk, 6.0_rk, 3.0_rk, 0.0_rk, 0.0_rk]
+        call assert_equal(right_col, rho%data(right_ghost - 1, :))
+        call assert_equal(right_col, rho%data(right_ghost, :))
+
+        ! left ghost layer
+        left_col = [0.0_rk, 0.0_rk, 1.0_rk, 8.0_rk, 8.0_rk, 4.0_rk, 0.0_rk, 0.0_rk]
+        call assert_equal(left_col, rho%data(left_ghost + 1, :))
+        call assert_equal(left_col, rho%data(left_ghost, :))
+      case default
+        error stop "Test failed. This is only configured to test for 1 or 4 images"
+      end select
+
+    end associate
+
+    deallocate(bc_plus_x)
+    deallocate(bc_plus_y)
+    deallocate(bc_minus_x)
+    deallocate(bc_minus_y)
+
+    sync all
+    write(*, '(a, i0, a)') "Image: ", this_image(), " Success" // " [test_periodic_all]"
+  end subroutine test_zero_gradient
+
   function gather(f, image)
     !< Performs a gather of field data to image.
     class(field_2d_t), intent(in) :: f
