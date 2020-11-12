@@ -1,8 +1,6 @@
 # --------------------------------------------------------------------------------------------------
-# ----------------------------
 # Add a CTest unit test that uses coarrays
 # --------------------------------------------------------------------------------------------------
-# ----------------------------
 function(add_caf_test test_target)
 
   # Get the function arguments
@@ -17,7 +15,7 @@ function(add_caf_test test_target)
     target_compile_options(${test_target} PUBLIC -coarray-num-images=${TEST_N_IMAGES})
   endif()
 
-  target_link_libraries(${test_target} ${TEST_LINK_LIBRARIES} ${Coarray_LIBRARIES})
+  target_link_libraries(${test_target} PRIVATE ${TEST_LINK_LIBRARIES} ${Coarray_LIBRARIES})
 
   # This sets it to build_dir/bin, e.g. project/build/bin
   set(test_dir ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
@@ -28,19 +26,16 @@ function(add_caf_test test_target)
   elseif(TARGET build_${test_target})
     get_target_property(MIN_TEST_IMGS build_${test_target} MIN_IMAGES)
   endif()
+
   if(MIN_TEST_IMGS)
     if(TEST_N_IMAGES LESS MIN_TEST_IMGS)
-      message(
-        FATAL_ERROR
+      message(FATAL_ERROR
           "Test ${test_target} requires ${MIN_TEST_IMGS} but was only given ${num_caf_images}")
     endif()
   endif()
 
   if(((NUM_IMAGES LESS TEST_N_IMAGES) OR (NUM_IMAGES EQUAL 0)))
-    message(
-      STATUS
-        "Test ${test_target} is oversubscribed: ${TEST_N_IMAGES} CAF images requested with ${NUM_IMAGES} system processor available."
-    )
+    message(STATUS "Test ${test_target} is oversubscribed: ${TEST_N_IMAGES} CAF images requested with ${NUM_IMAGES} system processor available.")
     if(openmpi)
       if(MIN_TEST_IMGS)
         set(TEST_N_IMAGES ${MIN_TEST_IMGS})
@@ -48,10 +43,7 @@ function(add_caf_test test_target)
         set(TEST_N_IMAGES 2)
       endif()
       set(test_parameters --oversubscribe)
-      message(
-        STATUS
-          "Open-MPI back end detected, passing --oversubscribe for oversubscribed test, ${test_target}, with ${TEST_N_IMAGES} ranks/images."
-      )
+      message(STATUS "Open-MPI back end detected, passing --oversubscribe for oversubscribed test, ${test_target}, with ${TEST_N_IMAGES} ranks/images.")
     endif()
   endif()
 
@@ -70,9 +62,7 @@ function(add_caf_test test_target)
     add_test(NAME ${test_target} COMMAND "{test_target}" WORKING_DIRECTORY "${test_dir}")
   endif()
 
-  # Each test must end with a print*, "Test passed." to succeed
+  # Each test must end with a print*, "Success." (or some variant) to succeed
   set_property(TEST ${test_target} PROPERTY PASS_REGULAR_EXPRESSION "Success")
-  set_property (TEST ${test_target}
-  PROPERTY FAIL_REGULAR_EXPRESSION "Test failure"
-  )
+  set_property (TEST ${test_target} PROPERTY FAIL_REGULAR_EXPRESSION "Test failure")
 endfunction(add_caf_test)

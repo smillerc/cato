@@ -1,25 +1,21 @@
 # Determine and set the Fortran compiler flags we want
 
 # Make sure the build type is uppercase
-string(TOUPPER "${CMAKE_BUILD_TYPE}" BT)
-message(STATUS "Build type: ${BT}")
+# string(TOUPPER "${CMAKE_BUILD_TYPE}" BT)
+# message(STATUS "Build type: ${BT}")
 
-if(BT STREQUAL "RELEASE")
-  set(CMAKE_BUILD_TYPE
-      RELEASE
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
-elseif(BT STREQUAL "DEBUG")
-  set(CMAKE_BUILD_TYPE
-      DEBUG
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
-elseif(NOT BT)
-  set(CMAKE_BUILD_TYPE
-      RELEASE
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
-  message(STATUS "CMAKE_BUILD_TYPE not given, defaulting to RELEASE")
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are Release or Debug or RelWithDebInfo" FORCE)
+elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING  "Choose the type of build, options are Release or Debug or RelWithDebInfo" FORCE)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING  "Choose the type of build, options are Release or Debug or RelWithDebInfo" FORCE)
+elseif(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING  "Choose the type of build, options are Release or Debug or RelWithDebInfo" FORCE)
+  message(STATUS "CMAKE_BUILD_TYPE not given, defaulting to Debug")
 else()
-  message(FATAL_ERROR "CMAKE_BUILD_TYPE not valid, choices are DEBUG or RELEASE")
-endif(BT STREQUAL "RELEASE")
+  message(FATAL_ERROR "CMAKE_BUILD_TYPE not valid, choices are are Release or Debug or RelWithDebInfo")
+endif(BT STREQUAL "Release")
 
 # Determine the host architecture, e.g. Intel Kabylake, and optimize for it
 include(OptimizeForArchitecture)
@@ -110,3 +106,5 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   endif()
 
 endif()
+
+set(CMAKE_Fortran_FLAGS_RELWITHDEBINFO "-g ${CMAKE_Fortran_FLAGS_RELEASE}")
