@@ -62,7 +62,11 @@ tests/integrated/**/boundary_pressure_input_value.dat
 # VS code settings
 .vscode/settings.json
 
+*.pvts
+*.vtk
+*.vts
 *.pvsm
+
 *.pyc
 *.avi
 scripts/sandbox.ipynb
