@@ -35,19 +35,32 @@ contains
     end if
     call field%zero_out_halo
 
-    associate(ilo => field%lbounds(1), ihi => field%ubounds(1), &
-              jlo => field%lbounds(2), jhi => field%ubounds(2), &
-              ilo_halo => field%lbounds_halo(1), ihi_halo => field%ubounds_halo(1), &
-              jlo_halo => field%lbounds_halo(2), jhi_halo => field%ubounds_halo(2), &
-              nh => field%n_halo_cells, &
-              neighbors => field%neighbors)
-
-      if(this_image() == 2) then
-        do j = jhi_halo, jlo_halo, -1
-          write(*, '( 100(f4.1, 1x))') field%data(:, j)
-        end do
-      end if
-    end associate
+    !      Domain used for halo exchange testing (8x8 grid)
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 || 0 | 0 |
+    !    |===|===||===|===|===|===|===|===|===|===||===|===|
+    !    | 0 | 0 || 3 | 3 | 3 | 3 | 4 | 4 | 4 | 4 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 3 | 3 | 3 | 3 | 4 | 4 | 4 | 4 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 3 | 3 | 3 | 3 | 4 | 4 | 4 | 4 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 3 | 3 | 3 | 3 | 4 | 4 | 4 | 4 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 1 | 1 | 1 | 1 | 2 | 2 | 2 | 2 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 1 | 1 | 1 | 1 | 2 | 2 | 2 | 2 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 1 | 1 | 1 | 1 | 2 | 2 | 2 | 2 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 1 | 1 | 1 | 1 | 2 | 2 | 2 | 2 || 0 | 0 | 
+    !    |===|===||===|===|===|===|===|===|===|===||===|===|
+    !    | 0 | 0 || 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 || 0 | 0 |
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
+    !    | 0 | 0 || 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 || 0 | 0 | 
+    !    |---|---||---|---|---|---|---|---|---|---||---|---|
 
     call field%sync_edges()
     associate(ilo => field%lbounds(1), ihi => field%ubounds(1), &
@@ -63,6 +76,92 @@ contains
           write(*, '( 100(f4.1, 1x))') field%data(:, j)
         end do
       end if
+
+      select case(this_image())
+      case(1)
+        ! jhi
+        call assert_equal([0.0_rk, 0.0_rk, 3.0_rk, 3.0_rk, 3.0_rk, 3.0_rk, 4.0_rk, 4.0_rk], &
+                          field%data(ilo_halo:ihi_halo, jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal([0.0_rk, 0.0_rk, 3.0_rk, 3.0_rk, 3.0_rk, 3.0_rk, 4.0_rk, 4.0_rk], &
+                          field%data(ilo_halo:ihi_halo, jhi_halo - 1), file=__FILE__, line=__LINE__)
+
+        ! ihi
+        call assert_equal(2.0_rk, &
+                          field%data(ihi_halo, jlo:jhi), file=__FILE__, line=__LINE__)
+        call assert_equal(2.0_rk, &
+                          field%data(ihi_halo - 1, jlo:jhi), file=__FILE__, line=__LINE__)
+        
+        ! jlo
+        call assert_equal(0.0_rk, field%data(ilo_halo:ihi_halo, jlo_halo), file=__FILE__, line=__LINE__)
+        call assert_equal(0.0_rk, field%data(ilo_halo:ihi_halo, jlo_halo + 1), file=__FILE__, line=__LINE__)
+        
+        ! ilo
+        call assert_equal(0.0_rk, field%data(ilo_halo, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal(0.0_rk, field%data(ilo_halo + 1, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+
+      case(2)
+        ! jhi
+        call assert_equal([3.0_rk, 3.0_rk, 4.0_rk, 4.0_rk, 4.0_rk, 4.0_rk, 0.0_rk, 0.0_rk], &
+                          field%data(ilo_halo:ihi_halo, jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal([3.0_rk, 3.0_rk, 4.0_rk, 4.0_rk, 4.0_rk, 4.0_rk, 0.0_rk, 0.0_rk], &
+                          field%data(ilo_halo:ihi_halo, jhi_halo - 1), file=__FILE__, line=__LINE__)
+
+        ! ihi
+        call assert_equal(0.0_rk, field%data(ihi_halo, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal(0.0_rk, field%data(ihi_halo - 1, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        
+        ! jlo
+        call assert_equal(0.0_rk, field%data(ilo_halo:ihi_halo, jlo_halo), file=__FILE__, line=__LINE__)
+        call assert_equal(0.0_rk, field%data(ilo_halo:ihi_halo, jlo_halo + 1), file=__FILE__, line=__LINE__)
+        
+        ! ilo
+        call assert_equal([0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk, 3.0_rk, 3.0_rk], &
+                          field%data(ilo_halo, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal([0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk, 3.0_rk, 3.0_rk], &
+                          field%data(ilo_halo + 1, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+
+      case(3)
+        ! jhi
+        call assert_equal(0.0_rk, field%data(ilo_halo:ihi_halo, jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal(0.0_rk, field%data(ilo_halo:ihi_halo, jhi_halo - 1), file=__FILE__, line=__LINE__)
+
+        ! ihi
+        call assert_equal([2.0_rk, 2.0_rk, 4.0_rk, 4.0_rk, 4.0_rk, 4.0_rk, 0.0_rk, 0.0_rk], &
+                          field%data(ihi_halo, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal([2.0_rk, 2.0_rk, 4.0_rk, 4.0_rk, 4.0_rk, 4.0_rk, 0.0_rk, 0.0_rk], &
+                          field%data(ihi_halo - 1, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        
+        ! jlo
+        call assert_equal([0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk, 2.0_rk, 2.0_rk], &
+                          field%data(ilo_halo:ihi_halo, jlo_halo), file=__FILE__, line=__LINE__)
+        call assert_equal([0.0_rk, 0.0_rk, 1.0_rk, 1.0_rk, 1.0_rk, 1.0_rk, 2.0_rk, 2.0_rk], &
+                          field%data(ilo_halo:ihi_halo, jlo_halo + 1), file=__FILE__, line=__LINE__)
+        
+        ! ilo
+        call assert_equal(0.0_rk, field%data(ilo_halo, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal(0.0_rk, field%data(ilo_halo + 1, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+      case(4)
+        ! jhi
+        call assert_equal(0.0_rk, field%data(ilo_halo:ihi_halo, jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal(0.0_rk, field%data(ilo_halo:ihi_halo, jhi_halo - 1), file=__FILE__, line=__LINE__)
+
+        ! ihi
+        call assert_equal(0.0_rk, field%data(ihi_halo, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal(0.0_rk, field%data(ihi_halo - 1, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        
+        ! jlo
+        call assert_equal([1.0_rk, 1.0_rk, 2.0_rk, 2.0_rk, 2.0_rk, 2.0_rk, 0.0_rk, 0.0_rk], &
+                          field%data(ilo_halo:ihi_halo, jlo_halo), file=__FILE__, line=__LINE__)
+        call assert_equal([1.0_rk, 1.0_rk, 2.0_rk, 2.0_rk, 2.0_rk, 2.0_rk, 0.0_rk, 0.0_rk], &
+                          field%data(ilo_halo:ihi_halo, jlo_halo + 1), file=__FILE__, line=__LINE__)
+        
+        ! ilo
+        call assert_equal([1.0_rk, 1.0_rk, 3.0_rk, 3.0_rk, 3.0_rk, 3.0_rk, 0.0_rk, 0.0_rk], &
+                          field%data(ilo_halo, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+        call assert_equal([1.0_rk, 1.0_rk, 3.0_rk, 3.0_rk, 3.0_rk, 3.0_rk, 0.0_rk, 0.0_rk], &
+                          field%data(ilo_halo + 1, jlo_halo:jhi_halo), file=__FILE__, line=__LINE__)
+      end select
+
     end associate
 
     sync all

@@ -531,7 +531,7 @@ contains
     real(rk), dimension(:, :), allocatable, save :: lower_left_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
     real(rk), dimension(:, :), allocatable, save :: lower_right_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
 
-    if(enable_debug_print) call debug_print('Running sync_edges ', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running field_2d_t()%sync_edges ', __FILE__, __LINE__)
     sync_stat = 0
     sync_err_msg = ''
 
@@ -828,7 +828,7 @@ contains
     !< Cleanup the field_2d_t object
     type(field_2d_t), intent(inout) :: self
 
-    if(enable_debug_print) call debug_print('Running field_2d_t%finalize() for "'//self%name//'"', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running field_2d_t%finalize()', __FILE__, __LINE__)
 
     if(allocated(self%data)) deallocate(self%data)
     if(allocated(self%units)) deallocate(self%units)
@@ -892,11 +892,12 @@ contains
     call lhs%sync_edges()
   end subroutine assign_field
 
-  pure subroutine assign_real_scalar(lhs, a)
+  subroutine assign_real_scalar(lhs, a)
     !< Implementation of the (=) operator from a real scalar
     class(field_2d_t), intent(inout) :: lhs !< left-hand-side of the operation
     real(rk), intent(in) :: a
     lhs%data = a
+    call lhs%sync_edges()
   end subroutine assign_real_scalar
 
   ! --------------------------------------------------------------------
