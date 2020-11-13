@@ -15,7 +15,7 @@ elseif(NOT CMAKE_BUILD_TYPE)
   message(STATUS "CMAKE_BUILD_TYPE not given, defaulting to Debug")
 else()
   message(FATAL_ERROR "CMAKE_BUILD_TYPE not valid, choices are are Release or Debug or RelWithDebInfo")
-endif(BT STREQUAL "Release")
+endif()
 
 # Determine the host architecture, e.g. Intel Kabylake, and optimize for it
 include(OptimizeForArchitecture)
