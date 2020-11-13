@@ -279,12 +279,12 @@ contains
     select case(var)
     case('x', 'y')
 
-      ni = self%global_dims(1) + 1 + (self%n_halo_cells * 2) ! the +1 is b/c of nodes vs cells
-      nj = self%global_dims(2) + 1 + (self%n_halo_cells * 2) ! the +1 is b/c of nodes vs cells
+      ni = self%global_dims(1) + 1 ! the +1 is b/c of nodes vs cells
+      nj = self%global_dims(2) + 1 ! the +1 is b/c of nodes vs cells
       allocate(gather_coarray(ni, nj)[*])
       ! Allocate the node-based arrays (thus the + 1 in the ilo/ihi)
-      associate(ilo => self%lbounds_halo(1), ihi => self%ubounds_halo(1) + 1, &
-                jlo => self%lbounds_halo(2), jhi => self%ubounds_halo(2) + 1)
+      associate(ilo => self%lbounds(1), ihi => self%ubounds(1) + 1, &
+                jlo => self%lbounds(2), jhi => self%ubounds(2) + 1)
 
         select case(var)
         case('x')
@@ -299,18 +299,18 @@ contains
 
     case('volume')
 
-      ni = self%global_dims(1) + (self%n_halo_cells * 2)
-      nj = self%global_dims(2) + (self%n_halo_cells * 2)
+      ni = self%global_dims(1)
+      nj = self%global_dims(2)
       allocate(gather_coarray(ni, nj)[*])
-      associate(ilo => self%lbounds_halo(1), ihi => self%ubounds_halo(1), &
-                jlo => self%lbounds_halo(2), jhi => self%ubounds_halo(2))
+      associate(ilo => self%lbounds(1), ihi => self%ubounds(1), &
+                jlo => self%lbounds(2), jhi => self%ubounds(2))
         gather_coarray(ilo:ihi, jlo:jhi)[image] = self%volume(ilo:ihi, jlo:jhi)
         sync all
         if(this_image() == image) gather = gather_coarray
       end associate
     end select
 
-    deallocate(gather_coarray)
+    if (allocated(gather_coarray)) deallocate(gather_coarray)
   end function gather
 
   subroutine populate_element_specifications(self)

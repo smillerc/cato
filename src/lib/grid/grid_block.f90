@@ -47,6 +47,7 @@ module mod_grid_block
     integer(ik), dimension(:), allocatable :: neighbors !< (direction); neighbor image
   contains
     procedure(initialize), deferred :: initialize
+    procedure(gather), deferred :: gather
   end type grid_block_t
 
   abstract interface
@@ -55,6 +56,14 @@ module mod_grid_block
       class(grid_block_t), intent(inout) :: self
       class(input_t), intent(in) :: input
     end subroutine
+
+    function gather(self, var, image)
+      import :: grid_block_t, ik, rk
+      class(grid_block_t), intent(in) :: self
+      integer(ik), intent(in) :: image
+      character(len=*), intent(in) :: var
+      real(rk), allocatable, dimension(:, :) :: gather
+    end function
   end interface
 contains
 
