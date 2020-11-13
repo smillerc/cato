@@ -64,6 +64,7 @@ module mod_master_puppeteer
     procedure, public :: initialize
     procedure, public :: integrate
     procedure, public :: set_time
+    procedure, public :: get_timestep
     final :: finalize
   end type
 
@@ -170,27 +171,25 @@ contains
     end if
 
     self%iteration = self%iteration + 1
-
-    ! Get the maximum allowable timestep from each physics package
-    select type(grid => self%grid)
-    class is(grid_block_2d_t)
-      min_dt = self%fluid%get_timestep(self%grid)
-    end select
+    min_dt = self%get_timestep()
 
     if(self%dt > min_dt) then
-      write(*, '(a,i0,a,2(es16.6,a))') "Warning on image ", this_image(), &
-        ", the input dt (", self%dt, &
-        ") is larger than the max allowable dt (", min_dt, &
-        ") based on the CFL condition"
+      if (this_image() == 1) then
+        write(*, '(a,i0,a,2(es16.6,a))') "Warning, the input dt (", self%dt, &
+          ") is larger than the max allowable dt (", min_dt, &
+          ") based on the CFL condition"
+      endif
     else
       self%dt = min_dt
     end if
 
     self%time = self%time + self%dt
+
     if(self%do_source_terms) call self%source_term%integrate(dt=dt)
 
     select type(grid => self%grid)
     class is(grid_block_2d_t)
+
       call self%fluid%integrate(dt=self%dt, source_term=self%source_term, &
                                 grid=self%grid, error_code=error_code)
     end select
@@ -198,7 +197,13 @@ contains
   end subroutine integrate
 
   real(rk) function get_timestep(self) result(dt)
+    !< Get the maximum allowable timestep from each physics package
     class(master_puppeteer_t), intent(inout) :: self
+    
+    select type(grid => self%grid)
+    class is(grid_block_2d_t)
+      dt = self%fluid%get_timestep(self%grid)
+    end select
   end function
 
   subroutine set_time(self, time, iteration)

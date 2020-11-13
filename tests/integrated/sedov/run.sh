@@ -3,7 +3,6 @@
 export I_MPI_REMOVED_VAR_WARNING=0
 export I_MPI_VAR_CHECK_SPELLING=0
 export FOR_COARRAY_NUM_IMAGES=1
-export OMP_NUM_THREADS=6
 
 cato_dir=../../../build
 run_dir=`pwd`
@@ -17,7 +16,7 @@ rm -rf step*
 cd ${cato_dir} && make -j && \
     cd ${run_dir} && \
     cp ${cato_dir}/bin/cato.x . &&\
-    cafrun -np 2 ./cato.x input.ini
+    cafrun -np ${FOR_COARRAY_NUM_IMAGES} ./cato.x input.ini
 
 if [ -f "std.err" ]; then
     echo

@@ -111,6 +111,7 @@ module mod_fluid
     procedure :: ssp_rk_2_2
     procedure :: ssp_rk_3_3
     procedure :: ssp_rk_4_3
+    procedure :: sync_fields
     procedure :: get_continuity_sensor
 
     ! Operators
@@ -277,6 +278,7 @@ contains
     self%mach_v = self%v / self%cs
     self%mach_u = self%u / self%cs
     self%prim_vars_updated = .true.
+    call self%sync_fields()
   end subroutine initialize
 
   subroutine initialize_from_hdf5(self, input)
@@ -514,6 +516,21 @@ contains
     end select
   end subroutine integrate
 
+  subroutine sync_fields(self)
+    class(fluid_t), intent(inout) :: self
+
+    call self%rho%sync_edges() 
+    call self%u%sync_edges() 
+    call self%v%sync_edges() 
+    call self%p%sync_edges() 
+    ! call rho_u %sync_edges() 
+    ! call rho_v %sync_edges() 
+    ! call rho_E %sync_edges() 
+    ! call cs    %sync_edges() 
+    ! call mach_u%sync_edges()
+    ! call mach_v%sync_edges()
+  end subroutine
+
   function time_derivative(self, grid, source_term, stage) result(d_dt)
     !< Implementation of the time derivative
     class(fluid_t), intent(inout) :: self
@@ -528,6 +545,7 @@ contains
 
     select type(grid)
     class is(grid_block_2d_t)
+      call self%sync_fields()
       call self%solver%solve(dt=self%dt, grid=grid, &
                              rho=self%rho, u=self%u, v=self%v, p=self%p, &
                              d_rho_dt=d_dt%rho, &
@@ -979,43 +997,4 @@ contains
     close(io)
 
   end subroutine write_residual_history
-
-  subroutine apply_bc(self)
-    !< Apply the boundary conditions
-    class(fluid_t), intent(inout) :: self
-    integer(ik) :: priority
-    integer(ik) :: max_priority_bc !< highest goes first
-
-    if(enable_debug_print) call debug_print('Running flux_solver_t%apply()', __FILE__, __LINE__)
-
-    max_priority_bc = max(self%bc_plus_x%priority, self%bc_plus_y%priority, &
-                          self%bc_minus_x%priority, self%bc_minus_y%priority)
-
-    call self%bc_plus_x%set_time(time=self%time)
-    call self%bc_minus_x%set_time(time=self%time)
-    call self%bc_plus_y%set_time(time=self%time)
-    call self%bc_minus_y%set_time(time=self%time)
-
-    do priority = max_priority_bc, 0, -1
-
-      if(self%bc_plus_x%priority == priority) then
-        call self%bc_plus_x%apply(rho=self%rho, u=self%u, v=self%v, p=self%p)
-      end if
-
-      if(self%bc_plus_y%priority == priority) then
-        call self%bc_plus_y%apply(rho=self%rho, u=self%u, v=self%v, p=self%p)
-      end if
-
-      if(self%bc_minus_x%priority == priority) then
-        call self%bc_minus_x%apply(rho=self%rho, u=self%u, v=self%v, p=self%p)
-      end if
-
-      if(self%bc_minus_y%priority == priority) then
-        call self%bc_minus_y%apply(rho=self%rho, u=self%u, v=self%v, p=self%p)
-      end if
-
-    end do
-
-  end subroutine apply_bc
-
 end module mod_fluid

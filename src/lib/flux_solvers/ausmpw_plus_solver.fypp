@@ -150,7 +150,7 @@ contains
     edge_interpolator => muscl_interpolator_factory(self%input)
 
     ! This is useful if e-MLP is used
-    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p)
+    ! call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p)
 
     call edge_interpolator%interpolate_edge_values(q=rho, i_edges=rho_i_edges, j_edges=rho_j_edges)
     call edge_interpolator%interpolate_edge_values(q=u, i_edges=u_i_edges, j_edges=u_j_edges)

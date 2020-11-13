@@ -20,6 +20,7 @@
 
 module mod_pressure_input_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use mod_error, only: error_msg
   use mod_globals, only: enable_debug_print, debug_print
   use mod_field, only: field_2d_t
   use mod_grid_block_2d, only: grid_block_2d_t
@@ -350,18 +351,17 @@ contains
           end do
 
           do i = 1, self%n_ghost_layers
-            print*, 'desired_boundary_pressure', desired_boundary_pressure
-            print*, 'self%ihi_ghost(i)', self%ihi_ghost(i)
-            print*, 'self%edge_p(bottom:top)', self%edge_p(bottom:top)
             rho%data(self%ihi_ghost(i), bottom:top) = self%edge_rho(bottom:top)
             u%data(self%ihi_ghost(i), bottom:top) = self%edge_u(bottom:top)
             v%data(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
             p%data(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
           end do
-        end if
+        end if ! on_ihi_bc
       case default
-        error stop "Unsupported location to apply the bc at in "// &
-          "pressure_input_bc_t%apply_pressure_input_primitive_var_bc()"
+        call error_msg(module_name='mod_pressure_bc', class_name='pressure_input_bc_t', &
+                       procedure_name='apply_pressure_input_primitive_var_bc', &
+                       message="Unsupported pressure_bc location '" // self%location // "'", &
+                       file_name=__FILE__, line_number=__LINE__)
       end select
 
     end associate

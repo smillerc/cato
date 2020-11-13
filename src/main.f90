@@ -65,12 +65,12 @@ program cato
     write(std_out, '(a)') "|  `----. /  _____  \   |  |     |  `--'  |"
     write(std_out, '(a)') " \______|/__/     \__\  |__|      \______/ "
     write(std_out, '(a)')
-    write(std_out, '(a, i0, a)') "Running with ", num_images(), " coarray images"
+    write(std_out, '(a, i0, a)') "Running with ", num_images(), " Coarray images"
+#ifdef USE_OPENMP
+    write(std_out, '(a, i0, a)') "Running with ", omp_get_max_threads(), " OpenMP threads"
+#endif /* USE_OPENMP */
   endif
 
-#ifdef USE_OPENMP
-  write(std_out, '(a, i0, a)') "Running with ", omp_get_max_threads(), " OpenMP threads"
-#endif /* USE_OPENMP */
 
   call open_debug_files()
   call print_version_stats()
@@ -103,7 +103,7 @@ program cato
     iteration = master%iteration
   else
     next_output_time = next_output_time + contour_interval_dt
-    call contour_writer%write_contour(master, time, iteration)
+    call contour_writer%write_contour(master, iteration)
   end if
 
   if(this_image() == 1) then
@@ -122,7 +122,7 @@ program cato
       delta_t = input%initial_delta_t / t_0
       write(std_out, '(a, es10.3)') "Starting timestep (given via input, not calculated):", delta_t
     else
-      delta_t = 0.1_rk * get_timestep(cfl=input%cfl, master=master)
+      delta_t = 0.1_rk * master%get_timestep()
     endif
   end if
 
@@ -132,12 +132,11 @@ program cato
     write(std_out, '(a, es10.3)') "Starting time:", time
     write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
   endif
+
   do while(time < max_time .and. iteration < input%max_iterations)
 
-    if(this_image() == 1) then
-      write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
+    if(this_image() == 1) write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
         ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
-    endif
 
     ! Integrate in time
     if(input%use_constant_delta_t) then
@@ -145,13 +144,14 @@ program cato
     else
       call master%integrate(error_code=error_code)
     endif
+
     delta_t = master%dt
     time = master%time
 
     if(error_code /= ALL_OK) then
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
-      call contour_writer%write_contour(master, time, iteration)
+      call contour_writer%write_contour(master, iteration)
       error stop 1
     end if
 
@@ -162,18 +162,19 @@ program cato
         write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
           next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
       endif
-      call contour_writer%write_contour(master, time, iteration)
+      call contour_writer%write_contour(master, iteration)
       last_io_iteration = iteration
     end if
 
     ! Check for overshoots in the time for contour I/O. This will shore up the
     ! next time to exactly match the contour interval
     if(new_time > next_output_time) then
+      print*, 'new_time > next_output_time', new_time, time, delta_t
       delta_t = abs(next_output_time - time)
       new_time = time + delta_t
     end if
-
     time = new_time
+
     iteration = iteration + 1
     call timer%log_time(iteration, delta_t)
   end do
@@ -181,7 +182,7 @@ program cato
   call timer%stop()
 
   ! One final contour output (if necessary)
-  if(iteration > last_io_iteration) call contour_writer%write_contour(master, time, iteration)
+  if(iteration > last_io_iteration) call contour_writer%write_contour(master, iteration)
 
   deallocate(master)
 
