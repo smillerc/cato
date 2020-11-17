@@ -146,7 +146,7 @@ program cato
     endif
 
     delta_t = master%dt
-    time = master%time
+    new_time = master%time
 
     if(error_code /= ALL_OK) then
       write(std_error, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
@@ -169,7 +169,6 @@ program cato
     ! Check for overshoots in the time for contour I/O. This will shore up the
     ! next time to exactly match the contour interval
     if(new_time > next_output_time) then
-      print*, 'new_time > next_output_time', new_time, time, delta_t
       delta_t = abs(next_output_time - time)
       new_time = time + delta_t
     end if

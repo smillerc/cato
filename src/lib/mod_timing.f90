@@ -109,19 +109,21 @@ contains
     integer(ik) :: i, unit
     integer(ik), dimension(2) :: units
 
-    open(newunit=io, file='timing_summary.yaml', status='replace')
-    units = [io, std_out]
+    if (this_image() == 1) then
+      open(newunit=io, file='timing_summary.yaml', status='replace')
+      units = [io, std_out]
 
-    do i = 1, size(units)
-      unit = units(i)
-      write(unit, '(a, es10.3)') "Total elapsed wall time [s]:", self%elapsed_walltime
-      write(unit, '(a, es10.3)') "Total elapsed wall time [m]:", self%elapsed_walltime / 60.0_rk
-      write(unit, '(a, es10.3)') "Total elapsed wall time [hr]:", self%elapsed_walltime / 3600.0_rk
-      write(unit, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
-      write(unit, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
-      write(unit, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
-    end do
-    close(io)
+      do i = 1, size(units)
+        unit = units(i)
+        write(unit, '(a, es10.3)') "Total elapsed wall time [s]:", self%elapsed_walltime
+        write(unit, '(a, es10.3)') "Total elapsed wall time [m]:", self%elapsed_walltime / 60.0_rk
+        write(unit, '(a, es10.3)') "Total elapsed wall time [hr]:", self%elapsed_walltime / 3600.0_rk
+        write(unit, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
+        write(unit, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
+        write(unit, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
+      end do
+      close(io)
+    end if
   end subroutine
 
   real(rk) function get_timestep(cfl, master) result(delta_t)
