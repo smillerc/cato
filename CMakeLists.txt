@@ -49,12 +49,6 @@ if(USE_OPENMP_THREADS OR USE_OPENMP_SIMD)
   find_package(OpenMP REQUIRED Fortran)
 endif()
 
-option(USE_OPENMP_THREADS "Enable OpenMP parallelization" OFF)
-option(USE_OPENMP_SIMD "Enable OpenMP SIMD vectorization" OFF)
-if(USE_OPENMP_THREADS OR USE_OPENMP_SIMD)
-  find_package(OpenMP REQUIRED Fortran)
-endif()
-
 # Procedures can't be pure if there is an omp parallel block, but they
 # can be if it's only SIMD, so we add a definition here to turn pure
 # on for certain functions if threading is off
@@ -141,8 +135,10 @@ message("USE_OPENMP_THREADS: ${USE_OPENMP_THREADS}")
 message("USE_OPENMP_SIMD: ${USE_OPENMP_SIMD}")
 if(OPENMP_FOUND)
   message("OpenMP")
-  message("  Version      : ${OpenMP_Fortran_VERSION}")
-  message("  Libraries    : ${OpenMP_Fortran_FLAGS}")
+  message("  Version   : ${OpenMP_Fortran_VERSION}")
+  message("  SIMD      : ${USE_OPENMP_SIMD}")
+  message("  Threading : ${USE_OPENMP_THREADS}")
+
   message("")
 endif()
 

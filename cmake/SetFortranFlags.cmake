@@ -50,18 +50,14 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -fimplicit-none -fbacktrace \
  -fcheck=all -ffpe-trap=zero,overflow,invalid,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE
-      "-O3 -ftree-vectorize -funroll-loops -finline-functions -march=native -mtune=native")
+  set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftree-vectorize -funroll-loops -finline-functions -march=native -mtune=native")
 
   if(USE_ASAN)
-    set(CMAKE_Fortran_FLAGS
-        "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address -fno-omit-frame-pointer -fopt-info-all"
-    )
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address -fno-omit-frame-pointer -fopt-info-all")
   endif()
 
   if(USE_TSAN)
-    set(CMAKE_Fortran_FLAGS
-        "${CMAKE_Fortran_FLAGS} -fsanitize=thread -fno-omit-frame-pointer -fopt-info-all")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fsanitize=thread -fno-omit-frame-pointer -fopt-info-all")
   endif()
 
   if(OUTPUT_OPTIMIZATION_REPORTS)
@@ -78,11 +74,13 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   set(IFORT_FLAGS
       "-fpp -inline-max-size=300 -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -assume contiguous_assumed_shape -diag-disable 5268 -diag-disable 7025 -diag-disable 8770 -diag-disable 6477 ${Coarray_COMPILE_OPTIONS}"
   )
-  # set(IFORT_FLAGS "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770
-  # ${Coarray_COMPILE_OPTIONS}" )
 
-  if(USE_OPENMP)
-    set(IFORT_FLAGS "${IFORT_FLAGS} ${OpenMP_Fortran_FLAGS}")
+  if(USE_OPENMP_THREADS)
+    set(IFORT_FLAGS "${IFORT_FLAGS} -qopenmp")
+    endif()
+    
+  if(USE_OPENMP_SIMD)
+    set(IFORT_FLAGS "${IFORT_FLAGS} -qopenmp-simd")
   endif()
 
   # Fortran 2018 standards check based on the version
