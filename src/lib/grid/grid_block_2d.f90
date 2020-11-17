@@ -3,6 +3,7 @@ module mod_grid_block_2d
   use iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_grid_block, only: grid_block_t
   use mod_input, only: input_t
+  use mod_globals, only: debug_print
   use mod_parallel, only: tile_indices
   use h5fortran, only: hdf5_file, hsize_t
   use mod_quad_cell, only: quad_cell_t
@@ -223,13 +224,16 @@ contains
     call h5%shape('/x', dims)
     allocate(x(dims(1), dims(2)))
 
-    call h5%read(dname='/x', value=x)
-    self%node_x = x(self%lbounds_halo(1) + self%n_halo_cells:self%ubounds_halo(1) + self%n_halo_cells + 1, &
-                    self%lbounds_halo(2) + self%n_halo_cells:self%ubounds_halo(2) + self%n_halo_cells + 1)
+    associate(ilo => self%lbounds_halo(1), ihi => self%ubounds_halo(1), &
+              jlo => self%lbounds_halo(2), jhi => self%ubounds_halo(2), &
+              nh => self%n_halo_cells)
+      call h5%read(dname='/x', value=x)
+      self%node_x(ilo:ihi+1, jlo:jhi+1) = x(ilo+nh:ihi+1+nh, jlo+nh:jhi+1+nh)
+  
+      call h5%read(dname='/y', value=x)
+      self%node_y(ilo:ihi+1, jlo:jhi+1) = x(ilo+nh:ihi+1+nh, jlo+nh:jhi+1+nh)
+    end associate
 
-    call h5%read(dname='/y', value=x)
-    self%node_y = x(self%lbounds_halo(1) + self%n_halo_cells:self%ubounds_halo(1) + self%n_halo_cells + 1, &
-                    self%lbounds_halo(2) + self%n_halo_cells:self%ubounds_halo(2) + self%n_halo_cells + 1)
 
     if(input%restart_from_file) then
       call h5%readattr('/x', 'units', str_buff)
@@ -272,20 +276,34 @@ contains
     character(len=*), intent(in) :: var
     real(rk), allocatable, dimension(:, :) :: gather
     real(rk), allocatable :: gather_coarray(:, :)[:]
-    integer(ik) :: ni, nj
+    integer(ik) :: ni, nj, ilo, ihi, jlo, jhi, alloc_stat
+    character(len=200) :: alloc_err_msg !< syncronization error message (if any)
+    sync all
+    alloc_err_msg = ''
 
     ! This will have halo regions write over themselves, but this shouldn't be a problem b/c
     ! they are the same
     select case(var)
     case('x', 'y')
-
+      call debug_print('Running grid_block_2d_t%gather() ' // var, __FILE__, __LINE__)
       ni = self%global_dims(1) + 1 ! the +1 is b/c of nodes vs cells
       nj = self%global_dims(2) + 1 ! the +1 is b/c of nodes vs cells
-      allocate(gather_coarray(ni, nj)[*])
-      ! Allocate the node-based arrays (thus the + 1 in the ilo/ihi)
-      associate(ilo => self%lbounds(1), ihi => self%ubounds(1) + 1, &
-                jlo => self%lbounds(2), jhi => self%ubounds(2) + 1)
 
+      allocate(gather_coarray(ni, nj)[*], stat=alloc_stat, errmsg=alloc_err_msg)
+      if (allocated(gather)) deallocate(gather)
+      allocate(gather(ni,nj))
+
+      if(alloc_stat /= 0) then
+        call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                       procedure_name='apply_periodic_primitive_var_bc', &
+                       message="Unable to allocate , alloc_err_msg: '"//trim(alloc_err_msg)//"'", &
+                       file_name=__FILE__, line_number=__LINE__)
+      end if
+
+      ilo = self%lbounds(1)
+      ihi = self%ubounds(1) + 1
+      jlo = self%lbounds(2)
+      jhi = self%ubounds(2) + 1
         select case(var)
         case('x')
           gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_x(ilo:ihi, jlo:jhi)
@@ -295,13 +313,16 @@ contains
 
         sync all
         if(this_image() == image) gather = gather_coarray
-      end associate
 
     case('volume')
-
+      call debug_print('Running grid_block_2d_t%gather() volume', __FILE__, __LINE__)
       ni = self%global_dims(1)
       nj = self%global_dims(2)
+      
       allocate(gather_coarray(ni, nj)[*])
+      if (allocated(gather)) deallocate(gather)
+      allocate(gather(ni,nj))
+
       associate(ilo => self%lbounds(1), ihi => self%ubounds(1), &
                 jlo => self%lbounds(2), jhi => self%ubounds(2))
         gather_coarray(ilo:ihi, jlo:jhi)[image] = self%volume(ilo:ihi, jlo:jhi)

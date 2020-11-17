@@ -1,6 +1,10 @@
-add_pfunit_ctest(vector_tests TEST_SOURCES test_vector.pf LINK_LIBRARIES geometry)
+# Since we test this unit with 1 image and 4 images, make a library that will
+# be used by both
+add_library(mod_test_grid mod_test_grid.f90)
+target_link_libraries(mod_test_grid PRIVATE caf_testing cato ${Coarray_LIBRARIES})
 
-add_pfunit_ctest(quad_element_tests TEST_SOURCES test_quad_cell.pf LINK_LIBRARIES geometry)
+# Add the single image version test
+add_caf_test(test_grid_1_image N_IMAGES 1 SOURCES test_grid.f90 LINK_LIBRARIES mod_test_grid)
 
-add_pfunit_ctest(intersection_tests TEST_SOURCES test_intersections.pf LINK_LIBRARIES geometry)
-
+# Add the 4 image version test
+add_caf_test(test_grid_4_image N_IMAGES 4 SOURCES test_grid.f90 LINK_LIBRARIES mod_test_grid)
