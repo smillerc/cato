@@ -365,11 +365,11 @@ contains
     call h5%finalize()
 
     associate(ilo => self%rho%lbounds(1), ihi => self%rho%ubounds(1), &
-              jlo => self%rho%lbounds(2), jhi => self%rho%ubounds(2))
-      self%rho%data(ilo:ihi, jlo:jhi) = density(ilo:ihi, jlo:jhi)
-      self%u%data(ilo:ihi, jlo:jhi) = x_velocity(ilo:ihi, jlo:jhi)
-      self%v%data(ilo:ihi, jlo:jhi) = y_velocity(ilo:ihi, jlo:jhi)
-      self%p%data(ilo:ihi, jlo:jhi) = pressure(ilo:ihi, jlo:jhi)
+              jlo => self%rho%lbounds(2), jhi => self%rho%ubounds(2), nh => self%rho%n_halo_cells)
+      self%rho%data(ilo:ihi, jlo:jhi) =  density(ilo+nh:ihi+nh, jlo+nh:jhi+nh)
+      self%u%data(ilo:ihi, jlo:jhi) = x_velocity(ilo+nh:ihi+nh, jlo+nh:jhi+nh)
+      self%v%data(ilo:ihi, jlo:jhi) = y_velocity(ilo+nh:ihi+nh, jlo+nh:jhi+nh)
+      self%p%data(ilo:ihi, jlo:jhi) =   pressure(ilo+nh:ihi+nh, jlo+nh:jhi+nh)
     end associate
 
     call self%rho%make_non_dimensional(non_dim_factor=rho_0)
