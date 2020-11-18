@@ -81,7 +81,7 @@ contains
         endif
 
       case('-x')
-        if (rho%on_ilo_bc) then
+        if(rho%on_ilo_bc) then
           if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
 
           ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
@@ -93,7 +93,7 @@ contains
           end do
         end if
       case('+y')
-        if (rho%on_jhi_bc) then
+        if(rho%on_jhi_bc) then
           if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
 
           ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
@@ -105,7 +105,7 @@ contains
           end do
         end if
       case('-y')
-        if (rho%on_jlo_bc) then
+        if(rho%on_jlo_bc) then
           if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
 
           ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain

@@ -109,7 +109,7 @@ contains
     integer(ik) :: i, unit
     integer(ik), dimension(2) :: units
 
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       open(newunit=io, file='timing_summary.yaml', status='replace')
       units = [io, std_out]
 

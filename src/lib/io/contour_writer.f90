@@ -145,7 +145,7 @@ contains
     character(50) :: char_buff
 
     time = master%time
-    
+
     write(char_buff, '(a,i0.7)') 'step_', iteration
     self%hdf5_filename = trim(char_buff)//'.h5'
     self%xdmf_filename = trim(char_buff)//'.xdmf'
@@ -200,7 +200,6 @@ contains
     integer(ik), dimension(:, :), allocatable :: int_data_buffer
 
     real(rk), allocatable :: int_gather_coarray(:, :)[:]
-    
 
     time_w_dims = time * io_time_units * t_0
     delta_t_w_dims = master%dt * t_0
@@ -242,27 +241,27 @@ contains
 
     ! Node Data
     dataset_name = '/x'
-    
-    
     io_data_buffer = master%grid%gather(var='x', image=1)
-    if (this_image() == 1) then
-      call self%write_2d_real_data(data=io_data_buffer * l_0 * io_length_units, name='/x', description='X Coordinate', units=trim(io_length_label))
+    if(this_image() == 1) then
+      io_data_buffer = io_data_buffer * l_0 * io_length_units
+      call self%write_2d_real_data(data=io_data_buffer, name='/x', description='X Coordinate', units=trim(io_length_label))
     end if
 
     dataset_name = '/y'
     io_data_buffer = master%grid%gather(var='y', image=1)
-    if (this_image() == 1) then
-      call self%write_2d_real_data(data=io_data_buffer * l_0 * io_length_units, name='/y', description='Y Coordinate', units=trim(io_length_label))
+    if(this_image() == 1) then
+      io_data_buffer = io_data_buffer * l_0 * io_length_units
+      call self%write_2d_real_data(data=io_data_buffer, name='/y', description='Y Coordinate', units=trim(io_length_label))
     end if
-    
-    if (allocated(io_data_buffer)) deallocate(io_data_buffer)
-    
+
+    if(allocated(io_data_buffer)) deallocate(io_data_buffer)
+
     ! Cell Data
     ilo = 1
     ihi = master%grid%global_dims(1)
     jlo = 1
     jhi = master%grid%global_dims(2)
-    if (this_image() == 1) allocate(int_data_buffer(ilo:ihi, jlo:jhi))
+    if(this_image() == 1) allocate(int_data_buffer(ilo:ihi, jlo:jhi))
 
     ! ! if(self%plot_ghost_cells) then
     ! !   ! Write a simple flag to tag ghost cells
@@ -280,20 +279,20 @@ contains
     dataset_name = '/image_id'
     allocate(int_gather_coarray(master%fluid%rho%global_dims(1), master%fluid%rho%global_dims(2))[*])
     associate(ilo => master%fluid%rho%lbounds(1), ihi => master%fluid%rho%ubounds(1), &
-             jlo => master%fluid%rho%lbounds(2), jhi => master%fluid%rho%ubounds(2))
+              jlo => master%fluid%rho%lbounds(2), jhi => master%fluid%rho%ubounds(2))
 
       int_gather_coarray(ilo:ihi, jlo:jhi)[1] = master%fluid%rho%host_image_id
       sync all
     end associate
-    
+
     if(this_image() == 1) then
-        int_data_buffer = int_gather_coarray
-        call self%write_2d_integer_data(data=int_data_buffer, name='/image_id', &
-                                        description='Coarray Image Index', units='dimensionless')
+      int_data_buffer = int_gather_coarray
+      call self%write_2d_integer_data(data=int_data_buffer, name='/image_id', &
+                                      description='Coarray Image Index', units='dimensionless')
     endif
     deallocate(int_gather_coarray)
 
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       dataset_name = '/i'
       int_data_buffer = 0
       do i = ilo, ihi
@@ -301,21 +300,20 @@ contains
       end do
 
       call self%write_2d_integer_data(data=int_data_buffer, name='/i', &
-                                    description='Cell i Index', units='dimensionless')
+                                      description='Cell i Index', units='dimensionless')
     endif
 
-    
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       dataset_name = '/j'
       int_data_buffer = 0
       do j = jlo, jhi
         int_data_buffer(:, j) = j
       end do
       call self%write_2d_integer_data(data=int_data_buffer, name='/j', &
-                                    description='Cell j Index', units='dimensionless')
+                                      description='Cell j Index', units='dimensionless')
     endif
 
-    if (allocated(int_data_buffer)) deallocate(int_data_buffer)
+    if(allocated(int_data_buffer)) deallocate(int_data_buffer)
 
     ! call self%write_2d_integer_data(data=master%fluid%continuous_sensor(ilo:ihi, jlo:jhi), name='/continuity_sensor', &
     !                            description='Continuity Sensor [0=continuous, 1=linear discontinuity, 2=non-linear discontinuity]', &
@@ -324,34 +322,34 @@ contains
     ! Primitive Variables
     dataset_name = '/density'
     io_data_buffer = master%fluid%rho%gather(image=1)
-    if (this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * rho_0 * io_density_units, name='/density', &
-                                 description='Cell Density', units=trim(io_density_label))
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * rho_0 * io_density_units, name='/density', &
+                                                       description='Cell Density', units=trim(io_density_label))
 
     dataset_name = '/x_velocity'
     io_data_buffer = master%fluid%u%gather(image=1)
-    if (this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/x_velocity', &
-                                 description='Cell X Velocity', units=trim(io_velocity_label))
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/x_velocity', &
+                                                       description='Cell X Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
     io_data_buffer = master%fluid%v%gather(image=1)
-    if (this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/y_velocity', &
-                                 description='Cell Y Velocity', units=trim(io_velocity_label))
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/y_velocity', &
+                                                       description='Cell Y Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/pressure'
     io_data_buffer = master%fluid%p%gather(image=1)
-    if (this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * p_0 * io_pressure_units, name='/pressure', &
-                                 description='Cell Pressure', units=trim(io_pressure_label))
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * p_0 * io_pressure_units, name='/pressure', &
+                                                       description='Cell Pressure', units=trim(io_pressure_label))
 
     dataset_name = '/sound_speed'
     io_data_buffer = master%fluid%cs%gather(image=1)
-    if (this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/sound_speed', &
-                                 description='Cell Sound Speed', units=trim(io_velocity_label))
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/sound_speed', &
+                                                       description='Cell Sound Speed', units=trim(io_velocity_label))
     ! Volume
     dataset_name = '/volume'
     io_data_buffer = master%grid%gather(var='volume', image=1)
-    
-    if (this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * (l_0*l_0) * io_volume_units, name='/volume', &
-                                 description='Cell Volume', units=trim(io_volume_label))
+
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * (l_0 * l_0) * io_volume_units, name='/volume', &
+                                                       description='Cell Volume', units=trim(io_volume_label))
 
     if(allocated(int_data_buffer)) deallocate(int_data_buffer)
     if(allocated(io_data_buffer)) deallocate(io_data_buffer)

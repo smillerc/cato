@@ -238,14 +238,13 @@ contains
     real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
     real(rk), dimension(2) :: boundary_norm
 
-    
-    if (rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
-        rho%on_jhi_bc .or. rho%on_jlo_bc) then
+    if(rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
+       rho%on_jhi_bc .or. rho%on_jlo_bc) then
 
       gamma = eos%get_gamma()
       inflow = .false.
       outflow = .false.
-  
+
       boundary_prim_vars = 0.0_rk
       desired_boundary_pressure = self%get_desired_pressure()
       desired_boundary_density = self%get_desired_density()
@@ -265,7 +264,7 @@ contains
 
       select case(self%location)
       case('+x', '-x')
-        if (rho%on_ihi_bc .or. rho%on_ilo_bc) then
+        if(rho%on_ihi_bc .or. rho%on_ilo_bc) then
           allocate(self%edge_rho(bottom_ghost:top_ghost))
           allocate(self%edge_u(bottom_ghost:top_ghost))
           allocate(self%edge_v(bottom_ghost:top_ghost))
@@ -276,7 +275,7 @@ contains
           allocate(domain_p(bottom_ghost:top_ghost))
         end if
       case('+y', '-y')
-        if (rho%on_jhi_bc .or. rho%on_jlo_bc) then
+        if(rho%on_jhi_bc .or. rho%on_jlo_bc) then
           allocate(self%edge_rho(left_ghost:right_ghost))
           allocate(self%edge_u(left_ghost:right_ghost))
           allocate(self%edge_v(left_ghost:right_ghost))
@@ -288,8 +287,8 @@ contains
         end if
       end select
 
-      if (rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
-          rho%on_jhi_bc .or. rho%on_jlo_bc) then
+      if(rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
+         rho%on_jhi_bc .or. rho%on_jlo_bc) then
         self%edge_rho = 0.0_rk
         self%edge_u = 0.0_rk
         self%edge_v = 0.0_rk
@@ -303,10 +302,10 @@ contains
 
       select case(self%location)
       case('+x')
-        if (rho%on_ihi_bc) then
+        if(rho%on_ihi_bc) then
           if(enable_debug_print) then
             call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', &
-                            __FILE__, __LINE__)
+                             __FILE__, __LINE__)
           end if
 
           domain_rho = rho%data(right, bottom_ghost:top_ghost)
@@ -327,8 +326,8 @@ contains
               if(mach_u > 0.0_rk) then ! outlet
                 if(mach_u <= 1.0_rk .or. maxval(domain_p(bottom:top)) < desired_boundary_pressure) then
                   boundary_prim_vars = subsonic_outlet(domain_prim_vars=domain_prim_vars, &
-                                                      exit_pressure=desired_boundary_pressure, &
-                                                      boundary_norm=boundary_norm)
+                                                       exit_pressure=desired_boundary_pressure, &
+                                                       boundary_norm=boundary_norm)
                 else
                   boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
                 end if
@@ -360,7 +359,7 @@ contains
       case default
         call error_msg(module_name='mod_pressure_bc', class_name='pressure_input_bc_t', &
                        procedure_name='apply_pressure_input_primitive_var_bc', &
-                       message="Unsupported pressure_bc location '" // self%location // "'", &
+                       message="Unsupported pressure_bc location '"//self%location//"'", &
                        file_name=__FILE__, line_number=__LINE__)
       end select
 

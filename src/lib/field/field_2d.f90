@@ -583,10 +583,10 @@ contains
       ! the # of halo cells >= 1, we need to account for variable sizes.
 
       ! send the ihi edge data to the ilo edge of the neighbor on the ihi side
-      ilo_edge(:,:)[neighbors(ihi_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jhi)
-      ihi_edge(:,:)[neighbors(ilo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jhi)
-      jhi_edge(:,:)[neighbors(jlo_neighbor)] = self%data(ilo:ihi, jlo:jlo + nh - 1)
-      jlo_edge(:,:)[neighbors(jhi_neighbor)] = self%data(ilo:ihi, jhi - nh + 1:jhi)
+      ilo_edge(:, :)[neighbors(ihi_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jhi)
+      ihi_edge(:, :)[neighbors(ilo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jhi)
+      jhi_edge(:, :)[neighbors(jlo_neighbor)] = self%data(ilo:ihi, jlo:jlo + nh - 1)
+      jlo_edge(:, :)[neighbors(jhi_neighbor)] = self%data(ilo:ihi, jhi - nh + 1:jhi)
 
       ilo_jhi_corner(:, :)[neighbors(ihi_jlo_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1)
       ilo_jlo_corner(:, :)[neighbors(ihi_jhi_neighbor)] = self%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi)

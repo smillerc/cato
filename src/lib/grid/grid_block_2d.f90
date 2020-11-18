@@ -228,12 +228,11 @@ contains
               jlo => self%lbounds_halo(2), jhi => self%ubounds_halo(2), &
               nh => self%n_halo_cells)
       call h5%read(dname='/x', value=x)
-      self%node_x(ilo:ihi+1, jlo:jhi+1) = x(ilo+nh:ihi+1+nh, jlo+nh:jhi+1+nh)
-  
-      call h5%read(dname='/y', value=x)
-      self%node_y(ilo:ihi+1, jlo:jhi+1) = x(ilo+nh:ihi+1+nh, jlo+nh:jhi+1+nh)
-    end associate
+      self%node_x(ilo:ihi + 1, jlo:jhi + 1) = x(ilo + nh:ihi + 1 + nh, jlo + nh:jhi + 1 + nh)
 
+      call h5%read(dname='/y', value=x)
+      self%node_y(ilo:ihi + 1, jlo:jhi + 1) = x(ilo + nh:ihi + 1 + nh, jlo + nh:jhi + 1 + nh)
+    end associate
 
     if(input%restart_from_file) then
       call h5%readattr('/x', 'units', str_buff)
@@ -285,13 +284,13 @@ contains
     ! they are the same
     select case(var)
     case('x', 'y')
-      call debug_print('Running grid_block_2d_t%gather() ' // var, __FILE__, __LINE__)
+      call debug_print('Running grid_block_2d_t%gather() '//var, __FILE__, __LINE__)
       ni = self%global_dims(1) + 1 ! the +1 is b/c of nodes vs cells
       nj = self%global_dims(2) + 1 ! the +1 is b/c of nodes vs cells
 
       allocate(gather_coarray(ni, nj)[*], stat=alloc_stat, errmsg=alloc_err_msg)
-      if (allocated(gather)) deallocate(gather)
-      allocate(gather(ni,nj))
+      if(allocated(gather)) deallocate(gather)
+      allocate(gather(ni, nj))
 
       if(alloc_stat /= 0) then
         call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
@@ -304,24 +303,24 @@ contains
       ihi = self%ubounds(1) + 1
       jlo = self%lbounds(2)
       jhi = self%ubounds(2) + 1
-        select case(var)
-        case('x')
-          gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_x(ilo:ihi, jlo:jhi)
-        case('y')
-          gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_y(ilo:ihi, jlo:jhi)
-        end select
+      select case(var)
+      case('x')
+        gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_x(ilo:ihi, jlo:jhi)
+      case('y')
+        gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_y(ilo:ihi, jlo:jhi)
+      end select
 
-        sync all
-        if(this_image() == image) gather = gather_coarray
+      sync all
+      if(this_image() == image) gather = gather_coarray
 
     case('volume')
       call debug_print('Running grid_block_2d_t%gather() volume', __FILE__, __LINE__)
       ni = self%global_dims(1)
       nj = self%global_dims(2)
-      
+
       allocate(gather_coarray(ni, nj)[*])
-      if (allocated(gather)) deallocate(gather)
-      allocate(gather(ni,nj))
+      if(allocated(gather)) deallocate(gather)
+      allocate(gather(ni, nj))
 
       associate(ilo => self%lbounds(1), ihi => self%ubounds(1), &
                 jlo => self%lbounds(2), jhi => self%ubounds(2))
@@ -331,7 +330,7 @@ contains
       end associate
     end select
 
-    if (allocated(gather_coarray)) deallocate(gather_coarray)
+    if(allocated(gather_coarray)) deallocate(gather_coarray)
   end function gather
 
   subroutine populate_element_specifications(self)

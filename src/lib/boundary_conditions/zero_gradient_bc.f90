@@ -76,7 +76,7 @@ contains
         if(rho%on_ihi_bc) then
           if(enable_debug_print) then
             call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', &
-                            __FILE__, __LINE__)
+                             __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
             rho%data(right_ghost(i), :) = rho%data(right, :)
@@ -89,7 +89,7 @@ contains
         if(rho%on_ilo_bc) then
           if(enable_debug_print) then
             call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -x', &
-                            __FILE__, __LINE__)
+                             __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
             rho%data(left_ghost(i), :) = rho%data(left, :)
@@ -102,7 +102,7 @@ contains
         if(rho%on_jhi_bc) then
           if(enable_debug_print) then
             call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', &
-                            __FILE__, __LINE__)
+                             __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
             rho%data(:, top_ghost(i)) = rho%data(:, top)
@@ -115,7 +115,7 @@ contains
         if(rho%on_jlo_bc) then
           if(enable_debug_print) then
             call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', &
-                            __FILE__, __LINE__)
+                             __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
             rho%data(:, bottom_ghost(i)) = rho%data(:, bottom)

@@ -174,7 +174,7 @@ contains
     min_dt = self%get_timestep()
 
     if(self%dt > min_dt) then
-      if (this_image() == 1) then
+      if(this_image() == 1) then
         write(*, '(a,i0,a,2(es16.6,a))') "Warning, the input dt (", self%dt, &
           ") is larger than the max allowable dt (", min_dt, &
           ") based on the CFL condition"
@@ -199,7 +199,7 @@ contains
   real(rk) function get_timestep(self) result(dt)
     !< Get the maximum allowable timestep from each physics package
     class(master_puppeteer_t), intent(inout) :: self
-    
+
     select type(grid => self%grid)
     class is(grid_block_2d_t)
       dt = self%fluid%get_timestep(self%grid)

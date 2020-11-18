@@ -60,7 +60,7 @@ contains
     case default
       call error_msg(module_name='mod_bc_factory', &
                      procedure_name='bc_factory', &
-                     message="Unsupported boundary condition type in bc_factory: '" // trim(bc_type) // "'", &
+                     message="Unsupported boundary condition type in bc_factory: '"//trim(bc_type)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
 

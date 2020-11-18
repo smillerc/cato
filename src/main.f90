@@ -71,7 +71,6 @@ program cato
 #endif /* USE_OPENMP */
   endif
 
-
   call open_debug_files()
   call print_version_stats()
   call get_command_argument(1, command_line_arg)
@@ -136,7 +135,7 @@ program cato
   do while(time < max_time .and. iteration < input%max_iterations)
 
     if(this_image() == 1) write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
-        ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
+      ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
 
     ! Integrate in time
     if(input%use_constant_delta_t) then
