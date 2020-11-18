@@ -39,7 +39,7 @@ module mod_muscl_interpolator_factory
   use mod_muscl_tvd2, only: muscl_tvd2_t, new_muscl_tvd2
   ! use mod_muscl_tvd3, only: muscl_tvd3_t, new_muscl_tvd3
   ! use mod_muscl_tvd5, only: muscl_tvd5_t, new_muscl_tvd5
-  ! use mod_muscl_mlp, only: muscl_mlp_t, new_muscl_mlp
+  use mod_muscl_mlp, only: muscl_mlp_t, new_muscl_mlp
   ! use mod_muscl_e_mlp, only: muscl_e_mlp_t, new_muscl_e_mlp
 
   use mod_grid_block, only: grid_block_t
@@ -73,10 +73,10 @@ contains
       !   interpolator => new_muscl_tvd3(limiter=limiter)
       ! case('TVD5')
       !   interpolator => new_muscl_tvd5(limiter=limiter)
-      ! case('MLP3')
-      !   interpolator => new_muscl_mlp(limiter=limiter, order=3)
-      ! case('MLP5')
-      !   interpolator => new_muscl_mlp(limiter=limiter, order=5)
+      case('MLP3')
+        interpolator => new_muscl_mlp(limiter=limiter, order=3)
+      case('MLP5')
+        interpolator => new_muscl_mlp(limiter=limiter, order=5)
       ! case('e-MLP3')
       !   interpolator => new_muscl_e_mlp(limiter=limiter, order=3)
       ! case('e-MLP5')
