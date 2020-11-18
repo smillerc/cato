@@ -127,6 +127,11 @@ def load_single(file, drop_ghost=True, use_dask=True, var_list="all", ini_file=N
     h5 = h5py.File(file, "r")
 
     for v in var_list:
+        try:
+            h5[f"/{v}"].shape
+        except KeyError:
+            continue
+
         if use_dask:
             chunk_size = h5[f"/{v}"].shape
             array = da.from_array(h5[f"/{v}"], chunks=chunk_size)
