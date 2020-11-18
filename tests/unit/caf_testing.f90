@@ -2266,8 +2266,8 @@ end subroutine
     if(.not. correct) then
       write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
       write(*,'(a,i0)') "Image: ", this_image()
-      write(*,'(a,l)') "Desired Value: ", desired
-      write(*,'(a,l)') "Actual Value:  ", actual
+      write(*,'(a,l2)') "Desired Value: ", desired
+      write(*,'(a,l2)') "Actual Value:  ", actual
       error stop "Test failure"
     end if
   end subroutine 
@@ -2290,8 +2290,8 @@ end subroutine
         if(desired .neqv. actual(i1)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1)
+            write(*,'(a,l2)')      "Desired Value: ", desired
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1
             error stop "Test failure"
         end if
@@ -2321,8 +2321,8 @@ end subroutine
         if(desired(i1) .neqv. actual(i1)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired(i1)
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1)
+            write(*,'(a,l2)')      "Desired Value: ", desired(i1)
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1
             error stop "Test failure"
         end if
@@ -2349,8 +2349,8 @@ end subroutine
         if(desired .neqv. actual(i1,i2)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2)
+            write(*,'(a,l2)')      "Desired Value: ", desired
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2
             error stop "Test failure"
         end if
@@ -2382,8 +2382,8 @@ end subroutine
         if(desired(i1,i2) .neqv. actual(i1,i2)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired(i1,i2)
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2)
+            write(*,'(a,l2)')      "Desired Value: ", desired(i1,i2)
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2
             error stop "Test failure"
         end if
@@ -2412,8 +2412,8 @@ end subroutine
         if(desired .neqv. actual(i1,i2,i3)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2,i3)
+            write(*,'(a,l2)')      "Desired Value: ", desired
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2,i3)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2,i3
             error stop "Test failure"
         end if
@@ -2447,8 +2447,8 @@ end subroutine
         if(desired(i1,i2,i3) .neqv. actual(i1,i2,i3)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired(i1,i2,i3)
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2,i3)
+            write(*,'(a,l2)')      "Desired Value: ", desired(i1,i2,i3)
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2,i3)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2,i3
             error stop "Test failure"
         end if
@@ -2479,8 +2479,8 @@ end subroutine
         if(desired .neqv. actual(i1,i2,i3,i4)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2,i3,i4)
+            write(*,'(a,l2)')      "Desired Value: ", desired
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2,i3,i4)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2,i3,i4
             error stop "Test failure"
         end if
@@ -2516,8 +2516,8 @@ end subroutine
         if(desired(i1,i2,i3,i4) .neqv. actual(i1,i2,i3,i4)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired(i1,i2,i3,i4)
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2,i3,i4)
+            write(*,'(a,l2)')      "Desired Value: ", desired(i1,i2,i3,i4)
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2,i3,i4)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2,i3,i4
             error stop "Test failure"
         end if
@@ -2550,8 +2550,8 @@ end subroutine
         if(desired .neqv. actual(i1,i2,i3,i4,i5)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2,i3,i4,i5)
+            write(*,'(a,l2)')      "Desired Value: ", desired
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2,i3,i4,i5)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2,i3,i4,i5
             error stop "Test failure"
         end if
@@ -2589,8 +2589,8 @@ end subroutine
         if(desired(i1,i2,i3,i4,i5) .neqv. actual(i1,i2,i3,i4,i5)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired(i1,i2,i3,i4,i5)
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2,i3,i4,i5)
+            write(*,'(a,l2)')      "Desired Value: ", desired(i1,i2,i3,i4,i5)
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2,i3,i4,i5)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2,i3,i4,i5
             error stop "Test failure"
         end if
@@ -2625,8 +2625,8 @@ end subroutine
         if(desired .neqv. actual(i1,i2,i3,i4,i5,i6)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2,i3,i4,i5,i6)
+            write(*,'(a,l2)')      "Desired Value: ", desired
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2,i3,i4,i5,i6)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2,i3,i4,i5,i6
             error stop "Test failure"
         end if
@@ -2666,8 +2666,8 @@ end subroutine
         if(desired(i1,i2,i3,i4,i5,i6) .neqv. actual(i1,i2,i3,i4,i5,i6)) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired(i1,i2,i3,i4,i5,i6)
-            write(*,'(a,l)')      "Actual Value:  ", actual(i1,i2,i3,i4,i5,i6)
+            write(*,'(a,l2)')      "Desired Value: ", desired(i1,i2,i3,i4,i5,i6)
+            write(*,'(a,l2)')      "Actual Value:  ", actual(i1,i2,i3,i4,i5,i6)
             write(*, '(a,10(i0, 1x))') "At index:      ", i1,i2,i3,i4,i5,i6
             error stop "Test failure"
         end if
