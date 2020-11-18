@@ -282,8 +282,8 @@ end subroutine
     if(.not. correct) then
       write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
       write(*,'(a,i0)') "Image: ", this_image()
-      write(*,'(a,l)') "Desired Value: ", desired
-      write(*,'(a,l)') "Actual Value:  ", actual
+      write(*,'(a,l2)') "Desired Value: ", desired
+      write(*,'(a,l2)') "Actual Value:  ", actual
       error stop "Test failure"
     end if
     #:else
@@ -299,8 +299,8 @@ end subroutine
         if(desired${rankindex(RANK)}$ .neqv. actual${rankindex(ACTUAL_RANK)}$) then
           write(*,'((3(a), i0))') "Assertion Failure (=) in ", trim(file), ":", line
             write(*,'(a,i0)')     "Image:         ", this_image()
-            write(*,'(a,l)')      "Desired Value: ", desired${rankindex(RANK)}$
-            write(*,'(a,l)')      "Actual Value:  ", actual${rankindex(ACTUAL_RANK)}$
+            write(*,'(a,l2)')      "Desired Value: ", desired${rankindex(RANK)}$
+            write(*,'(a,l2)')      "Actual Value:  ", actual${rankindex(ACTUAL_RANK)}$
             write(*, '(a,10(i0, 1x))') "At index:      ", ${indexlist(ACTUAL_RANK)}$
             error stop "Test failure"
         end if

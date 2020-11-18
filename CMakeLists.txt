@@ -65,6 +65,9 @@ option(ENABLE_COARRAY "Build with coarrays enabled" OFF)
 option(ENABLE_COARRAY_SINGLE
        "Build with coarrays but only for a single image (useful for debugging)" OFF)
 option(BUILD_FOR_SHARED_MEMORY "Build for shared memory only (single node)" OFF)
+
+option(N_IMAGES "Number of coarray images to use" 0)
+
 option(BUILD_FOR_DISTRIBUTED_MEMORY "Build for distributed memory (multiple nodes)" OFF)
 option(OUTPUT_OPTIMIZATION_REPORTS "Turn on optimization reports" OFF)
 option(USE_ASAN "Enable GCC's address sanitizer to check for leaks" OFF)
@@ -155,6 +158,11 @@ message("ENABLE_COARRAY: ${ENABLE_COARRAY}")
 message("ENABLE_COARRAY_SINGLE: ${ENABLE_COARRAY_SINGLE}")
 message("BUILD_FOR_SHARED_MEMORY: ${BUILD_FOR_SHARED_MEMORY}")
 message("BUILD_FOR_DISTRIBUTED_MEMORY: ${BUILD_FOR_DISTRIBUTED_MEMORY}")
+
+if(N_IMAGES GREATER 0)
+  message("N_COARRAY_IMAGES: ${N_IMAGES}")
+endif()
+
 message("OUTPUT_OPTIMIZATION_REPORTS: ${OUTPUT_OPTIMIZATION_REPORTS}")
 message("USE_ASAN: ${USE_ASAN}")
 message("USE_TSAN: ${USE_TSAN}")
@@ -170,4 +178,6 @@ if(HDF5_FOUND)
   message("  Libraries     : ${HDF5_LIBRARIES}")
   message("")
 endif(HDF5_FOUND)
+
+message("Compiler Flags: ${CMAKE_Fortran_FLAGS}") 
 message("")

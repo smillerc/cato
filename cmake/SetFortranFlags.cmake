@@ -72,12 +72,32 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
   add_compile_definitions(__SIMD_ALIGN_OMP__)
   set(IFORT_FLAGS
-      "-fpp -inline-max-size=300 -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -assume contiguous_assumed_shape -diag-disable 5268 -diag-disable 7025 -diag-disable 8770 -diag-disable 6477 ${Coarray_COMPILE_OPTIONS}"
+      "-fpp -inline-max-size=300 \
+-align array${MEMORY_ALIGN_BYTES}byte \
+-fp-model source \
+-assume contiguous_assumed_shape \
+-diag-disable 5268 -diag-disable 7025 -diag-disable 8770 -diag-disable 6477"
   )
+
+  if(ENABLE_COARRAY)
+    if(ENABLE_COARRAY_SINGLE)
+      set(IFORT_FLAGS "${IFORT_FLAGS} -coarray=single")
+    elseif(BUILD_FOR_DISTRIBUTED_MEMORY)
+      set(IFORT_FLAGS "${IFORT_FLAGS} -coarray=distributed")
+    elseif(BUILD_FOR_SHARED_MEMORY)
+      set(IFORT_FLAGS "${IFORT_FLAGS} -coarray=shared")
+    else()
+      set(IFORT_FLAGS "${IFORT_FLAGS} -coarray")
+    endif()
+
+    if(N_IMAGES GREATER 0)
+      set(IFORT_FLAGS "${IFORT_FLAGS} -coarray-num-images=${N_IMAGES}")
+    endif()
+  endif(ENABLE_COARRAY)
 
   if(USE_OPENMP_THREADS)
     set(IFORT_FLAGS "${IFORT_FLAGS} -qopenmp")
-    endif()
+  endif()
     
   if(USE_OPENMP_SIMD)
     set(IFORT_FLAGS "${IFORT_FLAGS} -qopenmp-simd")
