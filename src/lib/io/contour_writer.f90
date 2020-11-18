@@ -199,6 +199,9 @@ contains
     real(rk), dimension(:, :), allocatable :: io_data_buffer
     integer(ik), dimension(:, :), allocatable :: int_data_buffer
 
+    real(rk), allocatable :: int_gather_coarray(:, :)[:]
+    
+
     time_w_dims = time * io_time_units * t_0
     delta_t_w_dims = master%dt * t_0
 
@@ -274,18 +277,21 @@ contains
     ! ! end if
 
     ! Indexing
-      ! dataset_name = '/image_id'
-      ! int_data_buffer = 0
+    dataset_name = '/image_id'
+    allocate(int_gather_coarray(master%fluid%rho%global_dims(1), master%fluid%rho%global_dims(2))[*])
+    associate(ilo => master%fluid%rho%lbounds(1), ihi => master%fluid%rho%ubounds(1), &
+             jlo => master%fluid%rho%lbounds(2), jhi => master%fluid%rho%ubounds(2))
 
-      ! associate(ilo => self%lbounds(1), ihi => self%ubounds(1), &
-      !          jlo => self%lbounds(2), jhi => self%ubounds(2))
-      !   gather_coarray(ilo:ihi, jlo:jhi)[image] = self%volume(ilo:ihi, jlo:jhi)
-      !   sync all
-      !   if(this_image() == 1) int_data_buffer = gather_coarray
-      ! end associate
-
-      ! call self%write_2d_integer_data(data=int_data_buffer, name='/i', &
-      !                               description='Cell i Index', units='dimensionless')
+      int_gather_coarray(ilo:ihi, jlo:jhi)[1] = master%fluid%rho%host_image_id
+      sync all
+    end associate
+    
+    if(this_image() == 1) then
+        int_data_buffer = int_gather_coarray
+        call self%write_2d_integer_data(data=int_data_buffer, name='/image_id', &
+                                        description='Coarray Image Index', units='dimensionless')
+    endif
+    deallocate(int_gather_coarray)
 
     if (this_image() == 1) then
       dataset_name = '/i'
@@ -457,6 +463,10 @@ contains
     ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
     !   '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/continuity_sensor</DataItem>'
     ! write(xdmf_unit, '(a)') '      </Attribute>'
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="image_id">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/image_id</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
 
     write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i">'
     write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
