@@ -223,13 +223,14 @@ contains
     ! in and extract the slice later
     call h5%shape('/x', dims)
     allocate(x(dims(1), dims(2)))
+    
 
     associate(ilo => self%lbounds_halo(1), ihi => self%ubounds_halo(1), &
               jlo => self%lbounds_halo(2), jhi => self%ubounds_halo(2), &
               nh => self%n_halo_cells)
       call h5%read(dname='/x', value=x)
       self%node_x(ilo:ihi + 1, jlo:jhi + 1) = x(ilo + nh:ihi + 1 + nh, jlo + nh:jhi + 1 + nh)
-
+      
       call h5%read(dname='/y', value=x)
       self%node_y(ilo:ihi + 1, jlo:jhi + 1) = x(ilo + nh:ihi + 1 + nh, jlo + nh:jhi + 1 + nh)
     end associate
@@ -413,8 +414,6 @@ contains
     self%edge_lengths = self%edge_lengths / min_edge_length
     self%centroid_x = self%centroid_x / min_edge_length
     self%centroid_y = self%centroid_y / min_edge_length
-    self%node_x = self%node_x / min_edge_length
-    self%node_y = self%node_y / min_edge_length
     self%dx = self%dx / min_edge_length
     self%dy = self%dy / min_edge_length
 
@@ -424,9 +423,9 @@ contains
         write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
       endif
       self%volume = 1.0_rk
-      ! self%cell_edge_lengths = 1.0_rk
-      ! self%dx = 1.0_rk
-      ! self%dy = 1.0_rk
+      self%edge_lengths = 1.0_rk
+      self%dx = 1.0_rk
+      self%dy = 1.0_rk
       ! self%min_dx = 1.0_rk
       ! self%max_dx = 1.0_rk
     else

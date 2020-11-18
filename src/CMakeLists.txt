@@ -143,8 +143,6 @@ add_library(
   # lib/grid/grid_block_1d.f90
   lib/grid/grid_block_2d.f90
   # lib/grid/grid_block_3d.f90
-  # lib/grid/grid_type.f90
-  # lib/grid/regular_2d_grid.f90
   lib/grid/grid_factory.f90
   lib/geometry/geometry.f90
   lib/geometry/intersections.f90
