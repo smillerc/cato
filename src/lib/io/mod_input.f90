@@ -192,9 +192,7 @@ contains
 
     file_exists = .false.
 
-    ! if(this_image() == 1) then
-    write(output_unit, '(a)') 'Reading input file: '//trim(filename)
-    ! end if
+    if (this_image() == 1) write(output_unit, '(a)') 'Reading input file: '//trim(filename)
 
     inquire(file=filename, exist=file_exists)
     if(.not. file_exists) then
@@ -252,7 +250,7 @@ contains
     ! Restart files
     call cfg%get("restart", "restart_from_file", self%restart_from_file, .false.)
 
-    write(*, '(a, l2)') 'Reading from restart?', self%restart_from_file
+    if (this_image() == 1) write(*, '(a, l2)') 'Reading from restart?', self%restart_from_file
 
     if(self%restart_from_file) then
       call cfg%get("restart", "restart_file", char_buffer)
