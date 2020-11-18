@@ -86,8 +86,9 @@ add_subdirectory(third_party)
 # Pre-process: .fypp -> .f90 via Fypp Create a list of the files to be preprocessed
 set(fyppFiles
     lib/spatial_reconstruction/muscl_tvd2.fypp
-    # lib/spatial_reconstruction/muscl_tvd3.fypp lib/spatial_reconstruction/muscl_tvd5.fypp
-    # lib/spatial_reconstruction/muscl_e_mlp.fypp
+    lib/spatial_reconstruction/muscl_tvd3.fypp 
+    lib/spatial_reconstruction/muscl_tvd5.fypp
+    lib/spatial_reconstruction/muscl_e_mlp.fypp
     lib/spatial_reconstruction/muscl_mlp.fypp
     lib/boundary_conditions/periodic_bc.fypp
     lib/limiters/e_mlp_distinguisher.fypp
