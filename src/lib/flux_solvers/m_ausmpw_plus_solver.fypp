@@ -382,7 +382,6 @@ contains
     !dir$ assume_aligned v_edge_sb: __ALIGNBYTES__
     !dir$ assume_aligned p_edge_sb: __ALIGNBYTES__
 
-    !dir$ assume_aligned w2: __ALIGNBYTES__
     !dir$ assume_aligned edge_flux: __ALIGNBYTES__
 
     gamma = self%gamma

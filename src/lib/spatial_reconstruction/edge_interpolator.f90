@@ -156,7 +156,6 @@ contains
     real(rk), parameter :: ABS_TOL = tiny(1.0_rk) !< absolute error tolerance
     real(rk) :: abs_err !< absolute error
 
-    !dir$ assume_aligned q: __ALIGNBYTES__
     !dir$ assume_aligned delta_i_plus: __ALIGNBYTES__
     !dir$ assume_aligned delta_j_plus: __ALIGNBYTES__
     !dir$ assume_aligned delta_i_minus: __ALIGNBYTES__

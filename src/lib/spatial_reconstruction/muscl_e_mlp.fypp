@@ -264,7 +264,6 @@ contains
     real(rk) :: alpha_L, alpha_R
     real(rk) :: alpha_L_term, alpha_R_term
 
-    !dir$ assume_aligned q: __ALIGNBYTES__
     !dir$ assume_aligned edge_values: __ALIGNBYTES__
 
     if(enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_mlp_${DIR}$_edge()', __FILE__, __LINE__)
