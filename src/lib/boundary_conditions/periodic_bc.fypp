@@ -135,7 +135,7 @@ contains
 
       select case(self%location)
       case('+x', '-x')
-        if(${F}$%on_ilo_bc .or. ${F}$%on_ihi_bc) then
+        ! if(${F}$%on_ilo_bc .or. ${F}$%on_ihi_bc) then
           if (num_images() > 1) sync images(set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), stat=sync_stat, errmsg=sync_err_msg)
           if(sync_stat /= 0) then
             write(img_err_msg,'(a,10(i0, 1x), a)') "Images: [", set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]) ,"]"
@@ -161,10 +161,10 @@ contains
           ! Get from the coarray buffer
           if(${F}$%on_ihi_bc) ${F}$%data(ihi + 1:ihi_halo, jlo:jhi) = ihi_edge
           if(${F}$%on_ilo_bc) ${F}$%data(ilo_halo:ilo - 1, jlo:jhi) = ilo_edge
-        endif ! on ilo or ihi bc
+        ! endif ! on ilo or ihi bc
 
       case('+y', '-y')
-        if(${F}$%on_jlo_bc .or. ${F}$%on_jhi_bc) then
+        ! if(${F}$%on_jlo_bc .or. ${F}$%on_jhi_bc) then
           if (num_images() > 1) sync images(set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), &
                                             stat=sync_stat, errmsg=sync_err_msg)
           if(sync_stat /= 0) then
@@ -192,14 +192,14 @@ contains
           ! Get from the coarray buffer
           if(${F}$%on_jlo_bc) ${F}$%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
           if(${F}$%on_jhi_bc) ${F}$%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
-        endif ! on jlo or jhi bc
+        ! endif ! on jlo or jhi bc
       end select
 
       if(self%do_corners) then
-        if((${F}$%on_ilo_bc .and. ${F}$%on_jlo_bc) .or. &
-           (${F}$%on_ihi_bc .and. ${F}$%on_jlo_bc) .or. &
-           (${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) .or. &
-           (${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc)) then
+        ! if((${F}$%on_ilo_bc .and. ${F}$%on_jlo_bc) .or. &
+        !    (${F}$%on_ihi_bc .and. ${F}$%on_jlo_bc) .or. &
+        !    (${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) .or. &
+        !    (${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc)) then
 
           if (num_images() > 1) sync images(set([${F}$%host_image_id, &
                                                  neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
@@ -241,7 +241,7 @@ contains
           if(${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) ${F}$%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = ihi_jlo_corner
           if(${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc) ${F}$%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = ilo_jlo_corner
 
-        endif
+        ! endif
       end if ! do_corners
 
     end associate

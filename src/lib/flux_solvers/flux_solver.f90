@@ -152,25 +152,27 @@ contains
     call bc_plus_y%set_time(time=self%time)
     call bc_minus_y%set_time(time=self%time)
 
-    do priority = max_priority_bc, 0, -1
+    if (any([rho%on_ilo_bc, rho%on_ihi_bc, rho%on_jlo_bc, rho%on_jhi_bc])) then
+      do priority = max_priority_bc, 0, -1
 
-      if(bc_plus_x%priority == priority) then
-        call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
-      end if
+        if(bc_plus_x%priority == priority) then
+          call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
+        end if
 
-      if(bc_plus_y%priority == priority) then
-        call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
-      end if
+        if(bc_plus_y%priority == priority) then
+          call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
+        end if
 
-      if(bc_minus_x%priority == priority) then
-        call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
-      end if
+        if(bc_minus_x%priority == priority) then
+          call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
+        end if
 
-      if(bc_minus_y%priority == priority) then
-        call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
-      end if
+        if(bc_minus_y%priority == priority) then
+          call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
+        end if
 
-    end do
+      end do
+    endif
 
   end subroutine apply_primitive_bc
 
@@ -186,7 +188,7 @@ contains
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     real(rk), dimension(4) :: delta_l !< edge length
-    real(rk) :: volume !< cell volume
+    real(rk) :: inv_volume !< 1 / cell volume
     real(rk), parameter :: FLUX_EPS = 5e-13_rk
     real(rk), parameter :: REL_THRESHOLD = 1e-5_rk !< relative error threshold
 
@@ -242,7 +244,7 @@ contains
       do i = ilo, ihi
 
         delta_l = grid%edge_lengths(:, i, j)
-        volume = grid%volume(i, j)
+        inv_volume = 1.0_rk / grid%volume(i, j)
 
         ! rho
         rho_edge_fluxes = [self%iflux(1, i, j) * delta_l(2), -self%iflux(1, i - 1, j) * delta_l(4), &
@@ -256,7 +258,7 @@ contains
         if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
           rho_flux = 0.0_rk
         end if
-        d_rho_dt%data(i, j) = rho_flux / volume
+        d_rho_dt%data(i, j) = rho_flux * inv_volume
 
         ! rho u
         rhou_edge_fluxes = [self%iflux(2, i, j) * delta_l(2), -self%iflux(2, i - 1, j) * delta_l(4), &
@@ -270,7 +272,7 @@ contains
         if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
           rhou_flux = 0.0_rk
         end if
-        d_rho_u_dt%data(i, j) = rhou_flux / volume
+        d_rho_u_dt%data(i, j) = rhou_flux * inv_volume
 
         ! rho v
         rhov_edge_fluxes = [self%iflux(3, i, j) * delta_l(2), -self%iflux(3, i - 1, j) * delta_l(4), &
@@ -284,7 +286,7 @@ contains
         if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
           rhov_flux = 0.0_rk
         end if
-        d_rho_v_dt%data(i, j) = rhov_flux / volume
+        d_rho_v_dt%data(i, j) = rhov_flux * inv_volume
 
         ! rho E
         rhoE_edge_fluxes = [self%iflux(4, i, j) * delta_l(2), -self%iflux(4, i - 1, j) * delta_l(4), &
@@ -298,7 +300,7 @@ contains
         if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
           rhoE_flux = 0.0_rk
         end if
-        d_rho_E_dt%data(i, j) = rhoE_flux / volume
+        d_rho_E_dt%data(i, j) = rhoE_flux * inv_volume
       end do
     end do
     !$omp end do
