@@ -47,6 +47,7 @@ module mod_m_ausmpw_plus_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_error, only: error_msg
+  use mod_field, only: field_2d_t
   use mod_globals, only: debug_print, LOW_MACH
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
@@ -111,21 +112,19 @@ contains
 
   end subroutine copy_m_ausmpw_plus
 
-  subroutine solve_m_ausmpw_plus(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine solve_m_ausmpw_plus(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
+    real(rk), intent(in) :: dt !< timestep delta t
     class(grid_block_2d_t), intent(in) :: grid
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: u   !< x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: v   !< y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: p   !< pressure
-
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+    class(field_2d_t), intent(inout) :: rho !< density
+    class(field_2d_t), intent(inout) :: u   !< x-velocity
+    class(field_2d_t), intent(inout) :: v   !< y-velocity
+    class(field_2d_t), intent(inout) :: p   !< pressure
+    type(field_2d_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
+    type(field_2d_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
+    type(field_2d_t), intent(out)   :: d_rho_v_dt    !< d/dt of the rhov field
+    type(field_2d_t), intent(out)   :: d_rho_E_dt    !< d/dt of the rhoE field
 
     class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(muscl_interpolation_t), pointer :: sb_edge_interpolator => null()
@@ -136,7 +135,6 @@ contains
 
     integer(ik) :: i, j
     integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: ilo_bc, ihi_bc, jlo_bc, jhi_bc
 
     real(rk), dimension(:, :, :), allocatable :: rho_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for density
     real(rk), dimension(:, :, :), allocatable :: rho_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for density
@@ -165,7 +163,9 @@ contains
     call debug_print('Running m_ausmpw_plus_solver_t%solve_m_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
- call error_msg(module_name='mod_m_ausmpw_plus_solver', class_name='m_ausmpw_plus_solver_t', procedure_name='solve_m_ausmpw_plus', &
+      call error_msg(module_name='mod_m_ausmpw_plus_solver', &
+                     class_name='m_ausmpw_plus_solver_t', &
+                     procedure_name='solve_m_ausmpw_plus', &
                      message="The timestep dt is < tiny(1.0_rk)", &
                      file_name=__FILE__, line_number=__LINE__)
     end if
@@ -185,19 +185,18 @@ contains
     edge_interpolator => muscl_interpolator_factory(self%input)
 
     ! This is useful if e-MLP is used
-    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
+    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p)
+    call edge_interpolator%interpolate_edge_values(q=rho, i_edges=rho_i_edges, j_edges=rho_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p, i_edges=p_i_edges, j_edges=p_j_edges)
 
     sb_edge_interpolator => muscl_interpolator_factory(self%input, limiter_name='superbee')
-    call sb_edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
-    call sb_edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges_sb, j_edges=rho_j_edges_sb)
-    call sb_edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, i_edges=u_i_edges_sb, j_edges=u_j_edges_sb)
-    call sb_edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, i_edges=v_i_edges_sb, j_edges=v_j_edges_sb)
-    call sb_edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, i_edges=p_i_edges_sb, j_edges=p_j_edges_sb)
+    call sb_edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p)
+    call sb_edge_interpolator%interpolate_edge_values(q=rho, i_edges=rho_i_edges_sb, j_edges=rho_j_edges_sb)
+    call sb_edge_interpolator%interpolate_edge_values(q=u, i_edges=u_i_edges_sb, j_edges=u_j_edges_sb)
+    call sb_edge_interpolator%interpolate_edge_values(q=v, i_edges=v_i_edges_sb, j_edges=v_j_edges_sb)
+    call sb_edge_interpolator%interpolate_edge_values(q=p, i_edges=p_i_edges_sb, j_edges=p_j_edges_sb)
 
     !
     !                    jflux(i,j)  'R'
@@ -212,21 +211,16 @@ contains
     !
     ! This is the numbering convention that this module uses
 
-    ilo = grid%lbounds(1)
-    ihi = grid%ubounds(1)
-    jlo = grid%lbounds(2)
-    jhi = grid%ubounds(2)
+    ilo = rho%lbounds(1)
+    ihi = rho%ubounds(1)
+    jlo = rho%lbounds(2)
+    jhi = rho%ubounds(2)
 
     if(allocated(self%iflux)) deallocate(self%iflux)
     if(allocated(self%jflux)) deallocate(self%jflux)
 
     allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
     allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
-
-    ilo_bc = grid%lbounds_halo(1)
-    ihi_bc = grid%ubounds_halo(1)
-    jlo_bc = grid%jlo_bc_cell
-    jhi_bc = grid%jhi_bc_cell
 
     call self%get_iflux(grid=grid, &
                         lbounds=lbound(rho_i_edges), &
@@ -249,7 +243,7 @@ contains
                         edge_flux=self%jflux)
 
     ! Now flux the edges to get the next solution
-    call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    call self%flux_split_edges(grid=grid, d_rho_dt=d_rho_dt, d_rho_u_dt=d_rho_u_dt, d_rho_v_dt=d_rho_v_dt, d_rho_E_dt=d_rho_E_dt)
 
     deallocate(edge_interpolator)
     deallocate(sb_edge_interpolator)
@@ -288,10 +282,10 @@ contains
     class(m_ausmpw_plus_solver_t), intent(inout) :: self
     class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_bar    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_bar    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_bar    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_bar    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
+    class(field_2d_t), intent(in) :: rho_bar    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
+    class(field_2d_t), intent(in) :: u_bar    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
+    class(field_2d_t), intent(in) :: v_bar    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
+    class(field_2d_t), intent(in) :: p_bar    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
 
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
     real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
@@ -547,27 +541,27 @@ contains
         ! point that occurs within a single cell (between the cell center and cell edge interface)
 
         ! Current cell i
-        ! U_i = sqrt(u_bar(i, j)**2 + v_bar(i, j)**2) ! U(i)
-        ! M_star_i = U_i / sqrt(gamma * p_bar(i, j) / rho_bar(i, j))! M*i
+        ! U_i = sqrt(u_bar%data(i, j)**2 + v_bar%data(i, j)**2) ! U(i)
+        ! M_star_i = U_i / sqrt(gamma * p_bar%data(i, j) / rho_bar%data(i, j))! M*i
 
         ! #:if DIR == 'i'
         !   ! Cell to the right, e.g. i + 1
-        !   U_ip1 = sqrt(u_bar(i + 1, j)**2 + v_bar(i + 1, j)**2) ! U(i+1)
-        !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar(i + 1, j) / rho_bar(i + 1, j)) ! M*(i+1)
+        !   U_ip1 = sqrt(u_bar%data(i + 1, j)**2 + v_bar%data(i + 1, j)**2) ! U(i+1)
+        !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar%data(i + 1, j) / rho_bar%data(i + 1, j)) ! M*(i+1)
 
         ! #:elif DIR == 'j'
         !   ! Cell above, e.g. j + 1
-        !   U_ip1 = sqrt(u_bar(i, j + 1)**2 + v_bar(i, j + 1)**2) ! U(i+1)
-        !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar(i, j + 1) / rho_bar(i, j + 1)) ! M*(j+1)
+        !   U_ip1 = sqrt(u_bar%data(i, j + 1)**2 + v_bar%data(i, j + 1)**2) ! U(i+1)
+        !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar%data(i, j + 1) / rho_bar%data(i, j + 1)) ! M*(j+1)
         ! #:endif
 
         ! ! P_R-
         ! if(M_star_i > 1.0_rk .and. M_star_ip1 < 1.0_rk .and. (0.0_rk < M_star_i * M_star_ip1 .and. M_star_i * M_star_ip1 < 1.0_rk)) then
         !   ! P-(i+1)
         !   #:if DIR == 'i'
-        !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar(i,j) * U_i * (U_i - U_ip1) + p_bar(i,j)) / p_bar(i + 1, j))))
+        !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j) * U_i * (U_i - U_ip1) + p_bar%data(i,j)) / p_bar%data(i + 1, j))))
         !   #:elif DIR == 'j'
-        !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar(i,j) * U_i * (U_i - U_ip1) + p_bar(i,j)) / p_bar(i, j + 1))))
+        !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j) * U_i * (U_i - U_ip1) + p_bar%data(i,j)) / p_bar%data(i, j + 1))))
 
         !   #:endif
         ! else
@@ -582,9 +576,9 @@ contains
         ! if(M_star_i < -1.0_rk .and. M_star_ip1 < -1.0_rk .and. (0.0_rk < M_star_i * M_star_ip1 .and. M_star_i * M_star_ip1 < 1.0_rk)) then
         !   ! P+(i)
         !   #:if DIR == 'i'
-        !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar(i + 1,j) * U_ip1 * (U_ip1 - U_i) + p_bar(i + 1,j)) / p_bar(i, j))))
+        !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i + 1,j) * U_ip1 * (U_ip1 - U_i) + p_bar%data(i + 1,j)) / p_bar%data(i, j))))
         !   #:elif DIR == 'j'
-        !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar(i,j + 1) * U_ip1 * (U_ip1 - U_i) + p_bar(i,j + 1)) / p_bar(i, j))))
+        !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j + 1) * U_ip1 * (U_ip1 - U_i) + p_bar%data(i,j + 1)) / p_bar%data(i, j))))
         !   #:endif
         ! else
         !   if(abs(M_L) > 1.0_rk) then
@@ -617,30 +611,30 @@ contains
         ! w1 = 1.0_rk - (min_term * min_term * min_term)
 
         ! #:if DIR == 'i'
-        !   numer_w2 = p_bar(i + 1, j) - p_bar(i, j)
-        !   denom_w2 = 0.25_rk * (p_bar(i + 1, j + 1) + p_bar(i, j + 1) - p_bar(i + 1, j - 1) - p_bar(i, j - 1))
+        !   numer_w2 = p_bar%data(i + 1, j) - p_bar%data(i, j)
+        !   denom_w2 = 0.25_rk * (p_bar%data(i + 1, j + 1) + p_bar%data(i, j + 1) - p_bar%data(i + 1, j - 1) - p_bar%data(i, j - 1))
 
         !   if(abs(numer_w2) < epsilon(1.0_rk)) then
         !     ! The shock is aligned well with the cell interface
-        !     w2 = (1.0_rk - min(p_bar(i, j) / p_bar(i + 1, j), p_bar(i + 1, j) / p_bar(i, j)))**2
+        !     w2 = (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i + 1, j), p_bar%data(i + 1, j) / p_bar%data(i, j)))**2
         !   else if (abs(denom_w2) < epsilon(1.0_rk)) then
         !     w2 = 0.0_rk
         !   else
         !     w2 = (1.0_rk - min(1.0_rk, numer_w2 / denom_w2))**2 * &
-        !           (1.0_rk - min(p_bar(i, j) / p_bar(i + 1, j), p_bar(i + 1, j) / p_bar(i, j)))**2
+        !           (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i + 1, j), p_bar%data(i + 1, j) / p_bar%data(i, j)))**2
         !   end if
         !   #:elif DIR == 'j'
 
-        !   numer_w2 = p_bar(i, j + 1) - p_bar(i, j)
-        !   denom_w2 = 0.25_rk * (p_bar(i + 1, j + 1) + p_bar(i + 1, j) - p_bar(i - 1, j + 1) - p_bar(i - 1, j))
+        !   numer_w2 = p_bar%data(i, j + 1) - p_bar%data(i, j)
+        !   denom_w2 = 0.25_rk * (p_bar%data(i + 1, j + 1) + p_bar%data(i + 1, j) - p_bar%data(i - 1, j + 1) - p_bar%data(i - 1, j))
         !   if(abs(numer_w2) < epsilon(1.0_rk)) then
         !     ! The shock is aligned well with the cell interface
-        !     w2 = (1.0_rk - min(p_bar(i, j) / p_bar(i, j + 1), p_bar(i, j + 1) / p_bar(i, j)))**2
+        !     w2 = (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i, j + 1), p_bar%data(i, j + 1) / p_bar%data(i, j)))**2
         !   else if (abs(denom_w2) < epsilon(1.0_rk)) then
         !     w2 = 0.0_rk
         !   else
         !     w2 = (1.0_rk - min(1.0_rk, numer_w2 / denom_w2))**2 *  &
-        !           (1.0_rk - min(p_bar(i, j) / p_bar(i, j + 1), p_bar(i, j + 1) / p_bar(i, j)))**2
+        !           (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i, j + 1), p_bar%data(i, j + 1) / p_bar%data(i, j)))**2
         !   end if
         ! #:endif
 
@@ -665,13 +659,13 @@ contains
 
         #:if DIR == 'i'
         call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_bar(i, j - 1), p1_R=p_bar(i + 1, j - 1), &
-                   p2_L=p_bar(i, j + 1), p2_R=p_bar(i + 1, j + 1), &
+                   p1_L=p_bar%data(i, j - 1), p1_R=p_bar%data(i + 1, j - 1), &
+                   p2_L=p_bar%data(i, j + 1), p2_R=p_bar%data(i + 1, j + 1), &
                    f_L=f_L, f_R=f_R)
         #:else
         call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_bar(i + 1, j), p1_R=p_bar(i + 1, j + 1), &
-                   p2_L=p_bar(i - 1, j), p2_R=p_bar(i - 1, j + 1), &
+                   p1_L=p_bar%data(i + 1, j), p1_R=p_bar%data(i + 1, j + 1), &
+                   p2_L=p_bar%data(i - 1, j), p2_R=p_bar%data(i - 1, j + 1), &
                    f_L=f_L, f_R=f_R)
         #:endif
         ! ------------------------------------------------------------------------------------------

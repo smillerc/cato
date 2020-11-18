@@ -189,7 +189,7 @@ contains
     #:endfor
 
     ! Now flux the edges to get the next solution
-    call self%flux_split_edges(grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    call self%flux_split_edges(grid=grid, d_rho_dt=d_rho_dt, d_rho_u_dt=d_rho_u_dt, d_rho_v_dt=d_rho_v_dt, d_rho_E_dt=d_rho_E_dt)
 
     deallocate(rho_i_edges)
     deallocate(rho_j_edges)

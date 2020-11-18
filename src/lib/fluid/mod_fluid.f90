@@ -50,7 +50,7 @@ module mod_fluid
   use mod_flux_solver, only: flux_solver_t
   ! use mod_ausm_plus_solver, only: ausm_plus_solver_t
   ! use mod_fvleg_solver, only: fvleg_solver_t
-  ! use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
+  use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
   use mod_ausmpw_plus_solver, only: ausmpw_plus_solver_t
   ! use mod_slau_solver, only: slau_solver_t
 
@@ -224,8 +224,8 @@ contains
       ! case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
       !   error stop "There are issues in the AUSM+ solver for now; exiting..."
       !   allocate(ausm_plus_solver_t :: solver)
-      ! case('M-AUSMPW+')
-      !   allocate(m_ausmpw_plus_solver_t :: solver)
+    case('M-AUSMPW+')
+      allocate(m_ausmpw_plus_solver_t :: solver)
     case('AUSMPW+')
       allocate(ausmpw_plus_solver_t :: solver)
       ! case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
@@ -366,10 +366,10 @@ contains
 
     associate(ilo => self%rho%lbounds(1), ihi => self%rho%ubounds(1), &
               jlo => self%rho%lbounds(2), jhi => self%rho%ubounds(2), nh => self%rho%n_halo_cells)
-      self%rho%data(ilo:ihi, jlo:jhi) =  density(ilo+nh:ihi+nh, jlo+nh:jhi+nh)
-      self%u%data(ilo:ihi, jlo:jhi) = x_velocity(ilo+nh:ihi+nh, jlo+nh:jhi+nh)
-      self%v%data(ilo:ihi, jlo:jhi) = y_velocity(ilo+nh:ihi+nh, jlo+nh:jhi+nh)
-      self%p%data(ilo:ihi, jlo:jhi) =   pressure(ilo+nh:ihi+nh, jlo+nh:jhi+nh)
+      self%rho%data(ilo:ihi, jlo:jhi) = density(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
+      self%u%data(ilo:ihi, jlo:jhi) = x_velocity(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
+      self%v%data(ilo:ihi, jlo:jhi) = y_velocity(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
+      self%p%data(ilo:ihi, jlo:jhi) = pressure(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
     end associate
 
     call self%rho%make_non_dimensional(non_dim_factor=rho_0)
@@ -519,14 +519,14 @@ contains
   subroutine sync_fields(self)
     class(fluid_t), intent(inout) :: self
 
-    call self%rho%sync_edges() 
-    call self%u%sync_edges() 
-    call self%v%sync_edges() 
-    call self%p%sync_edges() 
-    ! call rho_u %sync_edges() 
-    ! call rho_v %sync_edges() 
-    ! call rho_E %sync_edges() 
-    ! call cs    %sync_edges() 
+    call self%rho%sync_edges()
+    call self%u%sync_edges()
+    call self%v%sync_edges()
+    call self%p%sync_edges()
+    ! call rho_u %sync_edges()
+    ! call rho_v %sync_edges()
+    ! call rho_E %sync_edges()
+    ! call cs    %sync_edges()
     ! call mach_u%sync_edges()
     ! call mach_v%sync_edges()
   end subroutine
