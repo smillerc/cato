@@ -11,8 +11,14 @@ module mod_field
   use h5fortran, only: hdf5_file, hsize_t
   use mod_error, only: error_msg
   use mod_parallel, only: tile_indices, tile_neighbors_2d
-  use mod_parallel, only: LOWER_LEFT, DOWN, LOWER_RIGHT, LEFT, &
-                          RIGHT, UPPER_LEFT, UP, UPPER_RIGHT
+  use mod_parallel, only: jlo_neighbor => DOWN, &
+                          ilo_neighbor => LEFT, &
+                          ihi_neighbor => RIGHT, &
+                          jhi_neighbor => UP, &
+                          ilo_jlo_neighbor => LOWER_LEFT, &
+                          ihi_jlo_neighbor => LOWER_RIGHT, &
+                          ilo_jhi_neighbor => UPPER_LEFT, &
+                          ihi_jhi_neighbor => UPPER_RIGHT
   use mod_globals, only: enable_debug_print, debug_print
 
   implicit none(type, external)
@@ -521,15 +527,15 @@ contains
 
     integer(ik) :: sync_stat           !< syncronization status
     character(len=200) :: sync_err_msg !< syncronization error message (if any)
-    real(rk), dimension(:, :), allocatable, save :: left_edge[:]   !< (i, j)[image]; Coarray buffer to copy left neighbor halo data
-    real(rk), dimension(:, :), allocatable, save :: right_edge[:]  !< (i, j)[image]; Coarray buffer to copy right neighbor halo data
-    real(rk), dimension(:, :), allocatable, save :: top_edge[:]    !< (i, j)[image]; Coarray buffer to copy top neighbor halo data
-    real(rk), dimension(:, :), allocatable, save :: bottom_edge[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: ilo_edge[:]   !< (i, j)[image]; Coarray buffer to copy left neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: ihi_edge[:]  !< (i, j)[image]; Coarray buffer to copy right neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: jhi_edge[:]    !< (i, j)[image]; Coarray buffer to copy top neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: jlo_edge[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
 
-    real(rk), dimension(:, :), allocatable, save :: upper_left_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
-    real(rk), dimension(:, :), allocatable, save :: upper_right_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
-    real(rk), dimension(:, :), allocatable, save :: lower_left_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
-    real(rk), dimension(:, :), allocatable, save :: lower_right_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: ilo_jhi_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: ihi_jhi_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: ilo_jlo_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
+    real(rk), dimension(:, :), allocatable, save :: ihi_jlo_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
 
     if(enable_debug_print) call debug_print('Running field_2d_t()%sync_edges ', __FILE__, __LINE__)
     sync_stat = 0
@@ -537,25 +543,25 @@ contains
 
     ! Only allocate once, b/c this will cause an implicit sync all due to the coarray index
     associate(ni => self%domain_shape(1), nj => self%domain_shape(2), n_halo => self%n_halo_cells)
-      if(.not. allocated(left_edge)) allocate(left_edge(n_halo, nj)[*])
-      if(.not. allocated(right_edge)) allocate(right_edge(n_halo, nj)[*])
-      if(.not. allocated(top_edge)) allocate(top_edge(ni, n_halo)[*])
-      if(.not. allocated(bottom_edge)) allocate(bottom_edge(ni, n_halo)[*])
+      if(.not. allocated(ilo_edge)) allocate(ilo_edge(n_halo, nj)[*])
+      if(.not. allocated(ihi_edge)) allocate(ihi_edge(n_halo, nj)[*])
+      if(.not. allocated(jhi_edge)) allocate(jhi_edge(ni, n_halo)[*])
+      if(.not. allocated(jlo_edge)) allocate(jlo_edge(ni, n_halo)[*])
 
-      if(.not. allocated(upper_left_corner)) allocate(upper_left_corner(n_halo, n_halo)[*])
-      if(.not. allocated(lower_left_corner)) allocate(lower_left_corner(n_halo, n_halo)[*])
-      if(.not. allocated(upper_right_corner)) allocate(upper_right_corner(n_halo, n_halo)[*])
-      if(.not. allocated(lower_right_corner)) allocate(lower_right_corner(n_halo, n_halo)[*])
+      if(.not. allocated(ilo_jhi_corner)) allocate(ilo_jhi_corner(n_halo, n_halo)[*])
+      if(.not. allocated(ilo_jlo_corner)) allocate(ilo_jlo_corner(n_halo, n_halo)[*])
+      if(.not. allocated(ihi_jhi_corner)) allocate(ihi_jhi_corner(n_halo, n_halo)[*])
+      if(.not. allocated(ihi_jlo_corner)) allocate(ihi_jlo_corner(n_halo, n_halo)[*])
     end associate
 
-    upper_left_corner = 0.0_rk
-    upper_right_corner = 0.0_rk
-    lower_left_corner = 0.0_rk
-    lower_right_corner = 0.0_rk
-    left_edge = 0.0_rk
-    right_edge = 0.0_rk
-    top_edge = 0.0_rk
-    bottom_edge = 0.0_rk
+    ilo_jhi_corner = 0.0_rk
+    ihi_jhi_corner = 0.0_rk
+    ilo_jlo_corner = 0.0_rk
+    ihi_jlo_corner = 0.0_rk
+    ilo_edge = 0.0_rk
+    ihi_edge = 0.0_rk
+    jhi_edge = 0.0_rk
+    jlo_edge = 0.0_rk
 
     associate(ilo => self%lbounds(1), ihi => self%ubounds(1), &
               jlo => self%lbounds(2), jhi => self%ubounds(2), &
@@ -576,16 +582,16 @@ contains
       ! We are transfering the cells from inside the real domain onto the halo cells of the neighbor domain. Since
       ! the # of halo cells >= 1, we need to account for variable sizes.
 
-      ! Send the current image's edge cells to become the halo of the neighbor
-      right_edge(:, :)[neighbors(LEFT)] = self%data(ilo:ilo + nh - 1, jlo:jhi) ! send to left
-      left_edge(:, :)[neighbors(RIGHT)] = self%data(ihi - nh + 1:ihi, jlo:jhi) ! send to right
-      top_edge(:, :)[neighbors(DOWN)] = self%data(ilo:ihi, jlo:jlo + nh - 1)   ! send to below
-      bottom_edge(:, :)[neighbors(UP)] = self%data(ilo:ihi, jhi - nh + 1:jhi)  ! send to above
+      ! send the ihi edge data to the ilo edge of the neighbor on the ihi side
+      ilo_edge(:,:)[neighbors(ihi_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jhi)
+      ihi_edge(:,:)[neighbors(ilo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jhi)
+      jhi_edge(:,:)[neighbors(jlo_neighbor)] = self%data(ilo:ihi, jlo:jlo + nh - 1)
+      jlo_edge(:,:)[neighbors(jhi_neighbor)] = self%data(ilo:ihi, jhi - nh + 1:jhi)
 
-      upper_left_corner(:, :)[neighbors(LOWER_RIGHT)] = self%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1) ! send lower-right corner
-      lower_left_corner(:, :)[neighbors(UPPER_RIGHT)] = self%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi) ! send upper-right corner
-      upper_right_corner(:, :)[neighbors(LOWER_LEFT)] = self%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1) ! send lower-left corner
-      lower_right_corner(:, :)[neighbors(UPPER_LEFT)] = self%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi) ! send upper-left corner
+      ilo_jhi_corner(:, :)[neighbors(ihi_jlo_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1)
+      ilo_jlo_corner(:, :)[neighbors(ihi_jhi_neighbor)] = self%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi)
+      ihi_jhi_corner(:, :)[neighbors(ilo_jlo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1)
+      ihi_jlo_corner(:, :)[neighbors(ilo_jhi_neighbor)] = self%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi)
 
       sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
       if(sync_stat /= 0) then
@@ -595,15 +601,15 @@ contains
       endif
 
       ! Now copy the edge data to the halo cells of the current image
-      if(.not. self%on_ilo_bc) self%data(ilo_halo:ilo - 1, jlo:jhi) = right_edge  ! get the right edge from left neigbor
-      if(.not. self%on_ihi_bc) self%data(ihi + 1:ihi_halo, jlo:jhi) = left_edge   ! get the left edge from right neigbor
-      if(.not. self%on_jlo_bc) self%data(ilo:ihi, jlo_halo:jlo - 1) = top_edge    ! get the top edge from neighbor below
-      if(.not. self%on_jhi_bc) self%data(ilo:ihi, jhi + 1:jhi_halo) = bottom_edge ! get the bottom edge from neighbor above
+      if(.not. self%on_ilo_bc) self%data(ilo_halo:ilo - 1, jlo:jhi) = ilo_edge
+      if(.not. self%on_ihi_bc) self%data(ihi + 1:ihi_halo, jlo:jhi) = ihi_edge
+      if(.not. self%on_jlo_bc) self%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
+      if(.not. self%on_jhi_bc) self%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
 
-      if(.not. self%on_ihi_bc .and. .not. self%on_jhi_bc) self%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = lower_left_corner ! get the lower-left corner from upper-right neighbor
-      if(.not. self%on_ilo_bc .and. .not. self%on_jhi_bc) self%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = lower_right_corner ! get the lower-right corner from upper-left neighbor
-      if(.not. self%on_ihi_bc .and. .not. self%on_jlo_bc) self%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = upper_left_corner ! get the upper-left corner from lower-right neighbor
-      if(.not. self%on_ilo_bc .and. .not. self%on_jlo_bc) self%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = upper_right_corner ! get the upper-right corner from lower-left neighbor
+      if(.not. self%on_ihi_bc .and. .not. self%on_jhi_bc) self%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = ihi_jhi_corner
+      if(.not. self%on_ilo_bc .and. .not. self%on_jhi_bc) self%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = ilo_jhi_corner
+      if(.not. self%on_ihi_bc .and. .not. self%on_jlo_bc) self%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = ihi_jlo_corner
+      if(.not. self%on_ilo_bc .and. .not. self%on_jlo_bc) self%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = ilo_jlo_corner
     end associate
 
   end subroutine sync_edges
@@ -649,10 +655,10 @@ contains
     write(unit, '(a, 2(i0, 1x), a)') "global_dims: ", self%global_dims, nl
     write(unit, '(a, 2(i0, 1x), a)') "domain_shape: ", self%domain_shape, nl
     write(unit, '(a, 2(i0, 1x), a)') "data_shape: ", shape(self%data), nl
-    write(unit, '(a, i0, a)') "left neighbor : ", self%neighbors(left), nl
-    write(unit, '(a, i0, a)') "right neighbor: ", self%neighbors(right), nl
-    write(unit, '(a, i0, a)') "down neighbor : ", self%neighbors(down), nl
-    write(unit, '(a, i0, a)') "up neighbor   : ", self%neighbors(up), nl
+    write(unit, '(a, i0, a)') "left neighbor : ", self%neighbors(ilo_neighbor), nl
+    write(unit, '(a, i0, a)') "right neighbor: ", self%neighbors(ihi_neighbor), nl
+    write(unit, '(a, i0, a)') "down neighbor : ", self%neighbors(jlo_neighbor), nl
+    write(unit, '(a, i0, a)') "up neighbor   : ", self%neighbors(jhi_neighbor), nl
 
     write(unit, '(a, 2(i0, 1x), a)') "lbounds: ", self%lbounds, nl
     write(unit, '(a, 2(i0, 1x), a)') "ubounds: ", self%ubounds, nl
