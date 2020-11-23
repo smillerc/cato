@@ -483,17 +483,20 @@ contains
     !< Performs a gather of field data to image.
     class(field_2d_t), intent(in) :: self
     integer(ik), intent(in) :: image
+    integer(ik) :: ilo, ihi, jlo, jhi
     real(rk) :: gather(self%global_dims(1), self%global_dims(2))
-
     real(rk), allocatable :: gather_coarray(:, :)[:]
     allocate(gather_coarray(self%global_dims(1), self%global_dims(2))[*])
 
-    associate(is => self%lbounds(1), ie => self%ubounds(1), &
-              js => self%lbounds(2), je => self%ubounds(2))
-      gather_coarray(is:ie, js:je)[image] = self%data(is:ie, js:je)
-      sync all
-      if(this_image() == image) gather = gather_coarray
-    end associate
+    ilo = self%lbounds(1)
+    ihi = self%ubounds(1)
+    jlo = self%lbounds(2)
+    jhi = self%ubounds(2)
+    gather_coarray(ilo:ihi, jlo:jhi)[image] = self%data(ilo:ihi, jlo:jhi)
+
+    sync all
+
+    if(this_image() == image) gather = gather_coarray
     deallocate(gather_coarray)
   end function gather
 
@@ -537,22 +540,35 @@ contains
     real(rk), dimension(:, :), allocatable, save :: ilo_jlo_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
     real(rk), dimension(:, :), allocatable, save :: ihi_jlo_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
 
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo_halo, ihi_halo, jlo_halo, jhi_halo
+    integer(ik) :: nh, ni, nj
     if(enable_debug_print) call debug_print('Running field_2d_t()%sync_edges ', __FILE__, __LINE__)
     sync_stat = 0
     sync_err_msg = ''
 
     ! Only allocate once, b/c this will cause an implicit sync all due to the coarray index
-    associate(ni => self%domain_shape(1), nj => self%domain_shape(2), n_halo => self%n_halo_cells)
-      if(.not. allocated(ilo_edge)) allocate(ilo_edge(n_halo, nj)[*])
-      if(.not. allocated(ihi_edge)) allocate(ihi_edge(n_halo, nj)[*])
-      if(.not. allocated(jhi_edge)) allocate(jhi_edge(ni, n_halo)[*])
-      if(.not. allocated(jlo_edge)) allocate(jlo_edge(ni, n_halo)[*])
+    ilo = self%lbounds(1)
+    ihi = self%ubounds(1)
+    jlo = self%lbounds(2)
+    jhi = self%ubounds(2)
+    ilo_halo = self%lbounds_halo(1)
+    ihi_halo = self%ubounds_halo(1)
+    jlo_halo = self%lbounds_halo(2)
+    jhi_halo = self%ubounds_halo(2)
+    nh = self%n_halo_cells
+    ni = self%domain_shape(1)
+    nj = self%domain_shape(2)
 
-      if(.not. allocated(ilo_jhi_corner)) allocate(ilo_jhi_corner(n_halo, n_halo)[*])
-      if(.not. allocated(ilo_jlo_corner)) allocate(ilo_jlo_corner(n_halo, n_halo)[*])
-      if(.not. allocated(ihi_jhi_corner)) allocate(ihi_jhi_corner(n_halo, n_halo)[*])
-      if(.not. allocated(ihi_jlo_corner)) allocate(ihi_jlo_corner(n_halo, n_halo)[*])
-    end associate
+    if(.not. allocated(ilo_edge)) allocate(ilo_edge(nh, nj)[*])
+    if(.not. allocated(ihi_edge)) allocate(ihi_edge(nh, nj)[*])
+    if(.not. allocated(jhi_edge)) allocate(jhi_edge(ni, nh)[*])
+    if(.not. allocated(jlo_edge)) allocate(jlo_edge(ni, nh)[*])
+
+    if(.not. allocated(ilo_jhi_corner)) allocate(ilo_jhi_corner(nh, nh)[*])
+    if(.not. allocated(ilo_jlo_corner)) allocate(ilo_jlo_corner(nh, nh)[*])
+    if(.not. allocated(ihi_jhi_corner)) allocate(ihi_jhi_corner(nh, nh)[*])
+    if(.not. allocated(ihi_jlo_corner)) allocate(ihi_jlo_corner(nh, nh)[*])
 
     ilo_jhi_corner = 0.0_rk
     ihi_jhi_corner = 0.0_rk
@@ -563,54 +579,49 @@ contains
     jhi_edge = 0.0_rk
     jlo_edge = 0.0_rk
 
-    associate(ilo => self%lbounds(1), ihi => self%ubounds(1), &
-              jlo => self%lbounds(2), jhi => self%ubounds(2), &
-              ilo_halo => self%lbounds_halo(1), ihi_halo => self%ubounds_halo(1), &
-              jlo_halo => self%lbounds_halo(2), jhi_halo => self%ubounds_halo(2), &
-              nh => self%n_halo_cells, &
-              neighbors => self%neighbors)
+    ! These were originally inside of an associate block, but testing shows that associate blocks
+    ! and coarray syntax don't always give the right behabior at runtime
 
-      sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
-      if(sync_stat /= 0) then
-        write(std_err, '(a, i0, a)') "Error: unable to sync images in "//__FILE__//":", &
-          __LINE__, " sync_err_msg: '"//trim(sync_err_msg)//"'"
-        error stop "Unable to sync images, see standard error unit for more information"
-      endif
+    sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
+    if(sync_stat /= 0) then
+      write(std_err, '(a, i0, a)') "Error: unable to sync images in "//__FILE__//":", &
+        __LINE__, " sync_err_msg: '"//trim(sync_err_msg)//"'"
+      error stop "Unable to sync images, see standard error unit for more information"
+    endif
 
-      ! Copy data into the coarray buffer. Data is not copied if the field is on the boundary, b/c this
-      ! transfer of data must be handled by boundary condition classes
-      ! We are transfering the cells from inside the real domain onto the halo cells of the neighbor domain. Since
-      ! the # of halo cells >= 1, we need to account for variable sizes.
+    ! Copy data into the coarray buffer. Data is not copied if the field is on the boundary, b/c this
+    ! transfer of data must be handled by boundary condition classes
+    ! We are transfering the cells from inside the real domain onto the halo cells of the neighbor domain. Since
+    ! the # of halo cells >= 1, we need to account for variable sizes.
 
-      ! send the ihi edge data to the ilo edge of the neighbor on the ihi side
-      ilo_edge(:, :)[neighbors(ihi_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jhi)
-      ihi_edge(:, :)[neighbors(ilo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jhi)
-      jhi_edge(:, :)[neighbors(jlo_neighbor)] = self%data(ilo:ihi, jlo:jlo + nh - 1)
-      jlo_edge(:, :)[neighbors(jhi_neighbor)] = self%data(ilo:ihi, jhi - nh + 1:jhi)
+    ! send the ihi edge data to the ilo edge of the neighbor on the ihi side
+    ilo_edge(:, :)[self%neighbors(ihi_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jhi)
+    ihi_edge(:, :)[self%neighbors(ilo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jhi)
+    jhi_edge(:, :)[self%neighbors(jlo_neighbor)] = self%data(ilo:ihi, jlo:jlo + nh - 1)
+    jlo_edge(:, :)[self%neighbors(jhi_neighbor)] = self%data(ilo:ihi, jhi - nh + 1:jhi)
 
-      ilo_jhi_corner(:, :)[neighbors(ihi_jlo_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1)
-      ilo_jlo_corner(:, :)[neighbors(ihi_jhi_neighbor)] = self%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi)
-      ihi_jhi_corner(:, :)[neighbors(ilo_jlo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1)
-      ihi_jlo_corner(:, :)[neighbors(ilo_jhi_neighbor)] = self%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi)
+    ilo_jhi_corner(:, :)[self%neighbors(ihi_jlo_neighbor)] = self%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1)
+    ilo_jlo_corner(:, :)[self%neighbors(ihi_jhi_neighbor)] = self%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi)
+    ihi_jhi_corner(:, :)[self%neighbors(ilo_jlo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1)
+    ihi_jlo_corner(:, :)[self%neighbors(ilo_jhi_neighbor)] = self%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi)
 
-      sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
-      if(sync_stat /= 0) then
-        write(std_err, '(a, i0, a)') "Error: unable to sync images in "//__FILE__//":", &
-          __LINE__, " sync_err_msg: '"//trim(sync_err_msg)//"'"
-        error stop "Unable to sync images, see standard error unit for more information"
-      endif
+    sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
+    if(sync_stat /= 0) then
+      write(std_err, '(a, i0, a)') "Error: unable to sync images in "//__FILE__//":", &
+        __LINE__, " sync_err_msg: '"//trim(sync_err_msg)//"'"
+      error stop "Unable to sync images, see standard error unit for more information"
+    endif
 
-      ! Now copy the edge data to the halo cells of the current image
-      if(.not. self%on_ilo_bc) self%data(ilo_halo:ilo - 1, jlo:jhi) = ilo_edge
-      if(.not. self%on_ihi_bc) self%data(ihi + 1:ihi_halo, jlo:jhi) = ihi_edge
-      if(.not. self%on_jlo_bc) self%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
-      if(.not. self%on_jhi_bc) self%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
+    ! Now copy the edge data to the halo cells of the current image
+    if(.not. self%on_ilo_bc) self%data(ilo_halo:ilo - 1, jlo:jhi) = ilo_edge
+    if(.not. self%on_ihi_bc) self%data(ihi + 1:ihi_halo, jlo:jhi) = ihi_edge
+    if(.not. self%on_jlo_bc) self%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
+    if(.not. self%on_jhi_bc) self%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
 
-      if(.not. self%on_ihi_bc .and. .not. self%on_jhi_bc) self%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = ihi_jhi_corner
-      if(.not. self%on_ilo_bc .and. .not. self%on_jhi_bc) self%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = ilo_jhi_corner
-      if(.not. self%on_ihi_bc .and. .not. self%on_jlo_bc) self%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = ihi_jlo_corner
-      if(.not. self%on_ilo_bc .and. .not. self%on_jlo_bc) self%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = ilo_jlo_corner
-    end associate
+    if(.not. self%on_ihi_bc .and. .not. self%on_jhi_bc) self%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = ihi_jhi_corner
+    if(.not. self%on_ilo_bc .and. .not. self%on_jhi_bc) self%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = ilo_jhi_corner
+    if(.not. self%on_ihi_bc .and. .not. self%on_jlo_bc) self%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = ihi_jlo_corner
+    if(.not. self%on_ilo_bc .and. .not. self%on_jlo_bc) self%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = ilo_jlo_corner
 
   end subroutine sync_edges
 
