@@ -52,7 +52,7 @@ function(add_caf_test test_target)
 
   # Set compiler specifics
   if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
-    add_test(NAME ${test_target} COMMAND "bash" cafrun ${test_parameters} "${test_target}"  WORKING_DIRECTORY "${test_dir}")
+    add_test(NAME ${test_target} COMMAND "bash" cafrun ${test_parameters} ${test_dir}/${test_target} WORKING_DIRECTORY "${test_dir}")
   elseif("${CMAKE_Fortran_COMPILER_ID}" MATCHES "Intel")
     add_test(NAME ${test_target} COMMAND "${test_target}"  WORKING_DIRECTORY "${test_dir}")
   elseif("${CMAKE_Fortran_COMPILER_ID}" MATCHES "Cray")

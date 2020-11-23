@@ -903,33 +903,33 @@ contains
     real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
     real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
 
-    ! call debug_print('Running fluid_t%ssp_rk_4_3()', __FILE__, __LINE__)
+    call debug_print('Running fluid_t%ssp_rk_4_3()', __FILE__, __LINE__)
 
-    ! dt = U%dt
+    dt = U%dt
 
-    ! ! 1st stage
-    ! allocate(U_1, source=U)
-    ! U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * 0.5_rk * dt
+    ! 1st stage
+    allocate(U_1, source=U)
+    U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * 0.5_rk * dt
 
-    ! ! 2nd stage
-    ! allocate(U_2, source=U)
-    ! U_2 = U_1 + U_1%t(grid=grid, source_term=source_term, stage=2) * 0.5_rk * dt
+    ! 2nd stage
+    allocate(U_2, source=U)
+    U_2 = U_1 + U_1%t(grid=grid, source_term=source_term, stage=2) * 0.5_rk * dt
 
-    ! ! 3rd stage
-    ! allocate(U_3, source=U)
-    ! U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid=grid, source_term=source_term, stage=3) * one_sixth * dt)
-    ! call U_3%residual_smoother()
+    ! 3rd stage
+    allocate(U_3, source=U)
+    U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid=grid, source_term=source_term, stage=3) * one_sixth * dt)
+    call U_3%residual_smoother()
 
-    ! ! Final stage
-    ! U = U_3 + (U_3%t(grid=grid, source_term=source_term, stage=4) * 0.5_rk * dt)
-    ! call U%sanity_check(error_code)
+    ! Final stage
+    U = U_3 + (U_3%t(grid=grid, source_term=source_term, stage=4) * 0.5_rk * dt)
+    call U%sanity_check(error_code)
 
-    ! ! Convergence history
-    ! call write_residual_history(first_stage=U_1, last_stage=U)
+    ! Convergence history
+    call write_residual_history(first_stage=U_1, last_stage=U)
 
-    ! deallocate(U_1)
-    ! deallocate(U_2)
-    ! deallocate(U_3)
+    deallocate(U_1)
+    deallocate(U_2)
+    deallocate(U_3)
 
   end subroutine ssp_rk_4_3
 
@@ -949,19 +949,17 @@ contains
     allocate(U_1, source=U)
 
     ! 1st stage
-    associate(dt => U%dt)
-      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
-      U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * dt
+    call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
+    U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * dt
 
-      ! Final stage
-      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
-      U = U * 0.5_rk + U_1 * 0.5_rk + &
-          U_1%t(grid=grid, source_term=source_term, stage=2) * (0.5_rk * dt)
-      call U%sanity_check(error_code)
+    ! Final stage
+    call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
+    U = U * 0.5_rk + U_1 * 0.5_rk + &
+        U_1%t(grid=grid, source_term=source_term, stage=2) * (0.5_rk * dt)
+    call U%sanity_check(error_code)
 
-      ! ! Convergence history
-      call write_residual_history(first_stage=U_1, last_stage=U)
-    end associate
+    ! ! Convergence history
+    call write_residual_history(first_stage=U_1, last_stage=U)
 
     deallocate(U_1)
 

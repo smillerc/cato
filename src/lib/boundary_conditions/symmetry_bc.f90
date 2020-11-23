@@ -62,9 +62,14 @@ contains
 
     integer(ik) :: g
 
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
-              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
+    ! left => self%ilo
+    ! right => self%ihi
+    ! bottom => self%jlo
+    ! top => self%jhi
+    ! left_ghost => self%ilo_ghost
+    ! right_ghost => self%ihi_ghost
+    ! bottom_ghost => self%jlo_ghost
+    ! top_ghost => self%jhi_ghost
 
       select case(self%location)
       case('+x')
@@ -73,10 +78,10 @@ contains
 
           ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
           do g = 1, self%n_ghost_layers
-            rho%data(right_ghost(g), :) = rho%data(right - (g - 1), :)
-            u%data(right_ghost(g), :) = -u%data(right - (g - 1), :)
-            v%data(right_ghost(g), :) = v%data(right - (g - 1), :)
-            p%data(right_ghost(g), :) = p%data(right - (g - 1), :)
+            rho%data(self%ihi_ghost(g), :) = rho%data(self%ihi - (g - 1), :)
+            u%data(self%ihi_ghost(g), :) = -u%data(self%ihi - (g - 1), :)
+            v%data(self%ihi_ghost(g), :) = v%data(self%ihi - (g - 1), :)
+            p%data(self%ihi_ghost(g), :) = p%data(self%ihi - (g - 1), :)
           end do
         endif
 
@@ -86,10 +91,10 @@ contains
 
           ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
           do g = 1, self%n_ghost_layers
-            rho%data(left_ghost(g), :) = rho%data(left + (g - 1), :)
-            u%data(left_ghost(g), :) = -u%data(left + (g - 1), :)
-            v%data(left_ghost(g), :) = v%data(left + (g - 1), :)
-            p%data(left_ghost(g), :) = p%data(left + (g - 1), :)
+            rho%data(self%ilo_ghost(g), :) = rho%data(self%ilo + (g - 1), :)
+            u%data(self%ilo_ghost(g), :) = -u%data(self%ilo + (g - 1), :)
+            v%data(self%ilo_ghost(g), :) = v%data(self%ilo + (g - 1), :)
+            p%data(self%ilo_ghost(g), :) = p%data(self%ilo + (g - 1), :)
           end do
         end if
       case('+y')
@@ -98,10 +103,10 @@ contains
 
           ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
           do g = 1, self%n_ghost_layers
-            rho%data(:, top_ghost(g)) = rho%data(:, top - (g - 1))
-            u%data(:, top_ghost(g)) = u%data(:, top - (g - 1))
-            v%data(:, top_ghost(g)) = -v%data(:, top - (g - 1))
-            p%data(:, top_ghost(g)) = p%data(:, top - (g - 1))
+            rho%data(:, self%jhi_ghost(g)) = rho%data(:, self%jhi - (g - 1))
+            u%data(:, self%jhi_ghost(g)) = u%data(:, self%jhi - (g - 1))
+            v%data(:, self%jhi_ghost(g)) = -v%data(:, self%jhi - (g - 1))
+            p%data(:, self%jhi_ghost(g)) = p%data(:, self%jhi - (g - 1))
           end do
         end if
       case('-y')
@@ -110,10 +115,10 @@ contains
 
           ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
           do g = 1, self%n_ghost_layers
-            rho%data(:, bottom_ghost(g)) = rho%data(:, bottom + (g - 1))
-            u%data(:, bottom_ghost(g)) = u%data(:, bottom + (g - 1))
-            v%data(:, bottom_ghost(g)) = -v%data(:, bottom + (g - 1))
-            p%data(:, bottom_ghost(g)) = p%data(:, bottom + (g - 1))
+            rho%data(:, self%jlo_ghost(g)) = rho%data(:, self%jlo + (g - 1))
+            u%data(:, self%jlo_ghost(g)) = u%data(:, self%jlo + (g - 1))
+            v%data(:, self%jlo_ghost(g)) = -v%data(:, self%jlo + (g - 1))
+            p%data(:, self%jlo_ghost(g)) = p%data(:, self%jlo + (g - 1))
           end do
         endif
       case default
@@ -123,7 +128,6 @@ contains
                        message="Unsupported BC location", &
                        file_name=__FILE__, line_number=__LINE__)
       end select
-    end associate
 
   end subroutine apply_symmetry_primitive_var_bc
 

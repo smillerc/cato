@@ -60,16 +60,9 @@ contains
 
     integer(ik) :: i
 
-    ! associate(ilo => rho%lbounds(1), ihi => rho%ubounds(1), &
-    !           jlo => rho%lbounds(2), jhi => rho%ubounds(2), &
-    !           ilo_halo => rho%lbounds_halo(1), ihi_halo => rho%ubounds_halo(1), &
-    !           jlo_halo => rho%lbounds_halo(2), jhi_halo => rho%ubounds_halo(2), &
-    !           nh => rho%n_halo_cells, &
-    !           neighbors => rho%neighbors)
-
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
-              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
+    ! associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+    !           left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
+    !           bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
 
       select case(self%location)
       case('+x')
@@ -79,10 +72,10 @@ contains
                              __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
-            rho%data(right_ghost(i), :) = rho%data(right, :)
-            u%data(right_ghost(i), :) = u%data(right, :)
-            v%data(right_ghost(i), :) = v%data(right, :)
-            p%data(right_ghost(i), :) = p%data(right, :)
+            rho%data(self%ihi_ghost(i), :) = rho%data(self%ihi, :)
+            u%data(self%ihi_ghost(i), :) = u%data(self%ihi, :)
+            v%data(self%ihi_ghost(i), :) = v%data(self%ihi, :)
+            p%data(self%ihi_ghost(i), :) = p%data(self%ihi, :)
           end do
         end if
       case('-x')
@@ -92,10 +85,10 @@ contains
                              __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
-            rho%data(left_ghost(i), :) = rho%data(left, :)
-            u%data(left_ghost(i), :) = u%data(left, :)
-            v%data(left_ghost(i), :) = v%data(left, :)
-            p%data(left_ghost(i), :) = p%data(left, :)
+            rho%data(self%ilo_ghost(i), :) = rho%data(self%ilo, :)
+            u%data(self%ilo_ghost(i), :) = u%data(self%ilo, :)
+            v%data(self%ilo_ghost(i), :) = v%data(self%ilo, :)
+            p%data(self%ilo_ghost(i), :) = p%data(self%ilo, :)
           end do
         end if
       case('+y')
@@ -105,10 +98,10 @@ contains
                              __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
-            rho%data(:, top_ghost(i)) = rho%data(:, top)
-            u%data(:, top_ghost(i)) = u%data(:, top)
-            v%data(:, top_ghost(i)) = v%data(:, top)
-            p%data(:, top_ghost(i)) = p%data(:, top)
+            rho%data(:, self%jhi_ghost(i)) = rho%data(:, self%jhi)
+            u%data(:, self%jhi_ghost(i)) = u%data(:, self%jhi)
+            v%data(:, self%jhi_ghost(i)) = v%data(:, self%jhi)
+            p%data(:, self%jhi_ghost(i)) = p%data(:, self%jhi)
           end do
         end if
       case('-y')
@@ -118,16 +111,16 @@ contains
                              __FILE__, __LINE__)
           end if
           do i = 1, self%n_ghost_layers
-            rho%data(:, bottom_ghost(i)) = rho%data(:, bottom)
-            u%data(:, bottom_ghost(i)) = u%data(:, bottom)
-            v%data(:, bottom_ghost(i)) = v%data(:, bottom)
-            p%data(:, bottom_ghost(i)) = p%data(:, bottom)
+            rho%data(:, self%jlo_ghost(i)) = rho%data(:, self%jlo)
+            u%data(:, self%jlo_ghost(i)) = u%data(:, self%jlo)
+            v%data(:, self%jlo_ghost(i)) = v%data(:, self%jlo)
+            p%data(:, self%jlo_ghost(i)) = p%data(:, self%jlo)
           end do
         end if
       case default
         error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc()"
       end select
-    end associate
+    ! end associate
 
   end subroutine apply_zero_gradient_primitive_var_bc
 

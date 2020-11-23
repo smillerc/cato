@@ -96,6 +96,10 @@ contains
     real(rk), dimension(:, :), allocatable, save :: ilo_jlo_corner[:]  !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
     real(rk), dimension(:, :), allocatable, save :: ihi_jlo_corner[:] !< (i, j)[image]; Coarray buffer to copy bottom neighbor halo data
 
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: ilo_halo, ihi_halo, jlo_halo, jhi_halo
+    integer(ik) :: nh
+    
     if(enable_debug_print) call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() ', __FILE__, __LINE__)
     sync_stat = 0
     sync_err_msg = ''
@@ -114,7 +118,7 @@ contains
       if(.not. allocated(ihi_jlo_corner)) allocate(ihi_jlo_corner(n_halo, n_halo)[*])
     end associate
 
-    neighbors = set(rho%neighbors)
+    
 
     #:for F in ['rho', 'u', 'v', 'p']
     ilo_jhi_corner = 0.0_rk
@@ -126,12 +130,16 @@ contains
     jhi_edge = 0.0_rk
     jlo_edge = 0.0_rk
 
-    associate(ilo => ${F}$%lbounds(1), ihi => ${F}$%ubounds(1), &
-              jlo => ${F}$%lbounds(2), jhi => ${F}$%ubounds(2), &
-              ilo_halo => ${F}$%lbounds_halo(1), ihi_halo => ${F}$%ubounds_halo(1), &
-              jlo_halo => ${F}$%lbounds_halo(2), jhi_halo => ${F}$%ubounds_halo(2), &
-              nh => ${F}$%n_halo_cells, &
-              neighbors => ${F}$%neighbors)
+    ilo = ${F}$%lbounds(1) 
+    ihi = ${F}$%ubounds(1)
+    jlo = ${F}$%lbounds(2) 
+    jhi = ${F}$%ubounds(2)
+    ilo_halo = ${F}$%lbounds_halo(1) 
+    ihi_halo = ${F}$%ubounds_halo(1)
+    jlo_halo = ${F}$%lbounds_halo(2) 
+    jhi_halo = ${F}$%ubounds_halo(2)
+    nh = ${F}$%n_halo_cells
+    neighbors = ${F}$%neighbors
 
       select case(self%location)
       case('+x', '-x')
@@ -252,8 +260,6 @@ contains
 
         ! endif
       end if ! do_corners
-
-    end associate
 
     #:endfor
   end subroutine apply_periodic_primitive_var_bc
