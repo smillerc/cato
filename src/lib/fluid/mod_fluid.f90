@@ -607,7 +607,8 @@ contains
                                     self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
     sync all
     ! Get the minimum timestep across all the images and save it on each image
-    call co_min(coarray_min_delta_t, stat=ierr)
+    ierr = 0
+    call co_min(coarray_min_delta_t, stat=ierr, errmsg=err_msg)
     if(ierr /= 0) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='get_timestep', &
                      message="Unable to run the co_min() to get min timestep across images: err_msg="//trim(err_msg), &
