@@ -323,12 +323,14 @@ contains
       if(allocated(gather)) deallocate(gather)
       allocate(gather(ni, nj))
 
-      associate(ilo => self%lbounds(1), ihi => self%ubounds(1), &
-                jlo => self%lbounds(2), jhi => self%ubounds(2))
-        gather_coarray(ilo:ihi, jlo:jhi)[image] = self%volume(ilo:ihi, jlo:jhi)
-        sync all
-        if(this_image() == image) gather = gather_coarray
-      end associate
+      ilo = self%lbounds(1)
+      ihi = self%ubounds(1)
+      jlo = self%lbounds(2)
+      jhi = self%ubounds(2)
+      gather_coarray(ilo:ihi, jlo:jhi)[image] = self%volume(ilo:ihi, jlo:jhi)
+      sync all
+      if(this_image() == image) gather = gather_coarray
+
     end select
 
     if(allocated(gather_coarray)) deallocate(gather_coarray)
