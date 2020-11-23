@@ -101,10 +101,17 @@ contains
     class(field_2d_t), intent(inout) :: u   !< x-velocity
     class(field_2d_t), intent(inout) :: v   !< y-velocity
     class(field_2d_t), intent(inout) :: p   !< pressure
-    type(field_2d_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
-    type(field_2d_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
-    type(field_2d_t), intent(out)   :: d_rho_v_dt    !< d/dt of the rhov field
-    type(field_2d_t), intent(out)   :: d_rho_E_dt    !< d/dt of the rhoE field
+
+    real(rk), dimension(:,:), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
+
+  
+    ! type(field_2d_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
+    ! type(field_2d_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
+    ! type(field_2d_t), intent(out)   :: d_rho_v_dt    !< d/dt of the rhov field
+    ! type(field_2d_t), intent(out)   :: d_rho_E_dt    !< d/dt of the rhoE field
 
     class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x
