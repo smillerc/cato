@@ -158,7 +158,7 @@ contains
     call bc_plus_y%set_time(time=self%time)
     call bc_minus_y%set_time(time=self%time)
 
-    if(any([rho%on_ilo_bc, rho%on_ihi_bc, rho%on_jlo_bc, rho%on_jhi_bc])) then
+    !if(any([rho%on_ilo_bc, rho%on_ihi_bc, rho%on_jlo_bc, rho%on_jhi_bc])) then
       do priority = max_priority_bc, 0, -1
 
         if(bc_plus_x%priority == priority) then
@@ -178,7 +178,7 @@ contains
         end if
 
       end do
-    endif
+    !endif
 
   end subroutine apply_primitive_bc
 
