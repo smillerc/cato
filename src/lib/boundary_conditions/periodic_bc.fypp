@@ -98,7 +98,7 @@ contains
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: ilo_halo, ihi_halo, jlo_halo, jhi_halo
-    integer(ik) :: nh
+    integer(ik) :: nh, ni, nj
     
     if(enable_debug_print) call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() ', __FILE__, __LINE__)
     sync_stat = 0
@@ -106,19 +106,19 @@ contains
     img_err_msg = ''
 
     ! Only allocate once, b/c this will cause an implicit sync all due to the coarray index
-    associate(ni => rho%domain_shape(1), nj => rho%domain_shape(2), n_halo => rho%n_halo_cells)
-      if(.not. allocated(ilo_edge)) allocate(ilo_edge(n_halo, nj)[*])
-      if(.not. allocated(ihi_edge)) allocate(ihi_edge(n_halo, nj)[*])
-      if(.not. allocated(jhi_edge)) allocate(jhi_edge(ni, n_halo)[*])
-      if(.not. allocated(jlo_edge)) allocate(jlo_edge(ni, n_halo)[*])
+    ni = rho%domain_shape(1)
+    nj = rho%domain_shape(2)
+    nh = rho%n_halo_cells
 
-      if(.not. allocated(ilo_jhi_corner)) allocate(ilo_jhi_corner(n_halo, n_halo)[*])
-      if(.not. allocated(ilo_jlo_corner)) allocate(ilo_jlo_corner(n_halo, n_halo)[*])
-      if(.not. allocated(ihi_jhi_corner)) allocate(ihi_jhi_corner(n_halo, n_halo)[*])
-      if(.not. allocated(ihi_jlo_corner)) allocate(ihi_jlo_corner(n_halo, n_halo)[*])
-    end associate
+    if(.not. allocated(ilo_edge)) allocate(ilo_edge(nh, nj)[*])
+    if(.not. allocated(ihi_edge)) allocate(ihi_edge(nh, nj)[*])
+    if(.not. allocated(jhi_edge)) allocate(jhi_edge(ni, rho%n_halo_cells)[*])
+    if(.not. allocated(jlo_edge)) allocate(jlo_edge(ni, rho%n_halo_cells)[*])
 
-    
+    if(.not. allocated(ilo_jhi_corner)) allocate(ilo_jhi_corner(nh, nh)[*])
+    if(.not. allocated(ilo_jlo_corner)) allocate(ilo_jlo_corner(nh, nh)[*])
+    if(.not. allocated(ihi_jhi_corner)) allocate(ihi_jhi_corner(nh, nh)[*])
+    if(.not. allocated(ihi_jlo_corner)) allocate(ihi_jlo_corner(nh, nh)[*])
 
     #:for F in ['rho', 'u', 'v', 'p']
     ilo_jhi_corner = 0.0_rk
