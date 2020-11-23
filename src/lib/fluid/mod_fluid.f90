@@ -539,6 +539,12 @@ contains
     integer(ik), intent(in) :: stage            !< stage in the time integration scheme
     class(source_t), allocatable, intent(in) :: source_term
 
+
+    real(rk), dimension(:,:), allocatable ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:,:), allocatable :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:,:), allocatable :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:,:), allocatable :: d_rho_E_dt  !< d/dt of the rhoE field
+
     if(enable_debug_print) call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
     allocate(d_dt, source=self)
@@ -548,10 +554,20 @@ contains
       call self%sync_fields()
       call self%solver%solve(dt=self%dt, grid=grid, &
                              rho=self%rho, u=self%u, v=self%v, p=self%p, &
-                             d_rho_dt=d_dt%rho, &
-                             d_rho_u_dt=d_dt%rho_u, &
-                             d_rho_v_dt=d_dt%rho_v, &
-                             d_rho_E_dt=d_dt%rho_E)
+                             d_rho_dt=d_rho_dt,  &
+                             d_rho_u_dt=d_rho_u_dt, &
+                             d_rho_v_dt=d_rho_v_dt, &
+                             d_rho_E_dt=d_rho_E_dt)
+      
+      d_dt%rho%data = d_rho_dt  
+      d_dt%rho_u%data = d_rho_u_dt
+      d_dt%rho_v%data = d_rho_v_dt
+      d_dt%rho_E%data = d_rho_E_dt
+
+      deallocate(d_rho_dt  )
+      deallocate(d_rho_u_dt)
+      deallocate(d_rho_v_dt)
+      deallocate(d_rho_E_dt)
 
       if(allocated(source_term)) then
         if(self%time <= source_term%max_time) then

@@ -74,10 +74,16 @@ module mod_flux_solver
       class(field_2d_t), intent(inout) :: u   !< x-velocity
       class(field_2d_t), intent(inout) :: v   !< y-velocity
       class(field_2d_t), intent(inout) :: p   !< pressure
-      type(field_2d_t), intent(out)   ::   d_rho_dt !< d/dt of the density field
-      type(field_2d_t), intent(out)   :: d_rho_u_dt !< d/dt of the rhou field
-      type(field_2d_t), intent(out)   :: d_rho_v_dt !< d/dt of the rhov field
-      type(field_2d_t), intent(out)   :: d_rho_E_dt !< d/dt of the rhoE field
+
+      real(rk), dimension(:,:), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
+      real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
+      real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
+      real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
+
+      ! type(field_2d_t), intent(out)   ::   d_rho_dt !< d/dt of the density field
+      ! type(field_2d_t), intent(out)   :: d_rho_u_dt !< d/dt of the rhou field
+      ! type(field_2d_t), intent(out)   :: d_rho_v_dt !< d/dt of the rhov field
+      ! type(field_2d_t), intent(out)   :: d_rho_E_dt !< d/dt of the rhoE field
     end subroutine
 
     subroutine initialize(self, input, time)
@@ -180,13 +186,14 @@ contains
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
     class(edge_split_flux_solver_t), intent(in) :: self
     class(grid_block_2d_t), intent(in) :: grid          !< grid topology class
-    type(field_2d_t), intent(out) ::   d_rho_dt  !< d/dt of the density field
-    type(field_2d_t), intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
-    type(field_2d_t), intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
-    type(field_2d_t), intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
+    real(rk), dimension(:,:), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    integer(ik) :: ilo_halo, ihi_halo, jlo_halo, jhi_halo
     real(rk), dimension(4) :: delta_l !< edge length
     real(rk) :: inv_volume !< 1 / cell volume
     real(rk), parameter :: FLUX_EPS = 5e-13_rk
@@ -207,14 +214,24 @@ contains
     jlo = grid%lbounds(2)
     jhi = grid%ubounds(2)
 
-    d_rho_dt = field_2d(name='d_rho_dt  ', long_name='d/dt(rho)', descrip='', units='', &
-                        global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
-    d_rho_u_dt = field_2d(name='d_rho_u_dt', long_name='d/dt(rho u)', descrip='', units='', &
-                          global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
-    d_rho_v_dt = field_2d(name='d_rho_v_dt', long_name='d/dt(rho v)', descrip='', units='', &
-                          global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
-    d_rho_E_dt = field_2d(name='d_rho_E_dt', long_name='d/dt(rho E)', descrip='', units='', &
-                          global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
+    ilo_halo = grid%lbounds_halo(1)
+    ihi_halo = grid%ubounds_halo(1)
+    jlo_halo = grid%lbounds_halo(2)
+    jhi_halo = grid%ubounds_halo(2)
+
+    allocate(d_rho_dt  (ilo_halo:ihi_halo, jlo_halo:jhi_halo))
+    allocate(d_rho_u_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
+    allocate(d_rho_v_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
+    allocate(d_rho_E_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
+
+    ! d_rho_dt = field_2d(name='d_rho_dt  ', long_name='d/dt(rho)', descrip='', units='', &
+    !                     global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
+    ! d_rho_u_dt = field_2d(name='d_rho_u_dt', long_name='d/dt(rho u)', descrip='', units='', &
+    !                       global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
+    ! d_rho_v_dt = field_2d(name='d_rho_v_dt', long_name='d/dt(rho v)', descrip='', units='', &
+    !                       global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
+    ! d_rho_E_dt = field_2d(name='d_rho_E_dt', long_name='d/dt(rho E)', descrip='', units='', &
+    !                       global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
 
     !                                   /\
     !                  jflux(i,j)  'R'  |
@@ -258,7 +275,7 @@ contains
         if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
           rho_flux = 0.0_rk
         end if
-        d_rho_dt%data(i, j) = rho_flux * inv_volume
+        d_rho_dt(i,j) = rho_flux * inv_volume
 
         ! rho u
         rhou_edge_fluxes = [self%iflux(2, i, j) * delta_l(2), -self%iflux(2, i - 1, j) * delta_l(4), &
@@ -272,7 +289,7 @@ contains
         if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
           rhou_flux = 0.0_rk
         end if
-        d_rho_u_dt%data(i, j) = rhou_flux * inv_volume
+        d_rho_u_dt(i,j) = rhou_flux * inv_volume
 
         ! rho v
         rhov_edge_fluxes = [self%iflux(3, i, j) * delta_l(2), -self%iflux(3, i - 1, j) * delta_l(4), &
@@ -286,7 +303,7 @@ contains
         if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
           rhov_flux = 0.0_rk
         end if
-        d_rho_v_dt%data(i, j) = rhov_flux * inv_volume
+        d_rho_v_dt(i,j) = rhov_flux * inv_volume
 
         ! rho E
         rhoE_edge_fluxes = [self%iflux(4, i, j) * delta_l(2), -self%iflux(4, i - 1, j) * delta_l(4), &
@@ -300,17 +317,43 @@ contains
         if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
           rhoE_flux = 0.0_rk
         end if
-        d_rho_E_dt%data(i, j) = rhoE_flux * inv_volume
+        d_rho_E_dt(i,j) = rhoE_flux * inv_volume
       end do
     end do
     !$omp end do
     !$omp end parallel
 
     ! Zero out the halo layers
-    call d_rho_dt%zero_out_halo()
-    call d_rho_u_dt%zero_out_halo()
-    call d_rho_v_dt%zero_out_halo()
-    call d_rho_E_dt%zero_out_halo()
+    ! call d_rho_dt%zero_out_halo()
+    ! call d_rho_u_dt%zero_out_halo()
+    ! call d_rho_v_dt%zero_out_halo()
+    ! call d_rho_E_dt%zero_out_halo()
+
+    associate(ilo_s => grid%lbounds_halo(1), ilo_e => grid%lbounds(1) - 1, &
+              ihi_s => grid%ubounds(1) + 1,  ihi_e => grid%ubounds_halo(1), &
+              jlo_s => grid%lbounds_halo(2), jlo_e => grid%lbounds(2) - 1, &
+              jhi_s => grid%ubounds(2) + 1,  jhi_e => grid%ubounds_halo(2))
+
+      d_rho_dt(ilo_s:ilo_e, :) = 0.0_rk ! lower i cells
+      d_rho_dt(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
+      d_rho_dt(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
+      d_rho_dt(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
+   
+      d_rho_u_dt(ilo_s:ilo_e, :) = 0.0_rk ! lower i cells
+      d_rho_u_dt(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
+      d_rho_u_dt(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
+      d_rho_u_dt(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
+   
+      d_rho_v_dt(ilo_s:ilo_e, :) = 0.0_rk ! lower i cells
+      d_rho_v_dt(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
+      d_rho_v_dt(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
+      d_rho_v_dt(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
+   
+      d_rho_E_dt(ilo_s:ilo_e, :) = 0.0_rk ! lower i cells
+      d_rho_E_dt(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
+      d_rho_E_dt(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
+      d_rho_E_dt(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
+    end associate
 
   end subroutine flux_split_edges
 
