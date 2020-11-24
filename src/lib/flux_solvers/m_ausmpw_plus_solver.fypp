@@ -105,6 +105,7 @@ contains
 
     call debug_print('Running copy_m_ausmpw_plus%copy()', __FILE__, __LINE__)
 
+    lhs%input = rhs%input
     lhs%iteration = rhs%iteration
     lhs%time = rhs%time
     lhs%dt = rhs%dt

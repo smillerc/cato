@@ -146,6 +146,7 @@ contains
       deallocate(source_term)
     endif
 
+    call debug_print('Done initializing master_puppeteer_t', __FILE__, __LINE__)
   end subroutine initialize
 
   subroutine finalize(self)
