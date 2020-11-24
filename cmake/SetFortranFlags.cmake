@@ -38,9 +38,9 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
   endif()
 
   if(ENABLE_COARRAY_SINGLE)
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fcoarray=lib")
-  elseif(ENABLE_COARRAY)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fcoarray=single")
+  elseif(ENABLE_COARRAY)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fcoarray=lib")
   endif()
 
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
