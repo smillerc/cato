@@ -3,7 +3,7 @@ module test_field_mod
   use mod_field
   use mod_parallel
   use caf_testing, only: assert_equal
-  implicit none(type, external)
+  implicit none
 
   integer, parameter :: ni = 8
   integer, parameter :: nj = 8
@@ -266,7 +266,7 @@ end module test_field_mod
 
 program test_field
   use test_field_mod
-  implicit none(type, external)
+  implicit none
 
   ! sync all
   if(this_image() == 1) print*, new_line('') // "Running test_halo_exchange" // new_line('') 

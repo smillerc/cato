@@ -32,7 +32,7 @@ submodule(h5fortran:write) writer
 !! This submodule is for writing 0-D..7-D data
 use hdf5, only: h5dwrite_f
 
-implicit none(type, external)
+implicit none
 
 contains
 

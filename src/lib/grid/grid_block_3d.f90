@@ -4,7 +4,7 @@ module mod_grid_block_3d
   use mod_grid_block, only: grid_block_t
   use mod_input, only: input_t
 
-  implicit none(type, external)
+  implicit none
 
   private
   public :: grid_block_3d_t, new_3d_grid_block

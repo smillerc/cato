@@ -48,6 +48,7 @@ module mod_fluid
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
   use mod_flux_solver, only: flux_solver_t
+  use collectives, only: min_to_all
   ! use mod_ausm_plus_solver, only: ausm_plus_solver_t
   ! use mod_fvleg_solver, only: fvleg_solver_t
   use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
@@ -95,10 +96,6 @@ module mod_fluid
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
     logical :: residual_hist_header_written = .false.
 
-    class(boundary_condition_t), allocatable :: bc_plus_x
-    class(boundary_condition_t), allocatable :: bc_plus_y
-    class(boundary_condition_t), allocatable :: bc_minus_x
-    class(boundary_condition_t), allocatable :: bc_minus_y
 
   contains
     ! Private methods
@@ -243,26 +240,6 @@ contains
     allocate(self%solver, source=solver)
     deallocate(solver)
 
-    ! Set boundary conditions
-    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, grid=grid, time=self%time)
-    allocate(self%bc_plus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
-    deallocate(bc)
-
-    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, grid=grid, time=self%time)
-    allocate(self%bc_plus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
-    deallocate(bc)
-
-    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, grid=grid, time=self%time)
-    allocate(self%bc_minus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
-    deallocate(bc)
-
-    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, grid=grid, time=self%time)
-    allocate(self%bc_minus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
-    deallocate(bc)
 
     open(newunit=io, file=trim(self%residual_hist_file), status='replace')
     write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
@@ -582,7 +559,7 @@ contains
   real(rk) function get_timestep(self, grid) result(delta_t)
     class(fluid_t), intent(inout) :: self
     class(grid_block_t), intent(in) :: grid
-    real(rk), save :: coarray_min_delta_t[*] !< the max allowable timestep on each subdomain/image
+    real(rk) :: min_delta_t !< the max allowable timestep on each subdomain/image
     integer(ik) :: ierr
     integer(ik) :: ilo, ihi, jlo, jhi ! fluid lo/hi indicies
     integer(ik) :: g_ilo, g_ihi, g_jlo, g_jhi ! grid lo/hi indices
@@ -615,22 +592,21 @@ contains
     jlo = self%u%lbounds(2)
     jhi = self%u%ubounds(2)
 
-    ! I would have put this in a cleaner associate block, but GFortran+OpenCoarrays bugs out on this
-    coarray_min_delta_t = minval(self%cfl / &
-                                 (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
-                                    self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
-                                  ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
-                                    self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
-    sync all
+    min_delta_t = minval(self%cfl / &
+                                    (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
+                                       self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
+                                     ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
+                                       self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
+    ! sync all
     ! Get the minimum timestep across all the images and save it on each image
-    ierr = 0
-    call co_min(coarray_min_delta_t, stat=ierr, errmsg=err_msg)
+    min_delta_t = min_to_all(min_delta_t)
+
     if(ierr /= 0) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='get_timestep', &
                      message="Unable to run the co_min() to get min timestep across images: err_msg="//trim(err_msg), &
                      file_name=__FILE__, line_number=__LINE__)
     end if
-    delta_t = coarray_min_delta_t
+    delta_t = min_delta_t
   end function get_timestep
 
   subroutine calculate_derived_quantities(self)

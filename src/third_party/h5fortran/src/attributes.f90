@@ -4,7 +4,7 @@ use h5lt, only: h5ltset_attribute_string_f, h5ltset_attribute_float_f, h5ltset_a
                 h5ltget_attribute_string_f, h5ltget_attribute_float_f, h5ltget_attribute_double_f, h5ltget_attribute_int_f, &
                 h5ltget_attribute_ndims_f, h5ltget_attribute_info_f
 
-implicit none(type, external)
+implicit none
 
 contains
 

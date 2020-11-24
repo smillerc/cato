@@ -45,7 +45,7 @@ module h5fortran
                   h5get_libversion_f, h5eset_auto_f, h5fflush_f
   use h5lt, only: h5ltget_dataset_ndims_f, h5ltget_dataset_info_f
 
-  implicit none(type, external)
+  implicit none
   private
   public :: hdf5_file, hdf5_close, h5write, h5read, h5exist, is_hdf5, h5write_attr, h5read_attr, &
             check, hdf_shape_check, hdf_get_slice, hdf_wrapup, & !< for submodules only

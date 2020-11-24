@@ -38,7 +38,7 @@ end module test_mod
 
 program test_limiters
   use test_mod
-  implicit none(type, external)
+  implicit none
 
   if(this_image() == 1) print*, new_line('') // "Running test_basic_flux_limiters" // new_line('') 
   call test_basic_flux_limiters()

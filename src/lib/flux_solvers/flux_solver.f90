@@ -25,7 +25,7 @@ module mod_flux_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_field, only: field_2d_t, field_2d
-  use mod_globals, only: debug_print
+  use mod_globals, only: debug_print, enable_debug_print
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
@@ -110,6 +110,8 @@ contains
     ! Locals
     integer(ik) :: alloc_status
 
+    if(enable_debug_print) call debug_print('Calling flux_solver_t%init_boundary_conditions()', __FILE__, __LINE__)
+
     ! Set boundary conditions
     bc => bc_factory(bc_type=self%input%plus_x_bc, location='+x', input=self%input, grid=grid, time=self%time)
     allocate(bc_plus_x, source=bc, stat=alloc_status)
@@ -148,7 +150,7 @@ contains
     integer(ik) :: priority
     integer(ik) :: max_priority_bc !< highest goes first
 
-    call debug_print('Running flux_solver_t%apply()', __FILE__, __LINE__)
+    call debug_print('Running flux_solver_t%apply_primitive_bc()', __FILE__, __LINE__)
 
     max_priority_bc = max(bc_plus_x%priority, bc_plus_y%priority, &
                           bc_minus_x%priority, bc_minus_y%priority)
@@ -207,6 +209,8 @@ contains
     real(rk) :: ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold
     real(rk) :: ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold
     real(rk) :: ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold
+
+    call debug_print('Running flux_solver_t%flux_split_edges()', __FILE__, __LINE__)
 
     ! Block bounds
     ilo = grid%lbounds(1)
