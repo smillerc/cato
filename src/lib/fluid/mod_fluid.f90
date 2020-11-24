@@ -95,10 +95,6 @@ module mod_fluid
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
     logical :: residual_hist_header_written = .false.
 
-    class(boundary_condition_t), allocatable :: bc_plus_x
-    class(boundary_condition_t), allocatable :: bc_plus_y
-    class(boundary_condition_t), allocatable :: bc_minus_x
-    class(boundary_condition_t), allocatable :: bc_minus_y
 
   contains
     ! Private methods
@@ -243,26 +239,6 @@ contains
     allocate(self%solver, source=solver)
     deallocate(solver)
 
-    ! Set boundary conditions
-    bc => bc_factory(bc_type=input%plus_x_bc, location='+x', input=input, grid=grid, time=self%time)
-    allocate(self%bc_plus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_x"
-    deallocate(bc)
-
-    bc => bc_factory(bc_type=input%plus_y_bc, location='+y', input=input, grid=grid, time=self%time)
-    allocate(self%bc_plus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate bc_plus_y"
-    deallocate(bc)
-
-    bc => bc_factory(bc_type=input%minus_x_bc, location='-x', input=input, grid=grid, time=self%time)
-    allocate(self%bc_minus_x, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_x"
-    deallocate(bc)
-
-    bc => bc_factory(bc_type=input%minus_y_bc, location='-y', input=input, grid=grid, time=self%time)
-    allocate(self%bc_minus_y, source=bc, stat=alloc_status)
-    if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
-    deallocate(bc)
 
     open(newunit=io, file=trim(self%residual_hist_file), status='replace')
     write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
