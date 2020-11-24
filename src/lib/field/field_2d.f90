@@ -21,7 +21,7 @@ module mod_field
                           ihi_jhi_neighbor => UPPER_RIGHT
   use mod_globals, only: enable_debug_print, debug_print
 
-  implicit none(type, external)
+  implicit none
 
   private
   public :: field_2d_t, field_2d

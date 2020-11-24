@@ -11,7 +11,7 @@ module mod_grid_block_2d
   use mod_nondimensionalization, only: set_length_scale, l_0
   use mod_units, only: um_to_cm
 
-  implicit none(type, external)
+  implicit none
 
   private
   public :: grid_block_2d_t, new_2d_grid_block

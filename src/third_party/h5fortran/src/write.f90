@@ -38,7 +38,7 @@ use hdf5, only: &
 
 use H5LT, only: h5ltmake_dataset_string_f, h5ltpath_valid_f
 
-implicit none(type, external)
+implicit none
 
 contains
 

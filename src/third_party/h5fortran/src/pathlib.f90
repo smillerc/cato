@@ -31,7 +31,7 @@
 submodule(h5fortran) pathlib
 !! vendored from Michael Hirsch's Fortran pathlib
 
-implicit none(type, external)
+implicit none
 
 contains
 

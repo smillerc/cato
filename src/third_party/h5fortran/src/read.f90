@@ -34,7 +34,7 @@ use hdf5, only: h5dget_create_plist_f, &
                 h5pget_layout_f, h5pget_chunk_f
 use H5LT, only: h5ltpath_valid_f
 
-implicit none(type, external)
+implicit none
 
 contains
 

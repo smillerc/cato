@@ -3,7 +3,7 @@ module caf_testing
   !< Date: 11/09/2020
   !< Author: Sam Miller
   use iso_fortran_env
-  implicit none (type, external)
+  implicit none 
 
   private
   public :: assert_equal, assert_less, assert_greater
