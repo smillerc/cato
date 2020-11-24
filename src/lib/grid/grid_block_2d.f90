@@ -10,6 +10,7 @@ module mod_grid_block_2d
   use mod_error, only: error_msg
   use mod_nondimensionalization, only: set_length_scale, l_0
   use mod_units, only: um_to_cm
+  use collectives, only: max_to_all, min_to_all
 
   implicit none
 
@@ -390,15 +391,18 @@ contains
     class(grid_block_2d_t), intent(inout) :: self
 
     real(rk) :: diff
-    real(rk), save :: min_edge_length[*]
-    real(rk), save :: max_edge_length[*]
+    real(rk), save :: min_edge_length![*]
+    real(rk), save :: max_edge_length![*]
 
     min_edge_length = minval(self%edge_lengths)
     max_edge_length = maxval(self%edge_lengths)
 
     ! Now broadcast the global max/min to all the images
-    call co_max(max_edge_length)
-    call co_min(min_edge_length)
+
+    ! call co_max(max_edge_length)
+    ! call co_min(min_edge_length)
+    min_edge_length = min_to_all(min_edge_length)
+    max_edge_length = max_to_all(max_edge_length)
 
     if(min_edge_length < tiny(1.0_rk)) error stop "Error in grid initialization, the cell min_edge_length = 0"
 

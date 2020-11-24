@@ -128,6 +128,7 @@ add_library(
   lib/units.f90
   lib/globals.f90
   lib/mod_parallel.f90
+  lib/mod_collectives.f90
   lib/non_dimensional.f90
   lib/math_constants.f90
   lib/floating_point_utilities.f90
