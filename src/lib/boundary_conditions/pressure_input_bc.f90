@@ -44,8 +44,8 @@ module mod_pressure_input_bc
     real(rk) :: scale_factor = 1.0_rk !< scaling factor (e.g. 1x, 2x) to scale the input up/down
 
     ! Temporal inputs
-    type(linear_interp_1d) :: temporal_pressure_input
-    type(linear_interp_1d) :: temporal_density_input
+    class(linear_interp_1d), allocatable :: temporal_pressure_input
+    class(linear_interp_1d), allocatable :: temporal_density_input
     character(len=100) :: input_filename
 
     real(rk), dimension(:), allocatable :: edge_rho !< boundary (ghost/edge/etc) density
@@ -68,6 +68,8 @@ contains
     class(input_t), intent(in) :: input
     class(grid_block_2d_t), intent(in) :: grid
     real(rk), intent(in) :: time
+
+    if(enable_debug_print) call debug_print('Running pressure_input_bc_t%pressure_input_bc_constructor() ', __FILE__, __LINE__)
 
     allocate(bc)
     bc%name = 'pressure_input'
@@ -101,13 +103,17 @@ contains
     integer(ik) :: input_unit, io_status, interp_status
     integer(ik) :: line, nlines
 
+    if(enable_debug_print) call debug_print('Running pressure_input_bc_t%read_pressure_input() ', __FILE__, __LINE__)
+
     file_exists = .false.
     has_header_line = .false.
 
     inquire(file=trim(self%input_filename), exist=file_exists)
 
     if(.not. file_exists) then
-      error stop 'Error in pressure_input_bc_t%read_pressure_input(); pressure input file not found, exiting...'
+      call error_msg(module_name='mod_pressure_input_bc', class_name='pressure_input_bc_t', procedure_name='read_pressure_input', &
+                     message="Pressure input file '"//trim(self%input_filename)//"' not found", &
+                     file_name=__FILE__, line_number=__LINE__)
     end if
 
     ! Open and determine how many lines there are
@@ -153,6 +159,7 @@ contains
     self%max_time = maxval(time_sec)
 
     ! Initialize the linear interpolated data object so we can query the pressure at any time
+    allocate(self%temporal_pressure_input)
     call self%temporal_pressure_input%initialize(time_sec, pressure_barye, interp_status)
     if(interp_status /= 0) then
       write(*, *) time_sec
@@ -162,6 +169,7 @@ contains
       error stop "Error initializing pressure_input_bc_t%temporal_pressure_input"
     end if
 
+    allocate(self%temporal_density_input)
     call self%temporal_density_input%initialize(time_sec, density_gcc, interp_status)
     if(interp_status /= 0) then
       write(*, *) time_sec
@@ -179,6 +187,8 @@ contains
   real(rk) function get_desired_pressure(self) result(desired_pressure)
     class(pressure_input_bc_t), intent(inout) :: self
     integer(ik) :: interp_stat
+
+    if(enable_debug_print) call debug_print('Running pressure_input_bc_t%get_desired_pressure() ', __FILE__, __LINE__)
 
     if(self%constant_pressure) then
       desired_pressure = self%pressure_input
@@ -198,6 +208,8 @@ contains
   real(rk) function get_desired_density(self) result(desired_density)
     class(pressure_input_bc_t), intent(inout) :: self
     integer(ik) :: interp_stat
+
+    if(enable_debug_print) call debug_print('Running pressure_input_bc_t%get_desired_density() ', __FILE__, __LINE__)
 
     if(self%constant_pressure) then
       desired_density = self%density_input
@@ -238,6 +250,8 @@ contains
     real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
     real(rk), dimension(2) :: boundary_norm
 
+    if(enable_debug_print) call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() ', __FILE__, __LINE__)
+
     if(rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
        rho%on_jhi_bc .or. rho%on_jlo_bc) then
 
@@ -273,6 +287,15 @@ contains
           allocate(domain_u(bottom_ghost:top_ghost))
           allocate(domain_v(bottom_ghost:top_ghost))
           allocate(domain_p(bottom_ghost:top_ghost))
+
+          self%edge_rho = 0.0_rk
+          self%edge_u = 0.0_rk
+          self%edge_v = 0.0_rk
+          self%edge_p = 0.0_rk
+          domain_rho = 0.0_rk
+          domain_u = 0.0_rk
+          domain_v = 0.0_rk
+          domain_p = 0.0_rk
         end if
       case('+y', '-y')
         if(rho%on_jhi_bc .or. rho%on_jlo_bc) then
@@ -284,21 +307,17 @@ contains
           allocate(domain_u(left_ghost:right_ghost))
           allocate(domain_v(left_ghost:right_ghost))
           allocate(domain_p(left_ghost:right_ghost))
+          self%edge_rho = 0.0_rk
+          self%edge_u = 0.0_rk
+          self%edge_v = 0.0_rk
+          self%edge_p = 0.0_rk
+          domain_rho = 0.0_rk
+          domain_u = 0.0_rk
+          domain_v = 0.0_rk
+          domain_p = 0.0_rk
         end if
       end select
 
-      if(rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
-         rho%on_jhi_bc .or. rho%on_jlo_bc) then
-        self%edge_rho = 0.0_rk
-        self%edge_u = 0.0_rk
-        self%edge_v = 0.0_rk
-        self%edge_p = 0.0_rk
-
-        domain_rho = 0.0_rk
-        domain_u = 0.0_rk
-        domain_v = 0.0_rk
-        domain_p = 0.0_rk
-      end if
 
       select case(self%location)
       case('+x')
@@ -380,5 +399,8 @@ contains
     if(allocated(self%edge_u)) deallocate(self%edge_u)
     if(allocated(self%edge_v)) deallocate(self%edge_v)
     if(allocated(self%edge_p)) deallocate(self%edge_p)
+
+    if(allocated(self%temporal_density_input)) deallocate(self%temporal_density_input)
+    if(allocated(self%temporal_pressure_input)) deallocate(self%temporal_pressure_input)
   end subroutine finalize
 end module mod_pressure_input_bc
