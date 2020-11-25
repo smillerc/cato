@@ -30,7 +30,7 @@ program cato
   use mod_units, only: set_output_unit_system, io_time_label, io_time_units
   use mod_input, only: input_t
   use mod_nondimensionalization, only: set_scale_factors, t_0
-  use mod_timing, only: timer_t, get_timestep
+  use mod_timing, only: timer_t
   use mod_master_puppeteer, only: master_puppeteer_t, make_master
   use mod_eos, only: set_equation_of_state
 
