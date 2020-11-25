@@ -74,9 +74,14 @@ module mod_field
     logical, public :: on_jlo_bc = .false. !< does this field live on the +j boundary?
     logical, public :: on_jhi_bc = .false. !< does this field live on the -j boundary?
 
+    ! Sync settings: VERY IMPORTANT, check your algorithms to see if you need this to sync on every 
+    ! call to =, otherwise be selective about it. This will reduce communication, which is a good thing
+    logical :: sync_on_equal = .false. !< Call sync_edges whenever the (=) operator is called (very crucial in some cases)
+    
     ! Parallel neighbor information
-    ! TODO: change to !< (N, S, E, W, NE, SE, SW, NW)
-    integer(ik), dimension(8) :: neighbors = 0 !< (lower_left, down, lower_right, left, right, upper_left, up, upper_right); parallel neighbor image indices
+    integer(ik), dimension(8) :: neighbors = 0 
+    !< (ilo_jlo, jlo, ihi_jlo, ilo, ihi, ilo_jhi, jhi, ihi_jhi); parallel neighbor image indices
+    
     integer(ik) :: host_image_id = 0 !< what image owns this field instance?
 
     ! OpenCL stuff
@@ -485,8 +490,10 @@ contains
     integer(ik), intent(in) :: image
     integer(ik) :: ilo, ihi, jlo, jhi
     real(rk) :: gather(self%global_dims(1), self%global_dims(2))
-    real(rk), allocatable :: gather_coarray(:, :)[:]
-    allocate(gather_coarray(self%global_dims(1), self%global_dims(2))[*])
+    real(rk), allocatable, save :: gather_coarray(:, :)[:]
+
+
+    if(.not. allocated(gather_coarray)) allocate(gather_coarray(self%global_dims(1), self%global_dims(2))[*])
 
     ilo = self%lbounds(1)
     ihi = self%ubounds(1)
@@ -497,7 +504,7 @@ contains
     sync all
 
     if(this_image() == image) gather = gather_coarray
-    deallocate(gather_coarray)
+    ! deallocate(gather_coarray)
   end function gather
 
   pure logical function field_shapes_match(lhs, rhs)
@@ -906,7 +913,8 @@ contains
 
     if(enable_debug_print) call debug_print('Running assign_field ', __FILE__, __LINE__)
     call from_field(lhs, f)
-    call lhs%sync_edges()
+
+    if (lhs%sync_on_equal) call lhs%sync_edges()
   end subroutine assign_field
 
   subroutine assign_real_scalar(lhs, a)
@@ -914,7 +922,7 @@ contains
     class(field_2d_t), intent(inout) :: lhs !< left-hand-side of the operation
     real(rk), intent(in) :: a
     lhs%data = a
-    call lhs%sync_edges()
+    if (lhs%sync_on_equal) call lhs%sync_edges()
   end subroutine assign_real_scalar
 
   ! --------------------------------------------------------------------
