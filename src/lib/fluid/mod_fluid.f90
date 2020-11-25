@@ -832,10 +832,12 @@ contains
 
     ! 1st stage
     U_1 = U + U%t(grid=grid, source_term=source_term) * dt
+    ! call U_1%sync_fields()
 
     ! Final stage
     U = U * 0.5_rk + U_1 * 0.5_rk + &
         U_1%t(grid=grid, source_term=source_term) * (0.5_rk * dt)
+    ! call U%sync_fields()
     call U%sanity_check(error_code)
 
     ! ! Convergence history
