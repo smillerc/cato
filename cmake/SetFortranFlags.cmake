@@ -71,13 +71,7 @@ endif()
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
   add_compile_definitions(__SIMD_ALIGN_OMP__)
-  set(IFORT_FLAGS
-      "-fpp -inline-max-size=300 \
--align array${MEMORY_ALIGN_BYTES}byte \
--fp-model source \
--assume contiguous_assumed_shape \
--diag-disable 5268 -diag-disable 7025 -diag-disable 8770 -diag-disable 6477"
-  )
+  set(IFORT_FLAGS "-fpp -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -diag-disable=5268,7025,8770,6477")
 
   if(ENABLE_COARRAY)
     set(IFORT_FLAGS "${IFORT_FLAGS} ${Coarray_COMPILE_OPTIONS}")
