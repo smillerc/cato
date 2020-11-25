@@ -30,7 +30,7 @@ module mod_timing
   implicit none
 
   private
-  public :: timer_t, get_timestep
+  public :: timer_t
 
   type :: timer_t
     private
@@ -125,29 +125,4 @@ contains
       close(io)
     end if
   end subroutine
-
-  real(rk) function get_timestep(cfl, master) result(delta_t)
-    real(rk), intent(in) :: cfl
-    class(master_puppeteer_t), intent(in) :: master
-
-    ! integer(ik) :: ilo, ihi, jlo, jhi
-
-    ! ilo = master%grid%cell_lbounds(1)
-    ! ihi = master%grid%cell_ubounds(1)
-    ! jlo = master%grid%cell_lbounds(2)
-    ! jhi = master%grid%cell_ubounds(2)
-
-    ! if(.not. master%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
-    ! associate(dx => master%grid%dx, dy => master%grid%dy)
-
-    !   delta_t = minval(cfl / &
-    !                    (((abs(master%fluid%u%data(ilo:ihi, jlo:jhi)) + &
-    !                       master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
-    !                     ((abs(master%fluid%v%data(ilo:ihi, jlo:jhi)) + &
-    !                       master%fluid%cs%data(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
-    ! end associate
-    ! ! !$omp end workshare
-
-  end function
-
 end module mod_timing

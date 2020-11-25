@@ -74,7 +74,7 @@ if(CMAKE_Fortran_COMPILER_ID IN_LIST options_coarray)
       endif()
 
       set(Coarray_COMPILE_OPTIONS ${IFORT_COARRAY})
-      set(Coarray_LIBRARY ${IFORT_COARRAY}) # ifort requires it at build AND link
+      # set(Coarray_LIBRARY ${IFORT_COARRAY}) # ifort requires it at build AND link
       list(APPEND Coarray_REQUIRED_VARS ${Coarray_LIBRARY})
     endif()
   endif()
