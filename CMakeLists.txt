@@ -25,7 +25,6 @@ project(
   HOMEPAGE_URL "https://github.com/smillerc/cato"
   LANGUAGES Fortran C)
 
-  set(CMAKE_VERBOSE_MAKEFILE OFF)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
