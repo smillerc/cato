@@ -270,7 +270,16 @@ def load_multiple_steps(paths, use_dask=True, **kwargs):
 
     if use_dask:
         combined._file_obj = _MultiFileCloser(file_objs)
-    return combined
+
+    # Get rid of duplicate times (if any)     
+    _, index = np.unique(combined['time'], return_index=True)  
+    combined = combined.isel(time=index)
+    
+    # If one of the dims is only 1, then reduce/remove it via squeeze
+    if 1 in dict(combined.dims).values():
+        return combined.squeeze()
+    else:
+        return combined
 
 
 def serialize_compressed_dataset(dataset, filename="dataset.nc", lvl=6):
