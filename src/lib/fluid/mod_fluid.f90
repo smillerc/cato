@@ -69,6 +69,7 @@ module mod_fluid
 
     private ! make all private by default
 
+    type(input_t), public :: input
     type(field_2d_t), public :: rho    !< (i, j); Conserved quantities
     type(field_2d_t), public :: rho_u  !< (i, j); Conserved quantities
     type(field_2d_t), public :: rho_v  !< (i, j); Conserved quantities
@@ -158,6 +159,7 @@ contains
 
     integer(ik) :: alloc_status, io
 
+    self%input = input
     self%time = time
     self%cfl = input%cfl
 
@@ -629,18 +631,37 @@ contains
     class(fluid_t), intent(in) :: rhs
     integer(ik) :: alloc_status
     character(len=50) :: err_msg
+    class(flux_solver_t), pointer :: solver => null()
     err_msg = ''
 
     if(enable_debug_print) call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
     
+    lhs%input = rhs%input
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
     lhs%rho = rhs%rho
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
-    lhs%solver=rhs%solver
+    
+    select case(trim(rhs%flux_solver_type))
+    case('M-AUSMPW+')
+      allocate(m_ausmpw_plus_solver_t :: solver)
+    case('AUSMPW+')
+      allocate(ausmpw_plus_solver_t :: solver)
+    case default
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
+                     message="Invalid flux solver. It must be one of the following: "// &
+                     "['AUSMPW+', 'M-AUSMPW+'], "// &
+                     "the input was: '"//trim(rhs%flux_solver_type)//"'", &
+                     file_name=__FILE__, line_number=__LINE__)
+    end select
 
-    ! if(allocated(lhs%solver)) deallocate(lhs%solver)
+    if(allocated(lhs%solver)) deallocate(lhs%solver)
+    call solver%initialize(rhs%input, rhs%time)
+    allocate(lhs%solver, source=solver)
+    deallocate(solver)
+
+
     
     ! allocate(lhs%solver, source=rhs%solver, stat=alloc_status)
     ! if(alloc_status /= 0) then
