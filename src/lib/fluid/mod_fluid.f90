@@ -80,6 +80,7 @@ module mod_fluid
     type(field_2d_t), public :: mach_u   !< (i, j); Conserved quantities
     type(field_2d_t), public :: mach_v   !< (i, j); Conserved quantities
 
+    character(len=32) :: flux_solver_type = ''
     class(flux_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
 
     ! Time variables
@@ -209,24 +210,17 @@ contains
     self%smooth_residuals = input%smooth_residuals
 
     self%time_integration_scheme = trim(input%time_integration_strategy)
+    self%flux_solver_type = trim(input%flux_solver)
 
     select case(trim(input%flux_solver))
-      ! case('FVLEG')
-      !   allocate(fvleg_solver_t :: solver)
-      ! case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
-      !   error stop "There are issues in the AUSM+ solver for now; exiting..."
-      !   allocate(ausm_plus_solver_t :: solver)
     case('M-AUSMPW+')
       allocate(m_ausmpw_plus_solver_t :: solver)
     case('AUSMPW+')
       allocate(ausmpw_plus_solver_t :: solver)
-      ! case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
-      !   allocate(slau_solver_t :: solver)
     case default
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize', &
                      message="Invalid flux solver. It must be one of the following: "// &
-                     "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', "// &
-                     "'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
+                     "['AUSMPW+', 'M-AUSMPW+'], "// &
                      "the input was: '"//trim(input%flux_solver)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     end select
@@ -234,7 +228,6 @@ contains
     call solver%initialize(input, self%time)
     allocate(self%solver, source=solver)
     deallocate(solver)
-
 
     open(newunit=io, file=trim(self%residual_hist_file), status='replace')
     write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
@@ -641,21 +634,22 @@ contains
     err_msg = ''
 
     if(enable_debug_print) call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
+    
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
     lhs%rho = rhs%rho
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
-    if(allocated(lhs%solver)) deallocate(lhs%solver)
-    
-    if (.not. allocated(rhs%solver)) error stop "how did we get here?"
+    lhs%solver=rhs%solver
 
-    allocate(lhs%solver, source=rhs%solver, stat=alloc_status)
-    if(alloc_status /= 0) then
-      write(err_msg,'(a,i0)') "Unable to allocate lhs%solver, error code: ", alloc_status
-      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
-                     message="Unable to allocate lhs%solver", file_name=__FILE__, line_number=__LINE__)
-    end if
+    ! if(allocated(lhs%solver)) deallocate(lhs%solver)
+    
+    ! allocate(lhs%solver, source=rhs%solver, stat=alloc_status)
+    ! if(alloc_status /= 0) then
+    !   write(err_msg,'(a,i0)') "Unable to allocate lhs%solver, error code: ", alloc_status
+    !   call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
+    !                  message="Unable to allocate lhs%solver", file_name=__FILE__, line_number=__LINE__)
+    ! end if
 
     lhs%time_integration_scheme = rhs%time_integration_scheme
     lhs%time = rhs%time
