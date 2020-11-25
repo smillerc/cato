@@ -490,7 +490,7 @@ contains
     integer(ik), intent(in) :: image
     integer(ik) :: ilo, ihi, jlo, jhi
     real(rk) :: gather(self%global_dims(1), self%global_dims(2))
-    real(rk), allocatable, save :: gather_coarray(:, :)[:]
+    real(rk), allocatable :: gather_coarray(:, :)[:]
 
 
     if(.not. allocated(gather_coarray)) allocate(gather_coarray(self%global_dims(1), self%global_dims(2))[*])
@@ -504,7 +504,7 @@ contains
     sync all
 
     if(this_image() == image) gather = gather_coarray
-    ! deallocate(gather_coarray)
+    deallocate(gather_coarray)
   end function gather
 
   pure logical function field_shapes_match(lhs, rhs)
