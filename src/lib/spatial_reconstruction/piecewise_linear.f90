@@ -23,7 +23,7 @@ module mod_piecewise_linear_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_globals, only: debug_print, n_ghost_layers
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
   use mod_eos, only: eos
@@ -45,7 +45,7 @@ module mod_piecewise_linear_reconstruction
     procedure, public :: reconstruct
     procedure, public :: reconstruct_at_point
     final :: finalize
-  end type
+  endtype
 
 contains
 
@@ -67,7 +67,7 @@ contains
     allocate(self%edge_interpolator, source=edge_interpolator)
     deallocate(edge_interpolator)
 
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine finalize(self)
     !< Finalize the piecewise_linear_reconstruction_t type
@@ -86,7 +86,7 @@ contains
     if(allocated(self%grad_y_rho)) deallocate(self%grad_y_rho)
     if(allocated(self%grad_y_p)) deallocate(self%grad_y_p)
 
-  end subroutine finalize
+  endsubroutine finalize
 
   real(rk) function reconstruct_at_point(self, i, j, x, y, var) result(q)
     class(piecewise_linear_reconstruction_t), intent(in) :: self
@@ -108,11 +108,11 @@ contains
     case('rho')
       if(.not. associated(self%rho)) then
         error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%rho isn't associated!"
-      end if
+      endif
 
       if(.not. allocated(self%grad_x_rho) .or. .not. allocated(self%grad_y_rho)) then
         error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), grad_rho isn't allocated!"
-      end if
+      endif
       q_bar = self%rho(i, j)
       grad_x = self%grad_x_rho(i, j)
       grad_y = self%grad_y_rho(i, j)
@@ -120,11 +120,11 @@ contains
     case('p')
       if(.not. associated(self%p)) then
         error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%p isn't associated!"
-      end if
+      endif
 
       if(.not. allocated(self%grad_x_p) .or. .not. allocated(self%grad_y_p)) then
         error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), grad_p isn't allocated!"
-      end if
+      endif
       q_bar = self%p(i, j)
       grad_x = self%grad_x_p(i, j)
       grad_y = self%grad_y_p(i, j)
@@ -132,7 +132,7 @@ contains
       ! write(*, '(3(a,es16.6))') 'ave p: ', q_bar, ' d/dx: ', grad_x, ' d/dy: ', grad_y
     case default
       error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), var must be 'p' or 'rho'"
-    end select
+    endselect
 
     q_x = grad_x * (x - x_ij)
     q_y = grad_y * (y - y_ij)
@@ -142,7 +142,7 @@ contains
 
     q = q_bar + (q_x + q_y)
     if(abs(q - q_bar) < 1e-12_rk) q = q_bar
-  end function reconstruct_at_point
+  endfunction reconstruct_at_point
 
   subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
     !< Reconstruct each corner/midpoint. This converts the cell centered conserved
@@ -211,7 +211,7 @@ contains
       if(.not. allocated(self%grad_y_p)) allocate(self%grad_y_p, mold=grad_y)
       self%grad_x_p(:, :) = grad_x
       self%grad_y_p(:, :) = grad_y
-    end select
+    endselect
 
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
@@ -240,16 +240,16 @@ contains
             reconstructed_var(p, i, j) = primitive_var(i, j)
           else
             reconstructed_var(p, i, j) = recon_var
-          end if
+          endif
 
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
     !$omp end parallel
 
     deallocate(grad_x)
     deallocate(grad_y)
     deallocate(edge_values)
-  end subroutine reconstruct
-end module mod_piecewise_linear_reconstruction
+  endsubroutine reconstruct
+endmodule mod_piecewise_linear_reconstruction

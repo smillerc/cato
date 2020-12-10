@@ -27,7 +27,8 @@ module mod_source
   use math_constants, only: pi
   use linear_interpolation_module, only: linear_interp_1d
   use mod_input, only: input_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_error, only: error_msg
   use mod_nondimensionalization, only: t_0, rho_0, l_0, v_0, p_0, e_0
 
@@ -35,6 +36,7 @@ module mod_source
 
   type :: source_t
 
+    integer(ik) :: io_unit = 0
     character(len=:), allocatable :: source_type !< what type of source, e.g. energy, force, etc.?
     character(len=:), allocatable :: source_geometry !< Shape of the source, e.g. uniform, constant, or 1D/2D gaussian
 
@@ -75,16 +77,16 @@ module mod_source
 
     ! Field data
     real(rk), allocatable, dimension(:, :) :: data !< (i,j); actual source data to apply
-    real(rk), pointer, dimension(:, :) :: cell_centroid_x => null() !< (i,j); cell x centroid used to apply positional source data
-    real(rk), pointer, dimension(:, :) :: cell_centroid_y => null() !< (i,j); cell y centroid used to apply positional source data
-    real(rk), pointer, dimension(:, :) :: cell_volume => null()
+    real(rk), pointer, dimension(:, :) :: centroid_x => null() !< (i,j); cell x centroid used to apply positional source data
+    real(rk), pointer, dimension(:, :) :: centroid_y => null() !< (i,j); cell y centroid used to apply positional source data
+    real(rk), pointer, dimension(:, :) :: volume => null()
   contains
     private
     procedure, public :: integrate
     procedure, public :: read_input_file
     procedure, public :: get_desired_source_input
     procedure, public :: get_source_field
-  end type
+  endtype
 
 contains
 
@@ -92,7 +94,7 @@ contains
     !< Source constructor
     type(source_t), pointer :: new_source
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in), target :: grid
+    class(grid_block_t), intent(in), target :: grid
     real(rk), intent(in) :: time
     allocate(new_source)
 
@@ -103,57 +105,59 @@ contains
     new_source%source_geometry = trim(input%source_geometry)
     new_source%constant_source = input%apply_constant_source
 
-    new_source%cell_volume => grid%cell_volume
+    select type(grid)
+    class is(grid_block_2d_t)
+      new_source%volume => grid%volume
 
-    if(.not. new_source%constant_source) then
-      new_source%input_filename = trim(input%source_file)
-      call new_source%read_input_file()
-    else
-      new_source%constant_source_value = input%constant_source_value
-    end if
+      if(.not. new_source%constant_source) then
+        new_source%input_filename = trim(input%source_file)
+        call new_source%read_input_file()
+      else
+        new_source%constant_source_value = input%constant_source_value
+      endif
 
-    select case(new_source%source_geometry)
-    case('uniform')
-      ! case('constant_xy', '1d_gaussian', '2d_gaussian')
-    case('constant_xy', '1d_gaussian')
-      ! Get the cell centroid data since the source is position dependant
-      new_source%cell_centroid_x => grid%cell_centroid_x
-      new_source%cell_centroid_y => grid%cell_centroid_y
-    case default
-      call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
-                     module='mod_source', class='source_t', procedure='new_source', file_name=__FILE__, line_number=__LINE__)
-    end select
+      select case(new_source%source_geometry)
+      case('uniform')
+        ! case('constant_xy', '1d_gaussian', '2d_gaussian')
+      case('constant_xy', '1d_gaussian')
+        ! Get the cell centroid data since the source is position dependant
+        new_source%centroid_x => grid%centroid_x
+        new_source%centroid_y => grid%centroid_y
+      case default
+        call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
+             module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
+      endselect
 
-    ! Determine the extents of the source term (if any)
-    select case(new_source%source_geometry)
-    case('constant_xy')
-      new_source%xlo = input%source_xlo / l_0
-      new_source%xhi = input%source_xhi / l_0
-      new_source%ylo = input%source_ylo / l_0
-      new_source%yhi = input%source_yhi / l_0
-    case('1d_gaussian', '2d_gaussian')
-      new_source%x_center = input%source_center_x / l_0
-      new_source%y_center = input%source_center_y / l_0
-      new_source%fwhm_x = input%source_gaussian_fwhm_x / l_0
-      new_source%fwhm_y = input%source_gaussian_fwhm_y / l_0
-      new_source%gaussian_order = input%source_gaussian_order
+      ! Determine the extents of the source term (if any)
+      select case(new_source%source_geometry)
+      case('constant_xy')
+        new_source%xlo = input%source_xlo / l_0
+        new_source%xhi = input%source_xhi / l_0
+        new_source%ylo = input%source_ylo / l_0
+        new_source%yhi = input%source_yhi / l_0
+      case('1d_gaussian', '2d_gaussian')
+        new_source%x_center = input%source_center_x / l_0
+        new_source%y_center = input%source_center_y / l_0
+        new_source%fwhm_x = input%source_gaussian_fwhm_x / l_0
+        new_source%fwhm_y = input%source_gaussian_fwhm_y / l_0
+        new_source%gaussian_order = input%source_gaussian_order
 
-      if(new_source%gaussian_order < 1) then
-        call error_msg(message="Source term gaussian order is invalid (< 1)", &
-                       module='mod_source', class='source_t', procedure='new_source', file_name=__FILE__, line_number=__LINE__)
-      end if
+        if(new_source%gaussian_order < 1) then
+          call error_msg(message="Source term gaussian order is invalid (< 1)", &
+             module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
+        endif
 
-      if(new_source%fwhm_x > 0.0_rk .and. new_source%fwhm_y <= 0.0_rk) then
-        new_source%constant_in_y = .true.
-      else if(new_source%fwhm_y > 0.0_rk .and. new_source%fwhm_x <= 0.0_rk) then
-        new_source%constant_in_x = .true.
-      end if
-    end select
+        if(new_source%fwhm_x > 0.0_rk .and. new_source%fwhm_y <= 0.0_rk) then
+          new_source%constant_in_y = .true.
+        else if(new_source%fwhm_y > 0.0_rk .and. new_source%fwhm_x <= 0.0_rk) then
+          new_source%constant_in_x = .true.
+        endif
+      endselect
 
-    allocate(new_source%data, mold=grid%cell_centroid_x)
-    new_source%data = 0.0_rk
-
-  end function new_source
+      allocate(new_source%data, mold=grid%centroid_x)
+      new_source%data = 0.0_rk
+    endselect
+  endfunction new_source
 
   subroutine read_input_file(self)
     !< Read the input file and initialize the linear iterpolated object. This
@@ -175,7 +179,7 @@ contains
 
     if(.not. file_exists) then
       error stop 'Error in source_t%read_input_file(); input file not found, exiting...'
-    end if
+    endif
 
     open(newunit=input_unit, file=trim(self%input_filename))
     nlines = 0
@@ -184,18 +188,18 @@ contains
       if(nlines == 0) then
         line_buffer = adjustl(line_buffer)
         if(line_buffer(1:1) == '#') has_header_line = .true.
-      end if
+      endif
 
       if(io_status /= 0) exit
       nlines = nlines + 1
-    end do
+    enddo
     close(input_unit)
 
     open(newunit=input_unit, file=trim(self%input_filename))
     if(has_header_line) then
       read(input_unit, *, iostat=io_status) ! skip the first line
       nlines = nlines - 1
-    end if
+    endif
 
     allocate(time(nlines))
     allocate(source_data(nlines))
@@ -205,7 +209,7 @@ contains
     do line = 1, nlines
       read(input_unit, *, iostat=io_status) time(line), source_data(line)
       if(io_status /= 0) exit
-    end do
+    enddo
     close(input_unit)
 
     time = time / t_0
@@ -219,7 +223,7 @@ contains
 
     deallocate(time)
     deallocate(source_data)
-  end subroutine read_input_file
+  endsubroutine read_input_file
 
   real(rk) function get_desired_source_input(self) result(source_value)
     !< Get the desired source term amount. This can vary with time, so this can
@@ -241,17 +245,17 @@ contains
             "source_t%get_desired_source_input()"
           error stop "Unable to interpolate value within "// &
             "source_t%get_desired_source_input()"
-        end if
+        endif
       else
         source_value = 0.0_rk
-      end if
-    end if
+      endif
+    endif
 
     if(source_value > 0.0_rk) then
       write(*, '(a, es10.3)') 'Applying source term of: ', source_value * self%nondim_scale_factor
-    end if
+    endif
 
-  end function get_desired_source_input
+  endfunction get_desired_source_input
 
   subroutine integrate(self, dt)
     !< Create the source field to be passed to the fluid class or others
@@ -262,7 +266,7 @@ contains
     self%time = self%time + dt
 
     call self%get_source_field()
-  end subroutine integrate
+  endsubroutine integrate
 
   subroutine get_source_field(self)
     !< For the given time find the source strength and distribution based on the geometry type
@@ -279,36 +283,36 @@ contains
       case('uniform')
         self%data = source_value
       case('constant_xy')
-        where(self%cell_centroid_x < self%xhi .and. self%cell_centroid_x > self%xlo .and. &
-              self%cell_centroid_y < self%yhi .and. self%cell_centroid_x > self%ylo)
-        self%data = 1.0_rk
-        end where
+        where(self%centroid_x < self%xhi .and. self%centroid_x > self%xlo .and. &
+              self%centroid_y < self%yhi .and. self%centroid_x > self%ylo)
+          self%data = 1.0_rk
+        endwhere
       case('1d_gaussian')
         if(self%constant_in_y) then
-          associate(x => self%cell_centroid_x, x0 => self%x_center, &
+          associate(x => self%centroid_x, x0 => self%x_center, &
                     fwhm => self%fwhm_x, order => self%gaussian_order)
 
             c = fwhm * fwhm_to_c
             gauss_amplitude = source_value / (sqrt(2.0_rk * pi) * abs(c))
             self%data = gauss_amplitude * exp(-((((x - x0)**2) / ((2.0_rk * c)**2))))
 
-          end associate
+          endassociate
         else
           error stop "not done yet"
-          associate(y => self%cell_centroid_y, y0 => self%y_center, &
+          associate(y => self%centroid_y, y0 => self%y_center, &
                     fwhm => self%fwhm_y, order => self%gaussian_order)
             self%data = exp(-((((y - y0)**2) / fwhm**2)**order))
-          end associate
-        end if
+          endassociate
+        endif
       case('2d_gaussian')
 
-        associate(x => self%cell_centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &
-                  y => self%cell_centroid_y, y0 => self%y_center, fwhm_y => self%fwhm_y, &
+        associate(x => self%centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &
+                  y => self%centroid_y, y0 => self%y_center, fwhm_y => self%fwhm_y, &
                   order => self%gaussian_order)
           self%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
                              (((y - y0)**2) / fwhm_y**2))**order))
-        end associate
-      end select
+        endassociate
+      endselect
 
       ! Remove tiny numbers
       where(abs(self%data) < tiny(1.0_rk)) self%data = 0.0_rk
@@ -318,12 +322,12 @@ contains
       ! write(*,'(a, 10(es16.6))') "min/max: ", minval(self%data), maxval(self%data)
       ! write(*,'(a, es16.6)') "source_value", source_value
       ! write(*,'(a, es16.6)') "sum(self%data)", sum(self%data)
-      ! write(*,'(a, es16.6)') "sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)", sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)
-      self%data = self%data / sum(self%cell_volume, mask=abs(self%data) > 0.0_rk)
+      ! write(*,'(a, es16.6)') "sum(self%volume, mask=abs(self%data) > 0.0_rk)", sum(self%volume, mask=abs(self%data) > 0.0_rk)
+      self%data = self%data / sum(self%volume, mask=abs(self%data) > 0.0_rk)
       ! write(*,'(a, es16.6)') "self%data", sum(self%data)
-    end if
+    endif
     ! error stop
-  end subroutine get_source_field
+  endsubroutine get_source_field
 
   subroutine finalize(self)
     type(source_t), intent(inout) :: self
@@ -333,8 +337,8 @@ contains
     if(allocated(self%source_type)) deallocate(self%source_type)
     if(allocated(self%source_geometry)) deallocate(self%source_geometry)
     if(allocated(self%input_filename)) deallocate(self%input_filename)
-    if(associated(self%cell_centroid_x)) deallocate(self%cell_centroid_x)
-    if(associated(self%cell_centroid_y)) deallocate(self%cell_centroid_y)
-    if(associated(self%cell_volume)) deallocate(self%cell_volume)
-  end subroutine finalize
-end module mod_source
+    if(associated(self%centroid_x)) deallocate(self%centroid_x)
+    if(associated(self%centroid_y)) deallocate(self%centroid_y)
+    if(associated(self%volume)) deallocate(self%volume)
+  endsubroutine finalize
+endmodule mod_source

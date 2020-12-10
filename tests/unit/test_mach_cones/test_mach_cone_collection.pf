@@ -4,7 +4,7 @@ module test_mach_cone_collection
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use math_constants, only: pi, rad2deg
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_grid_factory, only: grid_factory
   use mod_input, only: input_t
 
@@ -13,7 +13,7 @@ module test_mach_cone_collection
   implicit none
 
   class(abstract_reconstruction_t), allocatable :: reconstruction_operator !< Recon operator used to find P' values
-  class(grid_t), pointer :: grid
+  class(grid_block_t), pointer :: grid
 
   type(input_t) :: input
 
@@ -94,8 +94,8 @@ contains
 
     associate(imin_node => grid%ilo_node, imax_node => grid%ihi_node, &
               jmin_node => grid%jlo_node, jmax_node => grid%jhi_node, &
-              imin_cell => grid%ilo_cell, imax_cell => grid%ihi_cell, &
-              jmin_cell => grid%jlo_cell, jmax_cell => grid%jhi_cell)
+              imin_cell => grid%cell_lbounds(1), imax_cell => grid%cell_ubounds(1), &
+              jmin_cell => grid%cell_lbounds(2), jmax_cell => grid%cell_ubounds(2))
 
       print *, imin_node, imax_node, jmin_node, jmax_node
       print *, imin_cell, imax_cell, jmin_cell, jmax_cell
@@ -113,25 +113,25 @@ contains
           corner_neighbors(:, 2, i, j) = [i, j - 1]     ! lower right
           corner_neighbors(:, 3, i, j) = [i, j]         ! upper right
           corner_neighbors(:, 4, i, j) = [i - 1, j]     ! upper left
-        end do
-      end do
+        enddo
+      enddo
 
       do j = jmin_node, jmax_node
         do i = imin_cell, imax_cell
           leftright_midpoint_neighbors(:, 1, i, j) = [i, j]     ! above
           leftright_midpoint_neighbors(:, 2, i, j) = [i, j - 1] ! below
-        end do
-      end do
+        enddo
+      enddo
 
       do j = jmin_cell, jmax_cell
         do i = imin_node, imax_node
           downup_midpoint_neighbors(:, 1, i, j) = [i - 1, j] ! left
           downup_midpoint_neighbors(:, 2, i, j) = [i, j]     ! right
-        end do
-      end do
-    end associate
+        enddo
+      enddo
+    endassociate
 
-  end subroutine
+  endsubroutine
 
   @after
   subroutine after()
@@ -140,7 +140,7 @@ contains
     deallocate(downup_midpoint_neighbors)
     deallocate(reconstruction_operator)
     deallocate(grid)
-  end subroutine
+  endsubroutine
 
   @test
   subroutine test_midpoint_lr_p_prime_below_no_int()
@@ -236,8 +236,8 @@ contains
 
         ! Cell 2 -> use M3 from the cell below
         midpoint_reconstructed_rho(2, i, j) = recon_rho(M3, i, j - 1)
-      end do
-    end do
+      enddo
+    enddo
 
     i = 2; j = 2
     call mach_cone%initialize(tau=1.0e-2_rk, &
@@ -261,7 +261,7 @@ contains
     if(reconstruct_p_prime) then
       @assertEqual(2.54_rk, mach_cone%density_p_prime(i, j))
       @assertEqual(1.0_rk, mach_cone%pressure_p_prime(i, j))
-    end if
+    endif
 
     !print*, mach_cone
     dtheta = 0.0_rk
@@ -279,7 +279,7 @@ contains
     deallocate(midpoint_reconstructed_v)
     deallocate(midpoint_reconstructed_p)
 
-  end subroutine test_midpoint_lr_p_prime_below_no_int
+  endsubroutine test_midpoint_lr_p_prime_below_no_int
 
   !   ! Left BC
   ! recon_rho(M1,0,:) = 1.0_rk; recon_rho(M3,0,:) = 1.0_rk
@@ -1461,7 +1461,7 @@ contains
     data_buffer = cos(2.0_rk * theta_ie) - cos(2.0_rk * theta_ib)
     @assertEqual(data_buffer, mach_cone%cos_d2theta(:, i, j), 1e-10_rk)
 
-  end subroutine test_transonic_du_midpoint
+  endsubroutine test_transonic_du_midpoint
 
   ! !@test
   ! subroutine test_transonic_corner()
@@ -1539,4 +1539,4 @@ contains
   !   theta(:, 4) = [pi, 0.0_rk]
   !   ! @assertEqual(theta, mach_cone%theta_ie, 1.0e-8_rk)
   ! end subroutine test_transonic_corner
-end module test_mach_cone_collection
+endmodule test_mach_cone_collection

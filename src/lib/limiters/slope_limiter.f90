@@ -46,7 +46,7 @@ module mod_slope_limiter
     procedure(limit), pointer, nopass :: limit => null()
   contains
     final :: finalize
-  end type
+  endtype
 
   ! These slope limiters are to be used in the form of the following:
   ! See [1], Eq 5.
@@ -68,14 +68,14 @@ module mod_slope_limiter
 
   interface slope_limiter_t
     module procedure constructor
-  end interface
+  endinterface
 
   interface
     real(rk) function limit(R) result(phi_lim)
       import :: rk
       real(rk), intent(in) :: R
-    end function
-  end interface
+    endfunction
+  endinterface
 
 contains
 
@@ -89,7 +89,7 @@ contains
 
     if(present(use_symmetric_form)) then
       use_sym_form = use_symmetric_form
-    end if
+    endif
 
     limiter%name = trim(name)
 
@@ -109,7 +109,7 @@ contains
         limiter%limit => van_leer_sym_form
       case default
         error stop "Error in slope_limiter_t%constructor(): Unknown slope limiter name"
-      end select
+      endselect
     else
       select case(trim(name))
       case('none')
@@ -126,22 +126,22 @@ contains
         limiter%limit => van_leer
       case default
         error stop "Error in slope_limiter_t%constructor(): Unknown symmetric slope limiter name"
-      end select
-    end if
+      endselect
+    endif
 
-  end function
+  endfunction
 
   subroutine finalize(self)
     type(slope_limiter_t), intent(inout) :: self
     if(associated(self%limit)) nullify(self%limit)
     if(allocated(self%name)) deallocate(self%name)
-  end subroutine finalize
+  endsubroutine finalize
 
   pure real(rk) function none(R) result(phi_lim)
     !< Unlimited slope
     real(rk), intent(in) :: R !< R  = (u_{i+1} - u_i) / (u_i - u_{i-1})
     phi_lim = 1.0_rk
-  end function none
+  endfunction none
 
   pure real(rk) function barth_jespersen(R) result(phi_lim)
     !< Barth Jesperson slope limiter. See Eq. 8 in [1]
@@ -151,8 +151,8 @@ contains
       phi_lim = 0.0_rk
     else
       phi_lim = min(1.0_rk, 4.0_rk / (R + 1.0_rk),(4.0_rk * R) / (R + 1.0_rk))
-    end if
-  end function barth_jespersen
+    endif
+  endfunction barth_jespersen
 
   pure real(rk) function van_leer(R) result(phi_lim)
     !< van Leer slope limiter. See Eq. 8 in [1]
@@ -162,8 +162,8 @@ contains
       phi_lim = 0.0_rk
     else
       phi_lim = 4.0_rk * R / (R + 1.0_rk)**2
-    end if
-  end function van_leer
+    endif
+  endfunction van_leer
 
   pure real(rk) function minmod(R) result(phi_lim)
     !< Min-mod slope limiter. See Eq. 8 in [1]
@@ -173,27 +173,27 @@ contains
       phi_lim = 0.0_rk
     else
       phi_lim = min(2.0_rk / (1.0_rk + R),(2.0_rk * R) / (1.0_rk + R))
-    end if
-  end function minmod
+    endif
+  endfunction minmod
 
   pure real(rk) function barth_jespersen_sym_form(f) result(phi_lim)
     !< Barth Jesperson slope limiter. See Eq. 8 in [1]
     real(rk), intent(in) :: f !< symmetric smoothness indicator
 
     phi_lim = min(1.0_rk, 4.0_rk * f, 4.0_rk * (1.0_rk - f))
-  end function barth_jespersen_sym_form
+  endfunction barth_jespersen_sym_form
 
   pure real(rk) function van_leer_sym_form(f) result(phi_lim)
     !< van Leer slope limiter. See Eq. 8 in [1]
     real(rk), intent(in) :: f !< symmetric smoothness indicator
 
     phi_lim = 4.0_rk * f * (1.0_rk - f)
-  end function van_leer_sym_form
+  endfunction van_leer_sym_form
 
   pure real(rk) function minmod_sym_form(f) result(phi_lim)
     !< Min-mod slope limiter. See Eq. 8 in [1]
     real(rk), intent(in) :: f !< symmetric smoothness indicator
 
     phi_lim = min(2.0_rk * f, 2.0_rk * (1.0_rk - f))
-  end function minmod_sym_form
-end module mod_slope_limiter
+  endfunction minmod_sym_form
+endmodule mod_slope_limiter

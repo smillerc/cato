@@ -22,7 +22,7 @@ module mod_piecewise_constant_reconstruction
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use mod_globals, only: debug_print, n_ghost_layers
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_slope_limiter, only: slope_limiter_t
   use mod_input, only: input_t
 
@@ -37,7 +37,7 @@ module mod_piecewise_constant_reconstruction
     procedure, public :: reconstruct
     procedure, public :: reconstruct_at_point
     final :: finalize
-  end type
+  endtype
 
 contains
 
@@ -57,7 +57,7 @@ contains
 
     self%grid => grid_target
 
-  end subroutine init_first_order
+  endsubroutine init_first_order
 
   subroutine finalize(self)
     !< Finalize the piecewise_constant_reconstruction_t type
@@ -75,7 +75,7 @@ contains
     if(allocated(self%grad_y_rho)) deallocate(self%grad_y_rho)
     if(allocated(self%grad_y_p)) deallocate(self%grad_y_p)
 
-  end subroutine finalize
+  endsubroutine finalize
 
   pure real(rk) function reconstruct_at_point(self, i, j, x, y, var) result(q)
     class(piecewise_constant_reconstruction_t), intent(in) :: self
@@ -87,18 +87,18 @@ contains
     case('rho')
       if(.not. associated(self%rho)) then
         error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%rho isn't associated!"
-      end if
+      endif
       q = self%rho(i, j)
 
     case('p')
       if(.not. associated(self%p)) then
         error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), self%p isn't associated!"
-      end if
+      endif
       q = self%p(i, j)
     case default
       error stop "Error in piecewise_linear_reconstruction_t%reconstruct_at_point(), var must be 'p' or 'rho'"
-    end select
-  end function
+    endselect
+  endfunction
 
   subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
     !< Reconstruct the entire domain. Rather than do it a point at a time, this reuses some
@@ -139,12 +139,12 @@ contains
       do i = ilo, ihi
         do p = 1, 8
           reconstructed_var(p, i, j) = primitive_var(i, j)
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do simd
     !$omp end parallel
 
-  end subroutine reconstruct
+  endsubroutine reconstruct
 
-end module mod_piecewise_constant_reconstruction
+endmodule mod_piecewise_constant_reconstruction

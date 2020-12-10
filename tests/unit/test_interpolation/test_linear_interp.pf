@@ -74,22 +74,22 @@ contains
     tolerance = 1.0e-14_wp
     do i = 1, nx
       x(i) = dble(i - 1) / dble(nx - 1)
-    end do
+    enddo
     do j = 1, ny
       y(j) = dble(j - 1) / dble(ny - 1)
-    end do
+    enddo
     do k = 1, nz
       z(k) = dble(k - 1) / dble(nz - 1)
-    end do
+    enddo
     do l = 1, nq
       q(l) = dble(l - 1) / dble(nq - 1)
-    end do
+    enddo
     do m = 1, nr
       r(m) = dble(m - 1) / dble(nr - 1)
-    end do
+    enddo
     do n = 1, ns
       s(n) = dble(n - 1) / dble(ns - 1)
-    end do
+    enddo
     do i = 1, nx
       fcn_1d(i) = f1(x(i))
       do j = 1, ny
@@ -102,12 +102,12 @@ contains
               fcn_5d(i, j, k, l, m) = f5(x(i), y(j), z(k), q(l), r(m))
               do n = 1, ns
                 fcn_6d(i, j, k, l, m, n) = f6(x(i), y(j), z(k), q(l), r(m), s(n))
-              end do
-            end do
-          end do
-        end do
-      end do
-    end do
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
 
     ! initialize
     call s1%initialize(x, fcn_1d, iflag(1))
@@ -172,55 +172,55 @@ contains
                 actual_value(6) = f6(x(i) + rnd, y(j) + rnd, z(k) + rnd, q(l) + rnd, r(m) + rnd, s(n) + rnd)
 
                 @assertEqual(actual_value(6), interpolated_value(6), tolerance)
-              end do
-            end do
-          end do
-        end do
-      end do
-    end do
+              enddo
+            enddo
+          enddo
+        enddo
+      enddo
+    enddo
 
-  end subroutine test_all_the_things
+  endsubroutine test_all_the_things
 
   real(wp) function f1(x)
     !< 1d test function
     implicit none
     real(wp), intent(in) :: x
     f1 = x + x + x + x + x + x
-  end function f1
+  endfunction f1
 
   real(wp) function f2(x, y)
     !< 2d test function
     implicit none
     real(wp), intent(in) :: x, y
     f2 = x + y + x + y + x + y
-  end function f2
+  endfunction f2
 
   real(wp) function f3(x, y, z)
     !< 3d test function
     implicit none
     real(wp), intent(in) :: x, y, z
     f3 = x + y + z + x + y + z
-  end function f3
+  endfunction f3
 
   real(wp) function f4(x, y, z, q)
     !< 4d test function
     implicit none
     real(wp), intent(in) ::  x, y, z, q
     f4 = x + y + z + q + x + y
-  end function f4
+  endfunction f4
 
   real(wp) function f5(x, y, z, q, r)
     !< 5d test function
     implicit none
     real(wp), intent(in) ::  x, y, z, q, r
     f5 = x + y + z + q + r + x
-  end function f5
+  endfunction f5
 
   real(wp) function f6(x, y, z, q, r, s)
     !< 6d test function
     implicit none
     real(wp), intent(in) ::  x, y, z, q, r, s
     f6 = x + y + z + q + r + s
-  end function f6
+  endfunction f6
 
-end module test_linear_interp
+endmodule test_linear_interp

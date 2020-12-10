@@ -87,7 +87,7 @@ module hdf5_interface
       hdf_get_real64, hdf_get_real64_1d, hdf_get_real64_2d, hdf_get_real64_3d, hdf_get_real64_4d, &
       hdf_add_string, hdf_get_string
 
-  end type hdf5_file
+  endtype hdf5_file
 
 contains
   !=============================================================================
@@ -139,7 +139,7 @@ contains
       print *, 'Error: HDF5 open/create failed: '//filename
       error stop
     endif
-  end subroutine hdf_initialize
+  endsubroutine hdf_initialize
   !=============================================================================
   subroutine hdf_finalize(self)
     class(hdf5_file), intent(in) :: self
@@ -155,9 +155,9 @@ contains
     if(ierr /= 0) then
       print *, 'Error: HDF5 finalization: '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_finalize
+  endsubroutine hdf_finalize
   !=============================================================================
   subroutine hdf_add_group(self, gname)
 
@@ -192,17 +192,17 @@ contains
         if(ierr /= 0) then
           print *, 'problem creating group '//gname
           error stop
-        end if
+        endif
 
         call h5gclose_f(gid, ierr)
         if(ierr /= 0) then
           print *, 'problem closing group '//gname
           error stop
-        end if
+        endif
       endif
-    end do
+    enddo
 
-  end subroutine hdf_add_group
+  endsubroutine hdf_add_group
   !=============================================================================
   subroutine hdf_open_group(self, gname)
     class(hdf5_file), intent(inout) :: self
@@ -214,12 +214,12 @@ contains
     if(ierr /= 0) then
       print *, 'problem opening group '//gname
       error stop
-    end if
+    endif
 
     self%glid = self%lid
     self%lid = self%gid
 
-  end subroutine hdf_open_group
+  endsubroutine hdf_open_group
   !=============================================================================
   subroutine hdf_close_group(self)
     class(hdf5_file), intent(inout) :: self
@@ -230,11 +230,11 @@ contains
     if(ierr /= 0) then
       print *, 'problem closing group '//self%filename
       error stop
-    end if
+    endif
 
     self%lid = self%glid
 
-  end subroutine hdf_close_group
+  endsubroutine hdf_close_group
   !=============================================================================
   subroutine hdf_set_deflate(self, dims)
     class(hdf5_file), intent(inout) :: self
@@ -256,13 +256,13 @@ contains
     if(ierr /= 0) then
       print *, 'error creating property '//self%filename
       error stop
-    end if
+    endif
 
     call h5pset_chunk_f(self%pid, ndims, chunk_size, ierr)
     if(ierr /= 0) then
       print *, 'error setting chunk '//self%filename
       error stop
-    end if
+    endif
 
     if(self%comp_lvl < 1 .or. self%comp_lvl > 9) return
 
@@ -270,15 +270,15 @@ contains
     if(ierr /= 0) then
       print *, 'error enabling Shuffle '//self%filename
       error stop
-    end if
+    endif
 
     call h5pset_deflate_f(self%pid, self%comp_lvl, ierr)
     if(ierr /= 0) then
       print *, 'error enabling Deflate compression '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_set_deflate
+  endsubroutine hdf_set_deflate
 
   subroutine hdf_setup_write(self, dname, dtype, dims, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -299,15 +299,15 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataspace '//dname//' '//self%filename
       error stop
-    end if
+    endif
 
     call h5dcreate_f(self%lid, dname, dtype, self%sid, self%did, ierr, self%pid)
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_setup_write
+  endsubroutine hdf_setup_write
 
   subroutine hdf_wrapup(self)
     class(hdf5_file), intent(in) :: self
@@ -319,9 +319,9 @@ contains
     if(ierr /= 0) then
       print *, 'error on closing dataset '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_wrapup
+  endsubroutine hdf_wrapup
 
   subroutine writeattr(self, dname, attr, attrval)
     class(hdf5_file), intent(in) :: self
@@ -336,7 +336,7 @@ contains
     if(ierr /= 0) then
       print *, 'problem checking existence: '//dname//' file '//self%filename
       error stop
-    end if
+    endif
 
     if(.not. exists) then
       write(stderr, *) 'WARNING: variable '//dname//' must be created before writing '//attr
@@ -347,9 +347,9 @@ contains
     if(ierr /= 0) then
       print *, 'problem writing attribute '//attr//' to '//dname//' file '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine writeattr
+  endsubroutine writeattr
 
   subroutine readattr(self, dname, attr, attrval)
     class(hdf5_file), intent(in) :: self
@@ -366,7 +366,7 @@ contains
     if(ierr /= 0) then
       print *, 'problem checking existence: '//dname//' file '//self%filename
       error stop
-    end if
+    endif
 
     if(.not. exists) then
       write(stderr, *) 'WARNING: variable '//dname//' must be created before writing '//attr
@@ -378,14 +378,14 @@ contains
     if(ierr /= 0) then
       print *, 'problem reading attribute '//attr//' from '//dname//' file '//self%filename
       error stop
-    end if
+    endif
 
     ! gets rid of the ^@ character (null)
     do i = 1, len(attrval)
       if(attrval(i:i) == char(0)) attrval(i:i) = ' '
-    end do
+    enddo
 
-  end subroutine readattr
+  endsubroutine readattr
 
   !===================================
   subroutine hdf_add_int(self, dname, value)
@@ -412,35 +412,35 @@ contains
     if(ierr /= 0) then
       print *, 'error create dataspace '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     !! create dataset
     call h5dcreate_f(self%lid, dname, h5kind_to_type(kind(value), H5_INTEGER_KIND), sid, did, ierr)
     if(ierr /= 0) then
       print *, 'error create dataspace '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     !! write dataset
     call h5dwrite_f(did, h5kind_to_type(kind(value), H5_INTEGER_KIND), value, int(shape(value), HSIZE_T), ierr)
     if(ierr /= 0) then
       print *, 'error write dataspace '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
     !! close space and dataset
     call h5dclose_f(did, ierr)
     if(ierr /= 0) then
       print *, 'error close dataset '//dname//' write '//self%filename
       error stop
-    end if
+    endif
     call h5sclose_f(sid, ierr)
     if(ierr /= 0) then
       print *, 'error close dataspace '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_add_int
+  endsubroutine hdf_add_int
 
   subroutine hdf_add_int1d(self, dname, value)
     class(hdf5_file), intent(in) :: self
@@ -456,9 +456,9 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
-  end subroutine hdf_add_int1d
+  endsubroutine hdf_add_int1d
 
   subroutine hdf_add_int2d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -479,11 +479,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_int2d
+  endsubroutine hdf_add_int2d
 
   subroutine hdf_add_int3d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -504,11 +504,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_int3d
+  endsubroutine hdf_add_int3d
 
   !========================================================================================
 
@@ -533,21 +533,21 @@ contains
     if(ierr /= 0) then
       print *, 'error create dataspace '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
     !! create dataset
     call h5dcreate_f(self%lid, dname, h5kind_to_type(kind(value), H5_REAL_KIND), sid, did, ierr)
     if(ierr /= 0) then
       print *, 'error create dataset '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
     !! write dataset
     call h5dwrite_f(did, h5kind_to_type(kind(value), H5_REAL_KIND), value, int(shape(value), HSIZE_T), ierr)
     if(ierr /= 0) then
       print *, 'error write dataset '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
     !! close space and dataset
     call h5dclose_f(did, ierr)
@@ -555,9 +555,9 @@ contains
     if(ierr /= 0) then
       print *, 'error close dataspace '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_add_real32
+  endsubroutine hdf_add_real32
 
   subroutine hdf_add_real32_1d(self, dname, value)
     class(hdf5_file), intent(in) :: self
@@ -573,9 +573,9 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
-  end subroutine hdf_add_real32_1d
+  endsubroutine hdf_add_real32_1d
 
   subroutine hdf_add_real32_2d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -596,11 +596,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real32_2d
+  endsubroutine hdf_add_real32_2d
 
   subroutine hdf_add_real32_3d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -621,11 +621,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real32_3d
+  endsubroutine hdf_add_real32_3d
 
   subroutine hdf_add_real32_4d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -646,11 +646,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real32_4d
+  endsubroutine hdf_add_real32_4d
 
   subroutine hdf_add_real32_5d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -671,11 +671,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real32_5d
+  endsubroutine hdf_add_real32_5d
 
   subroutine hdf_add_real32_6d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -696,11 +696,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real32_6d
+  endsubroutine hdf_add_real32_6d
 
   subroutine hdf_add_real64(self, dname, value)
     class(hdf5_file), intent(in) :: self
@@ -726,21 +726,21 @@ contains
     if(ierr /= 0) then
       print *, 'error create dataspace '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
     !! create dataset
     call h5dcreate_f(self%lid, dname, h5kind_to_type(kind(value), H5_REAL_KIND), sid, did, ierr)
     if(ierr /= 0) then
       print *, 'error create dataset '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
     !! write dataset
     call h5dwrite_f(did, h5kind_to_type(kind(value), H5_REAL_KIND), value, int(shape(value), HSIZE_T), ierr)
     if(ierr /= 0) then
       print *, 'error write dataset '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
     !! close space and dataset
     call h5dclose_f(did, ierr)
@@ -748,9 +748,9 @@ contains
     if(ierr /= 0) then
       print *, 'error close dataspace '//dname//' write '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_add_real64
+  endsubroutine hdf_add_real64
 
   subroutine hdf_add_real64_1d(self, dname, value)
     class(hdf5_file), intent(in) :: self
@@ -766,9 +766,9 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
-  end subroutine hdf_add_real64_1d
+  endsubroutine hdf_add_real64_1d
 
   subroutine hdf_add_real64_2d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -789,11 +789,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real64_2d
+  endsubroutine hdf_add_real64_2d
 
   subroutine hdf_add_real64_3d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -814,11 +814,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real64_3d
+  endsubroutine hdf_add_real64_3d
 
   subroutine hdf_add_real64_4d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -839,11 +839,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real64_4d
+  endsubroutine hdf_add_real64_4d
 
   subroutine hdf_add_real64_5d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -864,11 +864,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real64_5d
+  endsubroutine hdf_add_real64_5d
 
   subroutine hdf_add_real64_6d(self, dname, value, chunk_size)
     class(hdf5_file), intent(inout) :: self
@@ -889,11 +889,11 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
     call hdf_wrapup(self)
 
-  end subroutine hdf_add_real64_6d
+  endsubroutine hdf_add_real64_6d
 
   !================================================================================
 
@@ -907,9 +907,9 @@ contains
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' write '//self%filename
       stop
-    end if
+    endif
 
-  end subroutine hdf_add_string
+  endsubroutine hdf_add_string
 
   !====== READ =====================================
 
@@ -925,14 +925,14 @@ contains
     ! gets rid of the ^@ character (null)
     do i = 1, len(value)
       if(value(i:i) == char(0)) value(i:i) = ' '
-    end do
+    enddo
 
     if(ierr /= 0) then
       print *, 'error on dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_string
+  endsubroutine hdf_get_string
 
   subroutine hdf_get_int(self, dname, value)
 
@@ -948,23 +948,23 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     ! read dataset
     call h5dread_f(did, h5kind_to_type(kind(value), H5_INTEGER_KIND), value, int(shape(value), HSIZE_T), ierr)
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     ! close dataset
     call h5dclose_f(did, ierr)
     if(ierr /= 0) then
       print *, 'error close dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_int
+  endsubroutine hdf_get_int
 
   subroutine hdf_get_int1d(self, dname, value)
 
@@ -979,7 +979,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1)))
 
@@ -987,9 +987,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_int1d
+  endsubroutine hdf_get_int1d
 
   subroutine hdf_get_int2d(self, dname, value)
 
@@ -1004,7 +1004,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1), dims(2)))
 
@@ -1012,9 +1012,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_int2d
+  endsubroutine hdf_get_int2d
 
   subroutine hdf_get_int3d(self, dname, value)
 
@@ -1029,7 +1029,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1), dims(2), dims(3)))
 
@@ -1037,9 +1037,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_int3d
+  endsubroutine hdf_get_int3d
   !=============================================================================
   subroutine hdf_get_real32(self, dname, value)
 
@@ -1059,7 +1059,7 @@ contains
     ! close dataset
     call h5dclose_f(set_id, ierr)
 
-  end subroutine hdf_get_real32
+  endsubroutine hdf_get_real32
 
   subroutine hdf_get_real32_1d(self, dname, value)
 
@@ -1074,7 +1074,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1)))
 
@@ -1082,9 +1082,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_real32_1d
+  endsubroutine hdf_get_real32_1d
 
   subroutine hdf_get_real32_2d(self, dname, value)
 
@@ -1099,7 +1099,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1), dims(2)))
 
@@ -1107,9 +1107,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_real32_2d
+  endsubroutine hdf_get_real32_2d
 
   subroutine hdf_get_real32_3d(self, dname, value)
 
@@ -1124,7 +1124,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1), dims(2), dims(3)))
 
@@ -1132,9 +1132,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_real32_3d
+  endsubroutine hdf_get_real32_3d
 
   subroutine hdf_get_real64(self, dname, value)
 
@@ -1154,7 +1154,7 @@ contains
     ! close dataset
     call h5dclose_f(set_id, ierr)
 
-  end subroutine hdf_get_real64
+  endsubroutine hdf_get_real64
 
   subroutine hdf_get_real64_1d(self, dname, value)
 
@@ -1169,7 +1169,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1)))
 
@@ -1177,9 +1177,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_real64_1d
+  endsubroutine hdf_get_real64_1d
 
   subroutine hdf_get_real64_2d(self, dname, value)
 
@@ -1194,7 +1194,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1), dims(2)))
 
@@ -1202,9 +1202,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_real64_2d
+  endsubroutine hdf_get_real64_2d
 
   subroutine hdf_get_real64_3d(self, dname, value)
 
@@ -1219,7 +1219,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1), dims(2), dims(3)))
 
@@ -1227,9 +1227,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_real64_3d
+  endsubroutine hdf_get_real64_3d
 
   subroutine hdf_get_real64_4d(self, dname, value)
 
@@ -1244,7 +1244,7 @@ contains
     if(ierr /= 0) then
       print *, 'error open dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
     allocate(value(dims(1), dims(2), dims(3), dims(4)))
 
@@ -1252,9 +1252,9 @@ contains
     if(ierr /= 0) then
       print *, 'error read dataset '//dname//' read '//self%filename
       error stop
-    end if
+    endif
 
-  end subroutine hdf_get_real64_4d
+  endsubroutine hdf_get_real64_4d
 
   !----- Helper functions
 
@@ -1271,8 +1271,8 @@ contains
     do concurrent(i=1:len(str))
       j = index(upper, str(i:i))
       if(j > 0) toLower(i:i) = lower(j:j)
-    end do
+    enddo
 
-  end function toLower
+  endfunction toLower
 
-end module hdf5_interface
+endmodule hdf5_interface

@@ -52,7 +52,7 @@ contains
     flux_vector_3 = flux_vector_1 - flux_vector_2
     @assertEqual(flux_vector_3%state, flux_vector_1%state - flux_vector_2%state)
 
-  end subroutine
+  endsubroutine
 
   @test
   subroutine test_vector_flux_dot()
@@ -74,7 +74,7 @@ contains
                         (rho * u**2 + p) * n(1) + (rho * u * v) * n(2), &
                         (rho * u * v) * n(1) + (rho * v**2 + p) * n(2), &
                         ((e + p) * u) * n(1) + ((e + p) * v) * n(2)]
-    end associate
+    endassociate
 
     flux_vector_1 = H(primitive_vars)
 
@@ -83,6 +83,6 @@ contains
     print *, H_dot_n_actual
     @assertEqual(H_dot_n_actual, H_dot_n)
 
-  end subroutine
+  endsubroutine
 
-end module test_fluxes
+endmodule test_fluxes

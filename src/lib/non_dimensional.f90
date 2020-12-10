@@ -49,11 +49,11 @@ contains
 
     if(length_scale < 0.0_rk) then
       error stop "Error in mod_nondimensionalization::set_length_scale(), length_scale < 0"
-    end if
+    endif
 
     l_0 = length_scale
     length_scale_set = .true.
-  end subroutine
+  endsubroutine
 
   subroutine set_scale_factors(density_scale, pressure_scale)
     !< Set the non-dimensional scale factors based on the provided scales. This
@@ -62,18 +62,18 @@ contains
     real(rk), intent(in) :: density_scale
     real(rk), intent(in) :: pressure_scale
 
-    ! if(.not. length_scale_set) then
-    !   error stop "Error in mod_nondimensionalization::set_scale_factors(), "// &
-    !     "the length scale needs to be set first (via the grid)"
-    ! end if
+    if(.not. length_scale_set) then
+      error stop "Error in mod_nondimensionalization::set_scale_factors(), "// &
+        "the length scale needs to be set first (via the grid)"
+    endif
 
-    ! if(density_scale < 0.0_rk) then
-    !   error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
-    ! end if
+    if(density_scale < 0.0_rk) then
+      error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
+    endif
 
-    ! if(pressure_scale < 0.0_rk) then
-    !   error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
-    ! end if
+    if(pressure_scale < 0.0_rk) then
+      error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
+    endif
 
     rho_0 = density_scale
     p_0 = pressure_scale
@@ -81,21 +81,23 @@ contains
     e_0 = p_0
     t_0 = l_0 / v_0
 
-    print *
-    write(*, '(a)') "Scale factors (CATO is non-dimensional)"
-    write(*, '(a)') "========================================"
-    write(*, '(a, es10.3)') "Time scale factor (t_0):      ", t_0
-    write(*, '(a, es10.3)') "Density scale factor (rho_0): ", rho_0
-    write(*, '(a, es10.3)') "Length scale factor (l_0):    ", l_0
-    write(*, '(a, es10.3)') "Pressure scale factor (p_0):  ", p_0
-    write(*, '(a, es10.3)') "Velocity scale factor (v_0):  ", v_0
-    write(*, '(a, es10.3)') "Energy scale factor (e_0):    ", e_0
-    write(*, '(a)') "========================================"
-    print *
+    if(this_image() == 1) then
+      print *
+      write(*, '(a)') "Scale factors (CATO is non-dimensional)"
+      write(*, '(a)') "========================================"
+      write(*, '(a, es10.3)') "Time scale factor (t_0):      ", t_0
+      write(*, '(a, es10.3)') "Density scale factor (rho_0): ", rho_0
+      write(*, '(a, es10.3)') "Length scale factor (l_0):    ", l_0
+      write(*, '(a, es10.3)') "Pressure scale factor (p_0):  ", p_0
+      write(*, '(a, es10.3)') "Velocity scale factor (v_0):  ", v_0
+      write(*, '(a, es10.3)') "Energy scale factor (e_0):    ", e_0
+      write(*, '(a)') "========================================"
+      print *
+    endif
 
     scale_factors_set = .true.
 
-  end subroutine set_scale_factors
+  endsubroutine set_scale_factors
 
   ! subroutine set_scale_factors(time_scale, length_scale, density_scale)
   !   !< Set the non-dimensional scale factors based on the provided scales. This
@@ -137,4 +139,4 @@ contains
   !   print *
 
   ! end subroutine set_scale_factors
-end module mod_nondimensionalization
+endmodule mod_nondimensionalization

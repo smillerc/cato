@@ -2,7 +2,7 @@ module test_gradients
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_gradients
   use mod_grid_factory, only: grid_factory
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
   use mod_input, only: input_t
   use funit
 
@@ -27,7 +27,7 @@ module test_gradients
   integer(ik), parameter :: C4 = 7
   integer(ik), parameter :: M4 = 8
 
-  class(grid_t), pointer :: grid
+  class(grid_block_t), pointer :: grid
   type(input_t) :: input
 
   integer(ik), parameter :: ilo_c = -n_ghost_layers + 1
@@ -49,12 +49,12 @@ contains
                     read_init_cond_from_file=.false., &
                     xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
     grid => grid_factory(input)
-  end subroutine
+  endsubroutine
 
   @after
   subroutine after()
     deallocate(grid)
-  end subroutine
+  endsubroutine
 
   @test
   subroutine test_sgg_gradient()
@@ -107,13 +107,13 @@ contains
     print *, 'grad x'
     do j = nj_cells - 1, 0, -1
       write(*, '(a, i0, a, 5(es16.6))') 'grad_x(:,', j, ') -> ', grad_x(:, j)
-    end do
+    enddo
     print *
     print *, 'grad y'
     do j = nj_cells - 1, 0, -1
       write(*, '(a, i0, a, 5(es16.6))') 'grad_y(:,', j, ') -> ', grad_y(:, j)
-    end do
+    enddo
 
-  end subroutine test_sgg_gradient
+  endsubroutine test_sgg_gradient
 
-end module test_gradients
+endmodule test_gradients

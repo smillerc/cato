@@ -1,4 +1,9 @@
-add_pfunit_ctest (limiter_tests
-  TEST_SOURCES test_limiters.pf
-  LINK_LIBRARIES utilities
-  )
+add_caf_test(
+  limiter_tests
+  N_IMAGES
+  1
+  SOURCES
+  test_limiters.f90
+  LINK_LIBRARIES
+  caf_testing
+  cato)

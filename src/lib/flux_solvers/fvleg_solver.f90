@@ -35,7 +35,7 @@ module mod_fvleg_solver
   use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_reconstruction_factory, only: reconstruction_factory
   use mod_flux_array, only: get_fluxes, flux_array_t
-  use mod_grid, only: grid_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
 
   implicit none
@@ -63,7 +63,7 @@ module mod_fvleg_solver
 
     ! Operators
     generic :: assignment(=) => copy
-  end type fvleg_solver_t
+  endtype fvleg_solver_t
 
 contains
   subroutine initialize_fvleg(self, input, time)
@@ -78,7 +78,7 @@ contains
     self%name = 'FVLEG'
     self%input = input
     self%time = time
-  end subroutine initialize_fvleg
+  endsubroutine initialize_fvleg
 
   subroutine copy_fvleg(lhs, rhs)
     !< Implement LHS = RHS
@@ -92,13 +92,13 @@ contains
     lhs%dt = rhs%dt
     lhs%reconstruct_p_prime = rhs%reconstruct_p_prime
 
-  end subroutine copy_fvleg
+  endsubroutine copy_fvleg
 
   subroutine solve_fvleg(self, dt, grid, lbounds, rho, u, v, p, &
                          d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(fvleg_solver_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
@@ -167,19 +167,19 @@ contains
 
     call debug_print('Running fvleg_t%solve_fvleg()', __FILE__, __LINE__)
 
-    associate(imin => grid%ilo_bc_cell, imax => grid%ihi_bc_cell, &
-              jmin => grid%jlo_bc_cell, jmax => grid%jhi_bc_cell)
+    associate(imin => grid%lbounds_halo(1), imax => grid%ubounds_halo(1), &
+              jmin => grid%lbounds_halo(2), jmax => grid%ubounds_halo(2))
 
       allocate(rho_recon_state(1:8, imin:imax, jmin:jmax))
       allocate(u_recon_state(1:8, imin:imax, jmin:jmax))
       allocate(v_recon_state(1:8, imin:imax, jmin:jmax))
       allocate(p_recon_state(1:8, imin:imax, jmin:jmax))
-    end associate
+    endassociate
 
     associate(imin_node => grid%ilo_node, imax_node => grid%ihi_node, &
               jmin_node => grid%jlo_node, jmax_node => grid%jhi_node, &
-              imin_cell => grid%ilo_cell, imax_cell => grid%ihi_cell, &
-              jmin_cell => grid%jlo_cell, jmax_cell => grid%jhi_cell)
+              imin_cell => grid%cell_lbounds(1), imax_cell => grid%cell_ubounds(1), &
+              jmin_cell => grid%cell_lbounds(2), jmax_cell => grid%cell_ubounds(2))
 
       allocate(evolved_corner_rho(imin_node:imax_node, jmin_node:jmax_node))
       allocate(evolved_corner_u(imin_node:imax_node, jmin_node:jmax_node))
@@ -196,12 +196,12 @@ contains
       allocate(evolved_du_mid_v(imin_node:imax_node, jmin_cell:jmax_cell))
       allocate(evolved_du_mid_p(imin_node:imax_node, jmin_cell:jmax_cell))
 
-    end associate
+    endassociate
 
     write(stage_name, '(2(a, i0))') 'iter_', self%iteration, 'stage_', stage
 
     call reconstructor%set_cell_average_pointers(rho=rho, p=p, lbounds=lbounds)
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, &
                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
@@ -319,7 +319,7 @@ contains
     deallocate(v_recon_state)
     deallocate(p_recon_state)
 
-  end subroutine solve_fvleg
+  endsubroutine solve_fvleg
 
   subroutine flux_edges(grid, &
                         evolved_corner_rho, evolved_corner_u, evolved_corner_v, evolved_corner_p, &
@@ -327,24 +327,24 @@ contains
                         evolved_du_mid_rho, evolved_du_mid_u, evolved_du_mid_v, evolved_du_mid_p, &
                         d_rho_dt, d_rhou_dt, d_rhov_dt, d_rhoE_dt)
     !< Evaluate the fluxes along the edges. This is equation 13 in the paper
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
 
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_rho !< (i,j); Reconstructed rho at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_u   !< (i,j); Reconstructed u at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_v   !< (i,j); Reconstructed v at the corners
     real(rk), dimension(grid%ilo_node:, grid%jlo_node:), contiguous, intent(in) :: evolved_corner_p   !< (i,j); Reconstructed p at the corners
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
-    real(rk), dimension(grid%ilo_cell:, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
-    real(rk), dimension(grid%ilo_node:, grid%jlo_cell:), contiguous, intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rho_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhou_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhov_dt
-    real(rk), dimension(grid%ilo_bc_cell:, grid%jlo_bc_cell:), contiguous, intent(inout) :: d_rhoE_dt
+    real(rk), dimension(grid%cell_lbounds(1):, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_rho !< (i,j); Reconstructed rho at the left/right midpoints
+    real(rk), dimension(grid%cell_lbounds(1):, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_u   !< (i,j); Reconstructed u at the left/right midpoints
+    real(rk), dimension(grid%cell_lbounds(1):, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_v   !< (i,j); Reconstructed v at the left/right midpoints
+    real(rk), dimension(grid%cell_lbounds(1):, grid%jlo_node:), contiguous, intent(in) :: evolved_lr_mid_p   !< (i,j); Reconstructed p at the left/right midpoints
+    real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_rho !< (i,j); Reconstructed rho at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_u   !< (i,j); Reconstructed u at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_v   !< (i,j); Reconstructed v at the down/up midpoints
+    real(rk), dimension(grid%ilo_node:, grid%cell_lbounds(2):), contiguous, intent(in) :: evolved_du_mid_p   !< (i,j); Reconstructed p at the down/up midpoints
+    real(rk), dimension(grid%lbounds_halo(1):, grid%lbounds_halo(2):), contiguous, intent(inout) :: d_rho_dt
+    real(rk), dimension(grid%lbounds_halo(1):, grid%lbounds_halo(2):), contiguous, intent(inout) :: d_rhou_dt
+    real(rk), dimension(grid%lbounds_halo(1):, grid%lbounds_halo(2):), contiguous, intent(inout) :: d_rhov_dt
+    real(rk), dimension(grid%lbounds_halo(1):, grid%lbounds_halo(2):), contiguous, intent(inout) :: d_rhoE_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j, k, edge, xy
@@ -380,20 +380,20 @@ contains
     corner_fluxes = get_fluxes(rho=evolved_corner_rho, u=evolved_corner_u, v=evolved_corner_v, &
                                p=evolved_corner_p, lbounds=bounds)
 
-    ilo = grid%ilo_cell; ihi = grid%ihi_cell
+    ilo = grid%cell_lbounds(1); ihi = grid%cell_ubounds(1)
     jlo = grid%jlo_node; jhi = grid%jhi_node
     bounds = [ilo, jlo]
     leftright_mid_fluxes = get_fluxes(rho=evolved_lr_mid_rho, u=evolved_lr_mid_u, v=evolved_lr_mid_v, &
                                       p=evolved_lr_mid_p, lbounds=bounds)
 
     ilo = grid%ilo_node; ihi = grid%ihi_node
-    jlo = grid%jlo_cell; jhi = grid%jhi_cell
+    jlo = grid%cell_lbounds(2); jhi = grid%cell_ubounds(2)
     bounds = [ilo, jlo]
     downup_mid_fluxes = get_fluxes(rho=evolved_du_mid_rho, u=evolved_du_mid_u, v=evolved_du_mid_v, &
                                    p=evolved_du_mid_p, lbounds=bounds)
 
-    ilo = grid%ilo_cell; ihi = grid%ihi_cell
-    jlo = grid%jlo_cell; jhi = grid%jhi_cell
+    ilo = grid%cell_lbounds(1); ihi = grid%cell_ubounds(1)
+    jlo = grid%cell_lbounds(2); jhi = grid%cell_ubounds(2)
     !$omp parallel default(none), &
     !$omp firstprivate(ilo, ihi, jlo, jhi) &
     !$omp private(i, j, k, delta_l, n_hat) &
@@ -406,13 +406,13 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
 
-        delta_l = grid%cell_edge_lengths(:, i, j)
+        delta_l = grid%edge_lengths(:, i, j)
 
         do edge = 1, 4
           do xy = 1, 2
-            n_hat(xy, edge) = grid%cell_edge_norm_vectors(xy, edge, i, j)
-          end do
-        end do
+            n_hat(xy, edge) = grid%edge_norm_vectors(xy, edge, i, j)
+          enddo
+        enddo
 
         associate(F_c1 => corner_fluxes%F(:, i, j), &
                   G_c1 => corner_fluxes%G(:, i, j), &
@@ -430,10 +430,10 @@ contains
                   G_m3 => leftright_mid_fluxes%G(:, i, j + 1), &
                   G_m4 => downup_mid_fluxes%G(:, i, j), &
                   F_m4 => downup_mid_fluxes%F(:, i, j), &
-                  n_hat_1 => grid%cell_edge_norm_vectors(:, 1, i, j), &
-                  n_hat_2 => grid%cell_edge_norm_vectors(:, 2, i, j), &
-                  n_hat_3 => grid%cell_edge_norm_vectors(:, 3, i, j), &
-                  n_hat_4 => grid%cell_edge_norm_vectors(:, 4, i, j))
+                  n_hat_1 => grid%edge_norm_vectors(:, 1, i, j), &
+                  n_hat_2 => grid%edge_norm_vectors(:, 2, i, j), &
+                  n_hat_3 => grid%edge_norm_vectors(:, 3, i, j), &
+                  n_hat_4 => grid%edge_norm_vectors(:, 4, i, j))
 
           ! Bottom
           ! bottom_flux (rho, rhou, rhov, rhoE)
@@ -441,7 +441,7 @@ contains
             f_sum = sum([F_c1(k), 4.0_rk * F_m1(k), F_c2(k)]) * n_hat_1(1)
             g_sum = sum([G_c1(k), 4.0_rk * G_m1(k), G_c2(k)]) * n_hat_1(2)
             bottom_flux(k) = (f_sum + g_sum) * (delta_l(1) / 6.0_rk)
-          end do
+          enddo
 
           ! Right
           ! right_flux (rho, rhou, rhov, rhoE)
@@ -449,7 +449,7 @@ contains
             f_sum = sum([F_c2(k), 4.0_rk * F_m2(k), F_c3(k)]) * n_hat_2(1)
             g_sum = sum([G_c2(k), 4.0_rk * G_m2(k), G_c3(k)]) * n_hat_2(2)
             right_flux(k) = (f_sum + g_sum) * (delta_l(2) / 6.0_rk)
-          end do
+          enddo
 
           ! Top
           ! top_flux (rho, rhou, rhov, rhoE)
@@ -457,7 +457,7 @@ contains
             f_sum = sum([F_c3(k), 4.0_rk * F_m3(k), F_c4(k)]) * n_hat_3(1)
             g_sum = sum([G_c3(k), 4.0_rk * G_m3(k), G_c4(k)]) * n_hat_3(2)
             top_flux(k) = (f_sum + g_sum) * (delta_l(3) / 6.0_rk)
-          end do
+          enddo
 
           ! Left
           ! left_flux (rho, rhou, rhov, rhoE)
@@ -465,7 +465,7 @@ contains
             f_sum = sum([F_c4(k), 4.0_rk * F_m4(k), F_c1(k)]) * n_hat_4(1)
             g_sum = sum([G_c4(k), 4.0_rk * G_m4(k), G_c1(k)]) * n_hat_4(2)
             left_flux(k) = (f_sum + g_sum) * (delta_l(4) / 6.0_rk)
-          end do
+          enddo
 
           ave_rho_flux = sum([abs(left_flux(1)), abs(right_flux(1)), abs(top_flux(1)), abs(bottom_flux(1))]) / 4.0_rk
           ave_rhou_flux = sum([abs(left_flux(2)), abs(right_flux(2)), abs(top_flux(2)), abs(bottom_flux(2))]) / 4.0_rk
@@ -481,36 +481,36 @@ contains
           threshold = abs(ave_rho_flux) * REL_THRESHOLD
           if(abs(rho_flux) < threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
             rho_flux = 0.0_rk
-          end if
+          endif
 
           threshold = abs(ave_rhou_flux) * REL_THRESHOLD
           if(abs(rhou_flux) < threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
             rhou_flux = 0.0_rk
-          end if
+          endif
 
           threshold = abs(ave_rhov_flux) * REL_THRESHOLD
           if(abs(rhov_flux) < threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
             rhov_flux = 0.0_rk
-          end if
+          endif
 
           threshold = abs(ave_rhoE_flux) * REL_THRESHOLD
           if(abs(rhoE_flux) < threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
             rhoE_flux = 0.0_rk
-          end if
+          endif
 
-          d_rho_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rho_flux
-          d_rhou_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhou_flux
-          d_rhov_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhov_flux
-          d_rhoE_dt(i, j) = (-1.0_rk / grid%cell_volume(i, j)) * rhoE_flux
-        end associate
+          d_rho_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rho_flux
+          d_rhou_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhou_flux
+          d_rhov_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhov_flux
+          d_rhoE_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhoE_flux
+        endassociate
 
-      end do ! i
-    end do ! j
+      enddo ! i
+    enddo ! j
     !$omp end do simd
     !$omp end parallel
 
-    ilo = grid%ilo_bc_cell; ihi = grid%ihi_bc_cell
-    jlo = grid%jlo_bc_cell; jhi = grid%jhi_bc_cell
+    ilo = grid%lbounds_halo(1); ihi = grid%ubounds_halo(1)
+    jlo = grid%lbounds_halo(2); jhi = grid%ubounds_halo(2)
     d_rho_dt(ilo, :) = 0.0_rk
     d_rho_dt(ihi, :) = 0.0_rk
     d_rho_dt(:, jlo) = 0.0_rk
@@ -530,12 +530,12 @@ contains
     d_rhoE_dt(ihi, :) = 0.0_rk
     d_rhoE_dt(:, jlo) = 0.0_rk
     d_rhoE_dt(:, jhi) = 0.0_rk
-  end subroutine flux_edges
+  endsubroutine flux_edges
 
   subroutine finalize(self)
     !< Class finalizer
     type(fvleg_solver_t), intent(inout) :: self
 
     call debug_print('Running fvleg_solver_t%finalize()', __FILE__, __LINE__)
-  end subroutine finalize
-end module mod_fvleg_solver
+  endsubroutine finalize
+endmodule mod_fvleg_solver

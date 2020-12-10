@@ -59,14 +59,14 @@ module mod_edge_interpolator
     procedure, public, nopass :: limit
     procedure, public, nopass :: get_r_smoothness
     procedure, public, nopass :: get_solution_smoothness
-  end type edge_iterpolator_t
+  endtype edge_iterpolator_t
 
   abstract interface
     subroutine init(self, limiter)
       import :: edge_iterpolator_t
       class(edge_iterpolator_t), intent(inout) :: self
       character(len=*), intent(in) :: limiter
-    end subroutine init
+    endsubroutine init
 
     subroutine basic_interface(self, q, lbounds, edge_values)
       import :: edge_iterpolator_t, ik, rk
@@ -76,8 +76,8 @@ module mod_edge_interpolator
       !< (i,j); primitive variable to reconstruct at the edge
       real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values
       !<((bottom, right, top, left), i, j); reconstructed edge values
-    end subroutine
-  end interface
+    endsubroutine
+  endinterface
 
 contains
 
@@ -136,7 +136,7 @@ contains
     call get_r_smoothness(delta_plus=delta_i_plus, delta_minus=delta_i_minus, R=r_L_i, R_inv=r_R_i)
     call get_r_smoothness(delta_plus=delta_j_plus, delta_minus=delta_j_minus, R=r_L_j, R_inv=r_R_j)
 
-  end subroutine get_solution_smoothness
+  endsubroutine get_solution_smoothness
 
   subroutine get_deltas(q, delta_i_plus, delta_i_minus, delta_j_plus, delta_j_minus, lbounds)
     !< Get the solution smoothness at each cell. This is sent to the limiters and MUSCL interpolation. The lbound
@@ -156,7 +156,6 @@ contains
     real(rk), parameter :: ABS_TOL = tiny(1.0_rk) !< absolute error tolerance
     real(rk) :: abs_err !< absolute error
 
-    !dir$ assume_aligned q: __ALIGNBYTES__
     !dir$ assume_aligned delta_i_plus: __ALIGNBYTES__
     !dir$ assume_aligned delta_j_plus: __ALIGNBYTES__
     !dir$ assume_aligned delta_i_minus: __ALIGNBYTES__
@@ -193,8 +192,8 @@ contains
         ! else if(abs(delta_i_plus(i, j)) < abs_err) then
         !   delta_i_plus(i, j) = 0.0_rk
         ! end if
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     ! Now do the j-direction
@@ -214,8 +213,8 @@ contains
         ! else if(abs(delta_j_plus(i, j)) < abs_err) then
         !   delta_j_plus(i, j) = 0.0_rk
         ! end if
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     ! Since the "minus" value is just the previous cell's "+" value, loop over and copy
@@ -226,12 +225,12 @@ contains
       do i = ilo, ihi
         delta_i_minus(i, j) = delta_i_plus(i - 1, j)
         delta_j_minus(i, j) = delta_j_plus(i, j - 1)
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     !$omp end parallel
-  end subroutine get_deltas
+  endsubroutine get_deltas
 
   subroutine get_r_smoothness(delta_plus, delta_minus, r, r_inv)
     !< Find the smoothness of solution based on nearest neighbor cell averages. Typically referred to
@@ -265,8 +264,8 @@ contains
       do i = ilo, ihi
         r(i, j) = (delta_plus(i, j) + EPS) / (delta_minus(i, j) + EPS)
         r_inv(i, j) = (delta_minus(i, j) + EPS) / (delta_plus(i, j) + EPS)
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     ! !$omp do
@@ -280,7 +279,7 @@ contains
     ! end do
     ! !$omp end do
     !$omp end parallel
-  end subroutine get_r_smoothness
+  endsubroutine get_r_smoothness
 
   subroutine limit(r, psi, name)
     !< Apply the flux limiter based on the smoothness
@@ -313,8 +312,8 @@ contains
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
           psi(i, j) = max(0.0_rk, min(r(i, j), 1.0_rk))
-        end do
-      end do
+        enddo
+      enddo
 
       !$omp do
       do j = jlo, jhi
@@ -326,8 +325,8 @@ contains
           else if(r(i, j) > 1.0_rk) then
             psi(i, j) = 1.0_rk
           endif
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
 
@@ -341,8 +340,8 @@ contains
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
           psi(i, j) = max(0.0_rk, min(2.0_rk * r(i, j), 1.0_rk), min(r(i, j), 2.0_rk))
-        end do
-      end do
+        enddo
+      enddo
 
       !$omp do
       do j = jlo, jhi
@@ -354,8 +353,8 @@ contains
           else if(r(i, j) > 2.0_rk) then
             psi(i, j) = 2.0_rk
           endif
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
     case('van_leer')
@@ -368,8 +367,8 @@ contains
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
           psi(i, j) = (r(i, j) + abs(r(i, j))) / (1.0_rk + abs(r(i, j)))
-        end do
-      end do
+        enddo
+      enddo
 
       !$omp do
       do j = jlo, jhi
@@ -377,12 +376,12 @@ contains
         !$omp simd __PSI_ALIGN__
         do i = ilo, ihi
           if(r(i, j) < PSI_EPS) psi(i, j) = 0.0_rk
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
 
-    end select
-  end subroutine limit
+    endselect
+  endsubroutine limit
 
-end module mod_edge_interpolator
+endmodule mod_edge_interpolator

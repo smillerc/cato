@@ -39,7 +39,7 @@ module mod_edge_interpolator_factory
   use mod_tvd_2nd_order, only: tvd_2nd_order_t, new_tvd_2nd_order_t
   use mod_tvd_3rd_order, only: tvd_3rd_order_t, new_tvd_3rd_order_t
   use mod_tvd_5th_order, only: tvd_5th_order_t, new_tvd_5th_order_t
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
 
   implicit none
 
@@ -61,7 +61,7 @@ contains
       limiter = trim(limiter_name)
     else
       limiter = input%limiter
-    end if
+    endif
 
     select case(trim(input%spatial_reconstruction))
     case('TVD2', 'piecewise_linear')
@@ -71,15 +71,17 @@ contains
     case('TVD5')
       interpolator => new_tvd_5th_order_t(limiter=limiter)
     case default
-      call error_msg(module='mod_edge_interpolator_factory', procedure='edge_interpolator_factory', &
-          message="Unknown edge interpolation scheme '"//trim(input%spatial_reconstruction)//"', must be one of the following: "// &
+      call error_msg(module_name='mod_edge_interpolator_factory', &
+                     procedure_name='edge_interpolator_factory', &
+                     message="Unknown edge interpolation scheme '"// &
+                     trim(input%spatial_reconstruction)//"', must be one of the following: "// &
                      "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     call interpolator%initialize(limiter=limiter)
     deallocate(limiter)
 
-  end function edge_interpolator_factory
+  endfunction edge_interpolator_factory
 
-end module mod_edge_interpolator_factory
+endmodule mod_edge_interpolator_factory

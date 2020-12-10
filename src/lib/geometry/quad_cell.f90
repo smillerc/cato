@@ -62,7 +62,7 @@ module mod_quad_cell
     procedure, private :: calculate_centroid
     procedure, private :: calculate_edge_stats
     procedure, private :: calculate_edge_norm_vectors
-  end type quad_cell_t
+  endtype quad_cell_t
 
 contains
 
@@ -78,24 +78,24 @@ contains
     associate(y => self%y, x => self%x)
       if(abs(y(2) - y(1)) < epsilon(1.0_rk)) then
         y(2) = y(1)
-      end if
+      endif
       if(abs(y(4) - y(3)) < epsilon(1.0_rk)) then
         y(4) = y(3)
-      end if
+      endif
       if(abs(x(3) - x(2)) < epsilon(1.0_rk)) then
         x(3) = x(2)
-      end if
+      endif
       if(abs(x(4) - x(1)) < epsilon(1.0_rk)) then
         x(4) = x(1)
-      end if
-    end associate
+      endif
+    endassociate
 
     call self%calculate_volume()
     call self%calculate_centroid()
     call self%calculate_edge_stats()
     call self%calculate_edge_norm_vectors()
 
-  end subroutine
+  endsubroutine
 
   subroutine calculate_edge_stats(self)
     !< Find the edge lengths and midpoints of those edges
@@ -109,7 +109,7 @@ contains
 
       if(maxval(self%edge_lengths) - minval(self%edge_lengths) < 2.0_rk * epsilon(1.0_rk)) then
         self%edge_lengths = maxval(self%edge_lengths)
-      end if
+      endif
 
       self%edge_midpoints(:, 1) = [(x(2) + x(1)) / 2.0_rk,(y(2) + y(1)) / 2.0_rk]
       self%edge_midpoints(:, 2) = [(x(3) + x(2)) / 2.0_rk,(y(3) + y(2)) / 2.0_rk]
@@ -122,9 +122,9 @@ contains
       self%min_dy = min(abs(y(4) - y(1)), &
                         abs(y(3) - y(2)))
 
-    end associate
+    endassociate
 
-  end subroutine
+  endsubroutine
 
   subroutine calculate_centroid(self)
     !< Find the centroid x and y location
@@ -143,7 +143,7 @@ contains
 
     associate(x => self%x, y => self%y)
       self%centroid = [(x(2) + x(1)) / 2.0_rk,(y(3) + y(2)) / 2.0_rk]
-    end associate
+    endassociate
 
     ! associate(v=>self%volume, cx=>self%centroid(1), cy=>self%centroid(2))
     !   do i = 1, 4
@@ -155,7 +155,7 @@ contains
     !   cy = (1.0_rk / (6.0_rk * v)) * cy
     ! end associate
 
-  end subroutine
+  endsubroutine
 
   subroutine calculate_volume(self)
     class(quad_cell_t), intent(inout) :: self
@@ -172,7 +172,7 @@ contains
       if(abs(dy2) < epsilon(1.0_rk)) dy2 = 0.0_rk
 
       v = (x(2) - x(1)) * (y(4) - y(1)) - (x(4) - x(1)) * (y(2) - y(1))
-    end associate
+    endassociate
 
     if(self%volume <= 0.0_rk) then
       write(*, '(a, es10.3)') "Error! Negative Volume: ", self%volume
@@ -186,9 +186,9 @@ contains
       write(*, '(2(a, g0.4, ",", g0.4), a)') &
         'N1: (', self%x(1), self%y(1), ')         N2: (', self%x(2), self%y(2), ')'
       error stop "Negative volume!"
-    end if
+    endif
 
-  end subroutine
+  endsubroutine
 
   subroutine calculate_edge_norm_vectors(self)
     !< Find the vector normal to the edge originating at the midpoint
@@ -222,11 +222,11 @@ contains
 
         n(:, i) = [norm_vec%x, norm_vec%y]
 
-      end associate
+      endassociate
 
-    end do
+    enddo
 
-  end subroutine
+  endsubroutine
 
   pure subroutine get_cell_point_coords(self, x, y)
     class(quad_cell_t), intent(in) :: self
@@ -245,6 +245,6 @@ contains
     x(6) = self%edge_midpoints(1, 3); y(6) = self%edge_midpoints(2, 3)
     x(8) = self%edge_midpoints(1, 4); y(8) = self%edge_midpoints(2, 4)
 
-  end subroutine
+  endsubroutine
 
-end module mod_quad_cell
+endmodule mod_quad_cell

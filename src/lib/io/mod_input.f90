@@ -42,7 +42,7 @@ module mod_input
     real(rk) :: reference_mach = 1.0_rk
 
     ! grid
-    character(len=32) :: grid_type = '2d_regular'  !< Structure/layout of the grid, e.g. '2d_regular'
+    character(len=32) :: grid_type = 'XY'  !< Structure/layout of the grid, e.g. '2d_regular'
     real(rk) :: xmin = 0.0_rk   !< Minimum extent of the grid in x (ignored for .h5 initial grids)
     real(rk) :: xmax = 0.0_rk   !< Maximum extent of the grid in x (ignored for .h5 initial grids)
     real(rk) :: ymin = 0.0_rk   !< Minimum extent of the grid in y (ignored for .h5 initial grids)
@@ -141,7 +141,7 @@ module mod_input
     procedure, public :: read_from_ini
     procedure, public :: display_config
     final :: finalize
-  end type input_t
+  endtype input_t
 
 contains
 
@@ -164,7 +164,7 @@ contains
     self%plus_y_bc = 'periodic'
     self%minus_y_bc = 'periodic'
 
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine finalize(self)
     type(input_t), intent(inout) :: self
@@ -178,7 +178,7 @@ contains
     if(allocated(self%initial_condition_file)) deallocate(self%initial_condition_file)
     if(allocated(self%title)) deallocate(self%title)
     if(allocated(self%unit_system)) deallocate(self%unit_system)
-  end subroutine
+  endsubroutine
 
   subroutine read_from_ini(self, filename)
 
@@ -192,16 +192,14 @@ contains
 
     file_exists = .false.
 
-    ! if(this_image() == 1) then
-    write(output_unit, '(a)') 'Reading input file: '//trim(filename)
-    ! end if
+    if(this_image() == 1) write(output_unit, '(a)') 'Reading input file: '//trim(filename)
 
     inquire(file=filename, exist=file_exists)
     if(.not. file_exists) then
-      call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+      call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                      message="Input .ini file not found", &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     cfg = parse_cfg(trim(filename))
 
@@ -219,7 +217,7 @@ contains
       call cfg%get("reference_state", "reference_pressure", self%reference_pressure)
       call cfg%get("reference_state", "reference_density", self%reference_density)
       call cfg%get("reference_state", "reference_mach", self%reference_mach, 1.0_rk)
-    end if
+    endif
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "initial_delta_t", self%initial_delta_t, 0.0_rk)
@@ -240,7 +238,7 @@ contains
       call cfg%get("ausm", "pressure_diffusion_coeff", self%ausm_pressure_diffusion_coeff, 0.25_rk)
       call cfg%get("ausm", "pressure_flux_coeff", self%ausm_pressure_flux_coeff, 0.75_rk)
       call cfg%get("ausm", "sonic_point_sigma", self%ausm_sonic_point_sigma, 1.0_rk)
-    end if
+    endif
 
     call cfg%get("scheme", "smooth_residuals", self%smooth_residuals, .true.)
 
@@ -252,7 +250,7 @@ contains
     ! Restart files
     call cfg%get("restart", "restart_from_file", self%restart_from_file, .false.)
 
-    write(*, '(a, l2)') 'Reading from restart?', self%restart_from_file
+    if(this_image() == 1) write(*, '(a, l2)') 'Reading from restart?', self%restart_from_file
 
     if(self%restart_from_file) then
       call cfg%get("restart", "restart_file", char_buffer)
@@ -260,11 +258,11 @@ contains
 
       inquire(file=self%restart_file, exist=file_exists)
       if(.not. file_exists) then
-        call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+        call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                        message='Restart file not found: "'//trim(self%restart_file)//'"', &
                        file_name=__FILE__, line_number=__LINE__)
-      end if
-    end if
+      endif
+    endif
 
     ! Initial Conditions
     if(.not. self%restart_from_file) then
@@ -276,18 +274,18 @@ contains
 
         inquire(file=self%initial_condition_file, exist=file_exists)
         if(.not. file_exists) then
-          call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+          call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                          message='Initial conditions file not found: "'//trim(self%initial_condition_file)//'"', &
                          file_name=__FILE__, line_number=__LINE__)
-        end if
+        endif
 
-      end if
+      endif
 
       call cfg%get("initial_conditions", "init_density", self%init_density, 0.0_rk)
       call cfg%get("initial_conditions", "init_x_velocity", self%init_x_velocity, 0.0_rk)
       call cfg%get("initial_conditions", "init_y_velocity", self%init_y_velocity, 0.0_rk)
       call cfg%get("initial_conditions", "init_pressure", self%init_pressure, 0.0_rk)
-    end if
+    endif
 
     ! Grid
     select case(trim(self%limiter))
@@ -298,17 +296,17 @@ contains
       required_n_ghost_layers = 3
       call cfg%get("grid", "n_ghost_layers", self%n_ghost_layers, required_n_ghost_layers)
     case default
-      call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+      call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                      message="Unknown edge interpolation scheme, must be one of the following: "// &
                      "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     if(self%n_ghost_layers /= required_n_ghost_layers) then
-      call error_msg(module='mod_input', class="input_t", procedure='read_from_ini', &
+      call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
                      message="The number of required ghost cell layers doesn't match the edge interpolation order", &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     call cfg%get("grid", "grid_type", char_buffer, '2d_regular')
     self%grid_type = trim(char_buffer)
@@ -321,7 +319,7 @@ contains
       call cfg%get("grid", "nj_nodes", self%nj_nodes)
       call cfg%get("grid", "ymin", self%ymin)
       call cfg%get("grid", "ymax", self%ymax)
-    end if
+    endif
 
     ! Boundary conditions
     call cfg%get("boundary_conditions", "plus_x", char_buffer, 'periodic')
@@ -349,10 +347,10 @@ contains
       else
         call cfg%get("boundary_conditions", "bc_pressure_input_file", char_buffer)
         self%bc_pressure_input_file = trim(char_buffer)
-      end if
+      endif
 
       call cfg%get("boundary_conditions", "bc_pressure_scale_factor", self%bc_pressure_scale_factor, 1.0_rk)
-    end if
+    endif
 
     ! Source terms
     call cfg%get('source_terms', 'enable_source_terms', self%enable_source_terms, .false.)
@@ -384,8 +382,8 @@ contains
         call cfg%get('source_terms', 'gaussian_fwhm_x', self%source_gaussian_fwhm_x, 0.0_rk)
         call cfg%get('source_terms', 'gaussian_fwhm_y', self%source_gaussian_fwhm_y, 0.0_rk)
         call cfg%get('source_terms', 'gaussian_order', self%source_gaussian_order, 1)
-      end select
-    end if
+      endselect
+    endif
 
     ! Input/Output
     call cfg%get("io", "format", char_buffer, 'xdmf')
@@ -399,102 +397,108 @@ contains
     call cfg%get("io", "plot_ghost_cells", self%plot_ghost_cells, .true.)
     call cfg%get("io", "plot_64bit", self%plot_64bit, .true.)
 
-  end subroutine read_from_ini
+  endsubroutine read_from_ini
 
   subroutine display_config(self)
     class(input_t), intent(in) :: self
 
-    write(*, '(a)') "Input settings:"
-    write(*, '(a)') "==============="
-    write(*, *)
-    write(*, '(a)') "[general]"
-    write(*, '(3(a))') "title = '", trim(self%title), "'"
-    write(*, '(3(a))') "unit_system = '", trim(self%unit_system), "'"
+    if(this_image() == 1) then
+      write(*, '(a)') "Input settings:"
+      write(*, '(a)') "==============="
+      write(*, *)
+      write(*, '(a)') "[general]"
+      write(*, '(3(a))') "title = '", trim(self%title), "'"
+      write(*, '(3(a))') "unit_system = '", trim(self%unit_system), "'"
 
-    write(*, *)
-    write(*, '(a)') "[time]"
-    write(*, '(a, es10.3)') "max_time = ", self%max_time
-    write(*, '(a, f5.3)') "cfl = ", self%cfl
-    write(*, '(a, l1)') "use_constant_delta_t = ", self%use_constant_delta_t
-    write(*, '(a, es10.3)') "initial_delta_t = ", self%initial_delta_t
-    write(*, '(a, i0)') "max_iterations = ", self%max_iterations
-    write(*, '(3(a))') "time_integration_strategy = '", trim(self%time_integration_strategy), "'"
+      write(*, *)
+      write(*, '(a)') "[time]"
+      write(*, '(a, es10.3)') "max_time = ", self%max_time
+      write(*, '(a, f5.3)') "cfl = ", self%cfl
+      write(*, '(a, l1)') "use_constant_delta_t = ", self%use_constant_delta_t
+      write(*, '(a, es10.3)') "initial_delta_t = ", self%initial_delta_t
+      write(*, '(a, i0)') "max_iterations = ", self%max_iterations
+      write(*, '(3(a))') "time_integration_strategy = '", trim(self%time_integration_strategy), "'"
 
-    write(*, *)
-    write(*, '(a)') "[grid]"
-    write(*, '(a, a)') "grid_type = ", self%grid_type
-    write(*, '(a, es10.3)') "xmin = ", self%xmin
-    write(*, '(a, es10.3)') "xmax = ", self%xmax
-    write(*, '(a, es10.3)') "ymin = ", self%ymin
-    write(*, '(a, es10.3)') "ymax = ", self%ymax
-    write(*, '(a, i0)') "ni_nodes = ", self%ni_nodes
-    write(*, '(a, i0)') "nj_nodes = ", self%nj_nodes
-    write(*, '(a, i0)') "n_ghost_layers = ", self%n_ghost_layers
+      write(*, *)
+      write(*, '(a)') "[grid]"
+      write(*, '(a, a)') "grid_type = ", self%grid_type
+      write(*, '(a, es10.3)') "xmin = ", self%xmin
+      write(*, '(a, es10.3)') "xmax = ", self%xmax
+      write(*, '(a, es10.3)') "ymin = ", self%ymin
+      write(*, '(a, es10.3)') "ymax = ", self%ymax
+      write(*, '(a, i0)') "ni_nodes = ", self%ni_nodes
+      write(*, '(a, i0)') "nj_nodes = ", self%nj_nodes
+      write(*, '(a, i0)') "n_ghost_layers = ", self%n_ghost_layers
 
-    write(*, *)
-    write(*, '(a)') "[reference_state]"
-    write(*, '(a, es10.3)') "reference_pressure = ", self%reference_pressure
-    write(*, '(a, es10.3)') "reference_density = ", self%reference_density
+      write(*, *)
+      write(*, '(a)') "[reference_state]"
+      write(*, '(a, es10.3)') "reference_pressure = ", self%reference_pressure
+      write(*, '(a, es10.3)') "reference_density = ", self%reference_density
 
-    write(*, *)
-    write(*, '(a)') "[initial_conditions]"
-    write(*, '(a, a)') "initial_condition_file = ", self%initial_condition_file
-    write(*, '(a, l1)') "read_init_cond_from_file = ", self%read_init_cond_from_file
-    write(*, '(a, es10.3)') "init_x_velocity = ", self%init_x_velocity
-    write(*, '(a, es10.3)') "init_y_velocity = ", self%init_y_velocity
-    write(*, '(a, es10.3)') "init_density  = ", self%init_density
-    write(*, '(a, es10.3)') "init_pressure = ", self%init_pressure
+      write(*, *)
+      write(*, '(a)') "[initial_conditions]"
+      write(*, '(a, a)') "initial_condition_file = ", self%initial_condition_file
+      write(*, '(a, l1)') "read_init_cond_from_file = ", self%read_init_cond_from_file
+      write(*, '(a, es10.3)') "init_x_velocity = ", self%init_x_velocity
+      write(*, '(a, es10.3)') "init_y_velocity = ", self%init_y_velocity
+      write(*, '(a, es10.3)') "init_density  = ", self%init_density
+      write(*, '(a, es10.3)') "init_pressure = ", self%init_pressure
 
-    write(*, *)
-    write(*, '(a)') "[restart]"
-    write(*, '(a, l1)') "restart_from_file = ", self%restart_from_file
-    write(*, '(3(a))') "restart_file = '", trim(self%restart_file), "'"
+      write(*, *)
+      write(*, '(a)') "[restart]"
+      write(*, '(a, l1)') "restart_from_file = ", self%restart_from_file
+      write(*, '(3(a))') "restart_file = '", trim(self%restart_file), "'"
 
-    write(*, *)
-    write(*, '(a)') "[source_terms]"
-    write(*, '(a, l1)') "enable_source_terms = ", self%enable_source_terms
-    write(*, '(a, a)') "source_term_type = ", self%source_term_type
-    write(*, '(a, l1)') "apply_constant_source = ", self%apply_constant_source
-    write(*, '(a, a)') "source_file = ", self%source_file
-    write(*, '(a, es10.3)') "constant_source_value = ", self%constant_source_value
-    write(*, '(a, es10.3)') "source_scale_factor   = ", self%source_scale_factor
+      write(*, *)
+      write(*, '(a)') "[source_terms]"
+      write(*, '(a, l1)') "enable_source_terms = ", self%enable_source_terms
+      write(*, '(a, a)') "source_term_type = ", self%source_term_type
+      write(*, '(a, l1)') "apply_constant_source = ", self%apply_constant_source
+      write(*, '(a, a)') "source_file = ", self%source_file
+      write(*, '(a, es10.3)') "constant_source_value = ", self%constant_source_value
+      write(*, '(a, es10.3)') "source_scale_factor   = ", self%source_scale_factor
+      write(*, '(a, g0.3)') "source_ilo = ", self%source_xlo
+      write(*, '(a, g0.3)') "source_ihi = ", self%source_xhi
+      write(*, '(a, g0.3)') "source_jlo = ", self%source_ylo
+      write(*, '(a, g0.3)') "source_jhi = ", self%source_yhi
 
-    write(*, *)
-    write(*, '(a)') "[boundary_conditions]"
-    write(*, '(a, a)') "bc_pressure_input_file = ", self%bc_pressure_input_file
-    write(*, '(a, l1)') "apply_constant_bc_pressure = ", self%apply_constant_bc_pressure
-    write(*, '(a, es10.3)') "constant_bc_pressure_value = ", self%constant_bc_pressure_value
-    write(*, '(a, es10.3)') "bc_pressure_scale_factor = ", self%bc_pressure_scale_factor
-    write(*, '(a, a)') "plus_x_bc = ", self%plus_x_bc
-    write(*, '(a, a)') "minus_x_bc = ", self%minus_x_bc
-    write(*, '(a, a)') "plus_y_bc  = ", self%plus_y_bc
-    write(*, '(a, a)') "minus_y_bc = ", self%minus_y_bc
+      write(*, *)
+      write(*, '(a)') "[boundary_conditions]"
+      write(*, '(a, a)') "bc_pressure_input_file = ", self%bc_pressure_input_file
+      write(*, '(a, l1)') "apply_constant_bc_pressure = ", self%apply_constant_bc_pressure
+      write(*, '(a, es10.3)') "constant_bc_pressure_value = ", self%constant_bc_pressure_value
+      write(*, '(a, es10.3)') "bc_pressure_scale_factor = ", self%bc_pressure_scale_factor
+      write(*, '(a, a)') "plus_x_bc = ", self%plus_x_bc
+      write(*, '(a, a)') "minus_x_bc = ", self%minus_x_bc
+      write(*, '(a, a)') "plus_y_bc  = ", self%plus_y_bc
+      write(*, '(a, a)') "minus_y_bc = ", self%minus_y_bc
 
-    write(*, *)
-    write(*, '(a)') "[scheme]"
-    write(*, '(a, l1)') "smooth_residuals = ", self%smooth_residuals
-    write(*, '(a, a)') "flux_solver = ", self%flux_solver
-    write(*, '(a, a)') "spatial_reconstruction = ", self%spatial_reconstruction
-    write(*, '(a, a)') "limiter = ", self%limiter
-    write(*, '(a, es10.3)') "tau = ", self%tau
+      write(*, *)
+      write(*, '(a)') "[scheme]"
+      write(*, '(a, l1)') "smooth_residuals = ", self%smooth_residuals
+      write(*, '(a, a)') "flux_solver = ", self%flux_solver
+      write(*, '(a, a)') "spatial_reconstruction = ", self%spatial_reconstruction
+      write(*, '(a, a)') "limiter = ", self%limiter
+      write(*, '(a, es10.3)') "tau = ", self%tau
 
-    write(*, *)
-    write(*, '(a)') "[physics]"
-    write(*, '(a, f5.3)') "polytropic_index = ", self%polytropic_index
+      write(*, *)
+      write(*, '(a)') "[physics]"
+      write(*, '(a, f5.3)') "polytropic_index = ", self%polytropic_index
 
-    write(*, *)
-    write(*, '(a)') "[io]"
-    write(*, '(a, a)') "contour_io_format = ", self%contour_io_format
-    write(*, '(a, es10.3)') "contour_interval_dt = ", self%contour_interval_dt
-    write(*, '(a, l1)') "append_date_to_result_folder = ", self%append_date_to_result_folder
-    write(*, '(a, l1)') "plot_reconstruction_states = ", self%plot_reconstruction_states
-    write(*, '(a, l1)') "plot_reference_states = ", self%plot_reference_states
-    write(*, '(a, l1)') "plot_evolved_states = ", self%plot_evolved_states
-    write(*, '(a, l1)') "plot_64bit = ", self%plot_64bit
-    write(*, '(a, l1)') "plot_ghost_cells = ", self%plot_ghost_cells
+      write(*, *)
+      write(*, '(a)') "[io]"
+      write(*, '(a, a)') "contour_io_format = ", self%contour_io_format
+      write(*, '(a, es10.3)') "contour_interval_dt = ", self%contour_interval_dt
+      write(*, '(a, l1)') "append_date_to_result_folder = ", self%append_date_to_result_folder
+      write(*, '(a, l1)') "plot_reconstruction_states = ", self%plot_reconstruction_states
+      write(*, '(a, l1)') "plot_reference_states = ", self%plot_reference_states
+      write(*, '(a, l1)') "plot_evolved_states = ", self%plot_evolved_states
+      write(*, '(a, l1)') "plot_64bit = ", self%plot_64bit
+      write(*, '(a, l1)') "plot_ghost_cells = ", self%plot_ghost_cells
 
-    write(*, '(a)') "==============="
-    print *
+      write(*, '(a)') "==============="
+      print *
+    endif
 
-  end subroutine display_config
-end module mod_input
+  endsubroutine display_config
+endmodule mod_input

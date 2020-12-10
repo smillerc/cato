@@ -50,9 +50,9 @@ contains
        rho_ij < max(rho_i, rho_j) .and. &
        p_ij < max(p_i, p_j)) then
       dmp = .true.
-    end if
+    endif
 
     phi_final = phi_g + (1.0_rk - phi_g) * phi_limited
-  end function
+  endfunction
 
-end module mod_post_limiter
+endmodule mod_post_limiter

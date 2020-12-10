@@ -2,51 +2,31 @@
 
 # Copyright (c) 2019 Sam Miller
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+# associated documentation files (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge, publish, distribute,
+# sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
 
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
+# The above copyright notice and this permission notice shall be included in all copies or
+# substantial portions of the Software.
 
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
-# CMake configuration options
-#     -DUSE_OPENMP=[YES/NO]
-#         Enable OpenMP parallelization and SIMD vectorization
-#     -DOUTPUT_OPTIMIZATION_REPORTS=[YES/NO]
-#         Enable optimization reports (gfortran and ifort do this a bit differently)
-#     -DUSE_ASAN=[YES/NO]
-#         Enable leak checks (gfortran only)
-#     -DUSE_DSAN=[YES/NO]
-#         Enable OpenMP thread data race checking (gfortran only)
-#     -DENABLE_TESTING=[YES/NO]
-#         Turn on the pFUnit unit tests (to be run with ctest). Note, pFUnit must be built with the same compiler
-
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+# NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+# OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 cmake_minimum_required(VERSION 3.8)
 
 project(
   CATO
+  VERSION 2.0.0
   DESCRIPTION "A modern fortran implementation of the FVLEG scheme"
   HOMEPAGE_URL "https://github.com/smillerc/cato"
   LANGUAGES Fortran C)
 
-set(CATO_VERSION_MAJOR 1)
-set(CATO_VERSION_MINOR 5)
-set(CATO_PATCH_VERSION 1)
-
-set(CMAKE_VERBOSE_MAKEFILE Off)
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED On)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 cmake_policy(SET CMP0074 NEW)
 cmake_policy(SET CMP0069 NEW) # Link-time optimization
@@ -60,82 +40,49 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-# find_package(Python)
-# include(FindPythonModule)
-# FindPythonModule(fypp REQUIRED)
+find_package(Python)
 
-# Determine the host architecture, e.g. Intel Kabylake, and optimize for it
-include(OptimizeForArchitecture)
-optimizeforarchitecture()
-
-# Set __ALIGNBYTES__ for use in OpenMP/Compiler SIMD alignment statements, e.g. __ALIGNBYTES__ = 32
-add_compile_definitions(__ALIGNBYTES__=${MEMORY_ALIGN_BYTES})
-
-if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
-  add_compile_definitions(__SIMD_ALIGN_OMP__)
+option(USE_OPENMP_THREADS "Enable OpenMP parallelization" OFF)
+option(USE_OPENMP_SIMD "Enable OpenMP SIMD vectorization" OFF)
+if(USE_OPENMP_THREADS OR USE_OPENMP_SIMD)
+  find_package(OpenMP REQUIRED Fortran)
 endif()
+
+# Procedures can't be pure if there is an omp parallel block, but they
+# can be if it's only SIMD, so we add a definition here to turn pure
+# on for certain functions if threading is off
+if(USE_OPENMP_THREADS)
+  add_compile_definitions(__OPENMP_THREADS__)
+endif()
+
+option(USE_OPENCL "Enable OpenCL to run portions on GPUs" OFF)
+if(USE_OPENCL)
+  find_package(OpenCL)
+endif()
+
+option(ENABLE_COARRAY "Build with coarrays enabled" OFF)
+option(ENABLE_COARRAY_SINGLE
+       "Build with coarrays but only for a single image (useful for debugging)" OFF)
+option(BUILD_FOR_SHARED_MEMORY "Build for shared memory only (single node)" OFF)
+
+option(N_IMAGES "Number of coarray images to use" 0)
+
+option(BUILD_FOR_DISTRIBUTED_MEMORY "Build for distributed memory (multiple nodes)" OFF)
+option(OUTPUT_OPTIMIZATION_REPORTS "Turn on optimization reports" OFF)
+option(USE_ASAN "Enable GCC's address sanitizer to check for leaks" OFF)
+option(USE_TSAN "Enable GCC's thread sanitizer to check for race conditions" OFF)
+option(ENABLE_TESTING "Enable unit testing" OFF)
+option(ENABLE_PROFILING "Enable profile flags" OFF)
 
 # Determine the number of cores (useful for single machine, shared-memory build)
 include(ProcessorCount)
 processorcount(N_CORES)
 
-if(NOT USE_OPENMP)
-  set(USE_OPENMP Off)
-else()
-  add_compile_definitions(USE_OPENMP)
-  find_package(OpenMP)
+if(ENABLE_COARRAY OR ENABLE_COARRAY_SINGLE)
+  find_package(Coarray REQUIRED)
 endif()
 
-# Enable ctest unit testing
-if(NOT ENABLE_TESTING)
-  set(ENABLE_TESTING Off)
-else()
-  if(NOT SERIAL_BUILD)
-    # The unit tests for the coarray portions assume 4 cores (or images). Certain indexing and other
-    # features will not be the same when the number of images is not what are expected
-    if(N_CORES LESS 6)
-      message(WARNING "N_CORES < 6, and the Coarray unit tests assume 4 cores " /
-                      "(coarray unit tests will not be enabled)")
-    else()
-      set(N_CORES 6)
-    endif()
-
-  endif()
-endif()
-
-# Default to a parallel build
-if(DISTRIBUTED_MEMORY AND SHARED_MEMORY)
-  message(FATAL_ERROR "Cannot enable DISTRIBUTED_MEMORY and SHARED_MEMORY at the same time")
-endif()
-
-set(SERIAL_BUILD On) # Make this default for now (until coarray is finished)
-# Packages find_package(Coarray REQUIRED)
-
-find_package(
-  HDF5
-  COMPONENTS Fortran_HL Fortran
-  REQUIRED)
-
-if(NOT SERIAL_BUILD)
-  set(SERIAL_BUILD Off)
-  # Set for coarray compile type
-  if(DISTRIBUTED_MEMORY)
-    message(STATUS "Configuring for parallel distributed-memory build")
-    set(DISTRIBUTED_MEMORY On)
-    set(SHARED_MEMORY Off)
-  else()
-    message(STATUS "Configuring for parallel shared-memory build")
-    set(DISTRIBUTED_MEMORY Off)
-    set(SHARED_MEMORY On)
-  endif()
-
-else()
-  # SERIAL_BUILD
-  message(STATUS "Configuring for serial single-core build")
-  set(N_CORES 1)
-  set(DISTRIBUTED_MEMORY Off)
-  set(SHARED_MEMORY On)
-endif()
+find_package(HDF5 REQUIRED Fortran HL)
 
 # Set compiler flags
 include(SetFortranFlags)
@@ -148,12 +95,6 @@ if(APPLE)
   set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
   set(CMAKE_Fortran_ARCHIVE_FINISH "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
 endif()
-
-# Profile the code?
-if(NOT ENABLE_PROFILING)
-  set(ENABLE_PROFILING Off)
-endif()
-
 if(CMAKE_BUILD_TYPE STREQUAL "RELEASE")
   message(STATUS "Compile Flags: ${CMAKE_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS_RELEASE} ")
 elseif(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
@@ -180,10 +121,62 @@ include_directories(${CMAKE_BINARY_DIR}/generated)
 add_subdirectory(src)
 
 if(ENABLE_TESTING)
-  find_package(PFUNIT REQUIRED)
-  message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
-  message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES})
-  message(STATUS "PFUNIT_INCLUDE_DIRS: " ${PFUNIT_INCLUDE_DIRS})
+  include(AddCoarrayCTest)
+  # find_package(PFUNIT REQUIRED) message(STATUS "PFUNIT_VERSION: " ${PFUNIT_VERSION})
+  # message(STATUS "PFUNIT_LIBRARIES: " ${PFUNIT_LIBRARIES}) message(STATUS "PFUNIT_INCLUDE_DIRS: "
+  # ${PFUNIT_INCLUDE_DIRS}) 
   enable_testing()
   add_subdirectory(tests/unit)
 endif()
+
+message("")
+message("===================================================")
+message("         ${PROJECT_NAME} ${PROJECT_VERSION} build configuration")
+message("===================================================")
+message("USE_OPENMP_THREADS: ${USE_OPENMP_THREADS}")
+message("USE_OPENMP_SIMD: ${USE_OPENMP_SIMD}")
+if(OPENMP_FOUND)
+  message("OpenMP")
+  message("  Version   : ${OpenMP_Fortran_VERSION}")
+  message("  SIMD      : ${USE_OPENMP_SIMD}")
+  message("  Threading : ${USE_OPENMP_THREADS}")
+
+  message("")
+endif()
+
+message("USE_OPENCL: ${USE_OPENCL}")
+if(OPENCL_FOUND)
+  message("OpenCL")
+  message("  Version      : ${OpenCL_VERSION_STRING}")
+  message("  Include dirs : ${OpenCL_INCLUDE_DIRS}")
+  message("  Libraries    : ${OpenCL_LIBRARIES}")
+  message("")
+endif()
+
+message("ENABLE_COARRAY: ${ENABLE_COARRAY}")
+message("ENABLE_COARRAY_SINGLE: ${ENABLE_COARRAY_SINGLE}")
+message("BUILD_FOR_SHARED_MEMORY: ${BUILD_FOR_SHARED_MEMORY}")
+message("BUILD_FOR_DISTRIBUTED_MEMORY: ${BUILD_FOR_DISTRIBUTED_MEMORY}")
+
+if(N_IMAGES GREATER 0)
+  message("N_COARRAY_IMAGES: ${N_IMAGES}")
+endif()
+
+message("OUTPUT_OPTIMIZATION_REPORTS: ${OUTPUT_OPTIMIZATION_REPORTS}")
+message("USE_ASAN: ${USE_ASAN}")
+message("USE_TSAN: ${USE_TSAN}")
+message("ENABLE_TESTING: ${ENABLE_TESTING}")
+message("ENABLE_PROFILING: ${ENABLE_PROFILING}")
+
+if(HDF5_FOUND)
+  message("HDF5")
+  message("  Version       : ${HDF5_VERSION}")
+  message("  Definitions   : ${HDF5_DEFINITIONS}")
+  message("  Parallel      : ${HDF5_IS_PARALLEL}")
+  message("  Includes dirs : ${HDF5_INCLUDE_DIRS}")
+  message("  Libraries     : ${HDF5_LIBRARIES}")
+  message("")
+endif(HDF5_FOUND)
+
+message("Compiler Flags: ${CMAKE_Fortran_FLAGS}") 
+message("")

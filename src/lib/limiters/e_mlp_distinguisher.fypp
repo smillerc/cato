@@ -96,23 +96,23 @@ contains
     d_bar_p = 0.0_rk
 
     #:for F in ['rho','u','v','p']
-    do j = jlo + n_ghost_layers, jhi - n_ghost_layers
-      do i = ilo + n_ghost_layers, ihi - n_ghost_layers
-        d_ij_i = 0.0_rk
-        d_ij_j = 0.0_rk
-        if(abs(${F}$(i, j)) > 0.0_rk) then
-          ! Eq 11a
+      do j = jlo + n_ghost_layers, jhi - n_ghost_layers
+        do i = ilo + n_ghost_layers, ihi - n_ghost_layers
+          d_ij_i = 0.0_rk
+          d_ij_j = 0.0_rk
+          if(abs(${F}$(i, j)) > 0.0_rk) then
+            ! Eq 11a
   d_ij_i = abs(((-one_sixth*${F}$(i - 2, j) + two_thirds*${F}$(i - 1, j) + two_thirds*${F}$(i + 1, j) - one_sixth*${F}$(i + 2, j)) &
-                        /${F}$(i, j)) - 1.0_rk)
+                          /${F}$(i, j)) - 1.0_rk)
 
-          ! Eq 11b
+            ! Eq 11b
   d_ij_j = abs(((-one_sixth*${F}$(i, j - 2) + two_thirds*${F}$(i, j - 1) + two_thirds*${F}$(i, j + 1) - one_sixth*${F}$(i, j + 2)) &
-                        /${F}$(i, j)) - 1.0_rk)
-        end if
-        ! Eq 11c
-        d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
-      end do
-    end do
+                          /${F}$(i, j)) - 1.0_rk)
+          endif
+          ! Eq 11c
+          d_bar_${F}$(i, j) = 0.5_rk * (d_ij_i + d_ij_j)
+        enddo
+      enddo
 
     #:endfor
 
@@ -126,17 +126,17 @@ contains
 
         else if(abs(u(i, j)) < abs(v(i, j))) then
           if(abs(d_bar_v(i, j)) > EPS .and. abs(v(i, j)) > 1e-6_rk) continuity_sensor(i, j) = LINEAR_DISCONT_REGION
-        end if
+        endif
 
         if(abs(d_bar_p(i, j)) > EPS) continuity_sensor(i, j) = NONLINEAR_DISCONT_REGION
-      end do
-    end do
+      enddo
+    enddo
 
     deallocate(d_bar_rho)
     deallocate(d_bar_u)
     deallocate(d_bar_v)
     deallocate(d_bar_p)
 
-  end subroutine distinguish
+  endsubroutine distinguish
 
-end module mod_distinguisher
+endmodule mod_distinguisher

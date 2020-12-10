@@ -39,8 +39,8 @@ contains
       source => new_energy_source(input)
     case default
       error stop "Unsupported source type in source_factory"
-    end select
+    endselect
 
-  end function source_factory
+  endfunction source_factory
 
-end module mod_source_factory
+endmodule mod_source_factory

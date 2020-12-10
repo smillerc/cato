@@ -37,12 +37,12 @@ module mod_muscl_interpolator_factory
   use mod_input, only: input_t
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_muscl_tvd2, only: muscl_tvd2_t, new_muscl_tvd2
-  use mod_muscl_tvd3, only: muscl_tvd3_t, new_muscl_tvd3
-  use mod_muscl_tvd5, only: muscl_tvd5_t, new_muscl_tvd5
+  ! use mod_muscl_tvd3, only: muscl_tvd3_t, new_muscl_tvd3
+  ! use mod_muscl_tvd5, only: muscl_tvd5_t, new_muscl_tvd5
   use mod_muscl_mlp, only: muscl_mlp_t, new_muscl_mlp
-  use mod_muscl_e_mlp, only: muscl_e_mlp_t, new_muscl_e_mlp
+  ! use mod_muscl_e_mlp, only: muscl_e_mlp_t, new_muscl_e_mlp
 
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
 
   implicit none
 
@@ -64,33 +64,33 @@ contains
       limiter = trim(limiter_name)
     else
       limiter = input%limiter
-    end if
+    endif
 
     select case(limiter)
     case('superbee', 'van_leer', 'minmod')
       interpolator => new_muscl_tvd2(limiter=limiter)
-    case('TVD3')
-      interpolator => new_muscl_tvd3(limiter=limiter)
-    case('TVD5')
-      interpolator => new_muscl_tvd5(limiter=limiter)
+      ! case('TVD3')
+      !   interpolator => new_muscl_tvd3(limiter=limiter)
+      ! case('TVD5')
+      !   interpolator => new_muscl_tvd5(limiter=limiter)
     case('MLP3')
       interpolator => new_muscl_mlp(limiter=limiter, order=3)
     case('MLP5')
       interpolator => new_muscl_mlp(limiter=limiter, order=5)
-    case('eMLP3')
-      interpolator => new_muscl_e_mlp(limiter=limiter, order=3)
-    case('eMLP5')
-      interpolator => new_muscl_e_mlp(limiter=limiter, order=5)
+      ! case('e-MLP3')
+      !   interpolator => new_muscl_e_mlp(limiter=limiter, order=3)
+      ! case('e-MLP5')
+      !   interpolator => new_muscl_e_mlp(limiter=limiter, order=5)
     case default
-      call error_msg(module='mod_muscl_interpolator_factory', procedure='muscl_interpolator_factory', &
+      call error_msg(module_name='mod_muscl_interpolator_factory', procedure_name='muscl_interpolator_factory', &
                      message="Unknown edge interpolation scheme, must be one of the following: "// &
                      "['superbee', 'van_leer', 'minmod', '(e-)MLP3', or '(e-)MLP5]', the input value was '"// &
                      trim(input%spatial_reconstruction)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     deallocate(limiter)
 
-  end function
+  endfunction
 
-end module mod_muscl_interpolator_factory
+endmodule mod_muscl_interpolator_factory

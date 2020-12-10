@@ -23,8 +23,9 @@ module mod_boundary_conditions
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
   use mod_functional, only: operator(.reverse.)
+  use mod_field, only: field_2d_t
   use mod_input, only: input_t
-  use mod_grid, only: grid_t
+  use mod_grid_block_2d, only: grid_block_2d_t
 
   implicit none
 
@@ -54,38 +55,37 @@ module mod_boundary_conditions
     procedure, public :: set_indices
     procedure(apply), public, deferred :: apply
 
-  end type boundary_condition_t
+  endtype boundary_condition_t
 
   abstract interface
-    subroutine apply(self, rho, u, v, p, lbounds)
-      import :: boundary_condition_t
+    subroutine apply(self, rho, u, v, p)
+      import :: boundary_condition_t, field_2d_t
       import :: ik, rk
       class(boundary_condition_t), intent(inout) :: self
-      integer(ik), dimension(2), intent(in) :: lbounds
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-      real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
-    end subroutine apply
-  end interface
+      class(field_2d_t), intent(inout) :: rho
+      class(field_2d_t), intent(inout) :: u
+      class(field_2d_t), intent(inout) :: v
+      class(field_2d_t), intent(inout) :: p
+    endsubroutine apply
+  endinterface
 contains
   pure subroutine set_time(self, time)
     class(boundary_condition_t), intent(inout) :: self
     real(rk), intent(in) :: time
     self%time = time
-  end subroutine
+  endsubroutine
 
   pure real(rk) function get_time(self) result(time)
     class(boundary_condition_t), intent(in) :: self
     time = self%time
-  end function
+  endfunction
 
   subroutine set_indices(self, grid)
     !< Save the indices for the cells that are tagged as ghost cells. These indices will be used
     !< by the other procedures that apply the boundary conditions
 
     class(boundary_condition_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     integer(ik) :: i
     ! integer(ik), dimension(:, :), intent(in) :: ghost_layers
     !< (ilo_layers(n), ihi_layers(n), jlo_layers(n), jhi_layers(n)); indices to the ghost layers.
@@ -98,7 +98,7 @@ contains
     ! the real cells are [1,2,3,4] and the ghost cells are [-1 0] and [5 6].
     ! Then ilo_ghost = [0, -1] and ihi_ghost = [5, 6]
 
-    self%n_ghost_layers = grid%ilo_cell - grid%ilo_bc_cell
+    self%n_ghost_layers = grid%n_halo_cells
 
     allocate(self%ilo_ghost(self%n_ghost_layers))
     allocate(self%ihi_ghost(self%n_ghost_layers))
@@ -106,34 +106,34 @@ contains
     allocate(self%jhi_ghost(self%n_ghost_layers))
 
     if(self%n_ghost_layers == 1) then
-      self%ilo_ghost = grid%ilo_bc_cell
-      self%ihi_ghost = grid%ihi_bc_cell
-      self%jlo_ghost = grid%jlo_bc_cell
-      self%jhi_ghost = grid%jhi_bc_cell
-      self%ilo = grid%ilo_cell
-      self%ihi = grid%ihi_cell
-      self%jlo = grid%jlo_cell
-      self%jhi = grid%jhi_cell
+      self%ilo_ghost = grid%lbounds_halo(1)
+      self%ihi_ghost = grid%ubounds_halo(1)
+      self%jlo_ghost = grid%lbounds_halo(2)
+      self%jhi_ghost = grid%ubounds_halo(2)
+      self%ilo = grid%lbounds(1)
+      self%ihi = grid%ubounds(1)
+      self%jlo = grid%lbounds(2)
+      self%jhi = grid%ubounds(2)
     else if(self%n_ghost_layers > 1) then
       do i = 1, self%n_ghost_layers
-        self%ilo_ghost(i) = grid%ilo_bc_cell + i - 1
-        self%ihi_ghost(i) = grid%ihi_bc_cell - i + 1
+        self%ilo_ghost(i) = grid%lbounds_halo(1) + i - 1
+        self%ihi_ghost(i) = grid%ubounds_halo(1) - i + 1
 
-        self%jlo_ghost(i) = grid%jlo_bc_cell + i - 1
-        self%jhi_ghost(i) = grid%jhi_bc_cell - i + 1
-      end do
+        self%jlo_ghost(i) = grid%lbounds_halo(2) + i - 1
+        self%jhi_ghost(i) = grid%ubounds_halo(2) - i + 1
+      enddo
       self%ilo_ghost = .reverse.self%ilo_ghost
       self%jlo_ghost = .reverse.self%jlo_ghost
       self%ihi_ghost = .reverse.self%ihi_ghost
       self%jhi_ghost = .reverse.self%jhi_ghost
 
-      self%ilo = grid%ilo_cell
-      self%ihi = grid%ihi_cell
-      self%jlo = grid%jlo_cell
-      self%jhi = grid%jhi_cell
+      self%ilo = grid%lbounds(1)
+      self%ihi = grid%ubounds(1)
+      self%jlo = grid%lbounds(2)
+      self%jhi = grid%ubounds(2)
     else
       error stop "Error in boundary_condition_t%set_indicies(), n_ghost_layers <= 0"
-    end if
+    endif
 
-  end subroutine set_indices
-end module mod_boundary_conditions
+  endsubroutine set_indices
+endmodule mod_boundary_conditions

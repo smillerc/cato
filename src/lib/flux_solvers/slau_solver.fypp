@@ -51,7 +51,7 @@ module mod_slau_solver
   use mod_muscl_interpolation, only: muscl_interpolation_t
   use mod_flux_solver, only: edge_split_flux_solver_t
   use mod_eos, only: eos
-  use mod_grid, only: grid_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
 
   implicit none
@@ -77,15 +77,15 @@ module mod_slau_solver
     ! procedure, public :: flux_split_edges
     ! Private methods
     #:for VARIANT in VARIANTS
-    #:for DIR in DIRECTIONS
-    procedure, private :: get_${VARIANT.replace('-', '_')}$_${DIR}$flux
-    #:endfor
+      #:for DIR in DIRECTIONS
+        procedure, private :: get_${VARIANT.replace('-', '_')}$_${DIR}$flux
+      #:endfor
     #:endfor
     final :: finalize
 
     ! Operators
     generic :: assignment(=) => copy
-  end type slau_solver_t
+  endtype slau_solver_t
 contains
   subroutine initialize_slau(self, input, time)
     !< Constructor for the SLAU solver
@@ -103,8 +103,8 @@ contains
       self%variant = trim(input%flux_solver)
     case default
       error stop "Unknown SLAU solver variant in slau_solver_t%initialize_slau()"
-    end select
-  end subroutine initialize_slau
+    endselect
+  endsubroutine initialize_slau
 
   subroutine copy_slau(lhs, rhs)
     !< Implement LHS = RHS
@@ -117,12 +117,12 @@ contains
     lhs%time = rhs%time
     lhs%dt = rhs%dt
     lhs%gamma = rhs%gamma
-  end subroutine copy_slau
+  endsubroutine copy_slau
 
   subroutine solve_slau(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(slau_solver_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     integer(ik), dimension(2), intent(in) :: lbounds
     real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
     real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
@@ -160,10 +160,10 @@ contains
     call debug_print('Running ausmpw_plus_solver_t%solve_ausmpw_plus()', __FILE__, __LINE__)
 
     if(dt < tiny(1.0_rk)) then
-      call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
+      call error_msg(module_name='mod_slau_solver', class_name='slau_solver_t', procedure_name='solve_slau', &
                      message="The timestep dt is < tiny(1.0_rk)", &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     self%time = self%time + dt
     self%dt = dt
@@ -171,7 +171,7 @@ contains
 
     call self%init_boundary_conditions(grid, bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                        bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
-    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, lbounds=lbounds, &
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, &
                                  bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
                                  bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
 
@@ -198,10 +198,10 @@ contains
     !
     ! This is the numbering convention that this module uses
 
-    ilo = grid%ilo_cell
-    ihi = grid%ihi_cell
-    jlo = grid%jlo_cell
-    jhi = grid%jhi_cell
+    ilo = grid%lbounds(1)
+    ihi = grid%ubounds(1)
+    jlo = grid%lbounds(2)
+    jhi = grid%ubounds(2)
 
     if(allocated(self%iflux)) deallocate(self%iflux)
     if(allocated(self%jflux)) deallocate(self%jflux)
@@ -209,29 +209,29 @@ contains
     allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
     allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
 
-    ilo_bc = grid%ilo_bc_cell
-    ihi_bc = grid%ihi_bc_cell
+    ilo_bc = grid%lbounds_halo(1)
+    ihi_bc = grid%ubounds_halo(1)
     jlo_bc = grid%jlo_bc_cell
     jhi_bc = grid%jhi_bc_cell
 
     select case(trim(self%variant))
-    #:for VARIANT in VARIANTS
-    case("${VARIANT}$")
-    #:for DIR in DIRECTIONS
-      call self%get_${VARIANT.replace('-', '_')}$_${DIR}$flux(grid=grid, lbounds=lbound(rho_${DIR}$_edges), &
-                                                              eflux_lbounds=lbound(self%${DIR}$flux), &
-                                                              rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
-                                                              rho_edge=rho_${DIR}$_edges, u_edge=u_${DIR}$_edges, &
+      #:for VARIANT in VARIANTS
+        case("${VARIANT}$")
+        #:for DIR in DIRECTIONS
+          call self%get_${VARIANT.replace('-', '_')}$_${DIR}$flux(grid=grid, lbounds=lbound(rho_${DIR}$_edges), &
+                                                                  eflux_lbounds=lbound(self%${DIR}$flux), &
+                                                                  rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
+                                                                  rho_edge=rho_${DIR}$_edges, u_edge=u_${DIR}$_edges, &
                                                          v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
-    #:endfor
-    #:endfor
+        #:endfor
+      #:endfor
     case default
-      call error_msg(module='mod_slau_solver', class='slau_solver_t', procedure='solve_slau', &
+      call error_msg(module_name='mod_slau_solver', class_name='slau_solver_t', procedure_name='solve_slau', &
                      message="Unknown SLAU variant '"//trim(self%variant)// &
                      "'in slau_solver_t%solve_SLAU(), must be one of "// &
                      "${VARIANTS}$", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     ! Now flux the edges to get the next solution
     call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
@@ -252,263 +252,269 @@ contains
 
     deallocate(self%iflux)
     deallocate(self%jflux)
-  end subroutine solve_slau
+  endsubroutine solve_slau
 
   #:for VARIANT in VARIANTS
-  #:for DIR in DIRECTIONS
-  subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
-    !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
-    class(slau_solver_t), intent(inout) :: self
-    class(grid_t), intent(in) :: grid
-    integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_ave    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
-    integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux
+    #:for DIR in DIRECTIONS
+      subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, &
+                                                               rho_ave, u_ave, v_ave, p_ave, eflux_lbounds, edge_flux)
+        !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
+        class(slau_solver_t), intent(inout) :: self
+        class(grid_block_2d_t), intent(in) :: grid
+        integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
+        real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_ave    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
+        real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
+        real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
+        real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
+        real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
+        real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+        real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+        real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+        integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
+        real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux
 
-    integer(ik) :: i, j
-    integer(ik) :: ilo, ihi, jlo, jhi
-    real(rk) :: gamma
-    real(rk) :: rho_L, rho_R                !< L/R density
-    real(rk) :: u_L, u_R                    !< L/R x-velocity
-    real(rk) :: v_L, v_R                    !< L/R y-velocity
-    real(rk) :: p_L, p_R                    !< L/R pressure
-    real(rk) :: H_L, H_R                    !< L/R enthalpy
-    real(rk) :: c_plus, c_minus                    !< L/R sound speed
-    real(rk) :: V_n_plus, V_n_minus                !< L/R normal velocity
-    real(rk) :: V_n_bar_plus, V_n_bar_minus !< L/R split normal velocity
-    real(rk) :: Beta_plus, Beta_minus         !< L/R split Mach function
+        integer(ik) :: i, j
+        integer(ik) :: ilo, ihi, jlo, jhi
+        real(rk) :: gamma
+        real(rk) :: rho_L, rho_R                !< L/R density
+        real(rk) :: u_L, u_R                    !< L/R x-velocity
+        real(rk) :: v_L, v_R                    !< L/R y-velocity
+        real(rk) :: p_L, p_R                    !< L/R pressure
+        real(rk) :: H_L, H_R                    !< L/R enthalpy
+        real(rk) :: c_plus, c_minus                    !< L/R sound speed
+        real(rk) :: V_n_plus, V_n_minus                !< L/R normal velocity
+        real(rk) :: V_n_bar_plus, V_n_bar_minus !< L/R split normal velocity
+        real(rk) :: Beta_plus, Beta_minus         !< L/R split Mach function
 
-    real(rk) :: Chi
-    real(rk) :: c_bar !< average interface sound speed
-    real(rk) :: p_bar !< average interface pressure
-    real(rk) :: rho_bar !< average interface density
-    real(rk) :: M_bar !< average interface Mach number (normal to interface)
-    real(rk) :: M_plus, M_minus
-    real(rk) :: M_hat
-    real(rk) :: p_tilde
-    real(rk) :: V_n_bar
-    real(rk) :: g
-    real(rk) :: delta_p
-    real(rk) :: mass_flux
-    real(rk) :: mass_flux_L, mass_flux_R
-    real(rk) :: n_x, n_y, time
-    real(rk) :: delta_Beta, p_L_minus_R, delta_rho
-    real(rk) :: delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6, delta_p_max, theta
-    integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
-    integer(ik), parameter ::  RIGHT_IDX = 2 !< edge index for the right edge of the current cell
-    integer(ik), parameter ::    TOP_IDX = 3 !< edge index for the top edge of the current cell
-    integer(ik), parameter ::   LEFT_IDX = 4 !< edge index for the left edge of the current cell
+        real(rk) :: Chi
+        real(rk) :: c_bar !< average interface sound speed
+        real(rk) :: p_bar !< average interface pressure
+        real(rk) :: rho_bar !< average interface density
+        real(rk) :: M_bar !< average interface Mach number (normal to interface)
+        real(rk) :: M_plus, M_minus
+        real(rk) :: M_hat
+        real(rk) :: p_tilde
+        real(rk) :: V_n_bar
+        real(rk) :: g
+        real(rk) :: delta_p
+        real(rk) :: mass_flux
+        real(rk) :: mass_flux_L, mass_flux_R
+        real(rk) :: n_x, n_y, time
+        real(rk) :: delta_Beta, p_L_minus_R, delta_rho
+        real(rk) :: delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6, delta_p_max, theta
+        integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
+        integer(ik), parameter ::  RIGHT_IDX = 2 !< edge index for the right edge of the current cell
+        integer(ik), parameter ::    TOP_IDX = 3 !< edge index for the top edge of the current cell
+        integer(ik), parameter ::   LEFT_IDX = 4 !< edge index for the left edge of the current cell
 
-    real(rk), parameter :: THRESHOLD = 5e-3_rk
+        real(rk), parameter :: THRESHOLD = 5e-3_rk
 
-    !dir$ assume_aligned rho_edge: __ALIGNBYTES__
-    !dir$ assume_aligned u_edge: __ALIGNBYTES__
-    !dir$ assume_aligned v_edge: __ALIGNBYTES__
-    !dir$ assume_aligned p_edge: __ALIGNBYTES__
-    !dir$ assume_aligned edge_flux: __ALIGNBYTES__
+        !dir$ assume_aligned rho_edge: __ALIGNBYTES__
+        !dir$ assume_aligned u_edge: __ALIGNBYTES__
+        !dir$ assume_aligned v_edge: __ALIGNBYTES__
+        !dir$ assume_aligned p_edge: __ALIGNBYTES__
+        !dir$ assume_aligned edge_flux: __ALIGNBYTES__
 
-    gamma = self%gamma
+        gamma = self%gamma
 
-    ilo = lbound(edge_flux, dim=2)
-    ihi = ubound(edge_flux, dim=2)
-    jlo = lbound(edge_flux, dim=3)
-    jhi = ubound(edge_flux, dim=3)
+        ilo = lbound(edge_flux, dim=2)
+        ihi = ubound(edge_flux, dim=2)
+        jlo = lbound(edge_flux, dim=3)
+        jhi = ubound(edge_flux, dim=3)
 
-    !
-    !                    jflux(i,j)  'R'
-    !               o--------------------o
-    !               |                'L' |
-    !               |                    |
-    ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
-    !               |                    |
-    !               |                'L' | 'R'
-    !               o--------------------o
-    !                  jflux(i,j-1)
-    !
-    ! This is the numbering convention that this module uses
+        !
+        !                    jflux(i,j)  'R'
+        !               o--------------------o
+        !               |                'L' |
+        !               |                    |
+        ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+        !               |                    |
+        !               |                'L' | 'R'
+        !               o--------------------o
+        !                  jflux(i,j-1)
+        !
+        ! This is the numbering convention that this module uses
 
-    !$omp parallel default(none), &
-    !$omp firstprivate(gamma, ilo, ihi, jlo, jhi) &
-    !$omp private(i, j) &
-    !$omp private(rho_L, rho_R, u_L, u_R, v_L, v_R, p_L, p_R, H_L, H_R) &
-    !$omp private(Chi,c_plus,c_minus,c_bar, V_n_plus, V_n_minus) &
-    !$omp private(M_plus, M_minus, Beta_plus, Beta_minus, M_hat) &
-    !$omp private(p_tilde, V_n_bar, g) &
-    !$omp private(V_n_bar_plus,V_n_bar_minus) &
-    !$omp private(delta_p, delta_Beta, p_L_minus_R, mass_flux, mass_flux_L, mass_flux_R, n_x, n_y) &
-    !$omp private(delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6, delta_p_max, theta, M_bar, p_bar, rho_bar, delta_rho) &
-    !$omp shared(rho_ave, u_ave, v_ave, p_ave) &
-    !$omp shared(grid, rho_edge, u_edge, v_edge, p_edge, edge_flux)
-    !$omp do
-    do j = jlo, jhi
-      !$omp simd __INTERP_ALIGN__
-      !dir$ vector aligned
-      do i = ilo, ihi
+        !$omp parallel default(none), &
+        !$omp firstprivate(gamma, ilo, ihi, jlo, jhi) &
+        !$omp private(i, j) &
+        !$omp private(rho_L, rho_R, u_L, u_R, v_L, v_R, p_L, p_R, H_L, H_R) &
+        !$omp private(Chi,c_plus,c_minus,c_bar, V_n_plus, V_n_minus) &
+        !$omp private(M_plus, M_minus, Beta_plus, Beta_minus, M_hat) &
+        !$omp private(p_tilde, V_n_bar, g) &
+        !$omp private(V_n_bar_plus,V_n_bar_minus) &
+        !$omp private(delta_p, delta_Beta, p_L_minus_R, mass_flux, mass_flux_L, mass_flux_R, n_x, n_y) &
+        !$omp private(delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6, delta_p_max, theta, M_bar, p_bar, rho_bar, delta_rho) &
+        !$omp shared(rho_ave, u_ave, v_ave, p_ave) &
+        !$omp shared(grid, rho_edge, u_edge, v_edge, p_edge, edge_flux)
+        !$omp do
+        do j = jlo, jhi
+          !$omp simd __INTERP_ALIGN__
+          !dir$ vector aligned
+          do i = ilo, ihi
 
-        rho_L = rho_edge(1, i, j)
-        u_L = u_edge(1, i, j)
-        v_L = v_edge(1, i, j)
-        p_L = p_edge(1, i, j)
+            rho_L = rho_edge(1, i, j)
+            u_L = u_edge(1, i, j)
+            v_L = v_edge(1, i, j)
+            p_L = p_edge(1, i, j)
 
-        rho_R = rho_edge(2, i, j)
-        u_R = u_edge(2, i, j)
-        v_R = v_edge(2, i, j)
-        p_R = p_edge(2, i, j)
+            rho_R = rho_edge(2, i, j)
+            u_R = u_edge(2, i, j)
+            v_R = v_edge(2, i, j)
+            p_R = p_edge(2, i, j)
 
-      #:if DIR == 'i'
-        n_x = grid%cell_edge_norm_vectors(1, RIGHT_IDX, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, RIGHT_IDX, i, j)
-      #:else
-        n_x = grid%cell_edge_norm_vectors(1, TOP_IDX, i, j)
-        n_y = grid%cell_edge_norm_vectors(2, TOP_IDX, i, j)
-      #:endif
+            #:if DIR == 'i'
+              n_x = grid%edge_norm_vectors(1, RIGHT_IDX, i, j)
+              n_y = grid%edge_norm_vectors(2, RIGHT_IDX, i, j)
+            #:else
+              n_x = grid%edge_norm_vectors(1, TOP_IDX, i, j)
+              n_y = grid%edge_norm_vectors(2, TOP_IDX, i, j)
+            #:endif
 
-        ! Normal velocity
-        V_n_plus = u_L * n_x + v_L * n_y  ! Normal velocity on the "+" side of the interface, aka "L"
-        V_n_minus = u_R * n_x + v_R * n_y ! Normal velocity on the "-" side of the interface, aka "R"
+            ! Normal velocity
+            V_n_plus = u_L * n_x + v_L * n_y  ! Normal velocity on the "+" side of the interface, aka "L"
+            V_n_minus = u_R * n_x + v_R * n_y ! Normal velocity on the "-" side of the interface, aka "R"
 
-        ! Eq A11, Ref [1]
-        c_plus = sqrt(gamma * p_L / rho_L)
-        c_minus = sqrt(gamma * p_R / rho_R)
-        c_bar = 0.5_rk * (c_plus + c_minus)
+            ! Eq A11, Ref [1]
+            c_plus = sqrt(gamma * p_L / rho_L)
+            c_minus = sqrt(gamma * p_R / rho_R)
+            c_bar = 0.5_rk * (c_plus + c_minus)
 
-        ! Eq. A8, Ref [1]
-        V_n_bar = (rho_L * abs(V_n_plus) + rho_R * abs(V_n_minus)) / (rho_L + rho_R)
+            ! Eq. A8, Ref [1]
+            V_n_bar = (rho_L * abs(V_n_plus) + rho_R * abs(V_n_minus)) / (rho_L + rho_R)
 
-        ! Eq. A7, Ref [1]
-        M_hat = min(1.0_rk, sqrt(0.5_rk * (u_L**2 + v_L**2 + u_R**2 + v_R**2)) / c_bar)
+            ! Eq. A7, Ref [1]
+            M_hat = min(1.0_rk, sqrt(0.5_rk * (u_L**2 + v_L**2 + u_R**2 + v_R**2)) / c_bar)
 
-        ! Eq. A6, Ref [1]
-        Chi = (1.0_rk - M_hat)**2
+            ! Eq. A6, Ref [1]
+            Chi = (1.0_rk - M_hat)**2
 
-        ! Eq. A10, Ref [1]
-        M_bar = V_n_bar / c_bar
-        p_bar = 0.5_rk * (p_L + p_R)
-        rho_bar = 0.5_rk * (rho_L + rho_R)
+            ! Eq. A10, Ref [1]
+            M_bar = V_n_bar / c_bar
+            p_bar = 0.5_rk * (p_L + p_R)
+            rho_bar = 0.5_rk * (rho_L + rho_R)
 
-        ! Eq. A10, Ref [1]
-        M_plus = V_n_plus / c_bar
-        M_minus = V_n_minus / c_bar
+            ! Eq. A10, Ref [1]
+            M_plus = V_n_plus / c_bar
+            M_minus = V_n_minus / c_bar
 
-        ! Eq A13, Ref [1]
-        if(abs(M_plus) < 1.0_rk) then
-          Beta_plus = 0.25_rk * (2.0_rk - M_plus) * (M_plus + 1.0_rk)**2
-        else
-          Beta_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M_plus))
-        endif
+            ! Eq A13, Ref [1]
+            if(abs(M_plus) < 1.0_rk) then
+              Beta_plus = 0.25_rk * (2.0_rk - M_plus) * (M_plus + 1.0_rk)**2
+            else
+              Beta_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M_plus))
+            endif
 
-        if(abs(M_minus) < 1.0_rk) then
-          Beta_minus = 0.25_rk * (2.0_rk + M_minus) * (M_minus - 1.0_rk)**2
-        else
-          Beta_minus = 0.5_rk * (1.0_rk + sign(1.0_rk, -M_minus))
-        endif
+            if(abs(M_minus) < 1.0_rk) then
+              Beta_minus = 0.25_rk * (2.0_rk + M_minus) * (M_minus - 1.0_rk)**2
+            else
+              Beta_minus = 0.5_rk * (1.0_rk + sign(1.0_rk, -M_minus))
+            endif
 
-        ! Eq 2.3i
-        delta_p = p_R - p_L
-        if(abs(delta_p) < epsilon(1.0_rk) .or. abs(delta_p) < THRESHOLD * p_bar) delta_p = 0.0_rk
+            ! Eq 2.3i
+            delta_p = p_R - p_L
+            if(abs(delta_p) < epsilon(1.0_rk) .or. abs(delta_p) < THRESHOLD * p_bar) delta_p = 0.0_rk
 
-        delta_rho = rho_R - rho_L
-        if(abs(delta_rho) < epsilon(1.0_rk)) delta_rho = 0.0_rk
+            delta_rho = rho_R - rho_L
+            if(abs(delta_rho) < epsilon(1.0_rk)) delta_rho = 0.0_rk
 
-        delta_Beta = Beta_plus - Beta_minus
-        if(abs(delta_Beta) < epsilon(1.0_rk)) delta_Beta = 0.0_rk
+            delta_Beta = Beta_plus - Beta_minus
+            if(abs(delta_Beta) < epsilon(1.0_rk)) delta_Beta = 0.0_rk
 
-        p_L_minus_R = p_L - p_R ! or p^+ - p^-
-        if(abs(p_L_minus_R) < epsilon(1.0_rk)) p_L_minus_R = 0.0_rk
+            p_L_minus_R = p_L - p_R ! or p^+ - p^-
+            if(abs(p_L_minus_R) < epsilon(1.0_rk)) p_L_minus_R = 0.0_rk
 
-    #:if VARIANT == 'SD-SLAU' or VARIANT == 'SD-SLAU2'
-        ! Shock detecting (SD) logic
-      #:if DIR == 'i'
-        ! 'R' - 'L', or p(-) - p(+). See Figure 2 in Ref [2]. The absolute value
-        ! is take from these, so order is not important
-        delta_p1 = abs(p_ave(i, j + 1) - p_ave(i, j))
-        delta_p2 = abs(p_ave(i - 1, j) - p_ave(i, j))
-        delta_p3 = abs(p_ave(i, j - 1) - p_ave(i, j))
-        delta_p4 = abs(p_ave(i + 1, j - 1) - p_ave(i + 1, j))
-        delta_p5 = abs(p_ave(i + 2, j) - p_ave(i + 1, j))
-        delta_p6 = abs(p_ave(i + 1, j + 1) - p_ave(i + 1, j))
+            #:if VARIANT == 'SD-SLAU' or VARIANT == 'SD-SLAU2'
+              ! Shock detecting (SD) logic
+              #:if DIR == 'i'
+                ! 'R' - 'L', or p(-) - p(+). See Figure 2 in Ref [2]. The absolute value
+                ! is take from these, so order is not important
+                delta_p1 = abs(p_ave(i, j + 1) - p_ave(i, j))
+                delta_p2 = abs(p_ave(i - 1, j) - p_ave(i, j))
+                delta_p3 = abs(p_ave(i, j - 1) - p_ave(i, j))
+                delta_p4 = abs(p_ave(i + 1, j - 1) - p_ave(i + 1, j))
+                delta_p5 = abs(p_ave(i + 2, j) - p_ave(i + 1, j))
+                delta_p6 = abs(p_ave(i + 1, j + 1) - p_ave(i + 1, j))
 
-      #:elif DIR == 'j'
-        ! 'R' - 'L', or p(-) - p(+). See Figure 2 in Ref [2]. The absolute value
-        ! is take from these, so order is not important
-        delta_p1 = abs(p_ave(i - 1, j) - p_ave(i, j))
-        delta_p2 = abs(p_ave(i, j - 1) - p_ave(i, j))
-        delta_p3 = abs(p_ave(i + 1, j) - p_ave(i, j))
-        delta_p4 = abs(p_ave(i + 1, j + 1) - p_ave(i, j + 1))
-        delta_p5 = abs(p_ave(i, j + 2) - p_ave(i, j + 1))
-        delta_p6 = abs(p_ave(i - 1, j + 1) - p_ave(i, j + 1))
-      #:endif
+              #:elif DIR == 'j'
+                ! 'R' - 'L', or p(-) - p(+). See Figure 2 in Ref [2]. The absolute value
+                ! is take from these, so order is not important
+                delta_p1 = abs(p_ave(i - 1, j) - p_ave(i, j))
+                delta_p2 = abs(p_ave(i, j - 1) - p_ave(i, j))
+                delta_p3 = abs(p_ave(i + 1, j) - p_ave(i, j))
+                delta_p4 = abs(p_ave(i + 1, j + 1) - p_ave(i, j + 1))
+                delta_p5 = abs(p_ave(i, j + 2) - p_ave(i, j + 1))
+                delta_p6 = abs(p_ave(i - 1, j + 1) - p_ave(i, j + 1))
+              #:endif
 
-        if(delta_p1 < epsilon(1.0_rk) .or. delta_p1 < THRESHOLD * p_bar) delta_p1 = 0.0_rk
-        if(delta_p2 < epsilon(1.0_rk) .or. delta_p2 < THRESHOLD * p_bar) delta_p2 = 0.0_rk
-        if(delta_p3 < epsilon(1.0_rk) .or. delta_p3 < THRESHOLD * p_bar) delta_p3 = 0.0_rk
-        if(delta_p4 < epsilon(1.0_rk) .or. delta_p4 < THRESHOLD * p_bar) delta_p4 = 0.0_rk
-        if(delta_p5 < epsilon(1.0_rk) .or. delta_p5 < THRESHOLD * p_bar) delta_p5 = 0.0_rk
-        if(delta_p6 < epsilon(1.0_rk) .or. delta_p6 < THRESHOLD * p_bar) delta_p6 = 0.0_rk
+              if(delta_p1 < epsilon(1.0_rk) .or. delta_p1 < THRESHOLD * p_bar) delta_p1 = 0.0_rk
+              if(delta_p2 < epsilon(1.0_rk) .or. delta_p2 < THRESHOLD * p_bar) delta_p2 = 0.0_rk
+              if(delta_p3 < epsilon(1.0_rk) .or. delta_p3 < THRESHOLD * p_bar) delta_p3 = 0.0_rk
+              if(delta_p4 < epsilon(1.0_rk) .or. delta_p4 < THRESHOLD * p_bar) delta_p4 = 0.0_rk
+              if(delta_p5 < epsilon(1.0_rk) .or. delta_p5 < THRESHOLD * p_bar) delta_p5 = 0.0_rk
+              if(delta_p6 < epsilon(1.0_rk) .or. delta_p6 < THRESHOLD * p_bar) delta_p6 = 0.0_rk
 
-        ! Eq. 1d in Ref [2]
-        delta_p_max = max(abs(delta_p), max(delta_p1, delta_p2, delta_p3, &
-                                            delta_p4, delta_p5, delta_p6))
+              ! Eq. 1d in Ref [2]
+              delta_p_max = max(abs(delta_p), max(delta_p1, delta_p2, delta_p3, &
+                                                  delta_p4, delta_p5, delta_p6))
 
-        ! Eq. 6a and 7 in Ref [2]
-        ! theta = min(1.0_rk, (((C_SD1 * abs(delta_p) / p_bar) + C_SD1) / &
-        !                      ((delta_p_max / p_bar) + C_SD1))**2) * &
-        !         0.5_rk * (abs(M_bar + 1.0_rk) + abs(M_bar - 1.0_rk) - 2.0_rk * abs(M_bar))
-        theta = min(1.0_rk,(((C_SD1 * abs(delta_p) / p_bar) + C_SD1) / &
-                            ((delta_p_max / p_bar) + C_SD1))**2) * &
-                max(0.0_rk, 1.0_rk - abs(M_bar))
-        ! if (delta_p_max > 0.0_rk) then
-        !   write(*,'(a, 2(i4), 20(es16.6))') '${DIR}$ theta', i, j, p_bar, THRESHOLD * p_bar, delta_p_max, delta_p, delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6
-        ! end if
-    #:endif
+              ! Eq. 6a and 7 in Ref [2]
+              ! theta = min(1.0_rk, (((C_SD1 * abs(delta_p) / p_bar) + C_SD1) / &
+              !                      ((delta_p_max / p_bar) + C_SD1))**2) * &
+              !         0.5_rk * (abs(M_bar + 1.0_rk) + abs(M_bar - 1.0_rk) - 2.0_rk * abs(M_bar))
+              theta = min(1.0_rk,(((C_SD1 * abs(delta_p) / p_bar) + C_SD1) / &
+                                  ((delta_p_max / p_bar) + C_SD1))**2) * &
+                      max(0.0_rk, 1.0_rk - abs(M_bar))
+              ! if (delta_p_max > 0.0_rk) then
+              !   write(*,'(a, 2(i4), 20(es16.6))') '${DIR}$ theta', i, j, p_bar, THRESHOLD * p_bar, delta_p_max, delta_p, delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6
+              ! end if
+            #:endif
 
-      #:if VARIANT == 'SLAU' or VARIANT == 'SD-SLAU'
-        ! Eq. A12, Ref [1]
-        p_tilde = (p_bar + 0.5_rk * delta_Beta * p_L_minus_R) + (1.0_rk - Chi) * (Beta_plus + Beta_minus - 1.0_rk) * p_bar
-      #:elif VARIANT == 'SLAU2' or VARIANT == 'SD-SLAU2'
-        ! Eq. 3.5 in Ref [2] (The improved SLAU2 pressure flux)
-        p_tilde = p_bar + (0.5_rk * delta_Beta * p_L_minus_R) + sqrt(0.5_rk * (u_L**2 + v_L**2 + u_R**2 + v_R**2)) * (Beta_plus + Beta_minus - 1.0_rk) * rho_bar * c_bar
-      #:endif
+            #:if VARIANT == 'SLAU' or VARIANT == 'SD-SLAU'
+              ! Eq. A12, Ref [1]
+              p_tilde = (p_bar + 0.5_rk * delta_Beta * p_L_minus_R) + &
+                        (1.0_rk - Chi) * (Beta_plus + Beta_minus - 1.0_rk) * p_bar
+            #:elif VARIANT == 'SLAU2' or VARIANT == 'SD-SLAU2'
+              ! Eq. 3.5 in Ref [2] (The improved SLAU2 pressure flux)
+              p_tilde = p_bar + (0.5_rk * delta_Beta * p_L_minus_R) + &
+                        sqrt(0.5_rk * (u_L**2 + v_L**2 + u_R**2 + v_R**2)) * &
+                        (Beta_plus + Beta_minus - 1.0_rk) * rho_bar * c_bar
+            #:endif
 
-        ! Eq. A9, Ref [1], 0 <= g <= 1
-        g = -max(min(M_plus, 0.0_rk), -1.0_rk) * min(max(M_minus, 0.0_rk), 1.0_rk)
+            ! Eq. A9, Ref [1], 0 <= g <= 1
+            g = -max(min(M_plus, 0.0_rk), -1.0_rk) * min(max(M_minus, 0.0_rk), 1.0_rk)
 
-      #:if VARIANT == 'SLAU' or VARIANT == 'SLAU2'
-        ! Eq. A5, Ref [1]
-        mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * (1.0_rk - g) - ((Chi / (2.0_rk * c_bar)) * delta_p)
+            #:if VARIANT == 'SLAU' or VARIANT == 'SLAU2'
+              ! Eq. A5, Ref [1]
+              mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * &
+                          (1.0_rk - g) - ((Chi / (2.0_rk * c_bar)) * delta_p)
 
-        #:elif VARIANT == 'SD-SLAU' or VARIANT == 'SD-SLAU2'
-        ! Eq 5 in Ref [3]
-        mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * (1.0_rk - g) - ((theta / (2.0_rk * c_bar)) * delta_p)
+            #:elif VARIANT == 'SD-SLAU' or VARIANT == 'SD-SLAU2'
+              ! Eq 5 in Ref [3]
+              mass_flux = 0.5_rk * ((rho_L * V_n_plus) + (rho_R * V_n_minus) - abs(V_n_bar) * delta_rho) * &
+                          (1.0_rk - g) - ((theta / (2.0_rk * c_bar)) * delta_p)
 
-      #:endif
+            #:endif
 
-        mass_flux_L = 0.5_rk * (mass_flux + abs(mass_flux))
-        mass_flux_R = 0.5_rk * (mass_flux - abs(mass_flux))
+            mass_flux_L = 0.5_rk * (mass_flux + abs(mass_flux))
+            mass_flux_R = 0.5_rk * (mass_flux - abs(mass_flux))
 
-        H_L = (gamma / (gamma - 1.0_rk)) * (p_L / rho_L) + 0.5_rk * (u_L**2 + v_L**2)
-        H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_R**2 + v_R**2)
+            H_L = (gamma / (gamma - 1.0_rk)) * (p_L / rho_L) + 0.5_rk * (u_L**2 + v_L**2)
+            H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_R**2 + v_R**2)
 
-        ! Eq. 2.3a
-        edge_flux(1, i, j) = mass_flux_L + mass_flux_R
-        edge_flux(2, i, j) = (mass_flux_L * u_L) + (mass_flux_R * u_R) + p_tilde * n_x
-        edge_flux(3, i, j) = (mass_flux_L * v_L) + (mass_flux_R * v_R) + p_tilde * n_y
-        edge_flux(4, i, j) = (mass_flux_L * H_L) + (mass_flux_R * H_R)
+            ! Eq. 2.3a
+            edge_flux(1, i, j) = mass_flux_L + mass_flux_R
+            edge_flux(2, i, j) = (mass_flux_L * u_L) + (mass_flux_R * u_R) + p_tilde * n_x
+            edge_flux(3, i, j) = (mass_flux_L * v_L) + (mass_flux_R * v_R) + p_tilde * n_y
+            edge_flux(4, i, j) = (mass_flux_L * H_L) + (mass_flux_R * H_R)
 
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-  end subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux
+          enddo
+        enddo
+        !$omp end do
+        !$omp end parallel
+      end subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux
 
-  #:endfor
+    #:endfor
   #:endfor
 
   pure subroutine project_vector(a, b, b_parallel, b_perpendicular)
@@ -520,7 +526,7 @@ contains
 
     b_parallel = (dot_product(b, a) / dot_product(a, a)) * a
     b_perpendicular = b - b_parallel
-  end subroutine project_vector
+  endsubroutine project_vector
 
   subroutine finalize(self)
     !< Cleanup the SLAU solver
@@ -528,7 +534,7 @@ contains
     call debug_print('Running slau_solver_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%iflux)) deallocate(self%iflux) ! these should already be deallocated
     if(allocated(self%jflux)) deallocate(self%jflux) ! these should already be deallocated
-  end subroutine finalize
+  endsubroutine finalize
 
   pure real(rk) function get_beta_plus(M) result(beta_plus)
     !< The Mach+ splitting function Eq A13
@@ -539,7 +545,7 @@ contains
     else
       beta_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M))
     endif
-  end function get_beta_plus
+  endfunction get_beta_plus
 
   pure real(rk) function get_beta_minus(M) result(beta_minus)
     !< The Mach- splitting function (Eq. 2.3f in Ref[1]).
@@ -550,6 +556,6 @@ contains
     else
       beta_minus = 0.5_rk * (1.0_rk + sign(1.0_rk, -M))
     endif
-  end function get_beta_minus
+  endfunction get_beta_minus
 
-end module mod_slau_solver
+endmodule mod_slau_solver

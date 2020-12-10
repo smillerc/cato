@@ -28,7 +28,7 @@ module mod_reconstruction_factory
   use mod_piecewise_constant_reconstruction, only: piecewise_constant_reconstruction_t
   use mod_piecewise_linear_reconstruction, only: piecewise_linear_reconstruction_t
 
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
 
   implicit none
 
@@ -55,10 +55,10 @@ contains
       allocate(piecewise_constant_reconstruction_t :: operator)
       call operator%initialize(input=input, grid_target=grid_target)
     case default
-      call error_msg(module='mod_reconstruction_factory', procedure='reconstruction_factory', &
+      call error_msg(module_name='mod_reconstruction_factory', procedure_name='reconstruction_factory', &
                      message="Unknown reconstruction type '"//recon_type//"'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
-  end function
+    endselect
+  endfunction
 
-end module mod_reconstruction_factory
+endmodule mod_reconstruction_factory

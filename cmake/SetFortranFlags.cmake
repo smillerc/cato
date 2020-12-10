@@ -1,61 +1,46 @@
-# ##################################################################################################
 # Determine and set the Fortran compiler flags we want
-# ##################################################################################################
-# https://github.com/SethMMorton/cmake_fortran_template
-
-# ##################################################################################################
-# Make sure that the default build type is RELEASE if not specified.
-# ##################################################################################################
-include(${CMAKE_MODULE_PATH}/SetCompileFlag.cmake)
 
 # Make sure the build type is uppercase
-string(TOUPPER "${CMAKE_BUILD_TYPE}" BT)
+# string(TOUPPER "${CMAKE_BUILD_TYPE}" BT)
+# message(STATUS "Build type: ${BT}")
 
-message(STATUS "Build type: ${BT}")
-
-if(BT STREQUAL "RELEASE")
-  set(CMAKE_BUILD_TYPE
-      RELEASE
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
-elseif(BT STREQUAL "DEBUG")
-  set(CMAKE_BUILD_TYPE
-      DEBUG
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
-elseif(NOT BT)
-  set(CMAKE_BUILD_TYPE
-      RELEASE
-      CACHE STRING "Choose the type of build, options are DEBUG or RELEASE" FORCE)
-  message(STATUS "CMAKE_BUILD_TYPE not given, defaulting to RELEASE")
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are Release or Debug or RelWithDebInfo" FORCE)
+elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING  "Choose the type of build, options are Release or Debug or RelWithDebInfo" FORCE)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING  "Choose the type of build, options are Release or Debug or RelWithDebInfo" FORCE)
+elseif(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING  "Choose the type of build, options are Release or Debug or RelWithDebInfo" FORCE)
+  message(STATUS "CMAKE_BUILD_TYPE not given, defaulting to Debug")
 else()
-  message(FATAL_ERROR "CMAKE_BUILD_TYPE not valid, choices are DEBUG or RELEASE")
-endif(BT STREQUAL "RELEASE")
-
-if(NOT USE_ASAN)
-  set(USE_ASAN Off)
+  message(FATAL_ERROR "CMAKE_BUILD_TYPE not valid, choices are are Release or Debug or RelWithDebInfo")
 endif()
 
-if(NOT USE_TSAN)
-  set(USE_TSAN Off)
-endif()
+# Determine the host architecture, e.g. Intel Kabylake, and optimize for it
+include(OptimizeForArchitecture)
+optimizeforarchitecture()
 
-if(NOT OUTPUT_OPTIMIZATION_REPORTS)
-  set(OUTPUT_OPTIMIZATION_REPORTS Off)
-endif()
+# Set __ALIGNBYTES__ for use in OpenMP/Compiler SIMD alignment statements, e.g. __ALIGNBYTES__ = 32
+add_compile_definitions(__ALIGNBYTES__=${MEMORY_ALIGN_BYTES})
 
 # gfortran
 if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
 
-  # There is some bug where -march=native doesn't work on Mac
-  if(APPLE)
-    set(GNUNATIVE "-mtune=native")
-  else()
-    set(GNUNATIVE "-march=native")
+  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
+
+  if(USE_OPENMP_THREADS)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp")
   endif()
 
-  # set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none -fcoarray=lib")
-  set(CMAKE_Fortran_FLAGS "-cpp -std=f2018 -ffree-line-length-none")
-  if(USE_OPENMP)
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+  if(USE_OPENMP_SIMD)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fopenmp-simd")
+  endif()
+
+  if(ENABLE_COARRAY_SINGLE)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fcoarray=single")
+  elseif(ENABLE_COARRAY)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fcoarray=lib")
   endif()
 
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
@@ -65,18 +50,14 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL GNU)
  -fimplicit-none -fbacktrace \
  -fcheck=all -ffpe-trap=zero,overflow,invalid,underflow -finit-real=nan")
 
-  set(CMAKE_Fortran_FLAGS_RELEASE
-      "-O3 -ftree-vectorize -funroll-loops -finline-functions -march=native -mtune=native")
+  set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -ftree-vectorize -funroll-loops -finline-functions -march=native -mtune=native")
 
   if(USE_ASAN)
-    set(CMAKE_Fortran_FLAGS
-        "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address -fno-omit-frame-pointer -fopt-info-all"
-    )
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -fsanitize=leak -fsanitize=address -fno-omit-frame-pointer -fopt-info-all")
   endif()
 
   if(USE_TSAN)
-    set(CMAKE_Fortran_FLAGS
-        "${CMAKE_Fortran_FLAGS} -fsanitize=thread -fno-omit-frame-pointer -fopt-info-all")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fsanitize=thread -fno-omit-frame-pointer -fopt-info-all")
   endif()
 
   if(OUTPUT_OPTIMIZATION_REPORTS)
@@ -89,14 +70,19 @@ endif()
 # ifort
 if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
 
-  set(IFORT_FLAGS
-      "-fpp -inline-max-size=300 -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -assume contiguous_assumed_shape -diag-disable 5268 -diag-disable 7025 -diag-disable 8770 -diag-disable 6477 ${Coarray_COMPILE_OPTIONS}"
-  )
-  # set(IFORT_FLAGS "-fpp -fp-model precise -fp-model except -diag-disable 5268 -diag-disable 8770
-  # ${Coarray_COMPILE_OPTIONS}" )
+  add_compile_definitions(__SIMD_ALIGN_OMP__)
+  set(IFORT_FLAGS "-fpp -align array${MEMORY_ALIGN_BYTES}byte -fp-model source -diag-disable=5268,7025,8770,6477")
 
-  if(USE_OPENMP)
-    set(IFORT_FLAGS "${IFORT_FLAGS} ${OpenMP_Fortran_FLAGS}")
+  if(ENABLE_COARRAY)
+    set(IFORT_FLAGS "${IFORT_FLAGS} ${Coarray_COMPILE_OPTIONS}")
+  endif(ENABLE_COARRAY)
+
+  if(USE_OPENMP_THREADS)
+    set(IFORT_FLAGS "${IFORT_FLAGS} -qopenmp")
+  endif()
+    
+  if(USE_OPENMP_SIMD)
+    set(IFORT_FLAGS "${IFORT_FLAGS} -qopenmp-simd")
   endif()
 
   # Fortran 2018 standards check based on the version
@@ -107,7 +93,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   endif()
 
   set(CMAKE_Fortran_FLAGS_DEBUG "-O0 -g -warn all -debug all -traceback -fpe-all=0 -check bounds")
-  set(CMAKE_Fortran_FLAGS_RELEASE " -O3 -xHost -mtune=${TARGET_ARCHITECTURE} -qopt-prefetch")
+  set(CMAKE_Fortran_FLAGS_RELEASE " -g -O3 -xHost -mtune=${TARGET_ARCHITECTURE} -qopt-prefetch")
 
   if(OUTPUT_OPTIMIZATION_REPORTS)
     set(CMAKE_Fortran_FLAGS
@@ -120,3 +106,5 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL Intel)
   endif()
 
 endif()
+
+set(CMAKE_Fortran_FLAGS_RELWITHDEBINFO "-g ${CMAKE_Fortran_FLAGS_RELEASE}")

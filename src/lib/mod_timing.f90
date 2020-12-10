@@ -30,7 +30,7 @@ module mod_timing
   implicit none
 
   private
-  public :: timer_t, get_timestep
+  public :: timer_t
 
   type :: timer_t
     private
@@ -50,7 +50,7 @@ module mod_timing
     procedure :: stop
     procedure :: output_stats
     procedure :: log_time
-  end type
+  endtype
 
 contains
 
@@ -69,7 +69,7 @@ contains
 
     ! Start the clock
     call system_clock(count=self%count_start)
-  end subroutine
+  endsubroutine
 
   subroutine log_time(self, iteration, timestep)
     !< Keep a running log of the timings and save it to a csv file
@@ -92,7 +92,7 @@ contains
     write(self%log_file, '(i0, 3(", ", es14.4))') &
       iteration, elapsed_walltime, elapsed_cputime, timestep
 
-  end subroutine log_time
+  endsubroutine log_time
 
   subroutine stop(self)
     class(timer_t), intent(inout) :: self
@@ -100,7 +100,7 @@ contains
     call system_clock(count=self%count_end)
     self%elapsed_walltime = (self%count_end - self%count_start) / self%counter_rate
     self%elapsed_cputime = self%end_cputime - self%start_cputime
-  end subroutine
+  endsubroutine
 
   subroutine output_stats(self)
     class(timer_t), intent(in) :: self
@@ -109,41 +109,20 @@ contains
     integer(ik) :: i, unit
     integer(ik), dimension(2) :: units
 
-    open(newunit=io, file='timing_summary.yaml', status='replace')
-    units = [io, std_out]
+    if(this_image() == 1) then
+      open(newunit=io, file='timing_summary.yaml', status='replace')
+      units = [io, std_out]
 
-    do i = 1, size(units)
-      unit = units(i)
-      write(unit, '(a, es10.3)') "Total elapsed wall time [s]:", self%elapsed_walltime
-      write(unit, '(a, es10.3)') "Total elapsed wall time [m]:", self%elapsed_walltime / 60.0_rk
-      write(unit, '(a, es10.3)') "Total elapsed wall time [hr]:", self%elapsed_walltime / 3600.0_rk
-      write(unit, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
-      write(unit, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
-      write(unit, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
-    end do
-    close(io)
-  end subroutine
-
-  real(rk) function get_timestep(cfl, master) result(delta_t)
-    real(rk), intent(in) :: cfl
-    class(master_puppeteer_t), intent(in) :: master
-
-    integer(ik) :: ilo, ihi, jlo, jhi
-
-    ilo = master%grid%ilo_cell
-    ihi = master%grid%ihi_cell
-    jlo = master%grid%jlo_cell
-    jhi = master%grid%jhi_cell
-
-    if(.not. master%fluid%prim_vars_updated) error stop "Error fluid%prim_vars_updated is .false."
-    associate(dx => master%grid%cell_dx, dy => master%grid%cell_dy)
-
-      delta_t = minval(cfl / &
-                       (((abs(master%fluid%u(ilo:ihi, jlo:jhi)) + master%fluid%cs(ilo:ihi, jlo:jhi)) / dx(ilo:ihi, jlo:jhi)) + &
-                        ((abs(master%fluid%v(ilo:ihi, jlo:jhi)) + master%fluid%cs(ilo:ihi, jlo:jhi)) / dy(ilo:ihi, jlo:jhi))))
-    end associate
-    ! !$omp end workshare
-
-  end function
-
-end module mod_timing
+      do i = 1, size(units)
+        unit = units(i)
+        write(unit, '(a, es10.3)') "Total elapsed wall time [s]:", self%elapsed_walltime
+        write(unit, '(a, es10.3)') "Total elapsed wall time [m]:", self%elapsed_walltime / 60.0_rk
+        write(unit, '(a, es10.3)') "Total elapsed wall time [hr]:", self%elapsed_walltime / 3600.0_rk
+        write(unit, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
+        write(unit, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
+        write(unit, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
+      enddo
+      close(io)
+    endif
+  endsubroutine
+endmodule mod_timing

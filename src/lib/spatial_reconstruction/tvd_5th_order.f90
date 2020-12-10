@@ -47,7 +47,7 @@ module mod_tvd_5th_order
     procedure, public :: initialize
     ! procedure, nopass, public :: get_beta => beta_5th_order
     procedure, public :: interpolate_edge_values
-  end type tvd_5th_order_t
+  endtype tvd_5th_order_t
 
 contains
 
@@ -59,7 +59,7 @@ contains
     interpolator%limiter_name = trim(limiter)
     interpolator%order = 5
     interpolator%limiter = flux_limiter_t(trim(limiter))
-  end function
+  endfunction
 
   subroutine initialize(self, limiter)
     class(tvd_5th_order_t), intent(inout) :: self
@@ -67,7 +67,7 @@ contains
     self%limiter_name = trim(limiter)
     self%order = 2
     self%limiter = flux_limiter_t(trim(limiter))
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine interpolate_edge_values(self, q, lbounds, edge_values)
     class(tvd_5th_order_t), intent(in) :: self
@@ -138,8 +138,8 @@ contains
         r_R_i(i, j) = 1.0_rk / r_L_i(i, j)
         r_L_j(i, j) = smoothness(q(i, j - 1), q(i, j), q(i, j + 1))
         r_R_j(i, j) = 1.0_rk / r_L_j(i, j)
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
     !$omp barrier
 
@@ -155,8 +155,8 @@ contains
                           24.0_rk * r_L_j(i, j) - (3.0_rk * r_L_j(i, j) * r_L_j(i, j + 1))) / 30.0_rk
         beta_R_j(i, j) = ((-2.0_rk / r_R_j(i, j - 1)) + 11.0_rk + &
                           24.0_rk * r_R_j(i, j) - (3.0_rk * r_R_j(i, j) * r_R_j(i, j + 1))) / 30.0_rk
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
     !$omp barrier
 
@@ -182,8 +182,8 @@ contains
         phi_bottom = max(0.0_rk, min(2.0_rk, 2.0_rk * r_R_j(i, j), beta_R_j(i, j)))
         delta_j_plus = delta(q(i, j + 1), q(i, j)) ! q(i,j+1) - q(i,j)
         edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_bottom * delta_j_plus
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
     !$omp end parallel
 
@@ -197,6 +197,6 @@ contains
     deallocate(beta_L_j)
     deallocate(beta_R_j)
 
-  end subroutine interpolate_edge_values
+  endsubroutine interpolate_edge_values
 
-end module mod_tvd_5th_order
+endmodule mod_tvd_5th_order

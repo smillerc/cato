@@ -39,13 +39,13 @@ module mod_globals
 
   integer(ik), protected :: n_ghost_layers = 2
 
-  character(len=5), protected :: global_dimensionality
-  logical, protected :: is_1d = .false.
-  logical, protected :: is_1d_in_x = .false.
-  logical, protected :: is_1d_in_y = .false.
-  logical, protected :: is_2d = .true.
+  ! character(len=5), protected :: global_dimensionality
+  ! logical, protected :: is_1d = .false.
+  ! logical, protected :: is_1d_in_x = .false.
+  ! logical, protected :: is_1d_in_y = .false.
+  ! logical, protected :: is_2d = .true.
 
-  logical, protected :: grid_is_orthogonal = .true.
+  ! logical, protected :: grid_is_orthogonal = .true.
 
   ! Debug/scratch io file units
   logical, parameter :: track_single_cell_cone = .false.
@@ -74,8 +74,8 @@ contains
       include 'version.h'
       compiler_flags_str = compiler_options()
       compiler_version_str = compiler_version()
-    end if
-  end subroutine set_global_options
+    endif
+  endsubroutine set_global_options
 
   subroutine set_domain_dimensionality(dimensionality, grid_orthogonality, num_ghost_layers)
     !< Set the global dimensionality of the domain. This helps the code
@@ -84,45 +84,45 @@ contains
     logical, intent(in) :: grid_orthogonality
     integer(ik), intent(in) :: num_ghost_layers
 
-    grid_is_orthogonal = grid_orthogonality
+    ! grid_is_orthogonal = grid_orthogonality
 
-    n_ghost_layers = num_ghost_layers
+    ! n_ghost_layers = num_ghost_layers
 
-    select case(trim(dimensionality))
-    case('1D_X')
-      is_1d = .true.
-      is_1d_in_x = .true.
-      is_1d_in_y = .false.
-      is_2d = .false.
-    case('1D_Y')
-      is_1d = .true.
-      is_1d_in_x = .false.
-      is_1d_in_y = .true.
-      is_2d = .false.
-    case('2D_XY')
-      is_1d = .false.
-      is_1d_in_x = .true.
-      is_1d_in_y = .false.
-      is_2d = .true.
-    end select
-  end subroutine set_domain_dimensionality
+    ! select case(trim(dimensionality))
+    ! case('1D_X')
+    !   is_1d = .true.
+    !   is_1d_in_x = .true.
+    !   is_1d_in_y = .false.
+    !   is_2d = .false.
+    ! case('1D_Y')
+    !   is_1d = .true.
+    !   is_1d_in_x = .false.
+    !   is_1d_in_y = .true.
+    !   is_2d = .false.
+    ! case('2D_XY')
+    !   is_1d = .false.
+    !   is_1d_in_x = .true.
+    !   is_1d_in_y = .false.
+    !   is_2d = .true.
+    ! end select
+  endsubroutine set_domain_dimensionality
 
   subroutine print_version_stats()
     call set_global_options()
-    ! if(this_image() == 1) then
-    write(std_out, '(a,a)')
-    write(std_out, '(a,a)') "Version: ", cato_version
-    write(std_out, '(a,a)') "Build Type: ", build_type
-    write(std_out, '(a,a)') "Compile OS: ", compile_os
-    write(std_out, '(a,a)') "Compiler Flags: ", compiler_flags_str
-    write(std_out, '(a,a)') "Compiler Version: ", compiler_version_str
-    write(std_out, '(a,a)') "Git Hash: ", git_hash
-    write(std_out, '(a,a)') "Git Ref: ", git_ref
-    write(std_out, '(a,a)') "Commited Changes (Clean/Dirty): ", git_local_changes
-    write(std_out, '(a,a)') "Compile Host: ", compile_host
-    write(std_out, '(a,a)')
-    ! end if
-  end subroutine
+    if(this_image() == 1) then
+      write(std_out, '(a,a)')
+      write(std_out, '(a,a)') "Version: ", cato_version
+      write(std_out, '(a,a)') "Build Type: ", build_type
+      write(std_out, '(a,a)') "Compile OS: ", compile_os
+      write(std_out, '(a,a)') "Compiler Flags: ", compiler_flags_str
+      write(std_out, '(a,a)') "Compiler Version: ", compiler_version_str
+      write(std_out, '(a,a)') "Git Hash: ", git_hash
+      write(std_out, '(a,a)') "Git Ref: ", git_ref
+      write(std_out, '(a,a)') "Commited Changes (Clean/Dirty): ", git_local_changes
+      write(std_out, '(a,a)') "Compile Host: ", compile_host
+      write(std_out, '(a,a)')
+    endif
+  endsubroutine
 
   subroutine debug_print(str, file, line_number)
     character(len=*), intent(in) :: str
@@ -130,21 +130,17 @@ contains
     integer, intent(in), optional :: line_number
 
     if(enable_debug_print) then
-      !       if(this_image() == 1) then
-
       if(enable_file_and_line_stats) then
         if(present(file) .and. present(line_number)) then
-          write(std_out, '(a,a,i0,3(a))') file, ':', line_number, ' "', str, '"'
+          write(std_out, '(a,i0,4(a),i0,3(a))') "Image: ", this_image(), ", ", file, ':', line_number, ' "', str, '"'
         else
-          write(std_out, '(a)') str
-        end if
+          write(std_out, '(a,i0,2(a))') "Image: ", this_image(), ", ", str
+        endif
       else
-        write(std_out, '(a)') str
-      end if
-
-      !      end if
-    end if
-  end subroutine
+        write(std_out, '(a,i0,2(a))') "Image: ", this_image(), ", ", str
+      endif
+    endif
+  endsubroutine
 
   subroutine print_evolved_cell_data(primitive_variable, i, j, corners, updown_midoints, leftright_midpoints, primitive_vars)
 
@@ -167,7 +163,7 @@ contains
       l = 4
     case default
       error stop 'Invalid primitive variable name'
-    end select
+    endselect
 
     associate(cell_ave => primitive_vars(l, i, j), &
               C1 => corners(l, i, j), &
@@ -195,7 +191,7 @@ contains
       write(*, '(2(es11.3,a))') C1, " C1--------M1--------C2", C2
       write(*, '(16x,es11.3)') M1
       write(*, *)
-    end associate
+    endassociate
 
     associate(V => primitive_vars)
       write(*, *) "Cell neighbors: ", trim(primitive_variable)
@@ -211,9 +207,9 @@ contains
       write(*, *) "   (i-1,j-1)  |    (i,j-1)   |   (i+1,j-1)"
       write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j - 1), "   |", V(l, i, j - 1), "  |", V(l, i + 1, j - 1)
       write(*, *) "              |              |"
-    end associate
+    endassociate
 
-  end subroutine print_evolved_cell_data
+  endsubroutine print_evolved_cell_data
 
   subroutine print_recon_data(primitive_variable, i, j, reconstructed_domain, primitive_vars)
 
@@ -235,11 +231,11 @@ contains
       l = 4
     case default
       error stop 'Invalid primitive variable name'
-    end select
+    endselect
 
     if(present(primitive_vars)) then
       cell_ave = primitive_vars(l, i, j)
-    end if
+    endif
 
     associate(C1 => reconstructed_domain(l, 1, 1, i, j), &
               C2 => reconstructed_domain(l, 2, 1, i, j), &
@@ -267,7 +263,7 @@ contains
       write(*, '(2(es11.3,a))') C1, " C1--------M1--------C2", C2
       write(*, '(16x,es11.3)') M1
       write(*, *)
-    end associate
+    endassociate
 
     if(present(primitive_vars)) then
       associate(V => primitive_vars)
@@ -284,10 +280,10 @@ contains
         write(*, *) "   (i-1,j-1)  |    (i,j-1)   |   (i+1,j-1)"
         write(*, '(2(es12.3,a),es14.3)') V(l, i - 1, j - 1), "   |", V(l, i, j - 1), "  |", V(l, i + 1, j - 1)
         write(*, *) "              |              |"
-      end associate
-    end if
+      endassociate
+    endif
 
-  end subroutine print_recon_data
+  endsubroutine print_recon_data
 
   subroutine open_debug_files()
     character(len=:), allocatable :: header
@@ -303,7 +299,7 @@ contains
       write(lr_midpoint_unit, '(a)') header
       write(corner_unit, '(a)') header
 
-    end if
+    endif
 
     if(track_single_cell_cone) then
       open(newunit=single_cell_cone_unit, file='scratch.csv')
@@ -315,8 +311,8 @@ contains
         'v_arc1_cell_1 v_arc1_cell_2 '// &
         'p_arc1_cell_1 p_arc1_cell_2 '// &
         'rho u v p '
-    end if
+    endif
 
-  end subroutine
+  endsubroutine
 
-end module mod_globals
+endmodule mod_globals

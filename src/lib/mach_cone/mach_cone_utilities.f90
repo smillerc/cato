@@ -62,8 +62,8 @@ contains
       !   print *, "tau   : ", tau
       !   error stop "Radius is NaN!"
       ! end if
-    end associate
-  end subroutine get_cone_extents
+    endassociate
+  endsubroutine get_cone_extents
 
   pure logical function determine_if_p_prime_is_in_cell(origin, vec_1_head, vec_2_head, p_prime_vector) result(in_cell)
     !< Implementation of whether the P' point is inside the current cell/control volume. This
@@ -89,7 +89,7 @@ contains
       in_cell = .true.
     else
       in_cell = .false.
-    end if
-  end function determine_if_p_prime_is_in_cell
+    endif
+  endfunction determine_if_p_prime_is_in_cell
 
-end module mod_mach_cone_utilties
+endmodule mod_mach_cone_utilties

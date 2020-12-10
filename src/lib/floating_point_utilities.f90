@@ -31,11 +31,11 @@ module mod_floating_point_utils
 
   interface near_zero
     module procedure :: near_zero_base, near_zero_custom
-  end interface
+  endinterface
 
   interface equal
     module procedure :: equal_base, equal_custom
-  end interface
+  endinterface
 
 contains
 
@@ -45,7 +45,7 @@ contains
     logical :: return_value
 
     return_value = abs(number) < EPS
-  end function near_zero_base
+  endfunction near_zero_base
 
   elemental function near_zero_custom(number, epsilon) result(return_value)
     !< Test if a floading point is near 0. Use this instead of doing a
@@ -60,10 +60,10 @@ contains
       local_epsilon = abs(epsilon)
     else
       local_epsilon = EPS
-    end if
+    endif
     return_value = abs(number) < local_epsilon
 
-  end function near_zero_custom
+  endfunction near_zero_custom
 
   elemental function equal_base(lhs, rhs) result(return_value)
     !< Test if two floating point numbers are equal
@@ -73,7 +73,7 @@ contains
 
     return_value = abs(lhs - rhs) < EPS
 
-  end function equal_base
+  endfunction equal_base
 
   logical function nearly_equal(a, b) result(equal)
     real(rk), intent(in) :: a, b
@@ -90,9 +90,9 @@ contains
     else
       equal = (diff / min((abs(a) + abs(b)), huge(1.0_rk))) < epsilon(1.0_rk)
       print *, 'rel error: ', diff / min((abs(a) + abs(b)), huge(1.0_rk))
-    end if
+    endif
 
-  end function
+  endfunction
 
   elemental function equal_custom(lhs, rhs, epsilon) result(return_value)
     !< Test if two floating point numbers are equal
@@ -107,10 +107,10 @@ contains
       local_epsilon = abs(epsilon)
     else
       local_epsilon = EPS
-    end if
+    endif
     return_value = abs(lhs - rhs) < local_epsilon
 
-  end function equal_custom
+  endfunction equal_custom
 
   pure real(rk) function neumaier_sum(vector) result(sum)
     !< Implementation of an accurate floating point summation algorithm. See
@@ -135,9 +135,9 @@ contains
         c = c + ((vector(i) - t) + sum) ! Else low-order digits of sum are lost.
       endif
       sum = t
-    end do
+    enddo
     sum = sum + c
-  end function neumaier_sum
+  endfunction neumaier_sum
 
   pure real(rk) function neumaier_sum_2(vector) result(sum)
     !< Implementation of an accurate floating point summation algorithm. See
@@ -162,9 +162,9 @@ contains
         c = c + ((vector(i) - t) + sum) ! Else low-order digits of sum are lost.
       endif
       sum = t
-    end do
+    enddo
     sum = sum + c
-  end function neumaier_sum_2
+  endfunction neumaier_sum_2
 
   pure real(rk) function neumaier_sum_3(vector) result(sum)
     !< Implementation of an accurate floating point summation algorithm. See
@@ -189,9 +189,9 @@ contains
         c = c + ((vector(i) - t) + sum) ! Else low-order digits of sum are lost.
       endif
       sum = t
-    end do
+    enddo
     sum = sum + c
-  end function neumaier_sum_3
+  endfunction neumaier_sum_3
 
   pure real(rk) function neumaier_sum_4(vector) result(sum)
     !< Implementation of an accurate floating point summation algorithm. See
@@ -216,8 +216,8 @@ contains
         c = c + ((vector(i) - t) + sum) ! Else low-order digits of sum are lost.
       endif
       sum = t
-    end do
+    enddo
     sum = sum + c
-  end function neumaier_sum_4
+  endfunction neumaier_sum_4
 
-end module mod_floating_point_utils
+endmodule mod_floating_point_utils

@@ -33,10 +33,10 @@ contains
   real(rk) elemental function rad2deg(rad) result(deg)
     real(rk), intent(in) :: rad
     deg = rad * 180.0_rk / pi
-  end function
+  endfunction
 
   real(rk) elemental function deg2rad(deg) result(rad)
     real(rk), intent(in) :: deg
     rad = deg * pi / 180.0_rk
-  end function
-end module math_constants
+  endfunction
+endmodule math_constants

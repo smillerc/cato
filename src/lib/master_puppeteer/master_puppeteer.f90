@@ -30,7 +30,10 @@ module mod_master_puppeteer
   use mod_units
   use mod_input, only: input_t
   use mod_eos, only: eos
-  use mod_grid, only: grid_t
+  use mod_grid_block, only: grid_block_t
+  ! use mod_grid_block_1d, only: grid_block_1d_t
+  use mod_grid_block_2d, only: grid_block_2d_t
+  ! use mod_grid_block_3d, only: grid_block_3d_t
   use mod_grid_factory, only: grid_factory
   use hdf5_interface, only: hdf5_file
   use mod_nondimensionalization, only: set_scale_factors, t_0
@@ -48,8 +51,11 @@ module mod_master_puppeteer
     integer(ik) :: iteration = 0 !< iteration coount
     real(rk) :: dt = 0.0_rk      !< time step
     real(rk) :: time = 0.0_rk    !< simulation time
-    class(grid_t), allocatable :: grid   !< grid topology
+    class(grid_block_t), allocatable :: grid   !< grid topology
     class(fluid_t), allocatable :: fluid !< fluid physics
+    logical :: is_1d = .false.
+    logical :: is_2d = .false.
+    logical :: is_3d = .false.
     class(source_t), allocatable :: source_term !< source_term, i.e. gravity, laser, etc..
 
     logical :: do_source_terms = .false.
@@ -58,12 +64,13 @@ module mod_master_puppeteer
     procedure, public :: initialize
     procedure, public :: integrate
     procedure, public :: set_time
+    procedure, public :: get_timestep
     final :: finalize
-  end type
+  endtype
 
   interface make_master
     module procedure :: constructor
-  end interface
+  endinterface
 
 contains
 
@@ -74,7 +81,7 @@ contains
     allocate(master)
     call master%initialize(input)
 
-  end function constructor
+  endfunction constructor
 
   subroutine initialize(self, input)
     !< Construct the puppeteer class
@@ -82,7 +89,7 @@ contains
     class(input_t), intent(in) :: input
 
     ! Locals
-    class(grid_t), pointer :: grid => null()
+    class(grid_block_t), pointer :: grid => null()
     class(fluid_t), pointer :: fluid => null()
     class(source_t), pointer :: source_term => null()
     type(hdf5_file) :: h5
@@ -108,9 +115,9 @@ contains
         ! Do nothing, since seconds is what the code works in
       case default
         error stop "Unknown time units in .h5 file. Acceptable units are 'ns' or 's'."
-      end select
+      endselect
       call h5%finalize()
-    end if
+    endif
 
     self%title = trim(input%title)
 
@@ -139,7 +146,8 @@ contains
       deallocate(source_term)
     endif
 
-  end subroutine initialize
+    call debug_print('Done initializing master_puppeteer_t', __FILE__, __LINE__)
+  endsubroutine initialize
 
   subroutine finalize(self)
     !< Implementation of the class cleanup
@@ -147,35 +155,67 @@ contains
     call debug_print('Running master_puppeteer_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%grid)) deallocate(self%grid)
     if(allocated(self%fluid)) deallocate(self%fluid)
-  end subroutine finalize
+  endsubroutine finalize
 
   subroutine integrate(self, dt, error_code)
     !< Advance the simulation forward in time
     class(master_puppeteer_t), intent(inout) :: self
-    real(rk), intent(in) :: dt !< timestep
     integer(ik), intent(out) :: error_code
+    real(rk), optional, intent(in) :: dt
+
+    real(rk) :: min_dt
+
+    if(present(dt)) then
+      self%dt = dt
+    else
+      self%dt = 0.0_rk
+    endif
 
     self%iteration = self%iteration + 1
-    self%time = self%time + dt
+    min_dt = self%get_timestep()
+
+    if(self%dt > min_dt) then
+      if(this_image() == 1) then
+        write(*, '(a,i0,a,2(es16.6,a))') "Warning, the input dt (", self%dt, &
+          ") is larger than the max allowable dt (", min_dt, &
+          ") based on the CFL condition"
+      endif
+    else
+      self%dt = min_dt
+    endif
+
+    self%time = self%time + self%dt
 
     if(self%do_source_terms) call self%source_term%integrate(dt=dt)
 
-    call self%fluid%integrate(dt=dt, source_term=self%source_term, &
-                              grid=self%grid, error_code=error_code)
-  end subroutine integrate
+    select type(grid => self%grid)
+    class is(grid_block_2d_t)
 
-  subroutine set_time(self, time, dt, iteration)
+      call self%fluid%integrate(dt=self%dt, source_term=self%source_term, &
+                                grid=self%grid, error_code=error_code)
+    endselect
+
+  endsubroutine integrate
+
+  real(rk) function get_timestep(self) result(dt)
+    !< Get the maximum allowable timestep from each physics package
+    class(master_puppeteer_t), intent(inout) :: self
+
+    select type(grid => self%grid)
+    class is(grid_block_2d_t)
+      dt = self%fluid%get_timestep(self%grid)
+    endselect
+  endfunction
+
+  subroutine set_time(self, time, iteration)
     !< Set the time statistics
     class(master_puppeteer_t), intent(inout) :: self
     real(rk), intent(in) :: time          !< simulation time
-    real(rk), intent(in) :: dt            !< time-step
     integer(ik), intent(in) :: iteration  !< iteration
 
     self%time = time
     self%iteration = iteration
-    self%dt = dt
+    call self%fluid%set_time(time, iteration)
+  endsubroutine set_time
 
-    call self%fluid%set_time(time, dt, iteration)
-  end subroutine set_time
-
-end module mod_master_puppeteer
+endmodule mod_master_puppeteer

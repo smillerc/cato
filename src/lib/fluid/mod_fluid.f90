@@ -18,10 +18,6 @@
 ! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ! SOFTWARE.
 
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
-#define AT_LINE_LOC " in " // __FILE__ //":"//TOSTRING(__LINE__)
-
 module mod_fluid
   !< Summary: Provide
   !< Date: 08/24/2020
@@ -36,30 +32,28 @@ module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
 
-#ifdef USE_OPENMP
-  use omp_lib
-#endif /* USE_OPENMP */
-
+  use mod_field, only: field_2d_t, field_2d
   use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND, error_msg
-  use mod_globals, only: debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
+  use mod_globals, only: enable_debug_print, debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
   use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
-  use mod_abstract_reconstruction, only: abstract_reconstruction_t
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
   use mod_units
   use mod_distinguisher, only: distinguish
   use mod_boundary_conditions, only: boundary_condition_t
-  use mod_grid, only: grid_t
+  use mod_bc_factory, only: bc_factory
+  use mod_grid_block, only: grid_block_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_input, only: input_t
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
-  use mod_flux_tensor, only: operator(.dot.), H => flux_tensor_t
   use mod_flux_solver, only: flux_solver_t
-  use mod_ausm_plus_solver, only: ausm_plus_solver_t
-  use mod_fvleg_solver, only: fvleg_solver_t
+  use collectives, only: min_to_all, max_to_all
+  ! use mod_ausm_plus_solver, only: ausm_plus_solver_t
+  ! use mod_fvleg_solver, only: fvleg_solver_t
   use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
   use mod_ausmpw_plus_solver, only: ausmpw_plus_solver_t
-  use mod_slau_solver, only: slau_solver_t
+  ! use mod_slau_solver, only: slau_solver_t
 
   use mod_source, only: source_t
 
@@ -75,36 +69,26 @@ module mod_fluid
 
     private ! make all private by default
 
-    real(rk), dimension(:, :), allocatable, public :: rho    !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: rho
-    real(rk), dimension(:, :), allocatable, public :: rho_u  !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: rho_u
-    real(rk), dimension(:, :), allocatable, public :: rho_v  !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: rho_v
-    real(rk), dimension(:, :), allocatable, public :: rho_E  !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: rho_E
-    real(rk), dimension(:, :), allocatable, public :: u      !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: u
-    real(rk), dimension(:, :), allocatable, public :: v      !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: v
-    real(rk), dimension(:, :), allocatable, public :: p      !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: p
-    real(rk), dimension(:, :), allocatable, public :: cs     !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: cs
-    real(rk), dimension(:, :), allocatable, public :: mach_u   !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: mach_u
-    real(rk), dimension(:, :), allocatable, public :: mach_v   !< (i, j); Conserved quantities
-    !dir$ attributes align:__ALIGNBYTES__ :: mach_v
+    type(input_t), public :: input
+    type(field_2d_t), public :: rho    !< (i, j); Conserved quantities
+    type(field_2d_t), public :: rho_u  !< (i, j); Conserved quantities
+    type(field_2d_t), public :: rho_v  !< (i, j); Conserved quantities
+    type(field_2d_t), public :: rho_E  !< (i, j); Conserved quantities
+    type(field_2d_t), public :: u      !< (i, j); Conserved quantities
+    type(field_2d_t), public :: v      !< (i, j); Conserved quantities
+    type(field_2d_t), public :: p      !< (i, j); Conserved quantities
+    type(field_2d_t), public :: cs     !< (i, j); Conserved quantities
+    type(field_2d_t), public :: mach_u   !< (i, j); Conserved quantities
+    type(field_2d_t), public :: mach_v   !< (i, j); Conserved quantities
 
-    integer(ik), dimension(:, :), allocatable, public :: continuous_sensor !< (i, j); Is the cell continuous, or (non)linear discontinuous?
-    !dir$ attributes align:__ALIGNBYTES__ :: continuous_sensor
-
+    character(len=32) :: flux_solver_type = ''
     class(flux_solver_t), allocatable :: solver !< solver scheme used to flux quantities at cell interfaces
 
     ! Time variables
     character(len=10) :: time_integration_scheme = 'ssp_rk_2_2'
     real(rk) :: time = 0.0_rk !< current simulation time
     real(rk) :: dt = 0.0_rk   !< time step
+    real(rk) :: cfl = 0.0_rk  !< Courant–Friedrichs–Lewy condition (CFL)
     integer(ik) :: iteration = 0 !< current iteration number
 
     logical, public :: prim_vars_updated = .false.
@@ -113,21 +97,18 @@ module mod_fluid
     ! Residual history
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
     logical :: residual_hist_header_written = .false.
+
   contains
     ! Private methods
     private
-    procedure :: initialize_from_ini
     procedure :: initialize_from_hdf5
-    procedure :: residual_smoother
     procedure :: calculate_derived_quantities
+    procedure :: residual_smoother
     procedure :: sanity_check
     procedure :: ssp_rk_2_2
     procedure :: ssp_rk_3_3
     procedure :: ssp_rk_4_3
-    procedure :: get_continuity_sensor
-    procedure, nopass :: add_fields
-    procedure, nopass :: mult_fields
-    procedure, nopass :: subtract_fields
+    procedure :: sync_fields
 
     ! Operators
     procedure, pass(lhs), public :: add_fluid
@@ -139,9 +120,9 @@ module mod_fluid
     ! Public methods
     procedure, public :: initialize
     procedure, public :: set_time
+    procedure, public :: get_timestep
     procedure, public :: integrate
     procedure, public :: t => time_derivative
-    procedure, public :: force_finalization
 
     ! Finalizer
     final :: finalize
@@ -151,82 +132,100 @@ module mod_fluid
     generic :: operator(-) => subtract_fluid
     generic :: operator(*) => real_mul_fluid, fluid_mul_real
     generic :: assignment(=) => assign_fluid
-  end type fluid_t
+  endtype fluid_t
 
 contains
 
   function new_fluid(input, grid, time) result(fluid)
     !< Fluid constructor
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     type(fluid_t), pointer :: fluid
     real(rk), intent(in) :: time
 
-    allocate(fluid)
-    call fluid%initialize(input, grid, time)
-  end function new_fluid
+    select type(grid)
+    class is(grid_block_2d_t)
+      allocate(fluid)
+      call fluid%initialize(input, grid, time)
+    endselect
+  endfunction new_fluid
 
   subroutine initialize(self, input, grid, time)
     class(fluid_t), intent(inout) :: self
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
     real(rk), intent(in) :: time
     class(flux_solver_t), pointer :: solver => null()
 
-    integer(ik) :: alloc_status, i, j, ilo, ihi, jlo, jhi, io
+    integer(ik) :: alloc_status, io
 
+    self%input = input
     self%time = time
+    self%cfl = input%cfl
 
     alloc_status = 0
-    call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
 
     if(.not. scale_factors_set) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
-            message="Global non-dimensional scale factors haven't been set yet. These need to be set before fluid initialization", &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize', &
+                     message="Global non-dimensional scale factors haven't been set yet. "// &
+                     "These need to be set before fluid initialization", &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
-    associate(imin => grid%ilo_bc_cell, &
-              imax => grid%ihi_bc_cell, &
-              jmin => grid%jlo_bc_cell, &
-              jmax => grid%jhi_bc_cell)
+    self%rho = field_2d(name='rho', long_name='Density', &
+                        descrip='Cell Density', units='g/cm^3', &
+                        global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
-      allocate(self%rho(imin:imax, jmin:jmax))
-      allocate(self%u(imin:imax, jmin:jmax))
-      allocate(self%v(imin:imax, jmin:jmax))
-      allocate(self%p(imin:imax, jmin:jmax))
-      allocate(self%rho_u(imin:imax, jmin:jmax))
-      allocate(self%rho_v(imin:imax, jmin:jmax))
-      allocate(self%rho_E(imin:imax, jmin:jmax))
-      allocate(self%cs(imin:imax, jmin:jmax))
-      allocate(self%mach_u(imin:imax, jmin:jmax))
-      allocate(self%mach_v(imin:imax, jmin:jmax))
-    end associate
+    self%rho_u = field_2d(name='rhou', long_name='rhou', descrip='Cell Conserved quantity (Density * X-Velocity)', &
+                          units='g cm/cm^2 s', &
+                          global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+
+    self%rho_v = field_2d(name='rhov', long_name='rhov', descrip='Cell Conserved quantity (Density * Y-Velocity)', &
+                          units='g cm/cm^2 s', &
+                          global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+
+    self%rho_E = field_2d(name='rhoE', long_name='rhoE', descrip='Cell Conserved quantity (Density * Total Energy)', &
+                          units='g erg / cm^3', &
+                          global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+
+    self%u = field_2d(name='u', long_name='X Velocity', descrip='Cell X-Velocity', units='cm/s', &
+                      global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+
+    self%v = field_2d(name='v', long_name='Y Velocity', descrip='Cell Y-Velocity', units='cm/s', &
+                      global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+
+    self%p = field_2d(name='p', long_name='Pressure', descrip='Cell Pressure', units='barye', &
+                      global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+
+    self%cs = field_2d(name='cs', long_name='Sound Speed', descrip='Cell Sound Speed', units='cm/s', &
+                       global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+
+    self%mach_u = field_2d(name='mach_u', long_name='Mach X', descrip='Cell Mach number in x-direction', &
+                           units='dimensionless', &
+                           global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+
+    self%mach_v = field_2d(name='mach_v', long_name='Mach Y', descrip='Cell Mach number in y-direction', &
+                           units='dimensionless', &
+                           global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
 
     self%smooth_residuals = input%smooth_residuals
 
     self%time_integration_scheme = trim(input%time_integration_strategy)
+    self%flux_solver_type = trim(input%flux_solver)
 
     select case(trim(input%flux_solver))
-    case('FVLEG')
-      allocate(fvleg_solver_t :: solver)
-    case('AUSM+-u', 'AUSM+-up', 'AUSM+-up_all_speed')
-      error stop "There are issues in the AUSM+ solver for now; exiting..."
-      allocate(ausm_plus_solver_t :: solver)
     case('M-AUSMPW+')
       allocate(m_ausmpw_plus_solver_t :: solver)
     case('AUSMPW+')
       allocate(ausmpw_plus_solver_t :: solver)
-    case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
-      allocate(slau_solver_t :: solver)
     case default
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize', &
                      message="Invalid flux solver. It must be one of the following: "// &
-                     "['FVLEG', 'AUSM+-u','AUSM+-a','AUSM+-up','AUSM+-up_all_speed', "// &
-                     "'AUSMPW+', 'M-AUSMPW+', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
+                     "['AUSMPW+', 'M-AUSMPW+'], "// &
                      "the input was: '"//trim(input%flux_solver)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     call solver%initialize(input, self%time)
     allocate(self%solver, source=solver)
@@ -236,38 +235,13 @@ contains
     write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
     close(io)
 
-    if(input%read_init_cond_from_file .or. input%restart_from_file) then
-      call self%initialize_from_hdf5(input)
-    else
-      call self%initialize_from_ini(input)
-    end if
-
-    call self%get_continuity_sensor()
+    call self%initialize_from_hdf5(input)
     call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
-
-    ilo = lbound(self%rho, dim=1)
-    ihi = ubound(self%rho, dim=1)
-    jlo = lbound(self%rho, dim=2)
-    jhi = ubound(self%rho, dim=2)
-
-    !$omp parallel default(none), &
-    !$omp private(i, j), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi), &
-    !$omp shared(self)
-    !$omp do
-    do j = jlo, jhi
-      !$omp simd
-      do i = ilo, ihi
-        self%mach_u(i, j) = self%u(i, j) / self%cs(i, j)
-        self%mach_v(i, j) = self%v(i, j) / self%cs(i, j)
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-
+    self%mach_v = self%v / self%cs
+    self%mach_u = self%u / self%cs
     self%prim_vars_updated = .true.
-
-  end subroutine initialize
+    call self%sync_fields()
+  endsubroutine initialize
 
   subroutine initialize_from_hdf5(self, input)
     !< Initialize from an .hdf5 file. The conserved variables are already allocated appropriately from
@@ -284,198 +258,156 @@ contains
     real(rk), dimension(:, :), allocatable :: y_velocity
     real(rk), dimension(:, :), allocatable :: pressure
 
-    call debug_print('Initializing fluid_t from hdf5', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Initializing fluid_t from hdf5', __FILE__, __LINE__)
 
     if(input%restart_from_file) then
       filename = trim(input%restart_file)
     else
       filename = trim(input%initial_condition_file)
-    end if
+    endif
 
     file_exists = .false.
     inquire(file=filename, exist=file_exists)
 
     if(.not. file_exists) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                      message='File not found: "'//filename//'"', file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     call h5%initialize(filename=filename, status='old', action='r')
 
     call h5%get('/density', density)
+    call h5%readattr('/density', 'units', str_buff)
+    ! self%rho%units = trim(str_buff)
+
     if(input%restart_from_file) then
-      call h5%readattr('/density', 'units', str_buff)
       select case(trim(str_buff))
       case('g/cc')
       case default
-        call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-                 message="Unknown density units in .h5 file. Acceptable units are 'g/cc'", file_name=__FILE__, line_number=__LINE__)
-      end select
-    end if
+        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
+                       message="Unknown density units in .h5 file. Acceptable units are 'g/cc'", &
+                       file_name=__FILE__, line_number=__LINE__)
+      endselect
+    endif
 
     call h5%get('/x_velocity', x_velocity)
     call h5%get('/y_velocity', y_velocity)
+    call h5%readattr('/x_velocity', 'units', str_buff)
+    ! self%u%units = trim(str_buff)
+    ! self%v%units = trim(str_buff)
+
     if(input%restart_from_file) then
-      call h5%readattr('/x_velocity', 'units', str_buff)
       select case(trim(str_buff))
       case('km/s')
         x_velocity = x_velocity * km_per_sec_to_cm_per_sec
         y_velocity = y_velocity * km_per_sec_to_cm_per_sec
       case('cm/s')
       case default
-        call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-     message="Unknown velocity units in .h5 file. Acceptable units are 'km/s' and 'cm/s'", file_name=__FILE__, line_number=__LINE__)
-      end select
-    end if
+        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
+                       message="Unknown velocity units in .h5 file. Acceptable units are 'km/s' and 'cm/s'", &
+                       file_name=__FILE__, line_number=__LINE__)
+      endselect
+    endif
 
     call h5%get('/pressure', pressure)
+    call h5%readattr('/pressure', 'units', str_buff)
 
     if(input%restart_from_file) then
-      call h5%readattr('/pressure', 'units', str_buff)
       select case(trim(str_buff))
       case('barye')
       case('Mbar')
         pressure = pressure * mega_bar_to_barye
       case default
-        call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
-       message="Unknown pressure units in .h5 file. Acceptable units are 'barye', 'Mbar'", file_name=__FILE__, line_number=__LINE__)
-      end select
-    end if
+        call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
+                       message="Unknown pressure units in .h5 file. Acceptable units are 'barye', 'Mbar'", &
+                       file_name=__FILE__, line_number=__LINE__)
+      endselect
+    endif
 
     call h5%finalize()
 
-    ! Non-dimensionalize
-    density = density / rho_0
-    x_velocity = x_velocity / v_0
-    y_velocity = y_velocity / v_0
-    pressure = pressure / p_0
+    associate(ilo => self%rho%lbounds(1), ihi => self%rho%ubounds(1), &
+              jlo => self%rho%lbounds(2), jhi => self%rho%ubounds(2), nh => self%rho%n_halo_cells)
+      self%rho%data(ilo:ihi, jlo:jhi) = density(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
+      self%u%data(ilo:ihi, jlo:jhi) = x_velocity(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
+      self%v%data(ilo:ihi, jlo:jhi) = y_velocity(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
+      self%p%data(ilo:ihi, jlo:jhi) = pressure(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
+    endassociate
+
+    call self%rho%make_non_dimensional(non_dim_factor=rho_0)
+    call self%u%make_non_dimensional(non_dim_factor=v_0)
+    call self%v%make_non_dimensional(non_dim_factor=v_0)
+    call self%p%make_non_dimensional(non_dim_factor=p_0)
 
     if(minval(pressure) < tiny(1.0_rk)) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                      message="Some (or all) of the pressure array is ~0", file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     if(minval(density) < tiny(1.0_rk)) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_hdf5', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                      message="Some (or all) of the density array is ~0", file_name=__FILE__, line_number=__LINE__)
-    end if
-
-    self%rho = density
-    self%u = x_velocity
-    self%v = y_velocity
-    self%p = pressure
+    endif
 
     call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
                                     rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
 
-    write(*, '(a)') 'Initial fluid stats'
-    write(*, '(a)') '==================================================='
-    write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(y_velocity), maxval(y_velocity)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]:     ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
-    write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]:     ', minval(pressure) * p_0, maxval(pressure) * p_0
-    write(*, '(a)') '==================================================='
-    write(*, *)
+    if(this_image() == 1) then
+      write(*, '(a)') 'Initial fluid stats'
+      write(*, '(a)') '==================================================='
+      write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]:     ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]:     ', minval(pressure) * p_0, maxval(pressure) * p_0
+      write(*, '(a)') '==================================================='
+      write(*, *)
+    endif
 
-  end subroutine initialize_from_hdf5
-
-  subroutine initialize_from_ini(self, input)
-    !< Initialize from an .ini file. The conserved variables are already allocated appropriately from
-    !< from the grid class, but this will just initialize them to the values found in the .ini file
-    class(fluid_t), intent(inout) :: self
-    class(input_t), intent(in) :: input
-    real(rk) :: density, x_velocity, y_velocity, pressure
-
-    ! Non-dimensionalize
-    density = input%init_density / rho_0
-    x_velocity = input%init_x_velocity / v_0
-    y_velocity = input%init_y_velocity / v_0
-    pressure = input%init_pressure / p_0
-
-    call debug_print('Initializing fluid_t from .ini', __FILE__, __LINE__)
-    write(*, '(a,4(f0.3, 1x))') 'Initializing with [rho,u,v,p]: ', &
-      input%init_density, input%init_x_velocity, input%init_y_velocity, input%init_pressure
-
-    self%rho = density
-    self%u = x_velocity
-    self%v = y_velocity
-    self%p = pressure
-    call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
-                                    rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
-
-    if(near_zero(input%init_pressure)) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_ini', &
-                     message="Some (or all) of the pressure array is ~0", file_name=__FILE__, line_number=__LINE__)
-    end if
-
-    if(near_zero(input%init_density)) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='initialize_from_ini', &
-                     message="Some (or all) of the density array is ~0", file_name=__FILE__, line_number=__LINE__)
-    end if
-
-  end subroutine initialize_from_ini
-
-  subroutine force_finalization(self)
-    class(fluid_t), intent(inout) :: self
-
-    call debug_print('Running fluid_t%force_finalization()', __FILE__, __LINE__)
-    if(allocated(self%rho)) deallocate(self%rho)
-    if(allocated(self%u)) deallocate(self%u)
-    if(allocated(self%v)) deallocate(self%v)
-    if(allocated(self%p)) deallocate(self%p)
-    if(allocated(self%rho_u)) deallocate(self%rho_u)
-    if(allocated(self%rho_v)) deallocate(self%rho_v)
-    if(allocated(self%rho_E)) deallocate(self%rho_E)
-    if(allocated(self%cs)) deallocate(self%cs)
-    if(allocated(self%mach_u)) deallocate(self%mach_u)
-    if(allocated(self%mach_v)) deallocate(self%mach_v)
-    ! if(allocated(self%time_integrator)) deallocate(self%time_integrator)
-  end subroutine force_finalization
+  endsubroutine initialize_from_hdf5
 
   subroutine finalize(self)
     type(fluid_t), intent(inout) :: self
 
-    call debug_print('Running fluid_t%finalize()', __FILE__, __LINE__)
-    if(allocated(self%rho)) deallocate(self%rho)
-    if(allocated(self%u)) deallocate(self%u)
-    if(allocated(self%v)) deallocate(self%v)
-    if(allocated(self%p)) deallocate(self%p)
-    if(allocated(self%rho_u)) deallocate(self%rho_u)
-    if(allocated(self%rho_v)) deallocate(self%rho_v)
-    if(allocated(self%rho_E)) deallocate(self%rho_E)
-    if(allocated(self%cs)) deallocate(self%cs)
-    if(allocated(self%mach_u)) deallocate(self%mach_u)
-    if(allocated(self%mach_v)) deallocate(self%mach_v)
+    if(enable_debug_print) call debug_print('Running fluid_t%finalize()', __FILE__, __LINE__)
+    ! if(allocated(self%rho)) deallocate(self%rho)
+    ! if(allocated(self%u)) deallocate(self%u)
+    ! if(allocated(self%v)) deallocate(self%v)
+    ! if(allocated(self%p)) deallocate(self%p)
+    ! if(allocated(self%rho_u)) deallocate(self%rho_u)
+    ! if(allocated(self%rho_v)) deallocate(self%rho_v)
+    ! if(allocated(self%rho_E)) deallocate(self%rho_E)
+    ! if(allocated(self%cs)) deallocate(self%cs)
+    ! if(allocated(self%mach_u)) deallocate(self%mach_u)
+    ! if(allocated(self%mach_v)) deallocate(self%mach_v)
     if(allocated(self%solver)) deallocate(self%solver)
-  end subroutine finalize
+  endsubroutine finalize
 
-  subroutine set_time(self, time, dt, iteration)
+  subroutine set_time(self, time, iteration)
     !< Set the time statistics
     class(fluid_t), intent(inout) :: self
     real(rk), intent(in) :: time          !< simulation time
-    real(rk), intent(in) :: dt            !< time-step
     integer(ik), intent(in) :: iteration  !< iteration
 
-    call debug_print('Running fluid_t%set_time()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%set_time()', __FILE__, __LINE__)
     self%time = time
     self%iteration = iteration
-    self%dt = dt
-  end subroutine set_time
+  endsubroutine set_time
 
   subroutine integrate(self, dt, grid, source_term, error_code)
     !< Integrate in time
     class(fluid_t), intent(inout) :: self
-    class(source_t), allocatable, intent(in) :: source_term
     real(rk), intent(in) :: dt !< time step
-    class(grid_t), intent(in) :: grid !< grid class - the solver needs grid topology
+    class(grid_block_t), intent(in) :: grid !< grid class - the solver needs grid topology
+    class(source_t), allocatable, intent(in) :: source_term
+
     integer(ik), intent(out) :: error_code
 
-    call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
     self%time = self%time + dt
     self%dt = dt
 
@@ -487,91 +419,126 @@ contains
     case('ssp_rk43')
       call self%ssp_rk_4_3(grid=grid, source_term=source_term, error_code=error_code)
     case default
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='assign_fluid', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
                      message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
-    end select
-  end subroutine integrate
+    endselect
+  endsubroutine integrate
 
-  function time_derivative(self, grid, source_term, stage) result(d_dt)
-    !< Implementation of the time derivative
-
-    ! Inputs/Output
+  subroutine sync_fields(self)
     class(fluid_t), intent(inout) :: self
+    call self%rho%sync_edges()
+    call self%u%sync_edges()
+    call self%v%sync_edges()
+    call self%p%sync_edges()
+  endsubroutine
+
+  function time_derivative(self, grid, source_term) result(d_dt)
+    !< Implementation of the time derivative
+    class(fluid_t), intent(inout) :: self
+    class(grid_block_t), intent(in) :: grid  !< grid class - the solver needs grid topology
+    type(fluid_t), allocatable :: d_dt          !< dU/dt
     class(source_t), allocatable, intent(in) :: source_term
-    class(grid_t), intent(in) :: grid     !< grid class - the solver needs grid topology
-    type(fluid_t), allocatable :: d_dt    !< dU/dt
-    integer(ik), intent(in) :: stage      !< stage in the time integration scheme
 
-    ! Locals
-    integer(ik), dimension(2) :: lbounds
+    real(rk), dimension(:, :), allocatable ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:, :), allocatable :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:, :), allocatable :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:, :), allocatable :: d_rho_E_dt  !< d/dt of the rhoE field
 
-    call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
-    lbounds = lbound(self%rho)
     allocate(d_dt, source=self)
-    call self%solver%solve(dt=self%dt, &
-                           grid=grid, lbounds=lbounds, &
-                           rho=self%rho, u=self%u, v=self%v, p=self%p, &
-                           d_rho_dt=d_dt%rho, &
-                           d_rho_u_dt=d_dt%rho_u, &
-                           d_rho_v_dt=d_dt%rho_v, &
-                           d_rho_E_dt=d_dt%rho_E)
 
-    if(allocated(source_term)) then
-      if(self%time <= source_term%max_time) then
-        if(source_term%source_type == 'energy') then
-          d_dt%rho_E = source_term%data + d_dt%rho_E
-        end if
-      end if
-    end if
-  end function time_derivative
+    select type(grid)
+    class is(grid_block_2d_t)
+      call self%sync_fields()
+      call self%solver%solve(dt=self%dt, grid=grid, &
+                             rho=self%rho, u=self%u, v=self%v, p=self%p, &
+                             d_rho_dt=d_rho_dt, &
+                             d_rho_u_dt=d_rho_u_dt, &
+                             d_rho_v_dt=d_rho_v_dt, &
+                             d_rho_E_dt=d_rho_E_dt)
+
+      d_dt%rho%data = d_rho_dt
+      d_dt%rho_u%data = d_rho_u_dt
+      d_dt%rho_v%data = d_rho_v_dt
+      d_dt%rho_E%data = d_rho_E_dt
+
+      deallocate(d_rho_dt)
+      deallocate(d_rho_u_dt)
+      deallocate(d_rho_v_dt)
+      deallocate(d_rho_E_dt)
+
+      if(allocated(source_term)) then
+        if(self%time <= source_term%max_time) then
+          if(source_term%source_type == 'energy') then
+            d_dt%rho_E = source_term%data + d_dt%rho_E
+          endif
+        endif
+      endif
+    endselect
+  endfunction time_derivative
+
+  real(rk) function get_timestep(self, grid) result(delta_t)
+    class(fluid_t), intent(inout) :: self
+    class(grid_block_t), intent(in) :: grid
+    real(rk) :: min_delta_t !< the max allowable timestep on each subdomain/image
+    integer(ik) :: ilo, ihi, jlo, jhi ! fluid lo/hi indicies
+    integer(ik) :: g_ilo, g_ihi, g_jlo, g_jhi ! grid lo/hi indices
+    character(len=200) :: err_msg
+
+    real(rk), allocatable, save, dimension(:, :) :: dx, dy
+
+    ! This seems silly to have to do, but the master class requires
+    ! that the grid is a grid_block_t type, even though this fluid class
+    ! will always use a grid_block_2d_t type.
+    select type(grid)
+    class is(grid_block_2d_t)
+      g_ilo = grid%lbounds(1)
+      g_ihi = grid%ubounds(1)
+      g_jlo = grid%lbounds(2)
+      g_jhi = grid%ubounds(2)
+
+      if(.not. allocated(dx)) allocate(dx(g_ilo:g_ihi, g_jlo:g_jhi))
+      if(.not. allocated(dy)) allocate(dy(g_ilo:g_ihi, g_jlo:g_jhi))
+
+      dx = grid%dx(g_ilo:g_ihi, g_jlo:g_jhi)
+      dy = grid%dy(g_ilo:g_ihi, g_jlo:g_jhi)
+    endselect
+
+    err_msg = ''
+
+    ilo = self%u%lbounds(1)
+    ihi = self%u%ubounds(1)
+
+    jlo = self%u%lbounds(2)
+    jhi = self%u%ubounds(2)
+
+    ! I would have put this in a cleaner associate block, but GFortran+OpenCoarrays bugs out on this
+    min_delta_t = minval(self%cfl / &
+                         (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
+                            self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
+                          ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
+                            self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
+
+    min_delta_t = min_to_all(min_delta_t)
+    delta_t = min_delta_t
+  endfunction get_timestep
 
   subroutine calculate_derived_quantities(self)
     !< Find derived quantities like sound speed, mach number, primitive variables
 
     class(fluid_t), intent(inout) :: self
-    integer(ik) :: i, j
-    integer(ik) :: ilo, ihi, jlo, jhi
 
-    call debug_print('Running fluid_t%calculate_derived_quantities()', __FILE__, __LINE__)
-    ilo = lbound(self%rho, dim=1)
-    ihi = ubound(self%rho, dim=1)
-    jlo = lbound(self%rho, dim=2)
-    jhi = ubound(self%rho, dim=2)
-
+    if(enable_debug_print) call debug_print('Running fluid_t%calculate_derived_quantities()', __FILE__, __LINE__)
     call eos%conserved_to_primitive(rho=self%rho, rho_u=self%rho_u, &
                                     rho_v=self%rho_v, rho_E=self%rho_E, &
                                     u=self%u, v=self%v, p=self%p)
-
-    call self%get_continuity_sensor()
     call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
 
-    !$omp parallel default(none) &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j) &
-    !$omp shared(self)
-    !$omp do
-    do j = jlo, jhi
-      !$omp simd
-      do i = ilo, ihi
-        self%mach_u(i, j) = self%u(i, j) / self%cs(i, j)
-        self%mach_v(i, j) = self%v(i, j) / self%cs(i, j)
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-
+    self%mach_u = self%u / self%cs
+    self%mach_v = self%v / self%cs
     self%prim_vars_updated = .true.
-
-  end subroutine calculate_derived_quantities
-
-  subroutine get_continuity_sensor(self)
-    !< Run a distinguishing step that determines which regions in the domain are smooth (continuous),
-    !< or discontinuous (linear or non-linear)
-    class(fluid_t), intent(inout) :: self
-
-    call distinguish(lbounds=lbound(self%rho), rho=self%rho, u=self%u, v=self%v, p=self%p, continuity_sensor=self%continuous_sensor)
-  end subroutine get_continuity_sensor
+  endsubroutine calculate_derived_quantities
 
   subroutine residual_smoother(self)
     class(fluid_t), intent(inout) :: self
@@ -583,80 +550,33 @@ contains
     real(rk), parameter :: EPS = 5e-14_rk
 
     call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
+
     if(self%smooth_residuals) then
-      ilo = lbound(self%rho, dim=1) + 1
-      ihi = ubound(self%rho, dim=1) - 1
-      jlo = lbound(self%rho, dim=2) + 1
-      jhi = ubound(self%rho, dim=2) - 1
+      ilo = self%rho%lbounds(1)
+      ihi = self%rho%ubounds(1)
+      jlo = self%rho%lbounds(2)
+      jhi = self%rho%ubounds(2)
 
-      !$omp parallel default(none) &
-      !$omp shared(self) &
-      !$omp firstprivate(ilo,ihi,jlo,jhi) &
-      !$omp private(i,j, high, low, rel_diff)
-
-      ! !$omp do
-      ! do j = jlo, jhi
-      !   do i = ilo, ihi
-      !     ! Check to see if the x/y velocities in each cell. For example, if x-vel is 500
-      !     ! and y-vel is 1e-3, then make y-vel 0
-      !     if(abs(self%u(i, j)) > 0.0_rk .and. abs(self%v(i, j)) > 0.0_rk) then
-
-      !       if(abs(self%u(i,j)) > abs(self%v(i,j))) then
-      !         high = abs(self%u(i,j))
-      !         low = abs(self%v(i,j))
-      !         rel_diff = high - (high - low)
-
-      !         if (rel_diff < REL_TOL) then
-      !           error stop "Filtering"
-      !           write(*,'(a, 2(es16.6))') "rel_diff < REL_TOL, u,v", self%u(i,j), self%v(i,j)
-      !           self%v(i,j) = 0.0_rk
-      !           self%rho_v(i,j) = 0.0_rk
-      !           self%mach_v(i,j) = 0.0_rk
-      !         end if
-
-      !       else if(abs(self%u(i,j)) < abs(self%v(i,j))) then
-      !           high = abs(self%v(i,j))
-      !           low = abs(self%u(i,j))
-      !           rel_diff = high - (high - low)
-
-      !           if (rel_diff < REL_TOL) then
-      !             error stop "Filtering"
-      !             self%u(i,j) = 0.0_rk
-      !             self%rho_u(i,j) = 0.0_rk
-      !             self%mach_u(i,j) = 0.0_rk
-      !           end if
-
-      !       end if
-
-      !     end if
-      !   end do
-      ! end do
-      ! !$omp end do
-
-      !$omp do
       do j = jlo, jhi
         do i = ilo, ihi
-          if(abs(self%rho(i, j) - self%rho(i - 1, j)) < EPS) self%rho(i, j) = self%rho(i - 1, j)
-          if(abs(self%rho_u(i, j) - self%rho_u(i - 1, j)) < EPS) self%rho_u(i, j) = self%rho_u(i - 1, j)
-          if(abs(self%rho_v(i, j) - self%rho_v(i - 1, j)) < EPS) self%rho_v(i, j) = self%rho_v(i - 1, j)
-          if(abs(self%rho_E(i, j) - self%rho_E(i - 1, j)) < EPS) self%rho_E(i, j) = self%rho_E(i - 1, j)
-        end do
-      end do
-      !$omp end do
-      !$omp do
+          if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
+          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i - 1, j)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i - 1, j)
+          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i - 1, j)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i - 1, j)
+          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i - 1, j)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i - 1, j)
+        enddo
+      enddo
+
       do j = jlo, jhi
         do i = ilo, ihi
-          if(abs(self%rho(i, j) - self%rho(i, j - 1)) < EPS) self%rho(i, j) = self%rho(i, j - 1)
-          if(abs(self%rho_u(i, j) - self%rho_u(i, j - 1)) < EPS) self%rho_u(i, j) = self%rho_u(i, j - 1)
-          if(abs(self%rho_v(i, j) - self%rho_v(i, j - 1)) < EPS) self%rho_v(i, j) = self%rho_v(i, j - 1)
-          if(abs(self%rho_E(i, j) - self%rho_E(i, j - 1)) < EPS) self%rho_E(i, j) = self%rho_E(i, j - 1)
-        end do
-      end do
-      !$omp end do
-      !$omp end parallel
-    end if
+          if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
+          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i, j - 1)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i, j - 1)
+          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i, j - 1)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i, j - 1)
+          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i, j - 1)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i, j - 1)
+        enddo
+      enddo
+    endif
 
-  end subroutine residual_smoother
+  endsubroutine residual_smoother
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
@@ -664,15 +584,15 @@ contains
     class(fluid_t), intent(in) :: rhs
     type(fluid_t), allocatable :: difference
 
-    call debug_print('Running fluid_t%subtract_fluid()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%subtract_fluid()', __FILE__, __LINE__)
 
     allocate(difference, source=lhs)
-    call subtract_fields(a=lhs%rho, b=rhs%rho, c=difference%rho) ! c=a+b
-    call subtract_fields(a=lhs%rho_u, b=rhs%rho_u, c=difference%rho_u) ! c=a+b
-    call subtract_fields(a=lhs%rho_v, b=rhs%rho_v, c=difference%rho_v) ! c=a+b
-    call subtract_fields(a=lhs%rho_E, b=rhs%rho_E, c=difference%rho_E) ! c=a+b
+    difference%rho = lhs%rho - rhs%rho
+    difference%rho_u = lhs%rho_u - rhs%rho_u
+    difference%rho_v = lhs%rho_v - rhs%rho_v
+    difference%rho_E = lhs%rho_E - rhs%rho_E
     difference%prim_vars_updated = .false.
-  end function subtract_fluid
+  endfunction subtract_fluid
 
   function add_fluid(lhs, rhs) result(sum)
     !< Implementation of the (+) operator for the fluid type
@@ -680,172 +600,15 @@ contains
     class(fluid_t), intent(in) :: rhs
     type(fluid_t), allocatable :: sum
 
-    call debug_print('Running fluid_t%add_fluid()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%add_fluid()', __FILE__, __LINE__)
 
     allocate(sum, source=lhs)
-    call add_fields(a=lhs%rho, b=rhs%rho, c=sum%rho) ! c=a+b
-    call add_fields(a=lhs%rho_u, b=rhs%rho_u, c=sum%rho_u) ! c=a+b
-    call add_fields(a=lhs%rho_v, b=rhs%rho_v, c=sum%rho_v) ! c=a+b
-    call add_fields(a=lhs%rho_E, b=rhs%rho_E, c=sum%rho_E) ! c=a+b
+    sum%rho = lhs%rho + rhs%rho
+    sum%rho_u = lhs%rho_u + rhs%rho_u
+    sum%rho_v = lhs%rho_v + rhs%rho_v
+    sum%rho_E = lhs%rho_E + rhs%rho_E
     sum%prim_vars_updated = .false.
-
-    ! call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
-    ! call move_alloc(sum, sum)
-    ! call sum%set_temp(calling_function='fluid_t%add_fluid(sum)', line=__LINE__)
-  end function add_fluid
-
-  subroutine add_fields(a, b, c)
-    !< Dumb routine for a vectorized version of c = a + b
-    real(rk), dimension(:, :), contiguous, intent(in) :: a
-    real(rk), dimension(:, :), contiguous, intent(in) :: b
-    real(rk), dimension(:, :), contiguous, intent(inout) :: c
-    real(rk) :: diff, threshold
-    integer(ik) :: i, j
-    integer(ik) :: ilo = 0
-    integer(ik) :: ihi = 0
-    integer(ik) :: jlo = 0
-    integer(ik) :: jhi = 0
-
-    ilo = lbound(a, dim=1)
-    ihi = ubound(a, dim=1)
-    jlo = lbound(a, dim=2)
-    jhi = ubound(a, dim=2)
-
-    !$omp parallel default(none) &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, diff, threshold) &
-    !$omp shared(a,b,c)
-    !$omp do
-    do j = jlo, jhi
-#ifdef __SIMD_ALIGN_OMP__
-      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
-#else
-      !$omp simd
-#endif
-      do i = ilo, ihi
-        c(i, j) = a(i, j) + b(i, j)
-        diff = abs(c(i, j) - a(i, j))
-        threshold = abs(a(i, j) + b(i, j)) * 1e-9_rk
-        if(diff < threshold) c(i, j) = a(i, j)
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-
-  end subroutine add_fields
-
-  subroutine subtract_fields(a, b, c)
-    !< Dumb routine for a vectorized version of c = a - b
-    real(rk), dimension(:, :), contiguous, intent(in) :: a
-    real(rk), dimension(:, :), contiguous, intent(in) :: b
-    real(rk), dimension(:, :), contiguous, intent(inout) :: c
-    real(rk) :: diff, threshold
-    integer(ik) :: i, j
-    integer(ik) :: ilo = 0
-    integer(ik) :: ihi = 0
-    integer(ik) :: jlo = 0
-    integer(ik) :: jhi = 0
-
-    ilo = lbound(a, dim=1)
-    ihi = ubound(a, dim=1)
-    jlo = lbound(a, dim=2)
-    jhi = ubound(a, dim=2)
-
-    !$omp parallel default(none) &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, diff, threshold) &
-    !$omp shared(a,b,c)
-    !$omp do
-    do j = jlo, jhi
-#ifdef __SIMD_ALIGN_OMP__
-      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
-#else
-      !$omp simd
-#endif
-      do i = ilo, ihi
-        c(i, j) = a(i, j) - b(i, j)
-        diff = abs(c(i, j) - a(i, j))
-        threshold = abs(a(i, j) + b(i, j)) * 1e-9_rk
-        if(diff < threshold) then
-          c(i, j) = a(i, j)
-        end if
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-
-  end subroutine subtract_fields
-
-  subroutine mult_fields(a, b, c)
-    !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :), contiguous, intent(in) :: a
-    real(rk), dimension(:, :), contiguous, intent(in) :: b
-    real(rk), dimension(:, :), contiguous, intent(inout) :: c
-    integer(ik) :: i, j
-    integer(ik) :: ilo = 0
-    integer(ik) :: ihi = 0
-    integer(ik) :: jlo = 0
-    integer(ik) :: jhi = 0
-
-    ilo = lbound(a, dim=1)
-    ihi = ubound(a, dim=1)
-    jlo = lbound(a, dim=2)
-    jhi = ubound(a, dim=2)
-
-    !$omp parallel default(none) &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j) &
-    !$omp shared(a,b,c)
-    !$omp do
-    do j = jlo, jhi
-#ifdef __SIMD_ALIGN_OMP__
-      !$omp simd aligned(a, b, c:__ALIGNBYTES__)
-#else
-      !$omp simd
-#endif
-      do i = ilo, ihi
-        c(i, j) = a(i, j) * b(i, j)
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-
-  end subroutine mult_fields
-
-  subroutine mult_field_by_real(a, b, c)
-    !< Dumb routine for a vectorized version of c = a * b
-    real(rk), dimension(:, :), contiguous, intent(in) :: a
-    real(rk), intent(in) :: b
-    real(rk), dimension(:, :), contiguous, intent(inout) :: c
-    integer(ik) :: i, j
-    integer(ik) :: ilo = 0
-    integer(ik) :: ihi = 0
-    integer(ik) :: jlo = 0
-    integer(ik) :: jhi = 0
-
-    ilo = lbound(a, dim=1)
-    ihi = ubound(a, dim=1)
-    jlo = lbound(a, dim=2)
-    jhi = ubound(a, dim=2)
-
-    !$omp parallel default(none) &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j) &
-    !$omp shared(a,b,c)
-    !$omp do
-    do j = jlo, jhi
-#ifdef __SIMD_ALIGN_OMP__
-      !$omp simd aligned(a, c:__ALIGNBYTES__)
-#else
-      !$omp simd
-#endif
-      do i = ilo, ihi
-        c(i, j) = a(i, j) * b
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-  end subroutine mult_field_by_real
+  endfunction add_fluid
 
   function fluid_mul_real(lhs, rhs) result(product)
     !< Implementation of the fluid * real operation
@@ -855,20 +618,21 @@ contains
 
     integer(ik) :: alloc_status
 
-    call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%fluid_mul_real()', __FILE__, __LINE__)
 
     allocate(product, source=lhs, stat=alloc_status)
     if(alloc_status /= 0) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='fluid_mul_real', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='fluid_mul_real', &
                      message="Unable to allocate lhs%solver", file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
-    call mult_field_by_real(a=lhs%rho, b=rhs, c=product%rho)
-    call mult_field_by_real(a=lhs%rho_u, b=rhs, c=product%rho_u)
-    call mult_field_by_real(a=lhs%rho_v, b=rhs, c=product%rho_v)
-    call mult_field_by_real(a=lhs%rho_E, b=rhs, c=product%rho_E)
+    product%rho = lhs%rho * rhs
+    product%rho_u = lhs%rho_u * rhs
+    product%rho_v = lhs%rho_v * rhs
+    product%rho_E = lhs%rho_E * rhs
+
     product%prim_vars_updated = .false.
-  end function fluid_mul_real
+  endfunction fluid_mul_real
 
   function real_mul_fluid(lhs, rhs) result(product)
     !< Implementation of the real * fluid operation
@@ -877,40 +641,56 @@ contains
     type(fluid_t), allocatable :: product
     integer(ik) :: alloc_status
 
-    call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%real_mul_fluid()', __FILE__, __LINE__)
 
     allocate(product, source=rhs, stat=alloc_status)
     if(alloc_status /= 0) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='real_mul_fluid', &
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='real_mul_fluid', &
                      message="Unable to allocate product", file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
-    call mult_field_by_real(a=rhs%rho, b=lhs, c=product%rho)
-    call mult_field_by_real(a=rhs%rho_u, b=lhs, c=product%rho_u)
-    call mult_field_by_real(a=rhs%rho_v, b=lhs, c=product%rho_v)
-    call mult_field_by_real(a=rhs%rho_E, b=lhs, c=product%rho_E)
+    product%rho = lhs * rhs%rho
+    product%rho_u = lhs * rhs%rho_u
+    product%rho_v = lhs * rhs%rho_v
+    product%rho_E = lhs * rhs%rho_E
     product%prim_vars_updated = .false.
-  end function real_mul_fluid
+  endfunction real_mul_fluid
 
   subroutine assign_fluid(lhs, rhs)
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
     class(fluid_t), intent(inout) :: lhs
-    type(fluid_t), intent(in) :: rhs
+    class(fluid_t), intent(in) :: rhs
     integer(ik) :: alloc_status
+    character(len=50) :: err_msg
+    class(flux_solver_t), pointer :: solver => null()
+    err_msg = ''
 
-    call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
+
+    lhs%input = rhs%input
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
     lhs%rho = rhs%rho
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
-    if(allocated(lhs%solver)) deallocate(lhs%solver)
 
-    allocate(lhs%solver, source=rhs%solver, stat=alloc_status)
-    if(alloc_status /= 0) then
-      call error_msg(module='mod_fluid', class='fluid_t', procedure='assign_fluid', &
-                     message="Unable to allocate lhs%solver", file_name=__FILE__, line_number=__LINE__)
-    end if
+    select case(trim(rhs%flux_solver_type))
+    case('M-AUSMPW+')
+      allocate(m_ausmpw_plus_solver_t :: solver)
+    case('AUSMPW+')
+      allocate(ausmpw_plus_solver_t :: solver)
+    case default
+      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
+                     message="Invalid flux solver. It must be one of the following: "// &
+                     "['AUSMPW+', 'M-AUSMPW+'], "// &
+                     "the input was: '"//trim(rhs%flux_solver_type)//"'", &
+                     file_name=__FILE__, line_number=__LINE__)
+    endselect
+
+    if(allocated(lhs%solver)) deallocate(lhs%solver)
+    call solver%initialize(rhs%input, rhs%time)
+    allocate(lhs%solver, source=solver)
+    deallocate(solver)
 
     lhs%time_integration_scheme = rhs%time_integration_scheme
     lhs%time = rhs%time
@@ -920,121 +700,64 @@ contains
     lhs%smooth_residuals = rhs%smooth_residuals
     lhs%residual_hist_file = rhs%residual_hist_file
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
-
     call lhs%calculate_derived_quantities()
 
     if(lhs%smooth_residuals) call lhs%residual_smoother()
-  end subroutine assign_fluid
+
+  endsubroutine assign_fluid
 
   subroutine sanity_check(self, error_code)
     !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.
     class(fluid_t), intent(in) :: self
-    integer(ik) :: i, j, ilo, jlo, ihi, jhi
     logical :: invalid_numbers, negative_numbers
-    character(len=64) :: err_message = ''
     integer(ik), intent(out) :: error_code
 
-    call debug_print('Running fluid_t%sanity_check()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%sanity_check()', __FILE__, __LINE__)
 
     error_code = ALL_OK
 
-    negative_numbers = .false.
-    invalid_numbers = .false.
+    invalid_numbers = self%rho%has_nans()
+    if(invalid_numbers) then
+      error_code = NANS_FOUND
+      return
+    endif
 
-    ilo = lbound(self%rho, dim=1) + n_ghost_layers
-    ihi = ubound(self%rho, dim=1) - n_ghost_layers
-    jlo = lbound(self%rho, dim=2) + n_ghost_layers
-    jhi = ubound(self%rho, dim=2) - n_ghost_layers
+    invalid_numbers = self%u%has_nans()
+    if(invalid_numbers) then
+      error_code = NANS_FOUND
+      return
+    endif
 
-    !$omp parallel default(none) &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j) &
-    !$omp shared(self, error_code, err_message)
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(self%rho(i, j) < 0.0_rk) then
-          write(err_message, '(a, i0, ", ", i0, a)') "Negative density at (", i, j, ")"
-          call error_msg(module='mod_fluid', class='fluid_t', procedure='sanity_check', &
-                         message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
-          error_code = NEG_DENSITY
-        end if
-      end do
-    end do
-    !$omp end do nowait
+    invalid_numbers = self%v%has_nans()
+    if(invalid_numbers) then
+      error_code = NANS_FOUND
+      return
+    endif
 
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(self%p(i, j) < 0.0_rk) then
-          write(err_message, '(a, i0, ", ", i0, a)') "Negative pressure found at (", i, j, ")"
-          call error_msg(module='mod_fluid', class='fluid_t', procedure='sanity_check', &
-                         message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
-          error_code = NEG_PRESSURE
-        end if
-      end do
-    end do
-    !$omp end do nowait
+    invalid_numbers = self%p%has_nans()
+    if(invalid_numbers) then
+      error_code = NANS_FOUND
+      return
+    endif
 
-    ! NaN checks
+    negative_numbers = self%p%has_negatives()
+    if(negative_numbers) then
+      error_code = NEG_PRESSURE
+      return
+    endif
 
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(ieee_is_nan(self%rho(i, j))) then
-          write(err_message, '(a, i0, ", ", i0, a)') "NaN density found at (", i, j, ")"
-          call error_msg(module='mod_fluid', class='fluid_t', procedure='sanity_check', &
-                         message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
-          error_code = NANS_FOUND
-        end if
-      end do
-    end do
-    !$omp end do nowait
+    negative_numbers = self%rho%has_negatives()
+    if(negative_numbers) then
+      error_code = NEG_DENSITY
+      return
+    endif
 
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(ieee_is_nan(self%u(i, j))) then
-          write(err_message, '(a, i0, ", ", i0, a)') "NaN x-velocity found at (", i, j, ")"
-          call error_msg(module='mod_fluid', class='fluid_t', procedure='sanity_check', &
-                         message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
-          error_code = NANS_FOUND
-        end if
-      end do
-    end do
-    !$omp end do nowait
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(ieee_is_nan(self%v(i, j))) then
-          write(err_message, '(a, i0, ", ", i0, a)') "NaN y-velocity found at (", i, j, ")"
-          call error_msg(module='mod_fluid', class='fluid_t', procedure='sanity_check', &
-                         message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
-          error_code = NANS_FOUND
-        end if
-      end do
-    end do
-    !$omp end do nowait
-    !$omp do
-    do j = jlo, jhi
-      do i = ilo, ihi
-        if(ieee_is_nan(self%p(i, j))) then
-          write(err_message, '(a, i0, ", ", i0, a)') "NaN pressure found at (", i, j, ")"
-          call error_msg(module='mod_fluid', class='fluid_t', procedure='sanity_check', &
-                         message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
-          error_code = NANS_FOUND
-        end if
-      end do
-    end do
-    !$omp end do nowait
-
-    !$omp end parallel
-  end subroutine sanity_check
+  endsubroutine sanity_check
 
   subroutine ssp_rk_3_3(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 3-step, 3rd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     class(source_t), allocatable, intent(in) :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
@@ -1048,18 +771,18 @@ contains
 
     ! 1st stage
     allocate(U_1, source=U)
-    U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * dt
+    U_1 = U + U%t(grid=grid, source_term=source_term) * dt
 
     ! 2nd stage
     allocate(U_2, source=U)
     U_2 = U * (3.0_rk / 4.0_rk) &
           + U_1 * (1.0_rk / 4.0_rk) &
-          + U_1%t(grid=grid, source_term=source_term, stage=2) * ((1.0_rk / 4.0_rk) * dt)
+          + U_1%t(grid=grid, source_term=source_term) * ((1.0_rk / 4.0_rk) * dt)
 
     ! Final stage
     U = U * (1.0_rk / 3.0_rk) &
         + U_2 * (2.0_rk / 3.0_rk) &
-        + U_2%t(grid=grid, source_term=source_term, stage=3) * ((2.0_rk / 3.0_rk) * dt)
+        + U_2%t(grid=grid, source_term=source_term) * ((2.0_rk / 3.0_rk) * dt)
     call U%sanity_check(error_code)
 
     ! Convergence history
@@ -1068,14 +791,14 @@ contains
     deallocate(U_1)
     deallocate(U_2)
 
-  end subroutine ssp_rk_3_3
+  endsubroutine ssp_rk_3_3
 
   subroutine ssp_rk_4_3(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 4-step, 3rd order time integration. See Ref [3]. According to the
     !< reference, the increase in stage number is more than offset by the allowable increase in CFL number.
 
     class(fluid_t), intent(inout) :: U
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     class(source_t), allocatable, intent(in) :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
@@ -1093,19 +816,18 @@ contains
 
     ! 1st stage
     allocate(U_1, source=U)
-    U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * 0.5_rk * dt
+    U_1 = U + U%t(grid=grid, source_term=source_term) * 0.5_rk * dt
 
     ! 2nd stage
     allocate(U_2, source=U)
-    U_2 = U_1 + U_1%t(grid=grid, source_term=source_term, stage=2) * 0.5_rk * dt
+    U_2 = U_1 + U_1%t(grid=grid, source_term=source_term) * 0.5_rk * dt
 
     ! 3rd stage
     allocate(U_3, source=U)
-    U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid=grid, source_term=source_term, stage=3) * one_sixth * dt)
-    call U_3%residual_smoother()
+    U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid=grid, source_term=source_term) * one_sixth * dt)
 
     ! Final stage
-    U = U_3 + (U_3%t(grid=grid, source_term=source_term, stage=4) * 0.5_rk * dt)
+    U = U_3 + (U_3%t(grid=grid, source_term=source_term) * 0.5_rk * dt)
     call U%sanity_check(error_code)
 
     ! Convergence history
@@ -1115,42 +837,39 @@ contains
     deallocate(U_2)
     deallocate(U_3)
 
-  end subroutine ssp_rk_4_3
+  endsubroutine ssp_rk_4_3
 
   subroutine ssp_rk_2_2(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 2-stage, 2nd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
-    class(grid_t), intent(in) :: grid
+    class(grid_block_t), intent(in) :: grid
     class(source_t), allocatable, intent(in) :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
-    type(fluid_t), allocatable :: R !< hist
     integer(ik), intent(out) :: error_code
+    real(rk) :: dt
 
-    call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
 
+    dt = U%dt
     allocate(U_1, source=U)
-    allocate(R, source=U)
 
     ! 1st stage
-    associate(dt => U%dt)
-      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 1st stage'//new_line('a'), __FILE__, __LINE__)
-      U_1 = U + U%t(grid=grid, source_term=source_term, stage=1) * dt
+    U_1 = U + U%t(grid=grid, source_term=source_term) * dt
+    ! call U_1%sync_fields()
 
-      ! Final stage
-      call debug_print(new_line('a')//'Running fluid_t%ssp_rk2_t() 2nd stage'//new_line('a'), __FILE__, __LINE__)
-      U = U * 0.5_rk + U_1 * 0.5_rk + &
-          U_1%t(grid=grid, source_term=source_term, stage=2) * (0.5_rk * dt)
-      call U%sanity_check(error_code)
+    ! Final stage
+    U = U * 0.5_rk + U_1 * 0.5_rk + &
+        U_1%t(grid=grid, source_term=source_term) * (0.5_rk * dt)
+    ! call U%sync_fields()
+    call U%sanity_check(error_code)
 
-      ! ! Convergence history
-      call write_residual_history(first_stage=U_1, last_stage=U)
-    end associate
+    ! ! Convergence history
+    call write_residual_history(first_stage=U_1, last_stage=U)
 
-    deallocate(R)
     deallocate(U_1)
 
-  end subroutine ssp_rk_2_2
+  endsubroutine ssp_rk_2_2
 
   subroutine write_residual_history(first_stage, last_stage)
     !< This writes out the change in residual to a file for convergence history monitoring.
@@ -1165,22 +884,26 @@ contains
     integer(ik) :: io
     integer(ik) :: ilo, jlo, ihi, jhi
 
-    call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
 
-    ilo = lbound(last_stage%rho, dim=1) + n_ghost_layers
-    ihi = ubound(last_stage%rho, dim=1) - n_ghost_layers
-    jlo = lbound(last_stage%rho, dim=2) + n_ghost_layers
-    jhi = ubound(last_stage%rho, dim=2) - n_ghost_layers
+    ilo = last_stage%rho%lbounds(1)
+    ihi = last_stage%rho%ubounds(1)
+    jlo = last_stage%rho%lbounds(2)
+    jhi = last_stage%rho%ubounds(2)
 
-    rho_diff = maxval(abs(last_stage%rho(ilo:ihi, jlo:jhi) - first_stage%rho(ilo:ihi, jlo:jhi)))
-    rho_u_diff = maxval(abs(last_stage%rho_u(ilo:ihi, jlo:jhi) - first_stage%rho_u(ilo:ihi, jlo:jhi)))
-    rho_v_diff = maxval(abs(last_stage%rho_v(ilo:ihi, jlo:jhi) - first_stage%rho_v(ilo:ihi, jlo:jhi)))
-    rho_E_diff = maxval(abs(last_stage%rho_E(ilo:ihi, jlo:jhi) - first_stage%rho_E(ilo:ihi, jlo:jhi)))
+    rho_diff = maxval(abs(last_stage%rho%data(ilo:ihi, jlo:jhi) - first_stage%rho%data(ilo:ihi, jlo:jhi)))
+    rho_diff = max_to_all(rho_diff)
+    rho_u_diff = maxval(abs(last_stage%rho_u%data(ilo:ihi, jlo:jhi) - first_stage%rho_u%data(ilo:ihi, jlo:jhi)))
+    rho_u_diff = max_to_all(rho_u_diff)
+    rho_v_diff = maxval(abs(last_stage%rho_v%data(ilo:ihi, jlo:jhi) - first_stage%rho_v%data(ilo:ihi, jlo:jhi)))
+    rho_v_diff = max_to_all(rho_v_diff)
+    rho_E_diff = maxval(abs(last_stage%rho_E%data(ilo:ihi, jlo:jhi) - first_stage%rho_E%data(ilo:ihi, jlo:jhi)))
+    rho_E_diff = max_to_all(rho_E_diff)
 
     open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
     write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &
       rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
     close(io)
 
-  end subroutine write_residual_history
-end module mod_fluid
+  endsubroutine write_residual_history
+endmodule mod_fluid

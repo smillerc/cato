@@ -1,0 +1,1 @@
+add_caf_test(test_field N_IMAGES 4 SOURCES test_field.f90 LINK_LIBRARIES caf_testing cato)

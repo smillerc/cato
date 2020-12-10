@@ -61,6 +61,6 @@ contains
     ! Eq. 5a
     phi_g = (1.0_rk - cos(phi * pi)) / 2.0_rk
 
-  end function
+  endfunction
 
-end module mod_gnoffo_aux_limiter
+endmodule mod_gnoffo_aux_limiter

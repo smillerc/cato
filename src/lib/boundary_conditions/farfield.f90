@@ -46,4 +46,4 @@ contains
   ! function supersonic_inflow() result(boundary_prim_vars)
   ! end function supersonic_inflow
 
-end module mod_farfield
+endmodule mod_farfield

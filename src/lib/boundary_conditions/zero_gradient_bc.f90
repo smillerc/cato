@@ -20,8 +20,9 @@
 
 module mod_zero_gradient_bc
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
-  use mod_globals, only: debug_print
-  use mod_grid, only: grid_t
+  use mod_globals, only: enable_debug_print, debug_print
+  use mod_field, only: field_2d_t
+  use mod_grid_block_2d, only: grid_block_2d_t
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
 
@@ -34,85 +35,97 @@ module mod_zero_gradient_bc
   contains
     procedure, public :: apply => apply_zero_gradient_primitive_var_bc
     final :: finalize
-  end type
+  endtype
 contains
 
   function zero_gradient_bc_constructor(location, input, grid) result(bc)
     type(zero_gradient_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
-    class(grid_t), intent(in) :: grid
+    class(grid_block_2d_t), intent(in) :: grid
 
     allocate(bc)
     bc%name = 'zero_gradient'
     bc%location = location
     call bc%set_indices(grid)
-  end function zero_gradient_bc_constructor
+  endfunction zero_gradient_bc_constructor
 
-  subroutine apply_zero_gradient_primitive_var_bc(self, rho, u, v, p, lbounds)
+  subroutine apply_zero_gradient_primitive_var_bc(self, rho, u, v, p)
 
     class(zero_gradient_bc_t), intent(inout) :: self
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: rho
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: u
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: v
-    real(rk), dimension(lbounds(1):, lbounds(2):), intent(inout) :: p
+    class(field_2d_t), intent(inout) :: rho
+    class(field_2d_t), intent(inout) :: u
+    class(field_2d_t), intent(inout) :: v
+    class(field_2d_t), intent(inout) :: p
 
     integer(ik) :: i
 
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
-              left_ghost => self%ilo_ghost, right_ghost => self%ihi_ghost, &
-              bottom_ghost => self%jlo_ghost, top_ghost => self%jhi_ghost)
-
-      select case(self%location)
-      case('+x')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', __FILE__, __LINE__)
+    select case(self%location)
+    case('+x')
+      if(rho%on_ihi_bc) then
+        if(enable_debug_print) then
+          call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +x', &
+                           __FILE__, __LINE__)
+        endif
         do i = 1, self%n_ghost_layers
-          rho(right_ghost(i), :) = rho(right - (i - 1), :)
-          u(right_ghost(i), :) = u(right - (i - 1), :)
-          v(right_ghost(i), :) = v(right - (i - 1), :)
-          p(right_ghost(i), :) = p(right - (i - 1), :)
-        end do
-
-      case('-x')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -x', __FILE__, __LINE__)
+          rho%data(self%ihi_ghost(i), :) = rho%data(self%ihi, :)
+          u%data(self%ihi_ghost(i), :) = u%data(self%ihi, :)
+          v%data(self%ihi_ghost(i), :) = v%data(self%ihi, :)
+          p%data(self%ihi_ghost(i), :) = p%data(self%ihi, :)
+        enddo
+      endif
+    case('-x')
+      if(rho%on_ilo_bc) then
+        if(enable_debug_print) then
+          call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -x', &
+                           __FILE__, __LINE__)
+        endif
         do i = 1, self%n_ghost_layers
-          rho(left_ghost(i), :) = rho(left + (i - 1), :)
-          u(left_ghost(i), :) = u(left + (i - 1), :)
-          v(left_ghost(i), :) = v(left + (i - 1), :)
-          p(left_ghost(i), :) = p(left + (i - 1), :)
-        end do
-
-      case('+y')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', __FILE__, __LINE__)
+          rho%data(self%ilo_ghost(i), :) = rho%data(self%ilo, :)
+          u%data(self%ilo_ghost(i), :) = u%data(self%ilo, :)
+          v%data(self%ilo_ghost(i), :) = v%data(self%ilo, :)
+          p%data(self%ilo_ghost(i), :) = p%data(self%ilo, :)
+        enddo
+      endif
+    case('+y')
+      if(rho%on_jhi_bc) then
+        if(enable_debug_print) then
+          call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() +y', &
+                           __FILE__, __LINE__)
+        endif
         do i = 1, self%n_ghost_layers
-          rho(:, top_ghost(i)) = rho(:, top - (i - 1))
-          u(:, top_ghost(i)) = u(:, top - (i - 1))
-          v(:, top_ghost(i)) = v(:, top - (i - 1))
-          p(:, top_ghost(i)) = p(:, top - (i - 1))
-        end do
-      case('-y')
-        call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', __FILE__, __LINE__)
+          rho%data(:, self%jhi_ghost(i)) = rho%data(:, self%jhi)
+          u%data(:, self%jhi_ghost(i)) = u%data(:, self%jhi)
+          v%data(:, self%jhi_ghost(i)) = v%data(:, self%jhi)
+          p%data(:, self%jhi_ghost(i)) = p%data(:, self%jhi)
+        enddo
+      endif
+    case('-y')
+      if(rho%on_jlo_bc) then
+        if(enable_debug_print) then
+          call debug_print('Running zero_gradient_bc_t%apply_zero_gradient_primitive_var_bc() -y', &
+                           __FILE__, __LINE__)
+        endif
         do i = 1, self%n_ghost_layers
-          rho(:, bottom_ghost(i)) = rho(:, bottom + (i - 1))
-          u(:, bottom_ghost(i)) = u(:, bottom + (i - 1))
-          v(:, bottom_ghost(i)) = v(:, bottom + (i - 1))
-          p(:, bottom_ghost(i)) = p(:, bottom + (i - 1))
-        end do
-      case default
-        error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc()"
-      end select
-    end associate
+          rho%data(:, self%jlo_ghost(i)) = rho%data(:, self%jlo)
+          u%data(:, self%jlo_ghost(i)) = u%data(:, self%jlo)
+          v%data(:, self%jlo_ghost(i)) = v%data(:, self%jlo)
+          p%data(:, self%jlo_ghost(i)) = p%data(:, self%jlo)
+        enddo
+      endif
+    case default
+      error stop "Unsupported location to apply the bc at in zero_gradient_bc_t%apply_zero_gradient_cell_gradient_bc()"
+    endselect
 
-  end subroutine apply_zero_gradient_primitive_var_bc
+  endsubroutine apply_zero_gradient_primitive_var_bc
 
   subroutine finalize(self)
     type(zero_gradient_bc_t), intent(inout) :: self
-    call debug_print('Running zero_gradient_bc_t%finalize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running zero_gradient_bc_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%ilo_ghost)) deallocate(self%ilo_ghost)
     if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
     if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)
     if(allocated(self%jhi_ghost)) deallocate(self%jhi_ghost)
-  end subroutine finalize
+  endsubroutine finalize
 
-end module mod_zero_gradient_bc
+endmodule mod_zero_gradient_bc

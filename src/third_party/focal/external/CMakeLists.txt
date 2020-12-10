@@ -1,0 +1,5 @@
+include_directories(${OpenCL_INCLUDE_DIRS})
+add_library(clfortran clfortran/clfortran.f90)
+target_link_libraries(clfortran ${OpenCL_LIBRARIES})
+add_library(fortranutils fortran-utils/futils_sorting.f90)
+add_library(m_strings M_strings/M_strings.f90)
