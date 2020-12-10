@@ -53,7 +53,7 @@ kelvin_helmholtz_2d:
     - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_COARRAY=ON -DENABLE_TESTING=ON -DUSE_OPENMP_SIMD=ON
     - make -j
     - python3 generate_ic.py
-    - ./bin/cato.x input.ini
+    - cafrun -np 4 ./bin/cato.x input.ini
     - python3 view_results.py
   artifacts:
     paths:
@@ -66,7 +66,7 @@ sedov_2d:
     - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_COARRAY=ON -DENABLE_TESTING=ON -DUSE_OPENMP_SIMD=ON
     - make -j
     - python3 generate_ic.py
-    - ./bin/cato.x input.ini
+    - cafrun -np 4 ./bin/cato.x input.ini
     - python3 view_results.py
   artifacts:
     paths:
