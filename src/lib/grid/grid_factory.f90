@@ -53,6 +53,6 @@ contains
       !   grid => new_3d_grid_block(input)
     case default
       error stop 'Unsupported grid type in grid_factory'
-    end select
-  end function grid_factory
-end module mod_grid_factory
+    endselect
+  endfunction grid_factory
+endmodule mod_grid_factory

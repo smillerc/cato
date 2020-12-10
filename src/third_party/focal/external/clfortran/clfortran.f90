@@ -478,7 +478,7 @@ module clfortran
   type, BIND(C) :: cl_image_format
     integer(c_int32_t) :: image_channel_order
     integer(c_int32_t) :: image_channel_data_type
-  end type cl_image_format
+  endtype cl_image_format
 
   type, BIND(C) :: cl_image_desc
     integer(c_int32_t)  :: image_type
@@ -491,7 +491,7 @@ module clfortran
     integer(c_int32_t)  :: num_mip_levels
     integer(c_int32_t)  :: num_samples
     integer(c_intptr_t) :: buffer
-  end type cl_image_desc
+  endtype cl_image_desc
 
   !
   ! Start interfaces.
@@ -512,7 +512,7 @@ module clfortran
       integer(c_int32_t), value, intent(in)   :: num_entries
       type(c_ptr), value, intent(in)          :: platforms
       integer(c_int32_t), intent(out)         :: num_platforms
-    end function
+    endfunction
 
 !    ! clGetPlatformInfo
     integer(c_int32_t) function clGetPlatformInfo(platform, param_name, &
@@ -525,7 +525,7 @@ module clfortran
       integer(c_size_t), value, intent(in)        :: param_value_size
       type(c_ptr), value, intent(in)              :: param_value
       integer(c_size_t), intent(out)              :: param_value_size_ret
-    end function
+    endfunction
 !
 !    ! ----------
 !    ! Device API
@@ -547,7 +547,7 @@ module clfortran
       type(c_ptr), value         :: devices
       integer(c_int32_t), intent(out) :: num_devices
 
-    end function
+    endfunction
 !
 !    ! clGetDeviceInfo
     integer(c_int) function clGetDeviceInfo(device, &
@@ -565,7 +565,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 !
 !    ! clCreateSubDevices
     integer(c_int32_t) function clCreateSubDevices(in_device, &
@@ -583,7 +583,7 @@ module clfortran
       type(c_ptr), value         :: out_devices
       integer(c_int32_t), intent(out) :: num_devices_ret
 
-    end function
+    endfunction
 
     ! clRetainDevice
     integer(c_int32_t) function clRetainDevice(device) &
@@ -592,7 +592,7 @@ module clfortran
 
       ! Define parameters.
       integer(c_intptr_t), value :: device
-    end function
+    endfunction
 
     ! clReleaseDevice
     integer(c_int32_t) function clReleaseDevice(device) &
@@ -601,7 +601,7 @@ module clfortran
 
       ! Define parameters.
       integer(c_intptr_t), value :: device
-    end function
+    endfunction
 
     ! ------------
     ! Context APIs
@@ -625,7 +625,7 @@ module clfortran
       type(c_ptr), value        :: user_data
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clCreateContextFromType
     integer(c_intptr_t) function clCreateContextFromType(properties, &
@@ -643,7 +643,7 @@ module clfortran
       type(c_ptr), value        :: user_data
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clRetainContext
     integer(c_int32_t) function clRetainContext(context) &
@@ -653,7 +653,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: context
 
-    end function
+    endfunction
 
     ! clReleaseContext
     integer(c_int32_t) function clReleaseContext(context) &
@@ -663,7 +663,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: context
 
-    end function
+    endfunction
 !
 !    ! clGetContextInfo
     integer(c_int32_t) function clGetContextInfo(context, &
@@ -681,7 +681,7 @@ module clfortran
       type(c_ptr), value :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! ------------------
     ! Command Queue APIs
@@ -701,7 +701,7 @@ module clfortran
       integer(c_int64_t), value  :: properties
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clRetainCommandQueue
     integer(c_int32_t) function clRetainCommandQueue(command_queue) &
@@ -711,7 +711,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: command_queue
 
-    end function
+    endfunction
 
     ! clReleaseCommandQueue
     integer(c_int32_t) function clReleaseCommandQueue(command_queue) &
@@ -721,7 +721,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: command_queue
 
-    end function
+    endfunction
 
     ! clGetCommandQueueInfo
     integer(c_int32_t) function clGetCommandQueueInfo(command_queue, &
@@ -739,7 +739,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 !
 !    ! ------------------
 !    ! Memory Object APIs
@@ -761,7 +761,7 @@ module clfortran
       type(c_ptr), value          :: host_ptr
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 !
 !    ! clCreateSubBuffer
     integer(c_intptr_t) function clCreateSubBuffer(buffer, &
@@ -779,7 +779,7 @@ module clfortran
       type(c_ptr), value          :: buffer_create_info
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 !
 !    ! clCreateImage
     integer(c_intptr_t) function clCreateImage(context, &
@@ -800,7 +800,7 @@ module clfortran
       type(c_ptr), value          :: host_ptr
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clRetainMemObject
     integer(c_int32_t) function clRetainMemObject(mem_obj) &
@@ -810,7 +810,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value  :: mem_obj
 
-    end function
+    endfunction
 
     ! clReleaseMemObject
     integer(c_int32_t) function clReleaseMemObject(mem_obj) &
@@ -820,7 +820,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value  :: mem_obj
 
-    end function
+    endfunction
 
     ! clGetSupportedImageFormats
     integer(c_int32_t) function clGetSupportedImageFormats(context, &
@@ -840,7 +840,7 @@ module clfortran
       type(c_ptr), value          :: image_formats
       integer(c_int32_t), intent(out) :: num_image_formats
 
-    end function
+    endfunction
 
     ! clGetMemObjectInfo
     integer(c_int32_t) function clGetMemObjectInfo(memobj, &
@@ -858,7 +858,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! clGetImageInfo
     integer(c_int32_t) function clGetImageInfo(image, &
@@ -876,7 +876,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! clSetMemObjectDestructorCallback
     integer(c_int32_t) function clSetMemObjectDestructorCallback(memobj, &
@@ -890,7 +890,7 @@ module clfortran
       type(c_funptr), value       :: pfn_notify
       type(c_ptr), value          :: user_data
 
-    end function
+    endfunction
 
     ! ------------
     ! Sampler APIs
@@ -912,7 +912,7 @@ module clfortran
       integer(c_int32_t), value :: filter_mode
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clRetainSampler
     integer(c_int32_t) function clRetainSampler(sampler) &
@@ -922,7 +922,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: sampler
 
-    end function
+    endfunction
 
     ! clReleaseSampler
     integer(c_int32_t) function clReleaseSampler(sampler) &
@@ -932,7 +932,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: sampler
 
-    end function
+    endfunction
 
     ! clGetSamplerInfo
     integer(c_int32_t) function clGetSamplerInfo(sampler, &
@@ -950,7 +950,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! -------------------
     ! Program Object APIs
@@ -972,7 +972,7 @@ module clfortran
       type(c_ptr), value :: lengths
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clCreateProgramWithBinary
     integer(c_intptr_t) function clCreateProgramWithBinary(context, &
@@ -994,7 +994,7 @@ module clfortran
       type(c_ptr), value :: binary_status
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clCreateProgramWithBuiltInKernels
     integer(c_intptr_t) function clCreateProgramWithBuiltInKernels(context, &
@@ -1012,7 +1012,7 @@ module clfortran
       type(c_ptr), value :: kernel_names
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clRetainProgram
     integer(c_int32_t) function clRetainProgram(program) &
@@ -1022,7 +1022,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: program
 
-    end function
+    endfunction
 
     ! clReleaseProgram
     integer(c_int32_t) function clReleaseProgram(program) &
@@ -1032,7 +1032,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: program
 
-    end function
+    endfunction
 
     ! clBuildProgram
     integer(c_int32_t) function clBuildProgram(program, &
@@ -1052,7 +1052,7 @@ module clfortran
       type(c_funptr), value :: pfn_notify
       type(c_ptr), value :: user_data
 
-    end function
+    endfunction
 
     ! clCompileProgram
     integer(c_int32_t) function clCompileProgram(program, &
@@ -1078,7 +1078,7 @@ module clfortran
       type(c_funptr), value :: pfn_notify
       type(c_ptr), value :: user_data
 
-    end function
+    endfunction
 
     ! clLinkProgram
     integer(c_intptr_t) function clLinkProgram(context, &
@@ -1104,7 +1104,7 @@ module clfortran
       type(c_ptr), value :: user_data
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clUnloadPlatformCompiler
     integer(c_int32_t) function clUnloadPlatformCompiler(platform) &
@@ -1114,7 +1114,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: platform
 
-    end function
+    endfunction
 
     ! clGetProgramInfo
     integer(c_int32_t) function clGetProgramInfo(program, &
@@ -1132,7 +1132,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! clGetProgramBuildInfo
     integer(c_int32_t) function clGetProgramBuildInfo(program, &
@@ -1152,7 +1152,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! ------------------
     ! Kernel Object APIs
@@ -1170,7 +1170,7 @@ module clfortran
       type(c_ptr), value :: kernel_name
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clCreateKernelsInProgram
     integer(c_int32_t) function clCreateKernelsInProgram(program, &
@@ -1186,7 +1186,7 @@ module clfortran
       type(c_ptr), value :: kernels
       integer(c_int32_t), intent(out) :: num_kernels_ret
 
-    end function
+    endfunction
 
     ! clRetainKernel
     integer(c_int32_t) function clRetainKernel(kernel) &
@@ -1196,7 +1196,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: kernel
 
-    end function
+    endfunction
 
     ! clReleaseKernel
     integer(c_int32_t) function clReleaseKernel(kernel) &
@@ -1206,7 +1206,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: kernel
 
-    end function
+    endfunction
 
     ! clSetKernelArg
     integer(c_int32_t) function clSetKernelArg(kernel, &
@@ -1222,7 +1222,7 @@ module clfortran
       integer(c_size_t), value :: arg_size
       type(c_ptr), value :: arg_value
 
-    end function
+    endfunction
 
     ! clGetKernelInfo
     integer(c_int32_t) function clGetKernelInfo(kernel, &
@@ -1240,7 +1240,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! clGetKernelArgInfo
     integer(c_int32_t) function clGetKernelArgInfo(kernel, &
@@ -1260,7 +1260,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! clGetKernelWorkGroupInfo
     integer(c_int32_t) function clGetKernelWorkGroupInfo(kernel, &
@@ -1280,7 +1280,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! -----------------
     ! Event Object APIs
@@ -1296,7 +1296,7 @@ module clfortran
       integer(c_int32_t), value :: num_events
       type(c_ptr), value :: event_list
 
-    end function
+    endfunction
 
     ! clGetEventInfo
     integer(c_int32_t) function clGetEventInfo(event, &
@@ -1314,7 +1314,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! clCreateUserEvent
     integer(c_intptr_t) function clCreateUserEvent(context, &
@@ -1326,7 +1326,7 @@ module clfortran
       integer(c_intptr_t), value :: context
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clRetainEvent
     integer(c_int32_t) function clRetainEvent(event) &
@@ -1336,7 +1336,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: event
 
-    end function
+    endfunction
 
     ! clReleaseEvent
     integer(c_int32_t) function clReleaseEvent(event) &
@@ -1346,7 +1346,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: event
 
-    end function
+    endfunction
 
     ! clSetUserEventStatus
     integer(c_int32_t) function clSetUserEventStatus(event, &
@@ -1358,7 +1358,7 @@ module clfortran
       integer(c_intptr_t), value :: event
       integer(c_int32_t), value :: execution_status
 
-    end function
+    endfunction
 
     ! clSetEventCallback
     integer(c_int32_t) function clSetEventCallback(event, &
@@ -1374,7 +1374,7 @@ module clfortran
       type(c_funptr), value :: pfn_notify
       type(c_ptr), value :: user_data
 
-    end function
+    endfunction
 
     ! --------------
     ! Profiling APIs
@@ -1396,7 +1396,7 @@ module clfortran
       type(c_ptr), value         :: param_value
       integer(c_size_t), intent(out) :: param_value_size_ret
 
-    end function
+    endfunction
 
     ! ---------------------
     ! Flush and Finish APIs
@@ -1410,7 +1410,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: command_queue
 
-    end function
+    endfunction
 
     ! clFinish
     integer(c_int32_t) function clFinish(command_queue) &
@@ -1420,7 +1420,7 @@ module clfortran
       ! Define parameters.
       integer(c_intptr_t), value :: command_queue
 
-    end function
+    endfunction
 
     ! ----------------------
     ! Enqueued Commands APIs
@@ -1450,7 +1450,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueReadBufferRect
     integer(c_int32_t) function clEnqueueReadBufferRect(command_queue, &
@@ -1487,7 +1487,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueWriteBuffer
     integer(c_int32_t) function clEnqueueWriteBuffer(command_queue, &
@@ -1513,7 +1513,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueWriteBufferRect
     integer(c_int32_t) function clEnqueueWriteBufferRect(command_queue, &
@@ -1549,7 +1549,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueFillBuffer
     integer(c_int32_t) function clEnqueueFillBuffer(command_queue, &
@@ -1575,7 +1575,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueCopyBuffer
     integer(c_int32_t) function clEnqueueCopyBuffer(command_queue, &
@@ -1601,7 +1601,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueCopyBufferRect
     integer(c_int32_t) function clEnqueueCopyBufferRect(command_queue, &
@@ -1635,7 +1635,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueReadImage
     integer(c_int32_t) function clEnqueueReadImage(command_queue, &
@@ -1665,7 +1665,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueWriteImage
     integer(c_int32_t) function clEnqueueWriteImage(command_queue, &
@@ -1695,7 +1695,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueFillImage
     integer(c_int32_t) function clEnqueueFillImage(command_queue, &
@@ -1719,7 +1719,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueCopyImage
     integer(c_int32_t) function clEnqueueCopyImage(command_queue, &
@@ -1745,7 +1745,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueCopyImageToBuffer
     integer(c_int32_t) function clEnqueueCopyImageToBuffer(command_queue, &
@@ -1771,7 +1771,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueCopyBufferToImage
     integer(c_int32_t) function clEnqueueCopyBufferToImage(command_queue, &
@@ -1797,7 +1797,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueMapBuffer
     type(c_ptr) function clEnqueueMapBuffer(command_queue, &
@@ -1825,7 +1825,7 @@ module clfortran
       type(c_ptr), value :: event
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clEnqueueMapImage
     type(c_ptr) function clEnqueueMapImage(command_queue, &
@@ -1857,7 +1857,7 @@ module clfortran
       type(c_ptr), value :: event
       integer(c_int32_t), intent(out) :: errcode_ret
 
-    end function
+    endfunction
 
     ! clEnqueueUnmapMemObject
     integer(c_int32_t) function clEnqueueUnmapMemObject(command_queue, &
@@ -1877,7 +1877,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueMigrateMemObjects
     integer(c_int32_t) function clEnqueueMigrateMemObjects(command_queue, &
@@ -1899,7 +1899,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueNDRangeKernel.
     integer(c_int32_t) function clEnqueueNDRangeKernel(command_queue, &
@@ -1925,7 +1925,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueTask
     integer(c_int32_t) function clEnqueueTask(command_queue, &
@@ -1943,7 +1943,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueNativeKernel
     integer(c_int32_t) function clEnqueueNativeKernel(command_queue, &
@@ -1971,7 +1971,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueMarkerWithWaitList
     integer(c_int32_t) function clEnqueueMarkerWithWaitList(command_queue, &
@@ -1987,7 +1987,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clEnqueueMarkerWithWaitList
     integer(c_int32_t) function clEnqueueBarrierWithWaitList(command_queue, &
@@ -2003,7 +2003,7 @@ module clfortran
       type(c_ptr), value :: event_wait_list
       type(c_ptr), value :: event
 
-    end function
+    endfunction
 
     ! clSetPrintfCallback
     integer(c_int32_t) function clSetPrintfCallback(context, &
@@ -2017,7 +2017,7 @@ module clfortran
       type(c_funptr), value :: pfn_notify
       type(c_ptr), value :: user_data
 
-    end function
+    endfunction
 
     ! -------------------------
     ! Extension function access
@@ -2031,11 +2031,11 @@ module clfortran
       integer(c_intptr_t), value :: platform
       type(c_ptr), value :: func_name
 
-    end function
+    endfunction
 !
 !    !
 !    !end interface
 !    !
-  end interface
+  endinterface
 !
-end module clfortran
+endmodule clfortran

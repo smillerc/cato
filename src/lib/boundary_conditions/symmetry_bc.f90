@@ -36,7 +36,7 @@ module mod_symmetry_bc
   contains
     procedure, public :: apply => apply_symmetry_primitive_var_bc
     final :: finalize
-  end type
+  endtype
 
 contains
 
@@ -50,7 +50,7 @@ contains
     bc%name = 'symmetry'
     bc%location = location
     call bc%set_indices(grid)
-  end function symmetry_bc_constructor
+  endfunction symmetry_bc_constructor
 
   subroutine apply_symmetry_primitive_var_bc(self, rho, u, v, p)
 
@@ -71,65 +71,65 @@ contains
     ! bottom_ghost => self%jlo_ghost
     ! top_ghost => self%jhi_ghost
 
-      select case(self%location)
-      case('+x')
-        if(rho%on_ihi_bc) then
-          if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
+    select case(self%location)
+    case('+x')
+      if(rho%on_ihi_bc) then
+        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +x', __FILE__, __LINE__)
 
-          ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
-          do g = 1, self%n_ghost_layers
-            rho%data(self%ihi_ghost(g), :) = rho%data(self%ihi - (g - 1), :)
-            u%data(self%ihi_ghost(g), :) = -u%data(self%ihi - (g - 1), :)
-            v%data(self%ihi_ghost(g), :) = v%data(self%ihi - (g - 1), :)
-            p%data(self%ihi_ghost(g), :) = p%data(self%ihi - (g - 1), :)
-          end do
-        endif
+        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
+        do g = 1, self%n_ghost_layers
+          rho%data(self%ihi_ghost(g), :) = rho%data(self%ihi - (g - 1), :)
+          u%data(self%ihi_ghost(g), :) = -u%data(self%ihi - (g - 1), :)
+          v%data(self%ihi_ghost(g), :) = v%data(self%ihi - (g - 1), :)
+          p%data(self%ihi_ghost(g), :) = p%data(self%ihi - (g - 1), :)
+        enddo
+      endif
 
-      case('-x')
-        if(rho%on_ilo_bc) then
-          if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
+    case('-x')
+      if(rho%on_ilo_bc) then
+        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -x', __FILE__, __LINE__)
 
-          ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
-          do g = 1, self%n_ghost_layers
-            rho%data(self%ilo_ghost(g), :) = rho%data(self%ilo + (g - 1), :)
-            u%data(self%ilo_ghost(g), :) = -u%data(self%ilo + (g - 1), :)
-            v%data(self%ilo_ghost(g), :) = v%data(self%ilo + (g - 1), :)
-            p%data(self%ilo_ghost(g), :) = p%data(self%ilo + (g - 1), :)
-          end do
-        end if
-      case('+y')
-        if(rho%on_jhi_bc) then
-          if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
+        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
+        do g = 1, self%n_ghost_layers
+          rho%data(self%ilo_ghost(g), :) = rho%data(self%ilo + (g - 1), :)
+          u%data(self%ilo_ghost(g), :) = -u%data(self%ilo + (g - 1), :)
+          v%data(self%ilo_ghost(g), :) = v%data(self%ilo + (g - 1), :)
+          p%data(self%ilo_ghost(g), :) = p%data(self%ilo + (g - 1), :)
+        enddo
+      endif
+    case('+y')
+      if(rho%on_jhi_bc) then
+        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() +y', __FILE__, __LINE__)
 
-          ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
-          do g = 1, self%n_ghost_layers
-            rho%data(:, self%jhi_ghost(g)) = rho%data(:, self%jhi - (g - 1))
-            u%data(:, self%jhi_ghost(g)) = u%data(:, self%jhi - (g - 1))
-            v%data(:, self%jhi_ghost(g)) = -v%data(:, self%jhi - (g - 1))
-            p%data(:, self%jhi_ghost(g)) = p%data(:, self%jhi - (g - 1))
-          end do
-        end if
-      case('-y')
-        if(rho%on_jlo_bc) then
-          if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
+        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
+        do g = 1, self%n_ghost_layers
+          rho%data(:, self%jhi_ghost(g)) = rho%data(:, self%jhi - (g - 1))
+          u%data(:, self%jhi_ghost(g)) = u%data(:, self%jhi - (g - 1))
+          v%data(:, self%jhi_ghost(g)) = -v%data(:, self%jhi - (g - 1))
+          p%data(:, self%jhi_ghost(g)) = p%data(:, self%jhi - (g - 1))
+        enddo
+      endif
+    case('-y')
+      if(rho%on_jlo_bc) then
+        if(enable_debug_print) call debug_print('Running symmetry_bc_t%apply_symmetry_primitive_var_bc() -y', __FILE__, __LINE__)
 
-          ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
-          do g = 1, self%n_ghost_layers
-            rho%data(:, self%jlo_ghost(g)) = rho%data(:, self%jlo + (g - 1))
-            u%data(:, self%jlo_ghost(g)) = u%data(:, self%jlo + (g - 1))
-            v%data(:, self%jlo_ghost(g)) = -v%data(:, self%jlo + (g - 1))
-            p%data(:, self%jlo_ghost(g)) = p%data(:, self%jlo + (g - 1))
-          end do
-        endif
-      case default
-        call error_msg(module_name='mod_symmetry_bc', &
-                       class_name='symmetry_bc_t', &
-                       procedure_name='apply_symmetry_primitive_var_bc', &
-                       message="Unsupported BC location", &
-                       file_name=__FILE__, line_number=__LINE__)
-      end select
+        ! ghost layer indexing is always innermost to outermost, e.g. g=1 is right next to the real domain
+        do g = 1, self%n_ghost_layers
+          rho%data(:, self%jlo_ghost(g)) = rho%data(:, self%jlo + (g - 1))
+          u%data(:, self%jlo_ghost(g)) = u%data(:, self%jlo + (g - 1))
+          v%data(:, self%jlo_ghost(g)) = -v%data(:, self%jlo + (g - 1))
+          p%data(:, self%jlo_ghost(g)) = p%data(:, self%jlo + (g - 1))
+        enddo
+      endif
+    case default
+      call error_msg(module_name='mod_symmetry_bc', &
+                     class_name='symmetry_bc_t', &
+                     procedure_name='apply_symmetry_primitive_var_bc', &
+                     message="Unsupported BC location", &
+                     file_name=__FILE__, line_number=__LINE__)
+    endselect
 
-  end subroutine apply_symmetry_primitive_var_bc
+  endsubroutine apply_symmetry_primitive_var_bc
 
   subroutine finalize(self)
     type(symmetry_bc_t), intent(inout) :: self
@@ -138,5 +138,5 @@ contains
     if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
     if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)
     if(allocated(self%jhi_ghost)) deallocate(self%jhi_ghost)
-  end subroutine finalize
-end module mod_symmetry_bc
+  endsubroutine finalize
+endmodule mod_symmetry_bc

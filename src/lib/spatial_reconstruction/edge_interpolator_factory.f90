@@ -61,7 +61,7 @@ contains
       limiter = trim(limiter_name)
     else
       limiter = input%limiter
-    end if
+    endif
 
     select case(trim(input%spatial_reconstruction))
     case('TVD2', 'piecewise_linear')
@@ -77,11 +77,11 @@ contains
                      trim(input%spatial_reconstruction)//"', must be one of the following: "// &
                      "'TVD2', 'TVD3', 'TVD5', 'MLP3', or 'MLP5'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     call interpolator%initialize(limiter=limiter)
     deallocate(limiter)
 
-  end function edge_interpolator_factory
+  endfunction edge_interpolator_factory
 
-end module mod_edge_interpolator_factory
+endmodule mod_edge_interpolator_factory

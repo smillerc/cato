@@ -59,7 +59,7 @@ module mod_pressure_input_bc
     procedure, private :: get_desired_density
     procedure, public :: apply => apply_pressure_input_primitive_var_bc
     final :: finalize
-  end type
+  endtype
 contains
 
   function pressure_input_bc_constructor(location, input, grid, time) result(bc)
@@ -85,9 +85,9 @@ contains
       call bc%read_pressure_input()
     else
       bc%pressure_input = input%constant_bc_pressure_value / p_0 ! non-dimensionalize
-    end if
+    endif
 
-  end function pressure_input_bc_constructor
+  endfunction pressure_input_bc_constructor
 
   subroutine read_pressure_input(self)
     !< Read the pressure input file and initialize the linear iterpolated object. This
@@ -114,7 +114,7 @@ contains
       call error_msg(module_name='mod_pressure_input_bc', class_name='pressure_input_bc_t', procedure_name='read_pressure_input', &
                      message="Pressure input file '"//trim(self%input_filename)//"' not found", &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     ! Open and determine how many lines there are
     open(newunit=input_unit, file=trim(self%input_filename))
@@ -124,11 +124,11 @@ contains
       if(nlines == 0) then
         line_buffer = adjustl(line_buffer)
         if(line_buffer(1:1) == '#') has_header_line = .true.
-      end if
+      endif
 
       if(io_status /= 0) exit
       nlines = nlines + 1
-    end do
+    enddo
     close(input_unit)
 
     ! Re-open and now allocate the arrays to the proper size based on the # of lines in the file
@@ -136,7 +136,7 @@ contains
     if(has_header_line) then
       read(input_unit, *, iostat=io_status) ! skip the first line
       nlines = nlines - 1
-    end if
+    endif
 
     allocate(time_sec(nlines))
     allocate(pressure_barye(nlines))
@@ -148,7 +148,7 @@ contains
     do line = 1, nlines
       read(input_unit, *, iostat=io_status) time_sec(line), pressure_barye(line), density_gcc(line)
       if(io_status /= 0) exit
-    end do
+    enddo
     close(input_unit)
 
     ! Apply scaling and non-dimensionalization
@@ -167,7 +167,7 @@ contains
       write(*, *) density_gcc
       write(*, *) interp_status
       error stop "Error initializing pressure_input_bc_t%temporal_pressure_input"
-    end if
+    endif
 
     allocate(self%temporal_density_input)
     call self%temporal_density_input%initialize(time_sec, density_gcc, interp_status)
@@ -177,12 +177,12 @@ contains
       write(*, *) density_gcc
       write(*, *) interp_status
       error stop "Error initializing pressure_input_bc_t%temporal_density_input"
-    end if
+    endif
 
     deallocate(time_sec)
     deallocate(pressure_barye)
     deallocate(density_gcc)
-  end subroutine read_pressure_input
+  endsubroutine read_pressure_input
 
   real(rk) function get_desired_pressure(self) result(desired_pressure)
     class(pressure_input_bc_t), intent(inout) :: self
@@ -196,14 +196,14 @@ contains
       call self%temporal_pressure_input%evaluate(x=self%get_time(), f=desired_pressure, istat=interp_stat)
       if(interp_stat /= 0) then
         error stop "Unable to interpolate pressure within pressure_input_bc_t%get_desired_pressure()"
-      end if
-    end if
+      endif
+    endif
 
     if(desired_pressure < tiny(1.0_rk)) then
       error stop "Error in pressure_input_bc_t%get_desired_pressure: desired_pressure < tiny(1.0_rk)"
-    end if
+    endif
 
-  end function get_desired_pressure
+  endfunction get_desired_pressure
 
   real(rk) function get_desired_density(self) result(desired_density)
     class(pressure_input_bc_t), intent(inout) :: self
@@ -218,13 +218,13 @@ contains
 
       if(interp_stat /= 0) then
         error stop "Unable to interpolate density within pressure_input_bc_t%get_desired_density()"
-      end if
-    end if
+      endif
+    endif
 
     if(desired_density < tiny(1.0_rk)) then
       error stop "Error in pressure_input_bc_t%get_desired_density: desired_density < tiny(1.0_rk)"
-    end if
-  end function get_desired_density
+    endif
+  endfunction get_desired_density
 
   subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p)
     !< Apply pressure_input boundary conditions to the conserved state vector field
@@ -250,7 +250,7 @@ contains
     real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
     real(rk), dimension(2) :: boundary_norm
 
-    if(enable_debug_print) call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() ', __FILE__, __LINE__)
+ if(enable_debug_print) call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() ', __FILE__, __LINE__)
 
     if(rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
        rho%on_jhi_bc .or. rho%on_jlo_bc) then
@@ -296,7 +296,7 @@ contains
           domain_u = 0.0_rk
           domain_v = 0.0_rk
           domain_p = 0.0_rk
-        end if
+        endif
       case('+y', '-y')
         if(rho%on_jhi_bc .or. rho%on_jlo_bc) then
           allocate(self%edge_rho(left_ghost:right_ghost))
@@ -315,9 +315,8 @@ contains
           domain_u = 0.0_rk
           domain_v = 0.0_rk
           domain_p = 0.0_rk
-        end if
-      end select
-
+        endif
+      endselect
 
       select case(self%location)
       case('+x')
@@ -325,7 +324,7 @@ contains
           if(enable_debug_print) then
             call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() +x', &
                              __FILE__, __LINE__)
-          end if
+          endif
 
           domain_rho = rho%data(right, bottom_ghost:top_ghost)
           domain_u = u%data(right, bottom_ghost:top_ghost)
@@ -349,7 +348,7 @@ contains
                                                        boundary_norm=boundary_norm)
                 else
                   boundary_prim_vars = supersonic_outlet(domain_prim_vars=domain_prim_vars)
-                end if
+                endif
               else ! inlet
                 if(abs(mach_u) > 1.0_rk) then
                   boundary_prim_vars = [desired_boundary_density, u_d, v_d, desired_boundary_pressure]
@@ -359,33 +358,33 @@ contains
                                                       inlet_density=desired_boundary_density, &
                                                       inlet_total_press=desired_boundary_pressure, &
                                                       inlet_flow_angle=0.0_rk)
-                end if
-              end if
-            end associate
+                endif
+              endif
+            endassociate
             self%edge_rho(j) = boundary_prim_vars(1)
             self%edge_u(j) = boundary_prim_vars(2)
             self%edge_v(j) = 0.0_rk
             self%edge_p(j) = boundary_prim_vars(4)
-          end do
+          enddo
 
           do i = 1, self%n_ghost_layers
             rho%data(self%ihi_ghost(i), bottom:top) = self%edge_rho(bottom:top)
             u%data(self%ihi_ghost(i), bottom:top) = self%edge_u(bottom:top)
             v%data(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
             p%data(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
-          end do
-        end if ! on_ihi_bc
+          enddo
+        endif ! on_ihi_bc
       case default
         call error_msg(module_name='mod_pressure_bc', class_name='pressure_input_bc_t', &
                        procedure_name='apply_pressure_input_primitive_var_bc', &
                        message="Unsupported pressure_bc location '"//self%location//"'", &
                        file_name=__FILE__, line_number=__LINE__)
-      end select
+      endselect
 
-    end associate
+    endassociate
     if(allocated(edge_pressure)) deallocate(edge_pressure)
 
-  end subroutine apply_pressure_input_primitive_var_bc
+  endsubroutine apply_pressure_input_primitive_var_bc
 
   subroutine finalize(self)
     type(pressure_input_bc_t), intent(inout) :: self
@@ -402,5 +401,5 @@ contains
 
     if(allocated(self%temporal_density_input)) deallocate(self%temporal_density_input)
     if(allocated(self%temporal_pressure_input)) deallocate(self%temporal_pressure_input)
-  end subroutine finalize
-end module mod_pressure_input_bc
+  endsubroutine finalize
+endmodule mod_pressure_input_bc

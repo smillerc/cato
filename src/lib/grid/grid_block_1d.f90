@@ -22,14 +22,14 @@ module mod_grid_block_1d
   contains
     procedure :: initialize => init_1d_block
     final :: finalize_1d_block
-  end type grid_block_1d_t
+  endtype grid_block_1d_t
 contains
   function new_1d_grid_block(input) result(grid)
     type(grid_block_1d_t), pointer :: grid
     class(input_t), intent(in) :: input
     allocate(grid)
     call grid%initialize(input)
-  end function new_1d_grid_block
+  endfunction new_1d_grid_block
 
   subroutine init_1d_block(self, input)
     class(grid_block_1d_t), intent(inout) :: self
@@ -61,7 +61,7 @@ contains
     self%cell_ubounds_halo = 0
     allocate(self%on_bc(2, 1))
     self%on_bc = .false.
-  end subroutine
+  endsubroutine
 
   subroutine finalize_1d_block(self)
     type(grid_block_1d_t), intent(inout) :: self
@@ -87,6 +87,6 @@ contains
     if(allocated(self%cell_lbounds_halo)) deallocate(self%cell_lbounds_halo)
     if(allocated(self%cell_ubounds_halo)) deallocate(self%cell_ubounds_halo)
     if(allocated(self%on_bc)) deallocate(self%on_bc)
-  end subroutine
+  endsubroutine
 
-end module mod_grid_block_1d
+endmodule mod_grid_block_1d

@@ -22,7 +22,7 @@ module mod_grid_block_3d
   contains
     procedure :: initialize => init_3d_block
     final :: finalize_3d_block
-  end type grid_block_3d_t
+  endtype grid_block_3d_t
 contains
 
   function new_3d_grid_block(input) result(grid)
@@ -30,7 +30,7 @@ contains
     class(input_t), intent(in) :: input
     allocate(grid)
     call grid%initialize(input)
-  end function new_3d_grid_block
+  endfunction new_3d_grid_block
 
   subroutine init_3d_block(self, input)
     class(grid_block_3d_t), intent(inout) :: self
@@ -63,7 +63,7 @@ contains
     allocate(self%on_bc(2, 3))
     self%on_bc = .false.
 
-  end subroutine
+  endsubroutine
 
   subroutine finalize_3d_block(self)
     type(grid_block_3d_t), intent(inout) :: self
@@ -89,5 +89,5 @@ contains
     if(allocated(self%cell_lbounds_halo)) deallocate(self%cell_lbounds_halo)
     if(allocated(self%cell_ubounds_halo)) deallocate(self%cell_ubounds_halo)
     if(allocated(self%on_bc)) deallocate(self%on_bc)
-  end subroutine
-end module mod_grid_block_3d
+  endsubroutine
+endmodule mod_grid_block_3d

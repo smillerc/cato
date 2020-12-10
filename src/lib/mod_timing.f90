@@ -50,7 +50,7 @@ module mod_timing
     procedure :: stop
     procedure :: output_stats
     procedure :: log_time
-  end type
+  endtype
 
 contains
 
@@ -69,7 +69,7 @@ contains
 
     ! Start the clock
     call system_clock(count=self%count_start)
-  end subroutine
+  endsubroutine
 
   subroutine log_time(self, iteration, timestep)
     !< Keep a running log of the timings and save it to a csv file
@@ -92,7 +92,7 @@ contains
     write(self%log_file, '(i0, 3(", ", es14.4))') &
       iteration, elapsed_walltime, elapsed_cputime, timestep
 
-  end subroutine log_time
+  endsubroutine log_time
 
   subroutine stop(self)
     class(timer_t), intent(inout) :: self
@@ -100,7 +100,7 @@ contains
     call system_clock(count=self%count_end)
     self%elapsed_walltime = (self%count_end - self%count_start) / self%counter_rate
     self%elapsed_cputime = self%end_cputime - self%start_cputime
-  end subroutine
+  endsubroutine
 
   subroutine output_stats(self)
     class(timer_t), intent(in) :: self
@@ -121,8 +121,8 @@ contains
         write(unit, '(a, es10.3)') "Total elapsed CPU time [s]:", self%elapsed_cputime
         write(unit, '(a, es10.3)') "Total elapsed CPU time [m]:", self%elapsed_cputime / 60.0_rk
         write(unit, '(a, es10.3)') "Total elapsed CPU time [hr]:", self%elapsed_cputime / 3600.0_rk
-      end do
+      enddo
       close(io)
-    end if
-  end subroutine
-end module mod_timing
+    endif
+  endsubroutine
+endmodule mod_timing

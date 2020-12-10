@@ -26,15 +26,15 @@ contains
     else
       write(std_out, '(a, i0)') "Error: "//trim(message)//"; in "//module_name &
         //"::"//procedure_name//"() in "//file_name//":", line_number
-    end if
+    endif
 
     ! Catch-all error code
     if(present(error_stop)) then
       if(error_stop) error stop 1
     else
       error stop 1
-    end if
+    endif
     flush(std_err)
-  end subroutine error_msg
+  endsubroutine error_msg
 
-end module mod_error
+endmodule mod_error

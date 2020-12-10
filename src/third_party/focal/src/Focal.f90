@@ -67,7 +67,7 @@ module Focal
     integer(c_intptr_t) :: cl_platform_id            !! OpenCL platform pointer
     character(:), allocatable :: platformName        !! Name of containing platform
     character(:), allocatable :: platformVendor      !! Vendor of containing platform
-  end type fclDevice
+  endtype fclDevice
 
   type :: fclPlatform
     !! Type wrapper for openCL platform objects
@@ -80,20 +80,20 @@ module Focal
     integer :: numDevice                             !! No. of devices
     type(fclDevice), allocatable :: devices(:)           !! Focal device objects
     integer(c_intptr_t), allocatable :: cl_device_ids(:) !! openCL device pointers
-  end type fclPlatform
+  endtype fclPlatform
 
   type :: fclContext
     !! Type wrapper for openCL context objects
     integer(c_intptr_t) :: cl_context = -1           !! openCL context pointer
     type(fclPlatform) :: platform                    !! Focal platform object
-  end type fclContext
+  endtype fclContext
 
   type :: fclEvent
     !! Type wrapper for OpenCL event pointers
     integer(c_intptr_t) :: cl_event = -1             !! OpenCL event pointer
   contains
     final :: fclReleaseEvent                       !! Decrement cl reference counter
-  end type fclEvent
+  endtype fclEvent
 
   type :: fclCommandQ
     !! Type wrapper for openCL command queue objects
@@ -124,7 +124,7 @@ module Focal
       !! Set to true to not automatically clear dependencies after enqueueing.
       !! Use for applying the same dependencies to multiple commands.
       !! Use fclClearDependencies to clear and reset.
-  end type fclCommandQ
+  endtype fclCommandQ
 
   type :: fclCommandQPool
     !! Collection of fclCommandQ objects with round-robin scheduling.
@@ -141,22 +141,22 @@ module Focal
       !! Returns next scheduled queue in queue pool
     procedure, pass :: current => fclCommandQPool_Current
       !! Returns current scheduled queue in queue pool
-  end type fclCommandQPool
+  endtype fclCommandQPool
 
   type :: fclProgram
     !! Type wrapper for openCL program objects
     integer(c_intptr_t) :: cl_program                !! openCL program pointer
-  end type fclProgram
+  endtype fclProgram
 
   type :: fclKernelPointer
     !! Wrapper type for implementing an array of pointers to kernel objects
     class(fclKernel), pointer :: target
-  end type fclKernelPointer
+  endtype fclKernelPointer
 
   type :: fclBufferPointer
     !! Wrapper type for implementing an array of pointers to buffer objects
     class(fclDeviceBuffer), pointer :: target
-  end type fclBufferPointer
+  endtype fclBufferPointer
 
   type :: fclProfiler
     !! Helper type to collect objects (kernels and buffers) that
@@ -173,7 +173,7 @@ module Focal
       !! Number of buffers in buffers array
   contains
     procedure, pass :: add => fclProfilerAdd
-  end type fclProfiler
+  endtype fclProfiler
 
   type :: fclProfileContainer
     !! Base container type for event profiling
@@ -192,7 +192,7 @@ module Focal
   contains
     ! procedure, pass :: enableProfiling => fclEnableProfiling
     procedure, pass :: pushProfileEvent => fclPushProfileEvent
-  end type fclProfileContainer
+  endtype fclProfileContainer
 
   type, extends(fclProfileContainer) :: fclKernel
     !! Type wrapper for openCL kernel objects
@@ -212,7 +212,7 @@ module Focal
     generic :: launchAfter => launchKernelAfterEvent_1, launchKernelAfterEvent_2, &
       launchKernelAfterEventList_1, launchKernelAfterEventList_2
       !! Launch a kernel with event dependencies
-  end type fclKernel
+  endtype fclKernel
 
   type, extends(fclProfileContainer) :: fclDeviceBuffer
     !! Type wrapper for openCL memory objects
@@ -221,37 +221,37 @@ module Focal
     integer(c_size_t) :: nBytes = -1                 !! Size of buffer in bytes
     logical :: kernelRead                            !! Indicates kernel read access
     logical :: kernelWrite                           !! Indicate kernel write access
-  end type fclDeviceBuffer
+  endtype fclDeviceBuffer
 
   type, extends(fclDeviceBuffer) :: fclDeviceInt32
     !! Type wrapper for memory objects representing int32
-  end type fclDeviceInt32
+  endtype fclDeviceInt32
 
   type, extends(fclDeviceBuffer) :: fclDeviceFloat
     !! Type wrapper for memory objects representing float
-  end type fclDeviceFloat
+  endtype fclDeviceFloat
 
   type, extends(fclDeviceBuffer) :: fclDeviceDouble
     !! Type wrapper for memory objects representing double
-  end type fclDeviceDouble
+  endtype fclDeviceDouble
 
   type :: fclLocalArgument
     !! Type for specifying local kernel arguments.
     !!  Instantiate with on of: fclLocalInt32, fclLocalFloat, fclLocalDouble
     integer(c_size_t) :: nBytes                      !! Size of local argument in bytes
-  end type fclLocalArgument
+  endtype fclLocalArgument
 
   type, extends(fclLocalArgument) :: fclLocalArgInt32
     !! Type wrapper for local kernel arguments representing 32 bit integers
-  end type fclLocalArgInt32
+  endtype fclLocalArgInt32
 
   type, extends(fclLocalArgument) :: fclLocalArgFloat
     !! Type wrapper for local kernel arguments representing floats
-  end type fclLocalArgFloat
+  endtype fclLocalArgFloat
 
   type, extends(fclLocalArgument) :: fclLocalArgDouble
     !! Type wrapper for local kernel arguments representing doubles
-  end type fclLocalArgDouble
+  endtype fclLocalArgDouble
 
   ! ---------------------------- ABSTRACT INTERFACES --------------------------
 
@@ -261,8 +261,8 @@ module Focal
       integer(c_int32_t), intent(in) :: errcode
       character(*), intent(in) :: focalCall
       character(*), intent(in) :: oclCall
-    end subroutine fclErrorHandlerInterface
-  end interface
+    endsubroutine fclErrorHandlerInterface
+  endinterface
 
   ! ---------------------------- GLOBAL PARAMETERS ----------------------------
 
@@ -306,26 +306,26 @@ module Focal
       integer, intent(in) :: builderrcode            !! OpenCL API error code
       type(fclProgram), intent(in) :: prog           !! Focal program object
       type(fclContext), intent(in) :: ctx            !! Focal context object
-    end subroutine fclHandleBuildError
+    endsubroutine fclHandleBuildError
 
     module subroutine fclDefaultErrorHandler(errcode, focalCall, oclCall)
       integer(c_int32_t), intent(in) :: errcode
       character(*), intent(in) :: focalCall
       character(*), intent(in) :: oclCall
-    end subroutine fclDefaultErrorHandler
+    endsubroutine fclDefaultErrorHandler
 
     module function fclGetErrorString(errcode) result(errstr)
       !! Return the text representation for an openCL error code
       integer, intent(in) :: errcode                 !! OpenCL API error code
       character(errStringLen) :: errstr              !! Returns OpenCL error string
-    end function fclGetErrorString
+    endfunction fclGetErrorString
 
     module subroutine fclRuntimeError(descrip)
       !! Stop and print message for Focal errors not caused by openCL API call
       character(*), intent(in), optional :: descrip  !! Description of current API call
-    end subroutine fclRuntimeError
+    endsubroutine fclRuntimeError
 
-  end interface
+  endinterface
 
   ! -------------------------- HOST MEMORY ROUTINES -----------------------------
 
@@ -356,7 +356,7 @@ module Focal
         !! c pointer to allocated host memory
       integer(c_int64_t), intent(in) :: nBytes
         !! Desired array size in bytes
-    end subroutine fclAllocHostPtr_1
+    endsubroutine fclAllocHostPtr_1
 
     module subroutine fclAllocHostPtr_2(hostPtr, nBytes)
       !! Allocate a 'pinned' (non-paged) host array on default cmdq
@@ -364,7 +364,7 @@ module Focal
         !! c pointer to allocated host memory
       integer(c_int64_t), intent(in) :: nBytes
         !! Desired array size in bytes
-    end subroutine fclAllocHostPtr_2
+    endsubroutine fclAllocHostPtr_2
 
     module subroutine fclAllocHostInt32D1_1(cmdq, hostPtr, dim)
       !! Allocate a 1D 'pinned' host array for 32bit integers
@@ -374,7 +374,7 @@ module Focal
         !! Host array pointer to allocate
       integer, intent(in) :: dim
         !! Size of array to allocate
-    end subroutine fclAllocHostInt32D1_1
+    endsubroutine fclAllocHostInt32D1_1
 
     module subroutine fclAllocHostInt32D1_2(hostPtr, dim)
       !! Allocate a 1D 'pinned' host array for 32bit integers on default cmdq
@@ -382,7 +382,7 @@ module Focal
         !! Host array pointer to allocate
       integer, intent(in) :: dim
         !! Size of array to allocate
-    end subroutine fclAllocHostInt32D1_2
+    endsubroutine fclAllocHostInt32D1_2
 
     module subroutine fclAllocHostFloatD1_1(cmdq, hostPtr, dim)
       !! Allocate a 1D 'pinned' host array for 32bit reals
@@ -392,7 +392,7 @@ module Focal
         !! Host array pointer to allocate
       integer, intent(in) :: dim
         !! Size of array to allocate
-    end subroutine fclAllocHostFloatD1_1
+    endsubroutine fclAllocHostFloatD1_1
 
     module subroutine fclAllocHostFloatD1_2(hostPtr, dim)
       !! Allocate a 1D 'pinned' host array for 32bit reals on default cmdq
@@ -400,7 +400,7 @@ module Focal
         !! Host array pointer to allocate
       integer, intent(in) :: dim
         !! Size of array to allocate
-    end subroutine fclAllocHostFloatD1_2
+    endsubroutine fclAllocHostFloatD1_2
 
     module subroutine fclAllocHostDoubleD1_1(cmdq, hostPtr, dim)
       !! Allocate a 1D 'pinned' host array for 64bit reals
@@ -410,7 +410,7 @@ module Focal
         !! Host array pointer to allocate
       integer, intent(in) :: dim
         !! Size of array to allocate
-    end subroutine fclAllocHostDoubleD1_1
+    endsubroutine fclAllocHostDoubleD1_1
 
     module subroutine fclAllocHostDoubleD1_2(hostPtr, dim)
       !! Allocate a 1D 'pinned' host array for 64bit reals on default cmdq
@@ -418,9 +418,9 @@ module Focal
         !! Host array pointer to allocate
       integer, intent(in) :: dim
         !! Size of array to allocate
-    end subroutine fclAllocHostDoubleD1_2
+    endsubroutine fclAllocHostDoubleD1_2
 
-  end interface fclAllocHost
+  endinterface fclAllocHost
 
   interface fclFreeHost
     !! Generic interface to free pinned host pointer
@@ -432,41 +432,41 @@ module Focal
       !! Enqueue unmap/free command to specific command queue
       type(fclCommandQ), intent(in) :: cmdq
       type(c_ptr), intent(in) :: hostPtr
-    end subroutine fclFreeHostPtr_1
+    endsubroutine fclFreeHostPtr_1
 
     module subroutine fclFreeHostPtr_2(hostPtr)
       !! Enqueue unmap/free command to default command queue
       type(c_ptr), intent(inout) :: hostPtr
-    end subroutine fclFreeHostPtr_2
+    endsubroutine fclFreeHostPtr_2
 
     module subroutine fclFreeHostInt32_1(cmdq, hostPtr)
       type(fclCommandQ), intent(in) :: cmdq
       integer(c_int32_t), intent(inout), pointer :: hostPtr(:)
-    end subroutine fclFreeHostInt32_1
+    endsubroutine fclFreeHostInt32_1
 
     module subroutine fclFreeHostInt32_2(hostPtr)
       integer(c_int32_t), intent(inout), pointer :: hostPtr(:)
-    end subroutine fclFreeHostInt32_2
+    endsubroutine fclFreeHostInt32_2
 
     module subroutine fclFreeHostFloat_1(cmdq, hostPtr)
       type(fclCommandQ), intent(in) :: cmdq
       real(c_float), intent(inout), pointer :: hostPtr(:)
-    end subroutine fclFreeHostFloat_1
+    endsubroutine fclFreeHostFloat_1
 
     module subroutine fclFreeHostFloat_2(hostPtr)
       real(c_float), intent(inout), pointer :: hostPtr(:)
-    end subroutine fclFreeHostFloat_2
+    endsubroutine fclFreeHostFloat_2
 
     module subroutine fclFreeHostDouble_1(cmdq, hostPtr)
       type(fclCommandQ), intent(in) :: cmdq
       real(c_double), intent(inout), pointer :: hostPtr(:)
-    end subroutine fclFreeHostDouble_1
+    endsubroutine fclFreeHostDouble_1
 
     module subroutine fclFreeHostDouble_2(hostPtr)
       real(c_double), intent(inout), pointer :: hostPtr(:)
-    end subroutine fclFreeHostDouble_2
+    endsubroutine fclFreeHostDouble_2
 
-  end interface fclFreeHost
+  endinterface fclFreeHost
 
   ! ---------------------------- MEMORY ROUTINES -------------------------------
   interface assignment(=)
@@ -483,7 +483,7 @@ module Focal
     procedure :: fclMemCopyInt32
     procedure :: fclMemCopyFloat
     procedure :: fclMemCopyDouble
-  end interface
+  endinterface
 
   ! --------- Pointer swap ---------
   interface
@@ -494,8 +494,8 @@ module Focal
       !!        or if the buffers do not match in size. @endnote
       class(fclDeviceBuffer), intent(inout) :: memObject1, memObject2
         !! Buffer objects with which to swap pointers
-    end subroutine fclBufferSwap
-  end interface
+    endsubroutine fclBufferSwap
+  endinterface
 
   ! --------- Buffer Initialisation ---------
   interface fclInitBuffer
@@ -510,7 +510,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitBufferUntyped_1
+    endsubroutine fclInitBufferUntyped_1
 
     module subroutine fclInitBufferUntyped_2(buffer, nBytes, profileName, access)
       !! Initialise untyped buffer object on the default command queue
@@ -520,7 +520,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitBufferUntyped_2
+    endsubroutine fclInitBufferUntyped_2
 
     module subroutine fclInitBufferFloat_1(cmdq, buffer, dim, profileName, access)
       !! Initialise float buffer object on specific command queue
@@ -531,7 +531,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitBufferFloat_1
+    endsubroutine fclInitBufferFloat_1
 
     module subroutine fclInitBufferFloat_2(buffer, dim, profileName, access)
       !! Initialise float buffer object on the default command queue
@@ -541,7 +541,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitBufferFloat_2
+    endsubroutine fclInitBufferFloat_2
 
     module subroutine fclInitBufferDouble_1(cmdq, buffer, dim, profileName, access)
       !! Initialise double buffer object on specific command queue
@@ -552,7 +552,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitBufferDouble_1
+    endsubroutine fclInitBufferDouble_1
 
     module subroutine fclInitBufferDouble_2(buffer, dim, profileName, access)
       !! Initialise double buffer object on the default command queue
@@ -562,7 +562,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitBufferDouble_2
+    endsubroutine fclInitBufferDouble_2
 
     module subroutine fclInitBufferInt32_1(cmdq, buffer, dim, profileName, access)
       !! Initialise 32bit integer buffer object on specific command queue
@@ -573,7 +573,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitBufferInt32_1
+    endsubroutine fclInitBufferInt32_1
 
     module subroutine fclInitBufferInt32_2(buffer, dim, profileName, access)
       !! Initialise 32bit integer buffer object on the default command queue
@@ -583,9 +583,9 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitBufferInt32_2
+    endsubroutine fclInitBufferInt32_2
 
-  end interface fclInitBuffer
+  endinterface fclInitBuffer
 
   ! --------- Sub-Buffer Initialisation ---------
 
@@ -603,7 +603,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitSubBufferUntyped_1
+    endsubroutine fclInitSubBufferUntyped_1
 
     module subroutine fclInitSubBufferUntyped_2(subbuffer, sourceBuffer, offset, size, profileName, access)
       !! Initialise an untyped sub-buffer from an existing buffer on the default command queue
@@ -615,7 +615,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitSubBufferUntyped_2
+    endsubroutine fclInitSubBufferUntyped_2
 
     module subroutine fclInitSubBufferFloat_1(cmdq, subbuffer, sourceBuffer, start, length, profileName, access)
       !! Initialise a float sub-buffer from an existing float buffer
@@ -628,7 +628,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitSubBufferFloat_1
+    endsubroutine fclInitSubBufferFloat_1
 
     module subroutine fclInitSubBufferFloat_2(subbuffer, sourceBuffer, start, length, profileName, access)
       !! Initialise a float sub-buffer from an existing float buffer on the default command queue
@@ -640,7 +640,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitSubBufferFloat_2
+    endsubroutine fclInitSubBufferFloat_2
 
     module subroutine fclInitSubBufferDouble_1(cmdq, subbuffer, sourceBuffer, start, length, profileName, access)
       !! Initialise a double sub-buffer from an existing float buffer
@@ -653,7 +653,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitSubBufferDouble_1
+    endsubroutine fclInitSubBufferDouble_1
 
     module subroutine fclInitSubBufferDouble_2(subbuffer, sourceBuffer, start, length, profileName, access)
       !! Initialise a double sub-buffer from an existing float buffer on the default command queue
@@ -665,7 +665,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitSubBufferDouble_2
+    endsubroutine fclInitSubBufferDouble_2
 
     module subroutine fclInitSubBufferint32_1(cmdq, subbuffer, sourceBuffer, start, length, profileName, access)
       !! Initialise a 32bit integer sub-buffer from an existing float buffer
@@ -678,7 +678,7 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitSubBufferint32_1
+    endsubroutine fclInitSubBufferint32_1
 
     module subroutine fclInitSubBufferint32_2(subbuffer, sourceBuffer, start, length, profileName, access)
       !! Initialise a 32bit integer sub-buffer from an existing float buffer on the default command queue
@@ -690,9 +690,9 @@ module Focal
       character(*), intent(in), optional :: access
         !! Read/write access of kernels to buffer
         !! 'rw' = read&write (default), 'r'=read-only, 'w'=write-only
-    end subroutine fclInitSubBufferint32_2
+    endsubroutine fclInitSubBufferint32_2
 
-  end interface fclInitSubBuffer
+  endinterface fclInitSubBuffer
 
   interface
 
@@ -703,28 +703,28 @@ module Focal
       class(fclDeviceBuffer), intent(inout), target :: memObject   !! Focal memory object to fill
       type(c_ptr), intent(in) :: hostBufferPtr             !! C Pointer to host scalar patter
       integer(c_size_t), intent(in) :: nBytesPattern       !! Size of scalar pattern in bytes
-    end subroutine fclMemWriteScalar
+    endsubroutine fclMemWriteScalar
 
     module subroutine fclMemWriteScalarInt32(memObject, hostValue)
       !! Assign a scalar integer to a device integer memory buffer
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceInt32), intent(inout) :: memObject    !! Focal memory object to fill
       integer(c_int32_t), intent(in), target :: hostValue  !! Host value with which to fill
-    end subroutine fclMemWriteScalarInt32
+    endsubroutine fclMemWriteScalarInt32
 
     module subroutine fclMemWriteScalarFloat(memObject, hostValue)
       !! Assign a scalar float to a device float memory buffer
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceFloat), intent(inout) :: memObject    !! Focal memory object to fill
       real(c_float), intent(in), target :: hostValue       !! Host value with which to fill
-    end subroutine fclMemWriteScalarFloat
+    endsubroutine fclMemWriteScalarFloat
 
     module subroutine fclMemWriteScalarDouble(memObject, hostValue)
       !! Assign a scalar double to a device double memory buffer
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceDouble), intent(inout) :: memObject   !! Focal memory object to fill
       real(c_double), intent(in), target :: hostValue      !! Host value with which to fill
-    end subroutine fclMemWriteScalarDouble
+    endsubroutine fclMemWriteScalarDouble
 
     ! --------- Write host array to device array ---------
 
@@ -733,28 +733,28 @@ module Focal
       class(fclDeviceBuffer), intent(inout), target :: memObject   !! Focal memory object (target)
       type(c_ptr), intent(in) :: hostBufferPtr             !! C Pointer to host array (source)
       integer(c_size_t), intent(in) :: nBytes              !! Size of buffers in bytes
-    end subroutine fclMemWrite
+    endsubroutine fclMemWrite
 
     module subroutine fclMemWriteInt32(memObject, hostBuffer)
       !! Transfer host integer array to device integer array
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceInt32), intent(inout) :: memObject    !! Focal memory object (target)
       integer(c_int32_t), intent(in), target :: hostBuffer(:) !! Host array (source)
-    end subroutine fclMemWriteInt32
+    endsubroutine fclMemWriteInt32
 
     module subroutine fclMemWriteFloat(memObject, hostBuffer)
       !! Transfer host float array to device float array
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceFloat), intent(inout) :: memObject    !! Focal memory object (target)
       real(c_float), intent(in), target :: hostBuffer(:)   !! Host array (source)
-    end subroutine fclMemWriteFloat
+    endsubroutine fclMemWriteFloat
 
     module subroutine fclMemWriteDouble(memObject, hostBuffer)
       !! Transfer host double array to device double array
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceDouble), intent(inout) :: memObject   !! Focal memory object (target)
       real(c_double), intent(in), target :: hostBuffer(:)  !! Host array (source)
-    end subroutine fclMemWriteDouble
+    endsubroutine fclMemWriteDouble
 
     ! --------- Read device array into host array ---------
 
@@ -763,28 +763,28 @@ module Focal
       type(c_ptr), intent(in) :: hostBufferPtr             !! C pointer to host buffer (target)
       class(fclDeviceBuffer), intent(in), target :: memObject      !! Focal memory object (source)
       integer(c_size_t), intent(in) :: nBytes              !! Size of buffers in bytes
-    end subroutine fclMemRead
+    endsubroutine fclMemRead
 
     module subroutine fclMemReadInt32(hostBuffer, memObject)
       !! Transfer device integer array to host integer array
       !!  Called by operator-overloading of assignment(=)
       integer(c_int32_t), intent(inout), target :: hostBuffer(:) !! Host array (target)
       class(fclDeviceInt32), intent(in) :: memObject       !! Focal memory object (source)
-    end subroutine fclMemReadInt32
+    endsubroutine fclMemReadInt32
 
     module subroutine fclMemReadFloat(hostBuffer, memObject)
       !! Transfer device float array to host float array
       !!  Called by operator-overloading of assignment(=)
       real(c_float), intent(inout), target :: hostBuffer(:) !! Host array (target)
       class(fclDeviceFloat), intent(in) :: memObject       !! Focal memory object (source)
-    end subroutine fclMemReadFloat
+    endsubroutine fclMemReadFloat
 
     module subroutine fclMemReadDouble(hostBuffer, memObject)
       !! Transfer device double array to host double array
       !!  Called by operator-overloading of assignment(=)
       real(c_double), intent(inout), target :: hostBuffer(:) !! Host array (target)
       class(fclDeviceDouble), intent(in) :: memObject      !! Focal memory object (source)
-    end subroutine fclMemReadDouble
+    endsubroutine fclMemReadDouble
 
     ! --------- Copy device array to device array ---------
 
@@ -792,36 +792,36 @@ module Focal
       !! Transfer device buffer to device buffer
       class(fclDeviceBuffer), intent(inout), target :: memObject1  !! Focal memory object (target)
       class(fclDeviceBuffer), intent(in) :: memObject2     !! Focal memory object (source)
-    end subroutine fclMemCopy
+    endsubroutine fclMemCopy
 
     module subroutine fclMemCopyInt32(memObject1, memObject2)
       !! Transfer device integer array to device integer array
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceInt32), intent(inout), target :: memObject1 !! Focal memory object (target)
       class(fclDeviceInt32), intent(in) :: memObject2      !! Focal memory object (source)
-    end subroutine fclMemCopyInt32
+    endsubroutine fclMemCopyInt32
 
     module subroutine fclMemCopyFloat(memObject1, memObject2)
       !! Transfer device float array to device float array
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceFloat), intent(inout), target :: memObject1 !! Focal memory object (target)
       class(fclDeviceFloat), intent(in) :: memObject2      !! Focal memory object (source)
-    end subroutine fclMemCopyFloat
+    endsubroutine fclMemCopyFloat
 
     module subroutine fclMemCopyDouble(memObject1, memObject2)
       !! Transfer device double array to device double array
       !!  Called by operator-overloading of assignment(=)
       class(fclDeviceDouble), intent(inout), target :: memObject1 !! Focal memory object (target)
       class(fclDeviceDouble), intent(in) :: memObject2     !! Focal memory object (source)
-    end subroutine fclMemCopyDouble
+    endsubroutine fclMemCopyDouble
 
     ! --------- Free device memory object ---------
     module subroutine fclFreeBuffer(memObject)
       !! Release device memory associated with memObject
       class(fclDeviceBuffer) :: memObject
-    end subroutine fclFreeBuffer
+    endsubroutine fclFreeBuffer
 
-  end interface
+  endinterface
 
   ! ---------------------------- QUERY ROUTINES -------------------------------
   interface
@@ -833,9 +833,9 @@ module Focal
       type(fclplatform), intent(in) :: platform
       integer(c_int32_t), intent(in) :: key
       character(:), allocatable, intent(out), target :: value
-    end subroutine fclGetPlatformInfo
+    endsubroutine fclGetPlatformInfo
 
-  end interface
+  endinterface
 
   interface fclGetDeviceInfo
     !! Generic interface to query device information.
@@ -846,21 +846,21 @@ module Focal
       type(fclDevice), intent(in) :: device
       integer(c_int32_t), intent(in) :: key
       character(:), allocatable, intent(out), target :: value
-    end subroutine fclGetDeviceInfoString
+    endsubroutine fclGetDeviceInfoString
 
     module subroutine fclGetDeviceInfoInt32(device, key, value)
       type(fclDevice), intent(in) :: device
       integer(c_int32_t), intent(in) :: key
       integer(c_int32_t), intent(out), target :: value
-    end subroutine fclGetDeviceInfoInt32
+    endsubroutine fclGetDeviceInfoInt32
 
     module subroutine fclGetDeviceInfoInt64(device, key, value)
       type(fclDevice), intent(in) :: device
       integer(c_int32_t), intent(in) :: key
       integer(c_int64_t), intent(out), target :: value
-    end subroutine fclGetDeviceInfoInt64
+    endsubroutine fclGetDeviceInfoInt64
 
-  end interface fclGetDeviceInfo
+  endinterface fclGetDeviceInfo
 
   interface fclGetKernelInfo
     !! Generic interface to query kernel information.
@@ -874,7 +874,7 @@ module Focal
       type(fclKernel), intent(in) :: kernel
       integer(c_int32_t), intent(in) :: key
       character(:), allocatable, intent(out), target :: value
-    end subroutine fclGetKernelInfoString
+    endsubroutine fclGetKernelInfoString
 
     module subroutine fclGetKernelInfoInt32(kernel, key, value)
       !! Query kernel information for 32bit integer.
@@ -883,9 +883,9 @@ module Focal
       type(fclKernel), intent(in) :: kernel
       integer(c_int32_t), intent(in) :: key
       integer(c_int32_t), intent(out), target :: value
-    end subroutine fclGetKernelInfoInt32
+    endsubroutine fclGetKernelInfoInt32
 
-  end interface fclGetKernelInfo
+  endinterface fclGetKernelInfo
 
   interface fclGetKernelWorkGroupInfo
 
@@ -897,9 +897,9 @@ module Focal
       type(fclDevice), intent(in) :: device
       integer(c_int32_t), intent(in) :: key
       integer(c_int64_t), intent(out), target :: value
-    end subroutine fclGetKernelWorkGroupInfoInt64
+    endsubroutine fclGetKernelWorkGroupInfoInt64
 
-  end interface fclGetKernelWorkGroupInfo
+  endinterface fclGetKernelWorkGroupInfo
 
   interface fclGetKernelArgInfo
     !! Generic interface to query kernel argument information.
@@ -914,7 +914,7 @@ module Focal
       integer, intent(in) :: argNo
       integer(c_int32_t), intent(in) :: key
       character(:), allocatable, intent(out), target :: value
-    end subroutine fclGetKernelArgInfoString
+    endsubroutine fclGetKernelArgInfoString
 
     module subroutine fclGetKernelArgInfoInt32(kernel, argNo, key, value)
       !! Query kernel information for 32bit integer.
@@ -924,9 +924,9 @@ module Focal
       integer, intent(in) :: argNo
       integer(c_int32_t), intent(in) :: key
       integer(c_int32_t), intent(out), target :: value
-    end subroutine fclGetKernelArgInfoInt32
+    endsubroutine fclGetKernelArgInfoInt32
 
-  end interface fclGetKernelArgInfo
+  endinterface fclGetKernelArgInfo
 
   interface
 
@@ -937,36 +937,36 @@ module Focal
       type(fclEvent), intent(in) :: event
       integer(c_int32_t), intent(in) :: key
       integer(c_int32_t), intent(out), target :: value
-    end subroutine fclGetEventInfo
+    endsubroutine fclGetEventInfo
 
-  end interface
+  endinterface
 
   interface
 
     module function fclGetPlatforms() result(platforms)
       !! Return pointer to array of available fclPlatforms
       type(fclPlatform), allocatable :: platforms(:)
-    end function fclGetPlatforms
+    endfunction fclGetPlatforms
 
     module function fclGetPlatform(platform_id) result(platform)
       !! Return fclPlatform object for OpenCL platform id
       integer(c_intptr_t), intent(in) :: platform_id !! OpenCL platform id
       type(fclPlatform), target :: platform
-    end function fclGetPlatform
+    endfunction fclGetPlatform
 
     module function fclGetPlatformDevices(platform_id) result(devices)
       !! Return pointer to array of fclDevices on platform id
       integer(c_intptr_t), intent(in) :: platform_id !! OpenCL platform id
       type(fclDevice), allocatable :: devices(:)
-    end function fclGetPlatformDevices
+    endfunction fclGetPlatformDevices
 
     module function fclGetDevice(device_id) result(device)
       !! Return fclDevice for OpenCL device id
       integer(c_intptr_t), intent(in) :: device_id   !! OpenCL device id
       type(fclDevice), target :: device
-    end function fclGetDevice
+    endfunction fclGetDevice
 
-  end interface
+  endinterface
 
   ! ---------------------------- SETUP ROUTINES -------------------------------
   interface fclCreateContext
@@ -976,7 +976,7 @@ module Focal
       !! Create a context with fclPlatform object
       type(fclPlatform), intent(inout), target :: platform
       type(fclContext), target :: ctx
-    end function fclCreateContextWithPlatform
+    endfunction fclCreateContextWithPlatform
 
     module function fclCreateContextWithVendor(vendor) result(ctx)
       !! Create a context with the first platform where the vendor property
@@ -993,15 +993,15 @@ module Focal
         !!  are available.
         !!
       type(fclContext), target :: ctx
-    end function fclCreateContextWithVendor
+    endfunction fclCreateContextWithVendor
 
-  end interface fclCreateContext
+  endinterface fclCreateContext
 
   interface
     module subroutine fclSetDefaultContext(ctx)
       !! Set the global default context
       type(fclContext), intent(in) :: ctx
-    end subroutine fclSetDefaultContext
+    endsubroutine fclSetDefaultContext
 
     module function fclFilterDevices(devices, vendor, type, nameLike, extensions, sortBy) result(deviceList)
       !! Filter and sort list of devices based on criteria
@@ -1024,7 +1024,7 @@ module Focal
         !!  'cores': total number of compute units, 'clock': maximum clock speed
       type(fclDevice), allocatable :: deviceList(:)
         !! Filtered and sorted list. Unallocated if no matching devices found.
-    end function fclFilterDevices
+    endfunction fclFilterDevices
 
     module function fclInit(vendor, type, nameLike, extensions, sortBy) result(device)
       !! Quick setup helper function: find a single device based on criteria
@@ -1048,9 +1048,9 @@ module Focal
         !!  'cores': total number of compute units, 'clock': maximum clock speed
       type(fclDevice), allocatable :: device
         !! The device chosen based on the user criteria
-    end function fclInit
+    endfunction fclInit
 
-  end interface
+  endinterface
 
   interface fclFindDevices
     !! Generic interface to list devices, sorted and filtered by properties
@@ -1076,7 +1076,7 @@ module Focal
         !! Sort device list based on either 'memory': total global memory,
         !!  'cores': total number of compute units, 'clock': maximum clock speed
       type(fclDevice), allocatable :: deviceList(:)
-    end function fclFindDevices_1
+    endfunction fclFindDevices_1
 
     module function fclFindDevices_2(vendor, type, nameLike, extensions, sortBy) result(deviceList)
       character(*), intent(in), optional :: vendor
@@ -1096,9 +1096,9 @@ module Focal
         !! Sort device list based on either 'memory': total global memory,
         !!  'cores': total number of compute units, 'clock': maximum clock speed
       type(fclDevice), allocatable :: deviceList(:)
-    end function fclFindDevices_2
+    endfunction fclFindDevices_2
 
-  end interface fclFindDevices
+  endinterface fclFindDevices
 
   interface fclCreateCommandQ
     !! Generic interface to create a device command queue
@@ -1113,7 +1113,7 @@ module Focal
       logical, intent(in), optional :: blockingWrite       !! Enable/disable host-blocking write to device
       logical, intent(in), optional :: blockingRead        !! Enable/disable host-blocking read from device
       type(fclCommandQ) :: cmdq                            !! Returns fclCommandQ object
-    end function fclCreateCommandQ_1
+    endfunction fclCreateCommandQ_1
 
     module function fclCreateCommandQ_2(device, enableProfiling, outOfOrderExec, &
                                         blockingWrite, blockingRead) result(cmdq)
@@ -1124,9 +1124,9 @@ module Focal
       logical, intent(in), optional :: blockingWrite       !! Enable/disable host-blocking write to device
       logical, intent(in), optional :: blockingRead        !! Enable/disable host-blocking read from device
       type(fclCommandQ) :: cmdq                            !! Returns fclCommandQ object
-    end function fclCreateCommandQ_2
+    endfunction fclCreateCommandQ_2
 
-  end interface fclCreateCommandQ
+  endinterface fclCreateCommandQ
 
   interface fclCreateCommandQPool
     !! Generic interface to create a pool of command queues
@@ -1142,7 +1142,7 @@ module Focal
       logical, intent(in), optional :: blockingWrite       !! Enable/disable host-blocking write to device
       logical, intent(in), optional :: blockingRead        !! Enable/disable host-blocking read from device
       type(fclCommandQPool) :: qPool                       !! Returns fclCommandQPool object
-    end function fclCreateCommandQPool_1
+    endfunction fclCreateCommandQPool_1
 
     module function fclCreateCommandQPool_2(N, device, enableProfiling, outOfOrderExec, &
                                             blockingWrite, blockingRead) result(qPool)
@@ -1154,9 +1154,9 @@ module Focal
       logical, intent(in), optional :: blockingWrite       !! Enable/disable host-blocking write to device
       logical, intent(in), optional :: blockingRead        !! Enable/disable host-blocking read from device
       type(fclCommandQPool) :: qPool                       !! Returns fclCommandQPool object
-    end function fclCreateCommandQPool_2
+    endfunction fclCreateCommandQPool_2
 
-  end interface fclCreateCommandQPool
+  endinterface fclCreateCommandQPool
 
   interface
 
@@ -1164,15 +1164,15 @@ module Focal
       !! Returns next scheduled queue in queue pool
       class(fclCommandQPool), intent(inout), target :: qPool
       type(fclCommandQ), pointer :: cmdQ
-    end function fclCommandQPool_Next
+    endfunction fclCommandQPool_Next
 
     module function fclCommandQPool_Current(qPool) result(cmdQ)
       !! Returns current scheduled queue in queue pool
       class(fclCommandQPool), intent(in), target :: qPool
       type(fclCommandQ), pointer :: cmdQ
-    end function fclCommandQPool_Current
+    endfunction fclCommandQPool_Current
 
-  end interface
+  endinterface
 
   interface
 
@@ -1180,9 +1180,9 @@ module Focal
       !! Set the global default command queue
       type(fclCommandQ), intent(in) :: cmdq
 
-    end subroutine fclSetDefaultCommandQ
+    endsubroutine fclSetDefaultCommandQ
 
-  end interface
+  endinterface
 
   interface fclCompileProgram
     !! Generic interface to compile an openCL program
@@ -1193,16 +1193,16 @@ module Focal
       character(*), intent(in) :: source             !! Program source code
       character(*), intent(in), optional :: options  !! OpenCL compilation options
       type(fclProgram) :: prog                       !! Returns fclProgram object
-    end function fclCompileProgram_1
+    endfunction fclCompileProgram_1
 
     module function fclCompileProgram_2(source, options) result(prog)
       !! Compile program source on fclDefaultContext
       character(*), intent(in) :: source             !! Program source code
       character(*), intent(in), optional :: options  !! OpenCL compilation options
       type(fclProgram) :: prog                       !! Returns fclProgram object
-    end function fclCompileProgram_2
+    endfunction fclCompileProgram_2
 
-  end interface fclCompileProgram
+  endinterface fclCompileProgram
 
   interface fclDumpBuildLog
 
@@ -1211,15 +1211,15 @@ module Focal
       type(fclProgram), intent(in) :: prog
       type(fclDevice), intent(in) :: device
       integer, intent(in), optional :: outputUnit
-    end subroutine fclDumpBuildLog_1
+    endsubroutine fclDumpBuildLog_1
 
     module subroutine fclDumpBuildLog_2(prog, device, outputUnit)
       type(fclProgram), intent(in) :: prog
       type(fclDevice), intent(in) :: device
       integer, intent(in), optional :: outputUnit
-    end subroutine fclDumpBuildLog_2
+    endsubroutine fclDumpBuildLog_2
 
-  end interface fclDumpBuildLog
+  endinterface fclDumpBuildLog
 
   interface
 
@@ -1235,9 +1235,9 @@ module Focal
       integer, intent(in), optional :: work_dim              !! Number of dimensions for kernel work group, default 1
       integer, intent(in), optional :: global_work_offset(:) !! Global work group offsets, default zeros
       type(fclKernel) :: kern                                !! Returns fclKernel object for execution
-    end function fclGetProgramKernel
+    endfunction fclGetProgramKernel
 
-  end interface
+  endinterface
 
   interface fclLaunchKernelAfter
     !! Generic interface to launch a kernel with event dependencies
@@ -1247,28 +1247,28 @@ module Focal
       class(fclKernel), intent(inout) :: kernel                !! Focal kernel object to launch
       type(fclCommandQ), intent(inout) :: cmdQ             !! CmdQ on which to launch kernel
       type(fclEvent), intent(in) :: event                  !! Event dependency for kernel
-    end subroutine fclLaunchKernelAfterEvent_1
+    endsubroutine fclLaunchKernelAfterEvent_1
 
     module subroutine fclLaunchKernelAfterEvent_2(kernel, event)
       !! Specific interface a single event dependency on the __default command queue__
       class(fclKernel), intent(inout) :: kernel                !! Focal kernel object to launch
       type(fclEvent), intent(in) :: event                  !! Event dependency for kernel
-    end subroutine fclLaunchKernelAfterEvent_2
+    endsubroutine fclLaunchKernelAfterEvent_2
 
     module subroutine fclLaunchKernelAfterEventList_1(kernel, cmdQ, eventList)
       !! Specific interface for a multiple event dependencies on a specific command queue
       class(fclKernel), intent(inout) :: kernel                !! Focal kernel object to launch
       type(fclCommandQ), intent(inout) :: cmdQ             !! CmdQ on which to launch kernel
       type(fclEvent), intent(in) :: eventList(:)           !! Event dependency list for kernel
-    end subroutine fclLaunchKernelAfterEventList_1
+    endsubroutine fclLaunchKernelAfterEventList_1
 
     module subroutine fclLaunchKernelAfterEventList_2(kernel, eventList)
       !! Specific interface for a multiple event dependencies on the __default command queue__
       class(fclKernel), intent(inout) :: kernel                !! Focal kernel object to launch
       type(fclEvent), intent(in) :: eventList(:)           !! Event dependency list for kernel
-    end subroutine fclLaunchKernelAfterEventList_2
+    endsubroutine fclLaunchKernelAfterEventList_2
 
-  end interface fclLaunchKernelAfter
+  endinterface fclLaunchKernelAfter
 
   interface
     module subroutine fclLaunchKernel(kernel, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, &
@@ -1281,7 +1281,7 @@ module Focal
         a10, a11, a12, a13, a14, a15, a16, a17, a18, a19
         !! Subsequent kernel arguments.
         !! Can be a scalar, an fclDeviceBuffer object, or an fclLocalArgument
-    end subroutine fclLaunchKernel
+    endsubroutine fclLaunchKernel
 
     module subroutine fclProcessKernelArgs(kernel, cmdq, narg, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, &
                                            a10, a11, a12, a13, a14, a15, a16, a17, a18, a19)
@@ -1299,7 +1299,7 @@ module Focal
         a10, a11, a12, a13, a14, a15, a16, a17, a18, a19
         !! Subsequent kernel arguments.
         !! Can be a scalar, an fclDeviceBuffer object, or an fclLocalArgument
-    end subroutine fclProcessKernelArgs
+    endsubroutine fclProcessKernelArgs
 
     module subroutine fclSetKernelArgs(kernel, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, &
                                        a10, a11, a12, a13, a14, a15, a16, a17, a18, a19)
@@ -1309,7 +1309,7 @@ module Focal
         a10, a11, a12, a13, a14, a15, a16, a17, a18, a19
         !! Kernel arguments.
         !! Can be a scalar, an fclDeviceBuffer object, or an fclLocalArgument
-    end subroutine fclSetKernelArgs
+    endsubroutine fclSetKernelArgs
 
     module subroutine fclSetKernelArg(kernel, argIndex, argValue)
       !! Set or change a single kernel argument
@@ -1318,27 +1318,27 @@ module Focal
       class(*), intent(in), target :: argValue
         !! Value of kernel argument.
         !! Can be a scalar, an fclDeviceBuffer object, or an fclLocalArgument
-    end subroutine fclSetKernelArg
+    endsubroutine fclSetKernelArg
 
     module function fclLocalInt32(nElem) result(localArg)
       !! Create a integer local kernel argument object for launching kernels
       integer, intent(in) :: nElem                   !! No of array elements
       type(fclLocalArgInt32) :: localArg             !! Returns local argument object
-    end function fclLocalInt32
+    endfunction fclLocalInt32
 
     module function fclLocalFloat(nElem) result(localArg)
       !! Create a float local kernel argument object for launching kernels
       integer, intent(in) :: nElem                   !! No of array elements
       type(fclLocalArgFloat) :: localArg             !! Returns local argument object
-    end function fclLocalFloat
+    endfunction fclLocalFloat
 
     module function fclLocalDouble(nElem) result(localArg)
       !! Create a double local kernel argument object for launching kernels
       integer, intent(in) :: nElem                   !! No of array elements
       type(fclLocalArgDouble) :: localArg            !! Returns local argument object
-    end function fclLocalDouble
+    endfunction fclLocalDouble
 
-  end interface
+  endinterface
 
   interface fclBarrier
     !! Generic interface to enqueue a command queue barrier
@@ -1348,13 +1348,13 @@ module Focal
     module subroutine fclBarrier_1(cmdq)
       !! Enqueue barrier on all events in command queue
       type(fclCommandQ), intent(inout), target :: cmdq
-    end subroutine fclBarrier_1
+    endsubroutine fclBarrier_1
 
     module subroutine fclBarrier_2()
       !! Enqueue barrier on all events in default command queue
-    end subroutine fclBarrier_2
+    endsubroutine fclBarrier_2
 
-  end interface fclBarrier
+  endinterface fclBarrier
 
   interface fclWait
     !! Generic interface to wait on host for events
@@ -1362,28 +1362,28 @@ module Focal
     module subroutine fclFinish_1(cmdq)
       !! Wait on host for all events in user-specified command queue
       type(fclCommandQ), intent(in) :: cmdq
-    end subroutine fclFinish_1
+    endsubroutine fclFinish_1
 
     module subroutine fclFinish_2()
       !! Wait on host for all events in focal default command queue
-    end subroutine fclFinish_2
+    endsubroutine fclFinish_2
 
     module subroutine fclFinish_3(qPool)
       !! Wait on host for all events in all queues in a queue pool
       type(fclCommandQPool), intent(in) :: qPool
-    end subroutine fclFinish_3
+    endsubroutine fclFinish_3
 
     module subroutine fclWaitEvent(event)
       !! Wait on host for a specific event
       type(fclEvent), intent(in), target :: event
-    end subroutine fclWaitEvent
+    endsubroutine fclWaitEvent
 
     module subroutine fclWaitEventList(eventList)
       !! Wait on host for set of events
       type(fclEvent), intent(in), target :: eventList(:)
-    end subroutine fclWaitEventList
+    endsubroutine fclWaitEventList
 
-  end interface fclWait
+  endinterface fclWait
 
   interface assignment(=)
 
@@ -1392,23 +1392,23 @@ module Focal
       !!  Handles opencl reference counting for the underlying event object
       type(fclEvent), intent(inout) :: target
       type(fclEvent), intent(in) :: source
-    end subroutine fclEventCopy
+    endsubroutine fclEventCopy
 
-  end interface
+  endinterface
 
   interface
 
     module subroutine fclReleaseEvent(event)
       !! Light weight wrapper for clReleaseEvent (decrement reference count)
       type(fclEvent), intent(in) :: event               !! Focal event object to release
-    end subroutine fclReleaseEvent
+    endsubroutine fclReleaseEvent
 
     module subroutine fclRetainEvent(event)
       !! Light weight wrapper for clRetainEvent (increment reference count)
       type(fclEvent), intent(in) :: event               !! Focal event object to retain
-    end subroutine fclRetainEvent
+    endsubroutine fclRetainEvent
 
-  end interface
+  endinterface
 
   interface fclSetDependency
     !! Generic interface to set pre-requisite events for the next enqueued action.
@@ -1421,7 +1421,7 @@ module Focal
       logical, intent(in), optional :: hold
         !! Hold dependency list: set to true to not automatically clear dependencies after enqueueing.
         !!  Use for applying the same dependency to multiple commands. Default false.
-    end subroutine fclSetDependencyEvent_1
+    endsubroutine fclSetDependencyEvent_1
 
     module subroutine fclSetDependencyEvent_2(event, hold)
       !! Interface for specifying a single event dependency on __default cmdq__
@@ -1429,7 +1429,7 @@ module Focal
       logical, intent(in), optional :: hold
         !! Hold dependency list: set to true to not automatically clear dependencies after enqueueing.
         !!  Use for applying the same dependency to multiple commands. Default false.
-    end subroutine fclSetDependencyEvent_2
+    endsubroutine fclSetDependencyEvent_2
 
     module subroutine fclSetDependencyEventList_1(cmdq, eventList, hold)
       !! Interface for specifying a list of dependent events on specific cmdq
@@ -1438,7 +1438,7 @@ module Focal
       logical, intent(in), optional :: hold
         !! Hold dependency list: set to true to not automatically clear dependencies after enqueueing.
         !!  Use for applying the same dependency to multiple commands. Default false.
-    end subroutine fclSetDependencyEventList_1
+    endsubroutine fclSetDependencyEventList_1
 
     module subroutine fclSetDependencyEventList_2(eventList, hold)
       !! Interface for specifying a list of dependent events on __default cmdq__
@@ -1446,17 +1446,17 @@ module Focal
       logical, intent(in), optional :: hold                !! Event dependency
         !! Hold dependency list: set to true to not automatically clear dependencies after enqueueing.
         !!  Use for applying the same dependency to multiple commands. Default false.
-    end subroutine fclSetDependencyEventList_2
+    endsubroutine fclSetDependencyEventList_2
 
-  end interface fclSetDependency
+  endinterface fclSetDependency
 
   interface
     module subroutine fclPopDependencies(cmdq)
       !! Called after every enqueue operation:
       !! Clear dependencies unless dependency hold is .true.
       type(fclCommandQ), intent(inout) :: cmdq
-    end subroutine fclPopDependencies
-  end interface
+    endsubroutine fclPopDependencies
+  endinterface
 
   interface fclClearDependencies
     !! Generic interface to clear dependency list and reset dependency hold to .false.
@@ -1464,13 +1464,13 @@ module Focal
     module subroutine fclClearDependencies_1(cmdq)
       !! Interface for specific command queue
       type(fclCommandQ), intent(inout) :: cmdq
-    end subroutine fclClearDependencies_1
+    endsubroutine fclClearDependencies_1
 
     module subroutine fclClearDependencies_2()
       !! Interface for default command queueu
-    end subroutine fclClearDependencies_2
+    endsubroutine fclClearDependencies_2
 
-  end interface fclClearDependencies
+  endinterface fclClearDependencies
 
   interface fclCreateUserEvent
     !! Generic interface to create a user event
@@ -1479,14 +1479,14 @@ module Focal
       !! Create user event in a specific context
       type(fclContext), intent(in) :: ctx
       type(fclEvent) :: userEvent
-    end function fclCreateUserEvent_1
+    endfunction fclCreateUserEvent_1
 
     module function fclCreateUserEvent_2() result(userEvent)
       !! Create user event in the default context
       type(fclEvent) :: userEvent
-    end function fclCreateUserEvent_2
+    endfunction fclCreateUserEvent_2
 
-  end interface fclCreateUserEvent
+  endinterface fclCreateUserEvent
 
   interface
 
@@ -1494,9 +1494,9 @@ module Focal
       !! Set status of a user event
       type(fclEvent), intent(inout) :: event
       integer(c_int32_t), intent(in), optional :: stat
-    end subroutine fclSetUserEvent
+    endsubroutine fclSetUserEvent
 
-  end interface
+  endinterface
 
   ! ------------------------- PROFILING  ROUTINES -----------------------------
 
@@ -1512,7 +1512,7 @@ module Focal
         !! Object (kernel/buffer) for which to enable profiling
       class(fclProfileContainer), intent(inout), target, optional :: c1, c2, c3, c4, c5, c6, c7, c8, c9
         !! Subsequent objects (kernel/buffer) for which to enable profiling
-    end subroutine fclProfilerAdd
+    endsubroutine fclProfilerAdd
 
     module subroutine fclEnableProfiling(container, profileSize, profiler)
       !! Enable profiling on a specific container by allocating space to save events
@@ -1523,7 +1523,7 @@ module Focal
         !! Number of events to allocate space for
       type(fclProfiler), intent(inout), optional :: profiler
         !! Profiler collection object to which to add the kernel/buffer.
-    end subroutine fclEnableProfiling
+    endsubroutine fclEnableProfiling
 
     module subroutine fclPushProfileEvent(container, event, type)
       !! If profiling is enabled for the container, save an event to it
@@ -1533,12 +1533,12 @@ module Focal
         !! Event to push to container
       integer, intent(in), optional :: type
         !! For buffer object events only, indicates transfer type
-    end subroutine fclPushProfileEvent
+    endsubroutine fclPushProfileEvent
 
     module function fclGetEventDurations(eventList) result(durations)
       type(fclEvent), intent(in) :: eventList(:)
       integer(c_int64_t) :: durations(size(eventList, 1))
-    end function fclGetEventDurations
+    endfunction fclGetEventDurations
 
     module subroutine fclDumpProfileData(profiler, outputUnit)
       !! Dump summary of profiler data for list of kernels to specific output unit
@@ -1546,7 +1546,7 @@ module Focal
         !! Profiler object containing collection of kernels & buffers to profile
       integer, intent(in), optional :: outputUnit
         !! Output unit to write summary data
-    end subroutine fclDumpProfileData
+    endsubroutine fclDumpProfileData
 
     module subroutine fclDumpKernelProfileData(outputUnit, kernelList, device)
       !! Dump summary of profile data for list of kernels to specific output unit
@@ -1557,7 +1557,7 @@ module Focal
       type(fclDevice), intent(in) :: device
         !! Device on which the kernels were executed
         !! Needed for kernel work group info.
-    end subroutine fclDumpKernelProfileData
+    endsubroutine fclDumpKernelProfileData
 
     module subroutine fclDumpBufferProfileData(outputUnit, bufferList1, bufferList2, bufferList3)
       !! Dump summary of profile data for list of buffers to specific output unit.
@@ -1571,7 +1571,7 @@ module Focal
         !! List of buffers for which to dump profile data
       class(fclDeviceBuffer), intent(in), optional, target:: bufferList3(:)
         !! List of buffers for which to dump profile data
-    end subroutine fclDumpBufferProfileData
+    endsubroutine fclDumpBufferProfileData
 
     module subroutine fclDumpTracingData(profiler, filename)
       !! Writes a chrome://tracing data format for profiled events
@@ -1579,9 +1579,9 @@ module Focal
         !! Profiler collection object containing kernels/buffers that have been profiled
       character(*), intent(in) :: filename
         !! Filename to which to write chrome://tracing format
-    end subroutine fclDumpTracingData
+    endsubroutine fclDumpTracingData
 
-  end interface
+  endinterface
 
   ! ---------------------------- DEBUG ROUTINES -------------------------------
   interface
@@ -1594,7 +1594,7 @@ module Focal
         !! Description of program location for error output
       type(fclContext), intent(in), optional :: ctx
         !! Context to test. Uses fclDefaultContext if not present.
-    end subroutine fclDbgCheckContext
+    endsubroutine fclDbgCheckContext
 
     module subroutine fclDbgCheckDevice(device, descrip)
       !! Check a device object is valid
@@ -1604,14 +1604,14 @@ module Focal
         !! Device object to check
       character(*), intent(in) :: descrip
         !! Description of program location for error output
-    end subroutine fclDbgCheckDevice
+    endsubroutine fclDbgCheckDevice
 
     module subroutine fclDbgCheckBufferInit(memObject, descrip)
       !! Check that a device buffer object has been initialised.
       !! @note Debug routine: only executed for debug build. @endnote
       class(fclDeviceBuffer), intent(in) :: memObject
       character(*), intent(in) :: descrip
-    end subroutine fclDbgCheckBufferInit
+    endsubroutine fclDbgCheckBufferInit
 
     module subroutine fclDbgCheckBufferSize(memObject, hostBytes, descrip)
       !! Check that a host buffer matches the size in bytes of a device buffer.
@@ -1619,21 +1619,21 @@ module Focal
       class(fclDeviceBuffer), intent(in) :: memObject
       integer(c_size_t), intent(in) :: hostBytes
       character(*), intent(in) :: descrip
-    end subroutine fclDbgCheckBufferSize
+    endsubroutine fclDbgCheckBufferSize
 
     module subroutine fclDbgCheckCopyBufferSize(memObject1, memObject2)
       !! Check that a host buffer matches the size in bytes of a device buffer.
       !! @note Debug routine: only executed for debug build. @endnote
       class(fclDeviceBuffer), intent(in) :: memObject1 ! Destination buffer
       class(fclDeviceBuffer), intent(in) :: memObject2 ! Source buffer
-    end subroutine fclDbgCheckCopyBufferSize
+    endsubroutine fclDbgCheckCopyBufferSize
 
     module subroutine fclDbgCheckKernelNArg(kernel, nArg)
       !! Check that number of actual args matches number of kernel args.
       !! @note Debug routine: only executed for debug build. @endnote
       type(fclKernel), intent(in) :: kernel
       integer, intent(in) :: nArg
-    end subroutine fclDbgCheckKernelNArg
+    endsubroutine fclDbgCheckKernelNArg
 
     module subroutine fclDbgCheckKernelArgType(kernel, argNo, type)
       !! Checks the types of arguments passed to kernels
@@ -1641,7 +1641,7 @@ module Focal
       type(fclKernel), intent(in) :: kernel
       integer, intent(in) :: argNo
       character(*), intent(in) :: type
-    end subroutine fclDbgCheckKernelArgType
+    endsubroutine fclDbgCheckKernelArgType
 
     module subroutine fclDbgCheckKernelArgQualifier(kernel, argNo, qualifier)
       !! Checks the address qualifier of arguments passed to kernels.
@@ -1649,14 +1649,14 @@ module Focal
       type(fclKernel), intent(in) :: kernel
       integer, intent(in) :: argNo
       character(*), intent(in) :: qualifier
-    end subroutine fclDbgCheckKernelArgQualifier
+    endsubroutine fclDbgCheckKernelArgQualifier
 
     module function fclDbgOptions() result(options) !(userOptions,options)
       !! Returns OpenCL compile options as interoperable string for debug mode
       !! @note Debug routine: only executed for debug build. @endnote
       ! character(*), intent(in) :: userOptions
       character(:), allocatable :: options
-    end function fclDbgOptions
+    endfunction fclDbgOptions
 
     module subroutine fclDbgWait(event, descrip)
       !! Wait for an event to complete and check for successful completion.
@@ -1664,9 +1664,9 @@ module Focal
       !! @note Debug routine: only executed for debug build. @endnote
       type(fclEvent), intent(in), target :: event              !! Event object to check
       character(*), intent(in), optional :: descrip    !! Description for debugging
-    end subroutine fclDbgWait
+    endsubroutine fclDbgWait
 
-  end interface
+  endinterface
 
   ! ---------------------------- UTILITY ROUTINES -------------------------------
 
@@ -1680,15 +1680,15 @@ module Focal
       !! Then link resulting object file as normal
       character(:), allocatable, intent(out) :: kernelString
         !! Kernel source as fortran character string
-    end subroutine fclGetKernelResource
+    endsubroutine fclGetKernelResource
 
     module subroutine fclSourceFromFile(filename, sourceString)
       !! Allocate and fill character string from file
       character(*), intent(in) :: filename
       character(:), intent(out), allocatable :: sourceString
-    end subroutine fclSourceFromFile
+    endsubroutine fclSourceFromFile
 
-  end interface
+  endinterface
 
   interface
 
@@ -1698,8 +1698,8 @@ module Focal
         !! Input string
       character(len=len(linei)) strStripNum
         !! Converted string output
-    end function strStripNum
+    endfunction strStripNum
 
-  end interface
+  endinterface
 
-end module Focal
+endmodule Focal

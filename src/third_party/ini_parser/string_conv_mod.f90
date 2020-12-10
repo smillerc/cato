@@ -16,7 +16,7 @@ module string_conv_mod
     module procedure from_string_c
     module procedure from_string_z
     module procedure from_string_b
-  end interface from_string
+  endinterface from_string
 
   interface to_string
     module procedure to_string_i
@@ -25,7 +25,7 @@ module string_conv_mod
     module procedure to_string_c
     module procedure to_string_z
     module procedure to_string_b
-  end interface to_string
+  endinterface to_string
 
   ! functions
   interface tostr
@@ -36,7 +36,7 @@ module string_conv_mod
     module procedure z2s
     module procedure b2s
     module procedure s2s
-  end interface tostr
+  endinterface tostr
 
   interface tolist
     module procedure to_list_i
@@ -46,7 +46,7 @@ module string_conv_mod
     module procedure to_list_z
     module procedure to_list_b
     module procedure to_list_s
-  end interface tolist
+  endinterface tolist
 
   public :: from_string, to_string
   public :: tostr, tolist
@@ -68,7 +68,7 @@ contains
     else
       v = '"'//trim(str)//'"'
     endif
-  end function quote
+  endfunction quote
 
   pure function unquote(str) result(v)
     character(len=*), intent(in) :: str
@@ -80,38 +80,38 @@ contains
     else
       v = str
     endif
-  end function unquote
+  endfunction unquote
 
   ! string to other types
   pure function s2i(str) result(v)
     character(len=*), intent(in) :: str
     integer(int32) :: v
     read(str, *) v
-  end function s2i
+  endfunction s2i
 
   pure function s2f(str) result(v)
     character(len=*), intent(in) :: str
     real(real32) :: v
     read(str, *) v
-  end function s2f
+  endfunction s2f
 
   pure function s2d(str) result(v)
     character(len=*), intent(in) :: str
     real(real64) :: v
     read(str, *) v
-  end function s2d
+  endfunction s2d
 
   pure function s2c(str) result(v)
     character(len=*), intent(in) :: str
     complex(real32) :: v
     read(str, *) v
-  end function s2c
+  endfunction s2c
 
   pure function s2z(str) result(v)
     character(len=*), intent(in) :: str
     complex(real64) :: v
     read(str, *) v
-  end function s2z
+  endfunction s2z
 
   pure function s2b(str) result(v)
     character(len=*), intent(in) :: str
@@ -127,123 +127,123 @@ contains
       v = .true.
     case default
       v = .false.
-    end select
-  end function s2b
+    endselect
+  endfunction s2b
 
   subroutine from_string_i(str, v)
     integer(int32), intent(out) :: v
     character(len=*), intent(in) :: str
     read(str, *) v
-  end subroutine from_string_i
+  endsubroutine from_string_i
 
   subroutine from_string_f(str, v)
     real(real32), intent(out) :: v
     character(len=*), intent(in) :: str
     read(str, *) v
-  end subroutine from_string_f
+  endsubroutine from_string_f
 
   subroutine from_string_d(str, v)
     real(real64), intent(out) :: v
     character(len=*), intent(in) :: str
     read(str, *) v
-  end subroutine from_string_d
+  endsubroutine from_string_d
 
   subroutine from_string_c(str, v)
     complex(real32), intent(out) :: v
     character(len=*), intent(in) :: str
     read(str, *) v
-  end subroutine from_string_c
+  endsubroutine from_string_c
 
   subroutine from_string_z(str, v)
     complex(real64), intent(out) :: v
     character(len=*), intent(in) :: str
     read(str, *) v
-  end subroutine from_string_z
+  endsubroutine from_string_z
 
   subroutine from_string_b(str, v)
     logical, intent(out) :: v
     character(len=*), intent(in) :: str
     v = s2b(str)
-  end subroutine from_string_b
+  endsubroutine from_string_b
 
   ! to string
   pure function i2s(v) result(str)
     integer(int32), intent(in) :: v
     character(len=MXNSTR) :: str
     write(str, *) v
-  end function i2s
+  endfunction i2s
 
   pure function f2s(v) result(str)
     real(real32), intent(in) :: v
     character(len=MXNSTR) :: str
     write(str, *) v
-  end function f2s
+  endfunction f2s
 
   pure function d2s(v) result(str)
     real(real64), intent(in) :: v
     character(len=MXNSTR) :: str
     write(str, *) v
-  end function d2s
+  endfunction d2s
 
   pure function c2s(v) result(str)
     complex(real32), intent(in) :: v
     character(len=MXNSTR) :: str
     write(str, *) v
-  end function c2s
+  endfunction c2s
 
   pure function z2s(v) result(str)
     complex(real64), intent(in) :: v
     character(len=MXNSTR) :: str
     write(str, *) v
-  end function z2s
+  endfunction z2s
 
   pure function b2s(v) result(str)
     logical, intent(in) :: v
     character(len=MXNSTR) :: str
     write(str, *) v
-  end function b2s
+  endfunction b2s
 
   pure function s2s(v) result(str)
     character(len=*), intent(in) :: v
     character(len=MXNSTR) :: str
     write(str, *) v
-  end function s2s
+  endfunction s2s
 
   subroutine to_string_i(v, str)
     integer(int32), intent(in) :: v
     character(len=*), intent(out) :: str
     write(str, *) v
-  end subroutine to_string_i
+  endsubroutine to_string_i
 
   subroutine to_string_f(v, str)
     real(real32), intent(in) :: v
     character(len=*), intent(out) :: str
     write(str, *) v
-  end subroutine to_string_f
+  endsubroutine to_string_f
 
   subroutine to_string_d(v, str)
     real(real64), intent(in) :: v
     character(len=*), intent(out) :: str
     write(str, *) v
-  end subroutine to_string_d
+  endsubroutine to_string_d
 
   subroutine to_string_c(v, str)
     complex(real32), intent(in) :: v
     character(len=*), intent(out) :: str
     write(str, *) v
-  end subroutine to_string_c
+  endsubroutine to_string_c
 
   subroutine to_string_z(v, str)
     complex(real64), intent(in) :: v
     character(len=*), intent(out) :: str
     write(str, *) v
-  end subroutine to_string_z
+  endsubroutine to_string_z
 
   subroutine to_string_b(v, str)
     logical, intent(in) :: v
     character(len=*), intent(out) :: str
     write(str, *) v
-  end subroutine to_string_b
+  endsubroutine to_string_b
 
   ! array to string
   function to_list_i(arr) result(str)
@@ -260,7 +260,7 @@ contains
       endif
       str = trim(adjustl(str))//sep//trim(adjustl(tostr(arr(i))))
     enddo
-  end function to_list_i
+  endfunction to_list_i
 
   function to_list_f(arr) result(str)
     real(real32), intent(in) :: arr(:)
@@ -276,7 +276,7 @@ contains
       endif
       str = trim(adjustl(str))//sep//trim(adjustl(tostr(arr(i))))
     enddo
-  end function to_list_f
+  endfunction to_list_f
 
   function to_list_d(arr) result(str)
     real(real64), intent(in) :: arr(:)
@@ -292,7 +292,7 @@ contains
       endif
       str = trim(adjustl(str))//sep//trim(adjustl(tostr(arr(i))))
     enddo
-  end function to_list_d
+  endfunction to_list_d
 
   function to_list_c(arr) result(str)
     complex(real32), intent(in) :: arr(:)
@@ -308,7 +308,7 @@ contains
       endif
       str = trim(adjustl(str))//sep//trim(adjustl(tostr(arr(i))))
     enddo
-  end function to_list_c
+  endfunction to_list_c
 
   function to_list_z(arr) result(str)
     complex(real64), intent(in) :: arr(:)
@@ -324,7 +324,7 @@ contains
       endif
       str = trim(adjustl(str))//sep//trim(adjustl(tostr(arr(i))))
     enddo
-  end function to_list_z
+  endfunction to_list_z
 
   function to_list_b(arr) result(str)
     logical, intent(in) :: arr(:)
@@ -340,7 +340,7 @@ contains
       endif
       str = trim(adjustl(str))//sep//trim(adjustl(tostr(arr(i))))
     enddo
-  end function to_list_b
+  endfunction to_list_b
 
   function to_list_s(arr) result(str)
     character(len=*), intent(in) :: arr(:)
@@ -356,7 +356,7 @@ contains
       endif
       str = trim(adjustl(str))//sep//trim(adjustl(quote(tostr(arr(i))))) !! quote string
     enddo
-  end function to_list_s
+  endfunction to_list_s
 
   integer(int32) function list_size(text) result(npar)
     character(len=*), intent(in) :: text
@@ -368,7 +368,7 @@ contains
         npar = npar + 1
       endif
     enddo
-  end function list_size
+  endfunction list_size
 
   integer(int32) function list_size_str(text) result(npar)
     character(len=*), intent(in) :: text
@@ -383,7 +383,7 @@ contains
         npar = npar + 1
       endif
     enddo
-  end function list_size_str
+  endfunction list_size_str
 
   integer(int32) function list_size_cmplx(text) result(npar)
     character(len=*), intent(in) :: text
@@ -398,6 +398,6 @@ contains
         npar = npar + 1
       endif
     enddo
-  end function list_size_cmplx
+  endfunction list_size_cmplx
 
-end module string_conv_mod
+endmodule string_conv_mod

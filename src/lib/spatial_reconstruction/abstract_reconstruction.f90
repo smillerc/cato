@@ -56,7 +56,7 @@ module mod_abstract_reconstruction
     procedure(initialize), public, deferred :: initialize
     procedure(reconstruct), public, deferred :: reconstruct
     procedure(reconstruct_at_point), public, deferred :: reconstruct_at_point
-  end type abstract_reconstruction_t
+  endtype abstract_reconstruction_t
 
   abstract interface
     subroutine initialize(self, input, grid_target)
@@ -67,7 +67,7 @@ module mod_abstract_reconstruction
       class(abstract_reconstruction_t), intent(inout) :: self
       class(input_t), intent(in) :: input
       class(grid_t), intent(in), target :: grid_target
-    end subroutine
+    endsubroutine
 
     subroutine reconstruct(self, primitive_var, reconstructed_var, lbounds, name, stage_name)
       import :: abstract_reconstruction_t
@@ -80,7 +80,7 @@ module mod_abstract_reconstruction
       real(rk), dimension(:, lbounds(1):, lbounds(2):), intent(out), contiguous :: reconstructed_var
       !< ((corner1:midpoint4), i, j); reconstructed variable, the first index is 1:8, or (c1,m1,c2,m2,c3,m3,c4,m4), c:corner, m:midpoint
 
-    end subroutine reconstruct
+    endsubroutine reconstruct
 
     real(rk) function reconstruct_at_point(self, i, j, x, y, var) result(q)
       import :: abstract_reconstruction_t
@@ -89,14 +89,14 @@ module mod_abstract_reconstruction
       real(rk), intent(in) :: x, y  !< location within cell
       integer(ik), intent(in) :: i, j !< cell indices
       character(len=*), intent(in) :: var !< variable to reconstruct ('rho', or 'p')
-    end function
+    endfunction
 
     subroutine copy_recon(out_recon, in_recon)
       import :: abstract_reconstruction_t
       class(abstract_reconstruction_t), intent(in) :: in_recon
       class(abstract_reconstruction_t), intent(inout) :: out_recon
-    end subroutine
-  end interface
+    endsubroutine
+  endinterface
 
 contains
 
@@ -106,7 +106,7 @@ contains
     class(grid_t), intent(in), target :: grid
 
     if(.not. associated(self%grid)) self%grid => grid
-  end subroutine set_grid_pointer
+  endsubroutine set_grid_pointer
 
   subroutine set_cell_average_pointers(self, rho, p, lbounds)
     !< Make the cell average quantities point to the real values (taken from the fluid class).
@@ -118,6 +118,6 @@ contains
     real(rk), dimension(lbounds(1):, lbounds(2):), intent(in), target :: p
     self%rho => rho
     self%p => p
-  end subroutine set_cell_average_pointers
+  endsubroutine set_cell_average_pointers
 
-end module mod_abstract_reconstruction
+endmodule mod_abstract_reconstruction

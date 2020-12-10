@@ -98,7 +98,6 @@ module mod_fluid
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
     logical :: residual_hist_header_written = .false.
 
-
   contains
     ! Private methods
     private
@@ -133,7 +132,7 @@ module mod_fluid
     generic :: operator(-) => subtract_fluid
     generic :: operator(*) => real_mul_fluid, fluid_mul_real
     generic :: assignment(=) => assign_fluid
-  end type fluid_t
+  endtype fluid_t
 
 contains
 
@@ -148,8 +147,8 @@ contains
     class is(grid_block_2d_t)
       allocate(fluid)
       call fluid%initialize(input, grid, time)
-    end select
-  end function new_fluid
+    endselect
+  endfunction new_fluid
 
   subroutine initialize(self, input, grid, time)
     class(fluid_t), intent(inout) :: self
@@ -172,7 +171,7 @@ contains
                      message="Global non-dimensional scale factors haven't been set yet. "// &
                      "These need to be set before fluid initialization", &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     self%rho = field_2d(name='rho', long_name='Density', &
                         descrip='Cell Density', units='g/cm^3', &
@@ -226,7 +225,7 @@ contains
                      "['AUSMPW+', 'M-AUSMPW+'], "// &
                      "the input was: '"//trim(input%flux_solver)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     call solver%initialize(input, self%time)
     allocate(self%solver, source=solver)
@@ -242,7 +241,7 @@ contains
     self%mach_u = self%u / self%cs
     self%prim_vars_updated = .true.
     call self%sync_fields()
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine initialize_from_hdf5(self, input)
     !< Initialize from an .hdf5 file. The conserved variables are already allocated appropriately from
@@ -265,7 +264,7 @@ contains
       filename = trim(input%restart_file)
     else
       filename = trim(input%initial_condition_file)
-    end if
+    endif
 
     file_exists = .false.
     inquire(file=filename, exist=file_exists)
@@ -273,7 +272,7 @@ contains
     if(.not. file_exists) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                      message='File not found: "'//filename//'"', file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     call h5%initialize(filename=filename, status='old', action='r')
 
@@ -288,8 +287,8 @@ contains
         call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                        message="Unknown density units in .h5 file. Acceptable units are 'g/cc'", &
                        file_name=__FILE__, line_number=__LINE__)
-      end select
-    end if
+      endselect
+    endif
 
     call h5%get('/x_velocity', x_velocity)
     call h5%get('/y_velocity', y_velocity)
@@ -307,8 +306,8 @@ contains
         call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                        message="Unknown velocity units in .h5 file. Acceptable units are 'km/s' and 'cm/s'", &
                        file_name=__FILE__, line_number=__LINE__)
-      end select
-    end if
+      endselect
+    endif
 
     call h5%get('/pressure', pressure)
     call h5%readattr('/pressure', 'units', str_buff)
@@ -322,8 +321,8 @@ contains
         call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                        message="Unknown pressure units in .h5 file. Acceptable units are 'barye', 'Mbar'", &
                        file_name=__FILE__, line_number=__LINE__)
-      end select
-    end if
+      endselect
+    endif
 
     call h5%finalize()
 
@@ -333,7 +332,7 @@ contains
       self%u%data(ilo:ihi, jlo:jhi) = x_velocity(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
       self%v%data(ilo:ihi, jlo:jhi) = y_velocity(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
       self%p%data(ilo:ihi, jlo:jhi) = pressure(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
-    end associate
+    endassociate
 
     call self%rho%make_non_dimensional(non_dim_factor=rho_0)
     call self%u%make_non_dimensional(non_dim_factor=v_0)
@@ -343,12 +342,12 @@ contains
     if(minval(pressure) < tiny(1.0_rk)) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                      message="Some (or all) of the pressure array is ~0", file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     if(minval(density) < tiny(1.0_rk)) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
                      message="Some (or all) of the density array is ~0", file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     call eos%primitive_to_conserved(rho=self%rho, u=self%u, v=self%v, p=self%p, &
                                     rho_u=self%rho_u, rho_v=self%rho_v, rho_E=self%rho_E)
@@ -369,7 +368,7 @@ contains
       write(*, *)
     endif
 
-  end subroutine initialize_from_hdf5
+  endsubroutine initialize_from_hdf5
 
   subroutine finalize(self)
     type(fluid_t), intent(inout) :: self
@@ -386,7 +385,7 @@ contains
     ! if(allocated(self%mach_u)) deallocate(self%mach_u)
     ! if(allocated(self%mach_v)) deallocate(self%mach_v)
     if(allocated(self%solver)) deallocate(self%solver)
-  end subroutine finalize
+  endsubroutine finalize
 
   subroutine set_time(self, time, iteration)
     !< Set the time statistics
@@ -397,7 +396,7 @@ contains
     if(enable_debug_print) call debug_print('Running fluid_t%set_time()', __FILE__, __LINE__)
     self%time = time
     self%iteration = iteration
-  end subroutine set_time
+  endsubroutine set_time
 
   subroutine integrate(self, dt, grid, source_term, error_code)
     !< Integrate in time
@@ -422,8 +421,8 @@ contains
     case default
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
                      message="Unknown time integration scheme", file_name=__FILE__, line_number=__LINE__)
-    end select
-  end subroutine integrate
+    endselect
+  endsubroutine integrate
 
   subroutine sync_fields(self)
     class(fluid_t), intent(inout) :: self
@@ -431,7 +430,7 @@ contains
     call self%u%sync_edges()
     call self%v%sync_edges()
     call self%p%sync_edges()
-  end subroutine
+  endsubroutine
 
   function time_derivative(self, grid, source_term) result(d_dt)
     !< Implementation of the time derivative
@@ -440,10 +439,10 @@ contains
     type(fluid_t), allocatable :: d_dt          !< dU/dt
     class(source_t), allocatable, intent(in) :: source_term
 
-    real(rk), dimension(:,:), allocatable ::   d_rho_dt  !< d/dt of the density field
-    real(rk), dimension(:,:), allocatable :: d_rho_u_dt  !< d/dt of the rhou field
-    real(rk), dimension(:,:), allocatable :: d_rho_v_dt  !< d/dt of the rhov field
-    real(rk), dimension(:,:), allocatable :: d_rho_E_dt  !< d/dt of the rhoE field
+    real(rk), dimension(:, :), allocatable ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:, :), allocatable :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:, :), allocatable :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:, :), allocatable :: d_rho_E_dt  !< d/dt of the rhoE field
 
     if(enable_debug_print) call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
@@ -454,17 +453,17 @@ contains
       call self%sync_fields()
       call self%solver%solve(dt=self%dt, grid=grid, &
                              rho=self%rho, u=self%u, v=self%v, p=self%p, &
-                             d_rho_dt=d_rho_dt,  &
+                             d_rho_dt=d_rho_dt, &
                              d_rho_u_dt=d_rho_u_dt, &
                              d_rho_v_dt=d_rho_v_dt, &
                              d_rho_E_dt=d_rho_E_dt)
-      
-      d_dt%rho%data = d_rho_dt  
+
+      d_dt%rho%data = d_rho_dt
       d_dt%rho_u%data = d_rho_u_dt
       d_dt%rho_v%data = d_rho_v_dt
       d_dt%rho_E%data = d_rho_E_dt
 
-      deallocate(d_rho_dt  )
+      deallocate(d_rho_dt)
       deallocate(d_rho_u_dt)
       deallocate(d_rho_v_dt)
       deallocate(d_rho_E_dt)
@@ -473,11 +472,11 @@ contains
         if(self%time <= source_term%max_time) then
           if(source_term%source_type == 'energy') then
             d_dt%rho_E = source_term%data + d_dt%rho_E
-          end if
-        end if
-      end if
-    end select
-  end function time_derivative
+          endif
+        endif
+      endif
+    endselect
+  endfunction time_derivative
 
   real(rk) function get_timestep(self, grid) result(delta_t)
     class(fluid_t), intent(inout) :: self
@@ -504,7 +503,7 @@ contains
 
       dx = grid%dx(g_ilo:g_ihi, g_jlo:g_jhi)
       dy = grid%dy(g_ilo:g_ihi, g_jlo:g_jhi)
-    end select
+    endselect
 
     err_msg = ''
 
@@ -516,14 +515,14 @@ contains
 
     ! I would have put this in a cleaner associate block, but GFortran+OpenCoarrays bugs out on this
     min_delta_t = minval(self%cfl / &
-                    (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
-                       self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
-                     ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
-                       self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
+                         (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
+                            self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
+                          ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
+                            self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
 
     min_delta_t = min_to_all(min_delta_t)
     delta_t = min_delta_t
-  end function get_timestep
+  endfunction get_timestep
 
   subroutine calculate_derived_quantities(self)
     !< Find derived quantities like sound speed, mach number, primitive variables
@@ -539,7 +538,7 @@ contains
     self%mach_u = self%u / self%cs
     self%mach_v = self%v / self%cs
     self%prim_vars_updated = .true.
-  end subroutine calculate_derived_quantities
+  endsubroutine calculate_derived_quantities
 
   subroutine residual_smoother(self)
     class(fluid_t), intent(inout) :: self
@@ -551,7 +550,7 @@ contains
     real(rk), parameter :: EPS = 5e-14_rk
 
     call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
-    
+
     if(self%smooth_residuals) then
       ilo = self%rho%lbounds(1)
       ihi = self%rho%ubounds(1)
@@ -560,24 +559,24 @@ contains
 
       do j = jlo, jhi
         do i = ilo, ihi
-          if(abs(self%rho  %data(i, j) - self%rho  %data(i - 1, j)) < EPS) self%rho  %data(i, j) = self%rho  %data(i - 1, j)
+          if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
           if(abs(self%rho_u%data(i, j) - self%rho_u%data(i - 1, j)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i - 1, j)
           if(abs(self%rho_v%data(i, j) - self%rho_v%data(i - 1, j)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i - 1, j)
           if(abs(self%rho_E%data(i, j) - self%rho_E%data(i - 1, j)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i - 1, j)
-        end do
-      end do
+        enddo
+      enddo
 
       do j = jlo, jhi
         do i = ilo, ihi
-          if(abs(self%rho  %data(i, j) - self%rho  %data(i, j - 1)) < EPS) self%rho  %data(i, j) = self%rho  %data(i, j - 1)
+          if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
           if(abs(self%rho_u%data(i, j) - self%rho_u%data(i, j - 1)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i, j - 1)
           if(abs(self%rho_v%data(i, j) - self%rho_v%data(i, j - 1)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i, j - 1)
           if(abs(self%rho_E%data(i, j) - self%rho_E%data(i, j - 1)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i, j - 1)
-        end do
-      end do
-    end if
+        enddo
+      enddo
+    endif
 
-  end subroutine residual_smoother
+  endsubroutine residual_smoother
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
@@ -593,7 +592,7 @@ contains
     difference%rho_v = lhs%rho_v - rhs%rho_v
     difference%rho_E = lhs%rho_E - rhs%rho_E
     difference%prim_vars_updated = .false.
-  end function subtract_fluid
+  endfunction subtract_fluid
 
   function add_fluid(lhs, rhs) result(sum)
     !< Implementation of the (+) operator for the fluid type
@@ -609,7 +608,7 @@ contains
     sum%rho_v = lhs%rho_v + rhs%rho_v
     sum%rho_E = lhs%rho_E + rhs%rho_E
     sum%prim_vars_updated = .false.
-  end function add_fluid
+  endfunction add_fluid
 
   function fluid_mul_real(lhs, rhs) result(product)
     !< Implementation of the fluid * real operation
@@ -625,7 +624,7 @@ contains
     if(alloc_status /= 0) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='fluid_mul_real', &
                      message="Unable to allocate lhs%solver", file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     product%rho = lhs%rho * rhs
     product%rho_u = lhs%rho_u * rhs
@@ -633,7 +632,7 @@ contains
     product%rho_E = lhs%rho_E * rhs
 
     product%prim_vars_updated = .false.
-  end function fluid_mul_real
+  endfunction fluid_mul_real
 
   function real_mul_fluid(lhs, rhs) result(product)
     !< Implementation of the real * fluid operation
@@ -648,14 +647,14 @@ contains
     if(alloc_status /= 0) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='real_mul_fluid', &
                      message="Unable to allocate product", file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     product%rho = lhs * rhs%rho
     product%rho_u = lhs * rhs%rho_u
     product%rho_v = lhs * rhs%rho_v
     product%rho_E = lhs * rhs%rho_E
     product%prim_vars_updated = .false.
-  end function real_mul_fluid
+  endfunction real_mul_fluid
 
   subroutine assign_fluid(lhs, rhs)
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
@@ -667,14 +666,14 @@ contains
     err_msg = ''
 
     if(enable_debug_print) call debug_print('Running fluid_t%assign_fluid()', __FILE__, __LINE__)
-    
+
     lhs%input = rhs%input
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
     lhs%rho = rhs%rho
     lhs%rho_u = rhs%rho_u
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
-    
+
     select case(trim(rhs%flux_solver_type))
     case('M-AUSMPW+')
       allocate(m_ausmpw_plus_solver_t :: solver)
@@ -686,7 +685,7 @@ contains
                      "['AUSMPW+', 'M-AUSMPW+'], "// &
                      "the input was: '"//trim(rhs%flux_solver_type)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     if(allocated(lhs%solver)) deallocate(lhs%solver)
     call solver%initialize(rhs%input, rhs%time)
@@ -705,7 +704,7 @@ contains
 
     if(lhs%smooth_residuals) call lhs%residual_smoother()
 
-  end subroutine assign_fluid
+  endsubroutine assign_fluid
 
   subroutine sanity_check(self, error_code)
     !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.
@@ -721,39 +720,39 @@ contains
     if(invalid_numbers) then
       error_code = NANS_FOUND
       return
-    end if
+    endif
 
     invalid_numbers = self%u%has_nans()
     if(invalid_numbers) then
       error_code = NANS_FOUND
       return
-    end if
+    endif
 
     invalid_numbers = self%v%has_nans()
     if(invalid_numbers) then
       error_code = NANS_FOUND
       return
-    end if
+    endif
 
     invalid_numbers = self%p%has_nans()
     if(invalid_numbers) then
       error_code = NANS_FOUND
       return
-    end if
+    endif
 
     negative_numbers = self%p%has_negatives()
     if(negative_numbers) then
       error_code = NEG_PRESSURE
       return
-    end if
+    endif
 
     negative_numbers = self%rho%has_negatives()
     if(negative_numbers) then
       error_code = NEG_DENSITY
       return
-    end if
+    endif
 
-  end subroutine sanity_check
+  endsubroutine sanity_check
 
   subroutine ssp_rk_3_3(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 3-step, 3rd order time integration. See Ref [3]
@@ -792,7 +791,7 @@ contains
     deallocate(U_1)
     deallocate(U_2)
 
-  end subroutine ssp_rk_3_3
+  endsubroutine ssp_rk_3_3
 
   subroutine ssp_rk_4_3(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 4-step, 3rd order time integration. See Ref [3]. According to the
@@ -838,7 +837,7 @@ contains
     deallocate(U_2)
     deallocate(U_3)
 
-  end subroutine ssp_rk_4_3
+  endsubroutine ssp_rk_4_3
 
   subroutine ssp_rk_2_2(U, source_term, grid, error_code)
     !< Strong-stability preserving Runge-Kutta 2-stage, 2nd order time integration. See Ref [3]
@@ -870,7 +869,7 @@ contains
 
     deallocate(U_1)
 
-  end subroutine ssp_rk_2_2
+  endsubroutine ssp_rk_2_2
 
   subroutine write_residual_history(first_stage, last_stage)
     !< This writes out the change in residual to a file for convergence history monitoring.
@@ -906,5 +905,5 @@ contains
       rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
     close(io)
 
-  end subroutine write_residual_history
-end module mod_fluid
+  endsubroutine write_residual_history
+endmodule mod_fluid

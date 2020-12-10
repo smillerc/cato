@@ -105,40 +105,40 @@ module h5fortran
       hdf_read_scalar, hdf_read_1d, hdf_read_2d, hdf_read_3d, hdf_read_4d, hdf_read_5d, hdf_read_6d, hdf_read_7d, &
       writeattr_char, writeattr_num, readattr_char, readattr_num
 
-  end type hdf5_file
+  endtype hdf5_file
 
   interface h5write
     procedure lt0write, lt1write, lt2write, lt3write, lt4write, lt5write, lt6write, lt7write
-  end interface h5write
+  endinterface h5write
 
   interface h5read
     procedure lt0read, lt1read, lt2read, lt3read, lt4read, lt5read, lt6read, lt7read
-  end interface h5read
+  endinterface h5read
 
   interface h5write_attr
     procedure writeattr_num_lt, writeattr_char_lt
-  end interface h5write_attr
+  endinterface h5write_attr
 
   interface h5read_attr
     procedure readattr_num_lt, readattr_char_lt
-  end interface h5read_attr
+  endinterface h5read_attr
 
 !> Submodules
 
   interface !< pathlib.f90
     module logical function unlink(filename)
       character(*), intent(in) :: filename
-    end function unlink
+    endfunction unlink
 
     module logical function is_absolute_path(path)
       character(*), intent(in) :: path
-    end function is_absolute_path
+    endfunction is_absolute_path
 
     module function get_tempdir()
       character(:), allocatable :: get_tempdir
-    end function
+    endfunction
 
-  end interface
+  endinterface
 
   interface !< write.f90
     module subroutine hdf_create(self, dname, dtype, dims, sid, did, chunk_size, istart, iend, stride)
@@ -149,112 +149,112 @@ module h5fortran
       integer(HID_T), intent(out), optional :: sid, did
       integer, intent(in), optional :: chunk_size(:), istart(:), iend(:), stride(:)
 !! keep istart, iend, stride for future slice shape check
-    end subroutine hdf_create
-  end interface
+    endsubroutine hdf_create
+  endinterface
 
   interface !< writer_lt.f90
     module logical function h5exist(filename, dname)
       character(*), intent(in) :: filename, dname
-    end function h5exist
+    endfunction h5exist
 
     module subroutine lt0write(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(in) :: value
       integer, intent(out), optional :: ierr
-    end subroutine lt0write
+    endsubroutine lt0write
 
     module subroutine lt1write(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(in) :: value(:)
       integer, intent(out), optional :: ierr
-    end subroutine lt1write
+    endsubroutine lt1write
 
     module subroutine lt2write(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(in) :: value(:, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt2write
+    endsubroutine lt2write
 
     module subroutine lt3write(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(in) :: value(:, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt3write
+    endsubroutine lt3write
 
     module subroutine lt4write(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(in) :: value(:, :, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt4write
+    endsubroutine lt4write
 
     module subroutine lt5write(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(in) :: value(:, :, :, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt5write
+    endsubroutine lt5write
 
     module subroutine lt6write(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(in) :: value(:, :, :, :, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt6write
+    endsubroutine lt6write
 
     module subroutine lt7write(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(in) :: value(:, :, :, :, :, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt7write
-  end interface
+    endsubroutine lt7write
+  endinterface
 
   interface !< reader_lt.f90
     module subroutine lt0read(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(out) :: value
       integer, intent(out), optional :: ierr
-    end subroutine lt0read
+    endsubroutine lt0read
 
     module subroutine lt1read(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(out) :: value(:)
       integer, intent(out), optional :: ierr
-    end subroutine lt1read
+    endsubroutine lt1read
 
     module subroutine lt2read(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(out) :: value(:, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt2read
+    endsubroutine lt2read
 
     module subroutine lt3read(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(out) :: value(:, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt3read
+    endsubroutine lt3read
 
     module subroutine lt4read(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(out) :: value(:, :, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt4read
+    endsubroutine lt4read
 
     module subroutine lt5read(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(out) :: value(:, :, :, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt5read
+    endsubroutine lt5read
 
     module subroutine lt6read(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(out) :: value(:, :, :, :, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt6read
+    endsubroutine lt6read
 
     module subroutine lt7read(filename, dname, value, ierr)
       character(*), intent(in) :: filename, dname
       class(*), intent(out) :: value(:, :, :, :, :, :, :)
       integer, intent(out), optional :: ierr
-    end subroutine lt7read
-  end interface
+    endsubroutine lt7read
+  endinterface
 
   interface !< writer.f90
     module subroutine hdf_write_scalar(self, dname, value, ierr)
@@ -262,7 +262,7 @@ module h5fortran
       character(*), intent(in) :: dname
       class(*), intent(in) :: value
       integer, intent(out), optional :: ierr
-    end subroutine hdf_write_scalar
+    endsubroutine hdf_write_scalar
 
     module subroutine hdf_write_1d(self, dname, value, ierr, chunk_size, istart, iend, stride)
       class(hdf5_file), intent(inout) :: self
@@ -271,7 +271,7 @@ module h5fortran
       integer, intent(in), optional :: chunk_size(rank(value))
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
       integer, intent(out), optional :: ierr
-    end subroutine hdf_write_1d
+    endsubroutine hdf_write_1d
 
     module subroutine hdf_write_2d(self, dname, value, ierr, chunk_size, istart, iend, stride)
       class(hdf5_file), intent(inout) :: self
@@ -280,7 +280,7 @@ module h5fortran
       integer, intent(in), optional :: chunk_size(rank(value))
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
       integer, intent(out), optional :: ierr
-    end subroutine hdf_write_2d
+    endsubroutine hdf_write_2d
 
     module subroutine hdf_write_3d(self, dname, value, ierr, chunk_size, istart, iend, stride)
       class(hdf5_file), intent(inout) :: self
@@ -289,7 +289,7 @@ module h5fortran
       integer, intent(in), optional :: chunk_size(rank(value))
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
       integer, intent(out), optional :: ierr
-    end subroutine hdf_write_3d
+    endsubroutine hdf_write_3d
 
     module subroutine hdf_write_4d(self, dname, value, ierr, chunk_size, istart, iend, stride)
       class(hdf5_file), intent(inout) :: self
@@ -298,7 +298,7 @@ module h5fortran
       integer, intent(in), optional :: chunk_size(rank(value))
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
       integer, intent(out), optional :: ierr
-    end subroutine hdf_write_4d
+    endsubroutine hdf_write_4d
 
     module subroutine hdf_write_5d(self, dname, value, ierr, chunk_size, istart, iend, stride)
       class(hdf5_file), intent(inout) :: self
@@ -307,7 +307,7 @@ module h5fortran
       integer, intent(in), optional :: chunk_size(rank(value))
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
       integer, intent(out), optional :: ierr
-    end subroutine hdf_write_5d
+    endsubroutine hdf_write_5d
 
     module subroutine hdf_write_6d(self, dname, value, ierr, chunk_size, istart, iend, stride)
       class(hdf5_file), intent(inout) :: self
@@ -316,7 +316,7 @@ module h5fortran
       integer, intent(in), optional :: chunk_size(rank(value))
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
       integer, intent(out), optional :: ierr
-    end subroutine hdf_write_6d
+    endsubroutine hdf_write_6d
 
     module subroutine hdf_write_7d(self, dname, value, ierr, chunk_size, istart, iend, stride)
       class(hdf5_file), intent(inout) :: self
@@ -325,39 +325,39 @@ module h5fortran
       integer, intent(in), optional :: chunk_size(rank(value))
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
       integer, intent(out), optional :: ierr
-    end subroutine hdf_write_7d
-  end interface
+    endsubroutine hdf_write_7d
+  endinterface
 
   interface !< read.f90
     module integer function hdf_get_ndims(self, dname) result(drank)
       class(hdf5_file), intent(in) :: self
       character(*), intent(in) :: dname
-    end function hdf_get_ndims
+    endfunction hdf_get_ndims
 
     module subroutine hdf_get_shape(self, dname, dims, ierr)
       class(hdf5_file), intent(in) :: self
       character(*), intent(in) :: dname
       integer(HSIZE_T), intent(out), allocatable :: dims(:)
       integer, intent(out), optional :: ierr
-    end subroutine hdf_get_shape
+    endsubroutine hdf_get_shape
 
     module integer function hdf_get_layout(self, dname) result(layout)
 !! H5D_CONTIGUOUS_F, H5D_CHUNKED_F, H5D_VIRTUAL_F, H5D_COMPACT_F
       class(hdf5_file), intent(in) :: self
       character(*), intent(in) :: dname
-    end function hdf_get_layout
+    endfunction hdf_get_layout
 
     module subroutine hdf_get_chunk(self, dname, chunk_size)
       class(hdf5_file), intent(in) :: self
       character(*), intent(in) :: dname
       integer(hsize_t), intent(out) :: chunk_size(:)
-    end subroutine hdf_get_chunk
+    endsubroutine hdf_get_chunk
 
     module logical function hdf_check_exist(self, dname) result(exists)
       class(hdf5_file), intent(in) :: self
       character(*), intent(in) :: dname
-    end function hdf_check_exist
-  end interface
+    endfunction hdf_check_exist
+  endinterface
 
   interface !< reader.f90
     module subroutine hdf_read_scalar(self, dname, value, ierr)
@@ -366,7 +366,7 @@ module h5fortran
       class(*), intent(inout)        :: value
 !! intent(inout) for character
       integer, intent(out), optional :: ierr
-    end subroutine hdf_read_scalar
+    endsubroutine hdf_read_scalar
 
     module subroutine hdf_read_1d(self, dname, value, ierr, istart, iend, stride)
       class(hdf5_file), intent(in)     :: self
@@ -374,7 +374,7 @@ module h5fortran
       class(*), intent(out) :: value(:)
       integer, intent(out), optional :: ierr
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
-    end subroutine hdf_read_1d
+    endsubroutine hdf_read_1d
 
     module subroutine hdf_read_2d(self, dname, value, ierr, istart, iend, stride)
       class(hdf5_file), intent(in)     :: self
@@ -382,7 +382,7 @@ module h5fortran
       class(*), intent(out) :: value(:, :)
       integer, intent(out), optional :: ierr
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
-    end subroutine hdf_read_2d
+    endsubroutine hdf_read_2d
 
     module subroutine hdf_read_3d(self, dname, value, ierr, istart, iend, stride)
       class(hdf5_file), intent(in)     :: self
@@ -390,7 +390,7 @@ module h5fortran
       class(*), intent(out) :: value(:, :, :)
       integer, intent(out), optional :: ierr
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
-    end subroutine hdf_read_3d
+    endsubroutine hdf_read_3d
 
     module subroutine hdf_read_4d(self, dname, value, ierr, istart, iend, stride)
       class(hdf5_file), intent(in)     :: self
@@ -398,7 +398,7 @@ module h5fortran
       class(*), intent(out) :: value(:, :, :, :)
       integer, intent(out), optional :: ierr
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
-    end subroutine hdf_read_4d
+    endsubroutine hdf_read_4d
 
     module subroutine hdf_read_5d(self, dname, value, ierr, istart, iend, stride)
       class(hdf5_file), intent(in)     :: self
@@ -406,7 +406,7 @@ module h5fortran
       class(*), intent(out) :: value(:, :, :, :, :)
       integer, intent(out), optional :: ierr
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
-    end subroutine hdf_read_5d
+    endsubroutine hdf_read_5d
 
     module subroutine hdf_read_6d(self, dname, value, ierr, istart, iend, stride)
       class(hdf5_file), intent(in)     :: self
@@ -414,7 +414,7 @@ module h5fortran
       class(*), intent(out) :: value(:, :, :, :, :, :)
       integer, intent(out), optional :: ierr
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
-    end subroutine hdf_read_6d
+    endsubroutine hdf_read_6d
 
     module subroutine hdf_read_7d(self, dname, value, ierr, istart, iend, stride)
       class(hdf5_file), intent(in)     :: self
@@ -422,21 +422,21 @@ module h5fortran
       class(*), intent(out) :: value(:, :, :, :, :, :, :)
       integer, intent(out), optional :: ierr
       integer, intent(in), optional, dimension(:) :: istart, iend, stride
-    end subroutine hdf_read_7d
-  end interface
+    endsubroutine hdf_read_7d
+  endinterface
 
   interface
     module subroutine hdf_open_group(self, gname, ierr)
       class(hdf5_file), intent(inout) :: self
       character(*), intent(in)        :: gname
       integer, intent(out), optional :: ierr
-    end subroutine hdf_open_group
+    endsubroutine hdf_open_group
 
     module subroutine hdf_close_group(self, ierr)
       class(hdf5_file), intent(inout) :: self
       integer, intent(out), optional :: ierr
-    end subroutine hdf_close_group
-  end interface
+    endsubroutine hdf_close_group
+  endinterface
 
   interface  !< attributes.f90
 
@@ -446,42 +446,42 @@ module h5fortran
       character(*), intent(inout) :: attrval
 !! intent(inout) for character
       integer, intent(out), optional :: ierr
-    end subroutine readattr_char
+    endsubroutine readattr_char
 
     module subroutine readattr_num(self, dname, attr, attrval, ierr)
       class(hdf5_file), intent(in) :: self
       character(*), intent(in) :: dname, attr
       class(*), intent(out) :: attrval(:)
       integer, intent(out), optional :: ierr
-    end subroutine readattr_num
+    endsubroutine readattr_num
 
     module subroutine writeattr_char(self, dname, attr, attrval, ierr)
       class(hdf5_file), intent(in) :: self
       character(*), intent(in) :: dname, attr
       character(*), intent(in) :: attrval
       integer, intent(out), optional :: ierr
-    end subroutine writeattr_char
+    endsubroutine writeattr_char
 
     module subroutine writeattr_num(self, dname, attr, attrval, ierr)
       class(hdf5_file), intent(in) :: self
       character(*), intent(in) :: dname, attr
       class(*), intent(in) :: attrval(:)
       integer, intent(out), optional :: ierr
-    end subroutine writeattr_num
+    endsubroutine writeattr_num
 
     module subroutine writeattr_char_lt(filename, dname, attr, attrval, ierr)
       character(*), intent(in) :: filename
       character(*), intent(in) :: dname, attr
       character(*), intent(in) :: attrval
       integer, intent(out), optional :: ierr
-    end subroutine writeattr_char_lt
+    endsubroutine writeattr_char_lt
 
     module subroutine writeattr_num_lt(filename, dname, attr, attrval, ierr)
       character(*), intent(in) :: filename
       character(*), intent(in) :: dname, attr
       class(*), intent(in) :: attrval(:)
       integer, intent(out), optional :: ierr
-    end subroutine writeattr_num_lt
+    endsubroutine writeattr_num_lt
 
     module subroutine readattr_char_lt(filename, dname, attr, attrval, ierr)
       character(*), intent(in) :: filename
@@ -489,16 +489,16 @@ module h5fortran
       character(*), intent(inout) :: attrval
 !! intent(inout) for character
       integer, intent(out), optional :: ierr
-    end subroutine readattr_char_lt
+    endsubroutine readattr_char_lt
 
     module subroutine readattr_num_lt(filename, dname, attr, attrval, ierr)
       character(*), intent(in) :: filename
       character(*), intent(in) :: dname, attr
       class(*), intent(out) :: attrval(:)
       integer, intent(out), optional :: ierr
-    end subroutine readattr_num_lt
+    endsubroutine readattr_num_lt
 
-  end interface
+  endinterface
 
 contains
 
@@ -579,7 +579,7 @@ contains
       case default
         write(stderr, *) 'Unsupported action -> '//laction
         error stop 128
-      end select
+      endselect
     case('new', 'replace')
       call h5fcreate_f(filename, H5F_ACC_TRUNC_F, self%lid, ier)
     case('scratch')
@@ -589,7 +589,7 @@ contains
     case default
       write(stderr, *) 'Unsupported status -> '//lstatus
       error stop 128
-    end select
+    endselect
 
     if(present(ierr)) ierr = ier
     if(check(ier, filename)) then
@@ -599,7 +599,7 @@ contains
 
     self%is_open = .true.
 
-  end subroutine hdf_initialize
+  endsubroutine hdf_initialize
 
   subroutine hdf_finalize(self, ierr, close_hdf5_interface)
 !! This must be called on each HDF5 file to flush buffers to disk
@@ -647,7 +647,7 @@ contains
 
     self%is_open = .false.
 
-  end subroutine hdf_finalize
+  endsubroutine hdf_finalize
 
   subroutine hdf_flush(self, ierr)
 
@@ -660,7 +660,7 @@ contains
     if(present(ierr)) ierr = ier
     if(check(ier, 'ERROR: HDF5 flush '//self%filename) .and. .not. present(ierr)) error stop
 
-  end subroutine hdf_flush
+  endsubroutine hdf_flush
 
   subroutine hdf5_close(ierr)
 !! this subroutine will close ALL existing file handles
@@ -676,19 +676,19 @@ contains
     if(present(ierr)) ierr = ier
     if(check(ier, 'ERROR: HDF5 library close') .and. .not. present(ierr)) error stop
 
-  end subroutine hdf5_close
+  endsubroutine hdf5_close
 
   logical function hdf_is_contig(self, dname)
     class(hdf5_file), intent(in) :: self
     character(*), intent(in) :: dname
     hdf_is_contig = self%layout(dname) == H5D_CONTIGUOUS_F
-  end function hdf_is_contig
+  endfunction hdf_is_contig
 
   logical function hdf_is_chunked(self, dname)
     class(hdf5_file), intent(in) :: self
     character(*), intent(in) :: dname
     hdf_is_chunked = self%layout(dname) == H5D_CHUNKED_F
-  end function hdf_is_chunked
+  endfunction hdf_is_chunked
 
   logical function is_hdf5(filename)
 !! is this file HDF5?
@@ -705,7 +705,7 @@ contains
     if(ierr /= 0) is_hdf5 = .false.
 !! sometimes h5fis_hdf5_f is .true. for missing file
 
-  end function is_hdf5
+  endfunction is_hdf5
 
   subroutine write_group(self, gname, ierr)
 
@@ -755,9 +755,9 @@ contains
           error stop
         endif
       endif
-    end do
+    enddo
 
-  end subroutine write_group
+  endsubroutine write_group
 
   logical function check(ierr, filename, dname)
     integer, intent(in) :: ierr
@@ -781,9 +781,9 @@ contains
       write(stderr, *) 'ERROR:initialize '//fn//' could not be opened or created'
     case default
       write(stderr, *) 'ERROR: '//fn//':'//dn//' error code ', ierr
-    end select
+    endselect
 
-  end function check
+  endfunction check
 
   subroutine hdf_wrapup(did, sid, ierr)
     integer(HID_T), intent(in) :: sid, did
@@ -799,7 +799,7 @@ contains
       if(check(ierr, 'ERROR:h5dclose dataset')) return
     endif
 
-  end subroutine hdf_wrapup
+  endsubroutine hdf_wrapup
 
   subroutine hdf_get_slice(self, dname, did, sid, mem_sid, i0, i1, i2)
 !! setup array slices for read and write
@@ -829,7 +829,7 @@ contains
     class default
       write(stderr, *) 'ERROR:h5fortran:slice: wrong type for istart: ', dname, self%filename
       error stop 5
-    end select
+    endselect
 
 !! iend
 
@@ -841,7 +841,7 @@ contains
     class default
       write(stderr, *) 'ERROR:h5fortran:slice: wrong type for iend: ', dname, self%filename
       error stop 5
-    end select
+    endselect
 
 !! stride
 
@@ -854,7 +854,7 @@ contains
       class default
         write(stderr, *) 'ERROR:h5fortran:slice: wrong type for stride: ', dname, self%filename
         error stop 5
-      end select
+      endselect
       if(self%debug) print *, 'DEBUG: user-stride:', stride
     else
       stride = 1
@@ -881,7 +881,7 @@ contains
     call h5screate_simple_f(size(mem_dims), mem_dims, mem_sid, ierr)
     if(ierr /= 0) error stop 'h5fortran:get_slice could not create dataspace'
 
-  end subroutine hdf_get_slice
+  endsubroutine hdf_get_slice
 
   subroutine hdf_shape_check(self, dname, dims)
     class(hdf5_file), intent(in) :: self
@@ -909,7 +909,7 @@ contains
     class default
       write(stderr, *) 'ERROR:h5fortran:shape_check: wrong type for dims: ', dname, self%filename
       error stop 5
-    end select
+    endselect
 
 !> check for matching rank, else bad reads can occur--doesn't always crash without this check
     call h5ltget_dataset_ndims_f(self%lid, dname, drank, ierr)
@@ -936,6 +936,6 @@ contains
       error stop
     endif
 
-  end subroutine hdf_shape_check
+  endsubroutine hdf_shape_check
 
-end module h5fortran
+endmodule h5fortran

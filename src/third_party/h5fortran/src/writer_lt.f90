@@ -138,4 +138,4 @@ if(check(ier, filename, dname) .and. .not. present(ierr)) error stop
 
 end procedure lt7write
 
-end submodule writer_lt
+endsubmodule writer_lt

@@ -148,4 +148,4 @@ if(check(ier, filename, dname) .and. .not. present(ierr)) error stop
 
 end procedure lt7read
 
-end submodule reader_lt
+endsubmodule reader_lt

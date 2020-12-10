@@ -61,7 +61,7 @@ contains
     point_on_line = is_on(a, b, c)
     @assertEqual(.true., point_on_line)
 
-  end subroutine
+  endsubroutine
 
   @test
   subroutine test_intersection_points()
@@ -199,6 +199,6 @@ contains
     print *, 'intersection_xy', intersection_xy
     print *, 'angles', angles * 180.0_rk / pi
 
-  end subroutine
+  endsubroutine
 
-end module test_intersections
+endmodule test_intersections

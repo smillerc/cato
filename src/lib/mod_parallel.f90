@@ -13,7 +13,7 @@ module mod_parallel
 
   interface tile_indices
     module procedure :: tile_indices_1d, tile_indices_2d
-  end interface tile_indices
+  endinterface tile_indices
 
   ! Neighbor image indices
   integer(ik), parameter, public :: LOWER_LEFT = 1  !< lower left neighbor image
@@ -35,8 +35,8 @@ contains
     denominators = [integer(ik) ::]
     do i = 1, n
       if(mod(n, i) == 0) denominators = [denominators, i]
-    end do
-  end function denominators
+    enddo
+  endfunction denominators
 
   pure function num_2d_tiles(n)
     !< Returns the optimal number of tiles in 2 dimensions
@@ -68,9 +68,9 @@ contains
         if(denoms(i) * denoms(j) == n) then
           dim1 = [dim1, denoms(i)]
           dim2 = [dim2, denoms(j)]
-        end if
-      end do
-    end do
+        endif
+      enddo
+    enddo
 
     ! pick the set of common denominators with the minimal norm
     ! between two elements -- rectangle closest to a square
@@ -79,8 +79,8 @@ contains
       n1 = norm2([dim1(i), dim2(i)] - sqrt(real(n)))
       n2 = norm2(num_2d_tiles - sqrt(real(n)))
       if(n1 < n2) num_2d_tiles = [dim1(i), dim2(i)]
-    end do
-  end function num_2d_tiles
+    enddo
+  endfunction num_2d_tiles
 
   pure function num_3d_tiles(n)
     integer(ik), intent(in) :: n
@@ -88,7 +88,7 @@ contains
     integer(ik), allocatable :: denoms(:)
     integer(ik), allocatable :: dim1(:), dim2(:), dim3(:)
     integer(ik) :: i, j, k, n1, n2, n3
-  end function num_3d_tiles
+  endfunction num_3d_tiles
 
   pure function tile_indices_1d(dims, i, n) result(indices)
     ! Given input global array size, return start and end index
@@ -108,8 +108,8 @@ contains
     if(i > offset) then
       indices(1) = indices(1) + i - offset - 1
       indices(2) = indices(2) + i - offset
-    end if
-  end function tile_indices_1d
+    endif
+  endfunction tile_indices_1d
 
   pure function tile_indices_2d(dims) result(indices)
     ! Given an input x- and y- dimensions of the total computational domain [im, jm].
@@ -121,7 +121,7 @@ contains
     tiles_ij = tile_n2ij(this_image())
     indices(1:2) = tile_indices_1d(dims(1), tiles_ij(1), tiles(1))
     indices(3:4) = tile_indices_1d(dims(2), tiles_ij(2), tiles(2))
-  end function tile_indices_2d
+  endfunction tile_indices_2d
 
   pure function tile_indices_3d(dims) result(indices)
     ! Given an input x,y,z dimensions of the total computational domain [im, jm, km].
@@ -133,7 +133,7 @@ contains
     ! tiles_ij = tile_n2ij(this_image())
     ! indices(1:2) = tile_indices_1d(dims(1), tiles_ij(1), tiles(1))
     ! indices(3:4) = tile_indices_1d(dims(2), tiles_ij(2), tiles(2))
-  end function tile_indices_3d
+  endfunction tile_indices_3d
 
   pure function tile_neighbors_1d() result(neighbors)
     ! Returns the image indices corresponding
@@ -147,13 +147,13 @@ contains
         left = num_images()
       else if(this_image() == num_images()) then
         right = 1
-      end if
+      endif
     else
       left = 1
       right = 1
-    end if
+    endif
     neighbors = [left, right]
-  end function tile_neighbors_1d
+  endfunction tile_neighbors_1d
 
   pure function tile_neighbors_2d(is_periodic) result(neighbors)
     ! Returns the neighbor image indices given.
@@ -224,7 +224,7 @@ contains
       if(ij_lower_left(2) < 1) ij_lower_left(2) = 0
       if(ij_upper_left(1) < 1) ij_upper_left(1) = 0
       if(ij_upper_left(2) > tiles(2)) ij_upper_left(2) = 0
-    end if
+    endif
 
     left = tile_ij2n(ij_left)
     right = tile_ij2n(ij_right)
@@ -238,7 +238,7 @@ contains
 
     neighbors = [lower_left, down, lower_right, left, &
                  right, upper_left, up, upper_right]
-  end function tile_neighbors_2d
+  endfunction tile_neighbors_2d
 
   pure function tile_neighbors_3d(is_periodic) result(neighbors)
     ! Returns the neighbor image indices given.
@@ -279,7 +279,7 @@ contains
     ! up = tile_ij2n(ij_up)
     !
     ! neighbors = [left, right, down, up]
-  end function tile_neighbors_3d
+  endfunction tile_neighbors_3d
 
   pure function tile_n2ij(n) result(ij)
     ! Given tile index in a 1-d layout, returns the
@@ -306,8 +306,8 @@ contains
       j = (n - 1) / tiles(1) + 1
       i = n - (j - 1) * tiles(1)
       ij = [i, j]
-    end if
-  end function tile_n2ij
+    endif
+  endfunction tile_n2ij
 
   pure function tile_ij2n(ij) result(n)
     ! Given tile indices in a 2-d layout, returns the
@@ -332,6 +332,6 @@ contains
     else
       tiles = num_2d_tiles(num_images())
       n = (ij(2) - 1) * tiles(1) + ij(1)
-    end if
-  end function tile_ij2n
-end module mod_parallel
+    endif
+  endfunction tile_ij2n
+endmodule mod_parallel

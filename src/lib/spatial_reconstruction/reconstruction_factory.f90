@@ -58,7 +58,7 @@ contains
       call error_msg(module_name='mod_reconstruction_factory', procedure_name='reconstruction_factory', &
                      message="Unknown reconstruction type '"//recon_type//"'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
-  end function
+    endselect
+  endfunction
 
-end module mod_reconstruction_factory
+endmodule mod_reconstruction_factory

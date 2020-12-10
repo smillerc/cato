@@ -115,7 +115,7 @@ contains
     @assertEqual([1, 1, 1], lbound(fvleg%leftright_midpoints_reference_state))
     @assertEqual([4, ni_nodes, nj_nodes], ubound(fvleg%leftright_midpoints_reference_state))
 
-  end subroutine test_fvleg_dimensions
+  endsubroutine test_fvleg_dimensions
 
   @test
   subroutine test_operators()
@@ -240,6 +240,6 @@ contains
     conserved_vars = fvleg_a%conserved_vars + fvleg_b%conserved_vars
     @assertEqual(conserved_vars, fvleg_c%conserved_vars)
 
-  end subroutine test_operators
+  endsubroutine test_operators
 
-end module test_fvleg
+endmodule test_fvleg

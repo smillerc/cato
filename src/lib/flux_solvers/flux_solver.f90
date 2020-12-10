@@ -52,7 +52,7 @@ module mod_flux_solver
     procedure(initialize), deferred, public :: initialize
     procedure(solve), deferred, public :: solve
 
-  end type flux_solver_t
+  endtype flux_solver_t
 
   type, abstract, extends(flux_solver_t) :: edge_split_flux_solver_t
     !< Directionally split flux solver class
@@ -60,7 +60,7 @@ module mod_flux_solver
     real(rk), dimension(:, :, :), allocatable :: jflux !< ((1:4), i, j) edge flux of the j-direction edges
   contains
     procedure, public :: flux_split_edges
-  end type edge_split_flux_solver_t
+  endtype edge_split_flux_solver_t
 
   abstract interface
     subroutine solve(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
@@ -75,16 +75,16 @@ module mod_flux_solver
       class(field_2d_t), intent(inout) :: v   !< y-velocity
       class(field_2d_t), intent(inout) :: p   !< pressure
 
-      real(rk), dimension(:,:), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
-      real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
-      real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
-      real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
+      real(rk), dimension(:, :), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
+      real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
+      real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
+      real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
 
       ! type(field_2d_t), intent(out)   ::   d_rho_dt !< d/dt of the density field
       ! type(field_2d_t), intent(out)   :: d_rho_u_dt !< d/dt of the rhou field
       ! type(field_2d_t), intent(out)   :: d_rho_v_dt !< d/dt of the rhov field
       ! type(field_2d_t), intent(out)   :: d_rho_E_dt !< d/dt of the rhoE field
-    end subroutine
+    endsubroutine
 
     subroutine initialize(self, input, time)
       import :: flux_solver_t, rk
@@ -92,8 +92,8 @@ module mod_flux_solver
       class(flux_solver_t), intent(inout) :: self
       class(input_t), intent(in) :: input
       real(rk), intent(in) :: time
-    end subroutine
-  end interface
+    endsubroutine
+  endinterface
 
 contains
 
@@ -133,7 +133,7 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate bc_minus_y"
     deallocate(bc)
 
-  end subroutine init_boundary_conditions
+  endsubroutine init_boundary_conditions
 
   subroutine apply_primitive_bc(self, rho, u, v, p, &
                                 bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
@@ -161,37 +161,37 @@ contains
     call bc_minus_y%set_time(time=self%time)
 
     !if(any([rho%on_ilo_bc, rho%on_ihi_bc, rho%on_jlo_bc, rho%on_jhi_bc])) then
-      do priority = max_priority_bc, 0, -1
+    do priority = max_priority_bc, 0, -1
 
-        if(bc_plus_x%priority == priority) then
-          call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
-        end if
+      if(bc_plus_x%priority == priority) then
+        call bc_plus_x%apply(rho=rho, u=u, v=v, p=p)
+      endif
 
-        if(bc_plus_y%priority == priority) then
-          call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
-        end if
+      if(bc_plus_y%priority == priority) then
+        call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
+      endif
 
-        if(bc_minus_x%priority == priority) then
-          call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
-        end if
+      if(bc_minus_x%priority == priority) then
+        call bc_minus_x%apply(rho=rho, u=u, v=v, p=p)
+      endif
 
-        if(bc_minus_y%priority == priority) then
-          call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
-        end if
+      if(bc_minus_y%priority == priority) then
+        call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
+      endif
 
-      end do
+    enddo
     !endif
 
-  end subroutine apply_primitive_bc
+  endsubroutine apply_primitive_bc
 
   subroutine flux_split_edges(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Flux the edges to get the residuals, e.g. 1/vol * d/dt U
     class(edge_split_flux_solver_t), intent(in) :: self
     class(grid_block_2d_t), intent(in) :: grid          !< grid topology class
-    real(rk), dimension(:,:), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
-    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
-    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
-    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
+    real(rk), dimension(:, :), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
 
     ! Locals
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
@@ -223,7 +223,7 @@ contains
     jlo_halo = grid%lbounds_halo(2)
     jhi_halo = grid%ubounds_halo(2)
 
-    allocate(d_rho_dt  (ilo_halo:ihi_halo, jlo_halo:jhi_halo))
+    allocate(d_rho_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
     allocate(d_rho_u_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
     allocate(d_rho_v_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
     allocate(d_rho_E_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
@@ -278,8 +278,8 @@ contains
         rho_flux_threshold = abs(ave_rho_edge_flux) * REL_THRESHOLD
         if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
           rho_flux = 0.0_rk
-        end if
-        d_rho_dt(i,j) = rho_flux * inv_volume
+        endif
+        d_rho_dt(i, j) = rho_flux * inv_volume
 
         ! rho u
         rhou_edge_fluxes = [self%iflux(2, i, j) * delta_l(2), -self%iflux(2, i - 1, j) * delta_l(4), &
@@ -292,8 +292,8 @@ contains
         rhou_flux_threshold = abs(ave_rhou_edge_flux) * REL_THRESHOLD
         if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
           rhou_flux = 0.0_rk
-        end if
-        d_rho_u_dt(i,j) = rhou_flux * inv_volume
+        endif
+        d_rho_u_dt(i, j) = rhou_flux * inv_volume
 
         ! rho v
         rhov_edge_fluxes = [self%iflux(3, i, j) * delta_l(2), -self%iflux(3, i - 1, j) * delta_l(4), &
@@ -306,8 +306,8 @@ contains
         rhov_flux_threshold = abs(ave_rhov_edge_flux) * REL_THRESHOLD
         if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
           rhov_flux = 0.0_rk
-        end if
-        d_rho_v_dt(i,j) = rhov_flux * inv_volume
+        endif
+        d_rho_v_dt(i, j) = rhov_flux * inv_volume
 
         ! rho E
         rhoE_edge_fluxes = [self%iflux(4, i, j) * delta_l(2), -self%iflux(4, i - 1, j) * delta_l(4), &
@@ -320,10 +320,10 @@ contains
         rhoE_flux_threshold = abs(ave_rhoE_edge_flux) * REL_THRESHOLD
         if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
           rhoE_flux = 0.0_rk
-        end if
-        d_rho_E_dt(i,j) = rhoE_flux * inv_volume
-      end do
-    end do
+        endif
+        d_rho_E_dt(i, j) = rhoE_flux * inv_volume
+      enddo
+    enddo
     !$omp end do
     !$omp end parallel
 
@@ -334,31 +334,31 @@ contains
     ! call d_rho_E_dt%zero_out_halo()
 
     associate(ilo_s => grid%lbounds_halo(1), ilo_e => grid%lbounds(1) - 1, &
-              ihi_s => grid%ubounds(1) + 1,  ihi_e => grid%ubounds_halo(1), &
+              ihi_s => grid%ubounds(1) + 1, ihi_e => grid%ubounds_halo(1), &
               jlo_s => grid%lbounds_halo(2), jlo_e => grid%lbounds(2) - 1, &
-              jhi_s => grid%ubounds(2) + 1,  jhi_e => grid%ubounds_halo(2))
+              jhi_s => grid%ubounds(2) + 1, jhi_e => grid%ubounds_halo(2))
 
       d_rho_dt(ilo_s:ilo_e, :) = 0.0_rk ! lower i cells
       d_rho_dt(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
       d_rho_dt(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
       d_rho_dt(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
-   
+
       d_rho_u_dt(ilo_s:ilo_e, :) = 0.0_rk ! lower i cells
       d_rho_u_dt(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
       d_rho_u_dt(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
       d_rho_u_dt(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
-   
+
       d_rho_v_dt(ilo_s:ilo_e, :) = 0.0_rk ! lower i cells
       d_rho_v_dt(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
       d_rho_v_dt(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
       d_rho_v_dt(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
-   
+
       d_rho_E_dt(ilo_s:ilo_e, :) = 0.0_rk ! lower i cells
       d_rho_E_dt(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
       d_rho_E_dt(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
       d_rho_E_dt(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
-    end associate
+    endassociate
 
-  end subroutine flux_split_edges
+  endsubroutine flux_split_edges
 
-end module mod_flux_solver
+endmodule mod_flux_solver

@@ -73,10 +73,10 @@ contains
         do c = 1, 2
           do p = 1, 4
             reconstructed_state(:, p, c, i, j) = primitive_vars(:, i, j)
-          end do
-        end do
-      end do
-    end do
+          enddo
+        enddo
+      enddo
+    enddo
 
     call r_omega%set_grid_pointer(grid)
     call r_omega%set_primitive_vars_pointer(primitive_vars, lbounds=lbound(primitive_vars))
@@ -88,14 +88,14 @@ contains
     call E0%set_grid_pointer(grid)
     call E0%set_reconstructed_state_pointer(reconstructed_state_target=reconstructed_state, &
                                             lbounds=lbound(reconstructed_state))
-  end subroutine
+  endsubroutine
 
   @after
   subroutine cleanup()
     deallocate(grid)
     deallocate(E0)
     deallocate(r_omega)
-  end subroutine
+  endsubroutine
 
   @test
   subroutine test_simple_updown()
@@ -123,8 +123,8 @@ contains
       do i = ilo, ihi
         neighbor_cell_indices(:, 1, i, j) = [i - 1, j] ! left
         neighbor_cell_indices(:, 2, i, j) = [i, j]     ! right
-      end do
-    end do
+      enddo
+    enddo
 
     do j = jlo, jhi
       do i = ilo, ihi
@@ -135,8 +135,8 @@ contains
 
         ! Cell 2: cell to the right -> use M4 from the right cell
         downup_midpoint_recon_state(:, 2, i, j) = reconstructed_state(:, 4, M, i, j)
-      end do
-    end do
+      enddo
+    enddo
 
     call updown_mid_mach_cone%initialize(tau=1e-4_rk, &
                                          edge_vectors=E0%grid%downup_midpoint_edge_vectors, &
@@ -147,7 +147,7 @@ contains
     select type(E0)
     class is(local_evo_operator_t)
       call E0%e0_operator(cones=updown_mid_mach_cone, primitive_vars=evolved_downup_midpoint)
-    end select
+    endselect
 
     ! Assert on either side of the interface
     @assertEqual(1.0_rk, evolved_downup_midpoint(1, 1:2, :), 1e-10_rk)
@@ -189,7 +189,7 @@ contains
     ! write(*, '(a, 4(f7.4, 1x))') "Evolved (rho,u,v,p): ", evolved_primitive_vars
 
     ! error
-  end subroutine
+  endsubroutine
 
   ! @test
   ! subroutine test_simple_corner()
@@ -364,4 +364,4 @@ contains
   !   ! @assertEqual(4.0_rk, pressure, 1e-10)
   ! end subroutine
 
-end module test_evo_operator
+endmodule test_evo_operator

@@ -57,13 +57,13 @@ contains
 
   @before
   subroutine before()
-  end subroutine
+  endsubroutine
 
   @after
   subroutine after()
     if(associated(grid)) deallocate(grid)
     if(allocated(reconstruction_operator)) deallocate(reconstruction_operator)
-  end subroutine
+  endsubroutine
 
   @test
   subroutine test_tvd2_none()
@@ -132,7 +132,7 @@ contains
       write(*, '(16x,es11.3)') E1
       write(*, *)
 
-    end associate
+    endassociate
 
     ! do i = lbound(edge_vars, dim=2), ubound(edge_vars, dim=2)
     ! do j = lbound(edge_vars, dim=3), ubound(edge_vars, dim=3)
@@ -149,7 +149,7 @@ contains
 
     deallocate(edge_vars)
     deallocate(edge_interpolator)
-  end subroutine test_tvd2_none
+  endsubroutine test_tvd2_none
 
   ! @test
   subroutine test_tvd3()
@@ -206,14 +206,14 @@ contains
       write(*, '(16x,es11.3)') E1
       write(*, *)
 
-    end associate
+    endassociate
 
     @assertEqual(3.0_rk, edge_vars(1, i, j))
     @assertEqual(3.5_rk, edge_vars(2, i, j))
     @assertEqual(3.0_rk, edge_vars(3, i, j))
     @assertEqual(2.5_rk, edge_vars(4, i, j))
 
-  end subroutine test_tvd3
+  endsubroutine test_tvd3
 
   ! @test
   ! subroutine test_mlp3()
@@ -278,4 +278,4 @@ contains
   !   @assertEqual(2.5_rk, edge_vars(4, i, j))
 
   ! end subroutine test_mlp3
-end module test_reconstruction
+endmodule test_reconstruction

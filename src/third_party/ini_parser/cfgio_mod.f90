@@ -18,7 +18,7 @@ module cfgio_mod
 
   type dict_t
     character(len=:), allocatable :: key, val
-  end type dict_t
+  endtype dict_t
 
   type cfg_sect_t
     integer(int32) :: npar = 0
@@ -26,7 +26,7 @@ module cfgio_mod
     type(dict_t) :: p(MXNPAR)
   contains
     procedure :: has_key => sect_has_key
-  end type cfg_sect_t
+  endtype cfg_sect_t
 
   type cfg_t
     integer(int32) :: nsect = 0
@@ -108,7 +108,7 @@ module cfgio_mod
     procedure, private :: set_darr
     procedure, private :: set_carr
     procedure, private :: set_zarr
-  end type cfg_t
+  endtype cfg_t
 
 contains
 
@@ -125,7 +125,7 @@ contains
       endif
     enddo
     isect = cfg%nsect + 1
-  end function find_isect
+  endfunction find_isect
 
   logical function has_section(cfg, section) result(found)
     class(cfg_t), intent(in) :: cfg
@@ -138,7 +138,7 @@ contains
         return
       endif
     enddo
-  end function has_section
+  endfunction has_section
 
   integer(int32) function find_ikey(cfgs, key, found) result(ikey)
     class(cfg_sect_t), intent(in) :: cfgs
@@ -152,7 +152,7 @@ contains
       endif
     enddo
     ikey = cfgs%npar + 1
-  end function find_ikey
+  endfunction find_ikey
 
   logical function sect_has_key(cfgs, key) result(found)
     class(cfg_sect_t), intent(in) :: cfgs
@@ -165,7 +165,7 @@ contains
         return
       endif
     enddo
-  end function sect_has_key
+  endfunction sect_has_key
 
   logical function has_key(cfg, section, key, search_defaults) result(found)
     class(cfg_t), intent(in) :: cfg
@@ -183,7 +183,7 @@ contains
       isect = find_isect(cfg, defaults, found)
       if(found) found = sect_has_key(cfg%s(isect), key)
     endif
-  end function has_key
+  endfunction has_key
 
   subroutine find_sect_key(cfg, section, key, isect, ikey)
     class(cfg_t), intent(in) :: cfg
@@ -194,7 +194,7 @@ contains
     if(.not. found) call errexit("Cannot find the section: "//section)
     ikey = find_ikey(cfg%s(isect), key, found)
     if(.not. found) call errexit("Cannot find the key: "//key)
-  end subroutine find_sect_key
+  endsubroutine find_sect_key
 
   ! setter
   subroutine cfg_sets(cfg, section, key, val)
@@ -215,7 +215,7 @@ contains
       cfg%s(isect)%npar = cfg%s(isect)%npar + 1
     endif
     cfg%s(isect)%p(ikey)%val = val
-  end subroutine cfg_sets
+  endsubroutine cfg_sets
 
   subroutine cfg_seti(cfg, section, key, val)
     class(cfg_t), intent(inout) :: cfg
@@ -224,7 +224,7 @@ contains
     character(len=MXNSTR) :: str
     write(str, *) val
     call cfg_sets(cfg, section, key, trim(adjustl(str)))
-  end subroutine cfg_seti
+  endsubroutine cfg_seti
 
   subroutine cfg_setf(cfg, section, key, val)
     class(cfg_t), intent(inout) :: cfg
@@ -233,7 +233,7 @@ contains
     character(len=MXNSTR) :: str
     write(str, *) val
     call cfg_sets(cfg, section, key, trim(adjustl(str)))
-  end subroutine cfg_setf
+  endsubroutine cfg_setf
 
   subroutine cfg_setd(cfg, section, key, val)
     class(cfg_t), intent(inout) :: cfg
@@ -242,7 +242,7 @@ contains
     character(len=MXNSTR) :: str
     write(str, *) val
     call cfg_sets(cfg, section, key, trim(adjustl(str)))
-  end subroutine cfg_setd
+  endsubroutine cfg_setd
 
   subroutine cfg_setc(cfg, section, key, val)
     class(cfg_t), intent(inout) :: cfg
@@ -251,7 +251,7 @@ contains
     character(len=MXNSTR) :: str
     write(str, *) val
     call cfg_sets(cfg, section, key, trim(adjustl(str)))
-  end subroutine cfg_setc
+  endsubroutine cfg_setc
 
   subroutine cfg_setz(cfg, section, key, val)
     class(cfg_t), intent(inout) :: cfg
@@ -260,7 +260,7 @@ contains
     character(len=MXNSTR) :: str
     write(str, *) val
     call cfg_sets(cfg, section, key, trim(adjustl(str)))
-  end subroutine cfg_setz
+  endsubroutine cfg_setz
 
   subroutine cfg_setb(cfg, section, key, val)
     class(cfg_t), intent(inout) :: cfg
@@ -269,7 +269,7 @@ contains
     character(len=MXNSTR) :: str
     write(str, *) val
     call cfg_sets(cfg, section, key, trim(adjustl(str)))
-  end subroutine cfg_setb
+  endsubroutine cfg_setb
 
   ! set list
   subroutine set_iarr(cfg, section, key, arr)
@@ -277,49 +277,49 @@ contains
     character(len=*), intent(in) :: section, key
     integer(int32), intent(in) :: arr(:)
     call cfg_sets(cfg, section, key, trim(adjustl(tolist(arr))))
-  end subroutine set_iarr
+  endsubroutine set_iarr
 
   subroutine set_farr(cfg, section, key, arr)
     class(cfg_t), intent(inout) :: cfg
     character(len=*), intent(in) :: section, key
     real(real32), intent(in) :: arr(:)
     call cfg_sets(cfg, section, key, trim(adjustl(tolist(arr))))
-  end subroutine set_farr
+  endsubroutine set_farr
 
   subroutine set_darr(cfg, section, key, arr)
     class(cfg_t), intent(inout) :: cfg
     character(len=*), intent(in) :: section, key
     real(real64), intent(in) :: arr(:)
     call cfg_sets(cfg, section, key, trim(adjustl(tolist(arr))))
-  end subroutine set_darr
+  endsubroutine set_darr
 
   subroutine set_barr(cfg, section, key, arr)
     class(cfg_t), intent(inout) :: cfg
     character(len=*), intent(in) :: section, key
     logical, intent(in) :: arr(:)
     call cfg_sets(cfg, section, key, trim(adjustl(tolist(arr))))
-  end subroutine set_barr
+  endsubroutine set_barr
 
   subroutine set_carr(cfg, section, key, arr)
     class(cfg_t), intent(inout) :: cfg
     character(len=*), intent(in) :: section, key
     complex(real32), intent(in) :: arr(:)
     call cfg_sets(cfg, section, key, trim(adjustl(tolist(arr))))
-  end subroutine set_carr
+  endsubroutine set_carr
 
   subroutine set_zarr(cfg, section, key, arr)
     class(cfg_t), intent(inout) :: cfg
     character(len=*), intent(in) :: section, key
     complex(real64), intent(in) :: arr(:)
     call cfg_sets(cfg, section, key, trim(adjustl(tolist(arr))))
-  end subroutine set_zarr
+  endsubroutine set_zarr
 
   subroutine set_sarr(cfg, section, key, arr)
     class(cfg_t), intent(inout) :: cfg
     character(len=*), intent(in) :: section, key
     character(len=*), intent(in) :: arr(:)
     call cfg_sets(cfg, section, key, trim(adjustl(tolist(arr))))
-  end subroutine set_sarr
+  endsubroutine set_sarr
 
   ! getter functions
   function cfg_gets_basic(cfg, section, key) result(val)
@@ -343,7 +343,7 @@ contains
       val = cfg%s(isect)%p(ikey)%val
     endif
     val = unquote(val)
-  end function cfg_gets_basic
+  endfunction cfg_gets_basic
 
   function interpolate_str(cfg, section, str) result(val)
     ! interpolation ${section:key}
@@ -382,7 +382,7 @@ contains
       if(.not. found) exit
     enddo
     val = trim(intpl)
-  end function interpolate_str
+  endfunction interpolate_str
 
   function cfg_gets(cfg, section, key) result(val)
     class(cfg_t), intent(in) :: cfg
@@ -390,49 +390,49 @@ contains
     character(len=:), allocatable :: val
     val = cfg_gets_basic(cfg, section, key)
     val = interpolate_str(cfg, section, val)
-  end function cfg_gets
+  endfunction cfg_gets
 
   function cfg_geti(cfg, section, key) result(val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     integer(int32) :: val
     call from_string(cfg_gets(cfg, section, key), val)
-  end function cfg_geti
+  endfunction cfg_geti
 
   function cfg_getf(cfg, section, key) result(val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     real(real32) :: val
     call from_string(cfg_gets(cfg, section, key), val)
-  end function cfg_getf
+  endfunction cfg_getf
 
   function cfg_getd(cfg, section, key) result(val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     real(real64) :: val
     call from_string(cfg_gets(cfg, section, key), val)
-  end function cfg_getd
+  endfunction cfg_getd
 
   function cfg_getc(cfg, section, key) result(val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     complex(real32) :: val
     call from_string(cfg_gets(cfg, section, key), val)
-  end function cfg_getc
+  endfunction cfg_getc
 
   function cfg_getz(cfg, section, key) result(val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     complex(real64) :: val
     call from_string(cfg_gets(cfg, section, key), val)
-  end function cfg_getz
+  endfunction cfg_getz
 
   function cfg_getb(cfg, section, key) result(val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     logical :: val
     call from_string(cfg_gets(cfg, section, key), val)
-  end function cfg_getb
+  endfunction cfg_getb
 
   ! getter subroutines
   subroutine cfg_get_s(cfg, section, key, val)
@@ -440,49 +440,49 @@ contains
     character(len=*), intent(in) :: section, key
     character(len=*), intent(out) :: val
     val = cfg%gets(section, key)
-  end subroutine cfg_get_s
+  endsubroutine cfg_get_s
 
   subroutine cfg_get_i(cfg, section, key, val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     integer(int32), intent(out) :: val
     val = cfg%geti(section, key)
-  end subroutine cfg_get_i
+  endsubroutine cfg_get_i
 
   subroutine cfg_get_f(cfg, section, key, val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     real(real32), intent(out) :: val
     val = cfg%getf(section, key)
-  end subroutine cfg_get_f
+  endsubroutine cfg_get_f
 
   subroutine cfg_get_d(cfg, section, key, val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     real(real64), intent(out) :: val
     val = cfg%getd(section, key)
-  end subroutine cfg_get_d
+  endsubroutine cfg_get_d
 
   subroutine cfg_get_c(cfg, section, key, val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     complex(real32), intent(out) :: val
     val = cfg%getc(section, key)
-  end subroutine cfg_get_c
+  endsubroutine cfg_get_c
 
   subroutine cfg_get_z(cfg, section, key, val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     complex(real64), intent(out) :: val
     val = cfg%getz(section, key)
-  end subroutine cfg_get_z
+  endsubroutine cfg_get_z
 
   subroutine cfg_get_b(cfg, section, key, val)
     class(cfg_t), intent(in) :: cfg
     character(len=*), intent(in) :: section, key
     logical, intent(out) :: val
     val = cfg%getb(section, key)
-  end subroutine cfg_get_b
+  endsubroutine cfg_get_b
 
   ! get function optional
   function cfg_gets_opt(cfg, section, key, deflt) result(val)
@@ -495,7 +495,7 @@ contains
     else
       val = trim(deflt)
     endif
-  end function cfg_gets_opt
+  endfunction cfg_gets_opt
 
   function cfg_geti_opt(cfg, section, key, deflt) result(val)
     class(cfg_t), intent(in) :: cfg
@@ -506,7 +506,7 @@ contains
     else
       val = deflt
     endif
-  end function cfg_geti_opt
+  endfunction cfg_geti_opt
 
   function cfg_getf_opt(cfg, section, key, deflt) result(val)
     class(cfg_t), intent(in) :: cfg
@@ -517,7 +517,7 @@ contains
     else
       val = deflt
     endif
-  end function cfg_getf_opt
+  endfunction cfg_getf_opt
 
   function cfg_getd_opt(cfg, section, key, deflt) result(val)
     class(cfg_t), intent(in) :: cfg
@@ -528,7 +528,7 @@ contains
     else
       val = deflt
     endif
-  end function cfg_getd_opt
+  endfunction cfg_getd_opt
 
   function cfg_getc_opt(cfg, section, key, deflt) result(val)
     class(cfg_t), intent(in) :: cfg
@@ -539,7 +539,7 @@ contains
     else
       val = deflt
     endif
-  end function cfg_getc_opt
+  endfunction cfg_getc_opt
 
   function cfg_getz_opt(cfg, section, key, deflt) result(val)
     class(cfg_t), intent(in) :: cfg
@@ -550,7 +550,7 @@ contains
     else
       val = deflt
     endif
-  end function cfg_getz_opt
+  endfunction cfg_getz_opt
 
   function cfg_getb_opt(cfg, section, key, deflt) result(val)
     class(cfg_t), intent(in) :: cfg
@@ -561,7 +561,7 @@ contains
     else
       val = deflt
     endif
-  end function cfg_getb_opt
+  endfunction cfg_getb_opt
 
   ! getter subroutines optional
   subroutine cfg_get_s_opt(cfg, section, key, val, deflt)
@@ -570,7 +570,7 @@ contains
     character(len=*), intent(in) :: deflt
     character(len=*), intent(out) :: val
     val = cfg%gets(section, key, deflt)
-  end subroutine cfg_get_s_opt
+  endsubroutine cfg_get_s_opt
 
   subroutine cfg_get_i_opt(cfg, section, key, val, deflt)
     class(cfg_t), intent(in) :: cfg
@@ -578,7 +578,7 @@ contains
     integer(int32), intent(in) :: deflt
     integer(int32), intent(out) :: val
     val = cfg%geti(section, key, deflt)
-  end subroutine cfg_get_i_opt
+  endsubroutine cfg_get_i_opt
 
   subroutine cfg_get_f_opt(cfg, section, key, val, deflt)
     class(cfg_t), intent(in) :: cfg
@@ -586,7 +586,7 @@ contains
     real(real32), intent(in) :: deflt
     real(real32), intent(out) :: val
     val = cfg%getf(section, key, deflt)
-  end subroutine cfg_get_f_opt
+  endsubroutine cfg_get_f_opt
 
   subroutine cfg_get_d_opt(cfg, section, key, val, deflt)
     class(cfg_t), intent(in) :: cfg
@@ -594,7 +594,7 @@ contains
     real(real64), intent(in) :: deflt
     real(real64), intent(out) :: val
     val = cfg%getd(section, key, deflt)
-  end subroutine cfg_get_d_opt
+  endsubroutine cfg_get_d_opt
 
   subroutine cfg_get_c_opt(cfg, section, key, val, deflt)
     class(cfg_t), intent(in) :: cfg
@@ -602,7 +602,7 @@ contains
     complex(real32), intent(in) :: deflt
     complex(real32), intent(out) :: val
     val = cfg%getc(section, key, deflt)
-  end subroutine cfg_get_c_opt
+  endsubroutine cfg_get_c_opt
 
   subroutine cfg_get_z_opt(cfg, section, key, val, deflt)
     class(cfg_t), intent(in) :: cfg
@@ -610,7 +610,7 @@ contains
     complex(real64), intent(in) :: deflt
     complex(real64), intent(out) :: val
     val = cfg%getz(section, key, deflt)
-  end subroutine cfg_get_z_opt
+  endsubroutine cfg_get_z_opt
 
   subroutine cfg_get_b_opt(cfg, section, key, val, deflt)
     class(cfg_t), intent(in) :: cfg
@@ -618,7 +618,7 @@ contains
     logical, intent(in) :: deflt
     logical, intent(out) :: val
     val = cfg%getb(section, key, deflt)
-  end subroutine cfg_get_b_opt
+  endsubroutine cfg_get_b_opt
 
   ! get list
 
@@ -633,7 +633,7 @@ contains
     if(present(npar)) npar = n
     if(.not. allocated(arr)) allocate(arr(n))
     read(cfg%s(isect)%p(ikey)%val, *) arr
-  end subroutine get_iarr
+  endsubroutine get_iarr
 
   subroutine get_farr(cfg, section, key, arr, npar)
     class(cfg_t), intent(in) :: cfg
@@ -646,7 +646,7 @@ contains
     if(present(npar)) npar = n
     if(.not. allocated(arr)) allocate(arr(n))
     read(cfg%s(isect)%p(ikey)%val, *) arr
-  end subroutine get_farr
+  endsubroutine get_farr
 
   subroutine get_darr(cfg, section, key, arr, npar)
     class(cfg_t), intent(in) :: cfg
@@ -659,7 +659,7 @@ contains
     if(present(npar)) npar = n
     if(.not. allocated(arr)) allocate(arr(n))
     read(cfg%s(isect)%p(ikey)%val, *) arr
-  end subroutine get_darr
+  endsubroutine get_darr
 
   subroutine get_carr(cfg, section, key, arr, npar)
     class(cfg_t), intent(in) :: cfg
@@ -672,7 +672,7 @@ contains
     if(present(npar)) npar = n
     if(.not. allocated(arr)) allocate(arr(n))
     read(cfg%s(isect)%p(ikey)%val, *) arr
-  end subroutine get_carr
+  endsubroutine get_carr
 
   subroutine get_zarr(cfg, section, key, arr, npar)
     class(cfg_t), intent(in) :: cfg
@@ -685,7 +685,7 @@ contains
     if(present(npar)) npar = n
     if(.not. allocated(arr)) allocate(arr(n))
     read(cfg%s(isect)%p(ikey)%val, *) arr
-  end subroutine get_zarr
+  endsubroutine get_zarr
 
   subroutine get_barr(cfg, section, key, arr, npar)
     class(cfg_t), intent(in) :: cfg
@@ -698,7 +698,7 @@ contains
     if(present(npar)) npar = n
     if(.not. allocated(arr)) allocate(arr(n))
     read(cfg%s(isect)%p(ikey)%val, *) arr
-  end subroutine get_barr
+  endsubroutine get_barr
 
   subroutine get_sarr(cfg, section, key, arr, npar)
     class(cfg_t), intent(in) :: cfg
@@ -711,7 +711,7 @@ contains
     if(present(npar)) npar = n
     if(.not. allocated(arr)) allocate(arr(n))
     read(cfg%s(isect)%p(ikey)%val, *) arr
-  end subroutine get_sarr
+  endsubroutine get_sarr
 
   ! cfg parse
   function parse_cfg(filename) result(cfg)
@@ -726,7 +726,7 @@ contains
       call parse_text(cfg, trim(text))
     enddo
 999 close(iunit)
-  end function parse_cfg
+  endfunction parse_cfg
 
   subroutine parse_text(cfg, text)
     class(cfg_t), intent(inout) :: cfg
@@ -756,7 +756,7 @@ contains
     !val=unquote(val)
     !print*,"Par::",key,'=',trim(val)
     call addpar(cfg, key, val)
-  end subroutine parse_text
+  endsubroutine parse_text
 
   subroutine addpar(cfg, key, val)
     class(cfg_t), intent(inout) :: cfg
@@ -767,12 +767,12 @@ contains
     if(isect == 0) then
       ! allocate(character(len=len(defaults)) :: cfg%s(isect)%section)
       cfg%s(isect)%section = defaults
-    end if
+    endif
     cfg%s(isect)%npar = cfg%s(cfg%nsect)%npar + 1
     ipar = cfg%s(isect)%npar
     cfg%s(isect)%p(ipar)%key = key
     cfg%s(isect)%p(ipar)%val = val
-  end subroutine addpar
+  endsubroutine addpar
 
   ! report
   subroutine print_cfg(cfg, iunit)
@@ -798,7 +798,7 @@ contains
         write(un, *)
       enddo
     endif
-  end subroutine print_cfg
+  endsubroutine print_cfg
 
   subroutine write_cfg_file(cfg, filename)
     class(cfg_t), intent(in) :: cfg
@@ -807,14 +807,14 @@ contains
     open(newunit=un, file=filename)
     call print_cfg(cfg, un)
     close(un)
-  end subroutine write_cfg_file
+  endsubroutine write_cfg_file
 
   !! utils
   subroutine errexit(msg)
     character(len=*), intent(in) :: msg
     write(stderr, *) trim(msg)
     error stop "Unable to find key/section in the .ini file"
-  end subroutine errexit
+  endsubroutine errexit
 
   ! parameter key=val parse
   subroutine split_kv(par, key, val)
@@ -825,6 +825,6 @@ contains
     id = index(par, eq)
     key = trim(adjustl(par(1:id - 1)))
     val = trim(adjustl(par(id + 1:)))
-  end subroutine split_kv
+  endsubroutine split_kv
 
-end module cfgio_mod
+endmodule cfgio_mod

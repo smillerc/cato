@@ -49,11 +49,11 @@ contains
 
     if(length_scale < 0.0_rk) then
       error stop "Error in mod_nondimensionalization::set_length_scale(), length_scale < 0"
-    end if
+    endif
 
     l_0 = length_scale
     length_scale_set = .true.
-  end subroutine
+  endsubroutine
 
   subroutine set_scale_factors(density_scale, pressure_scale)
     !< Set the non-dimensional scale factors based on the provided scales. This
@@ -65,15 +65,15 @@ contains
     if(.not. length_scale_set) then
       error stop "Error in mod_nondimensionalization::set_scale_factors(), "// &
         "the length scale needs to be set first (via the grid)"
-    end if
+    endif
 
     if(density_scale < 0.0_rk) then
       error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
-    end if
+    endif
 
     if(pressure_scale < 0.0_rk) then
       error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
-    end if
+    endif
 
     rho_0 = density_scale
     p_0 = pressure_scale
@@ -93,11 +93,11 @@ contains
       write(*, '(a, es10.3)') "Energy scale factor (e_0):    ", e_0
       write(*, '(a)') "========================================"
       print *
-    end if
+    endif
 
     scale_factors_set = .true.
 
-  end subroutine set_scale_factors
+  endsubroutine set_scale_factors
 
   ! subroutine set_scale_factors(time_scale, length_scale, density_scale)
   !   !< Set the non-dimensional scale factors based on the provided scales. This
@@ -139,4 +139,4 @@ contains
   !   print *
 
   ! end subroutine set_scale_factors
-end module mod_nondimensionalization
+endmodule mod_nondimensionalization

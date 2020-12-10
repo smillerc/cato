@@ -81,7 +81,7 @@ program cato
   if(.not. file_exists) then
     call error_msg(module_name='cato', procedure_name='main', &
                    message="CATO input (input.ini) file not found", file_name=__FILE__, line_number=__LINE__)
-  end if
+  endif
 
   call input%read_from_ini(input_filename)
   call input%display_config()
@@ -103,7 +103,7 @@ program cato
   else
     next_output_time = next_output_time + contour_interval_dt
     call contour_writer%write_contour(master, iteration)
-  end if
+  endif
 
   if(this_image() == 1) then
     print *
@@ -123,7 +123,7 @@ program cato
     else
       delta_t = 0.1_rk * master%get_timestep()
     endif
-  end if
+  endif
 
   call master%set_time(time, iteration)
 
@@ -152,7 +152,7 @@ program cato
       write(std_out, '(a)') 'Something went wrong in the time integration, saving to disk and exiting...'
       call contour_writer%write_contour(master, iteration)
       error stop 1
-    end if
+    endif
 
     ! I/O
     if(abs(time - next_output_time) < epsilon(1.0_rk)) then
@@ -163,19 +163,19 @@ program cato
       endif
       call contour_writer%write_contour(master, iteration)
       last_io_iteration = iteration
-    end if
+    endif
 
     ! Check for overshoots in the time for contour I/O. This will shore up the
     ! next time to exactly match the contour interval
     if(new_time > next_output_time) then
       delta_t = abs(next_output_time - time)
       new_time = time + delta_t
-    end if
+    endif
     time = new_time
 
     iteration = iteration + 1
     call timer%log_time(iteration, delta_t)
-  end do
+  enddo
 
   call timer%stop()
 
@@ -186,4 +186,4 @@ program cato
 
   call timer%output_stats()
   close(std_error)
-end program
+endprogram

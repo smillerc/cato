@@ -44,7 +44,7 @@ module mod_flux_limiter
     ! procedure(limit), pointer, nopass :: limit => null()
   contains
     final :: finalize
-  end type
+  endtype
 
   ! These flux limiters are to be used in the form of the following:
   ! See [1], Eq 4.
@@ -63,7 +63,7 @@ module mod_flux_limiter
 
   interface flux_limiter_t
     module procedure constructor
-  end interface
+  endinterface
 
   ! interface
   ! pure real(rk) function limit(R) result(psi_lim)
@@ -93,13 +93,13 @@ contains
     ! case default
     !   error stop "Error in flux_limiter_t%constructor(): Unknown flux limiter name"
     ! end select
-  end function
+  endfunction
 
   subroutine finalize(self)
     type(flux_limiter_t), intent(inout) :: self
     ! if(associated(self%limit)) nullify(self%limit)
     if(allocated(self%name)) deallocate(self%name)
-  end subroutine finalize
+  endsubroutine finalize
 
   pure real(rk) function smoothness(plus, current, minus) result(r)
     real(rk), intent(in) :: plus, current, minus
@@ -112,7 +112,7 @@ contains
     if(abs(delta_minus) < EPS) delta_minus = EPS
 
     r = (delta_minus + EPS) / (delta_plus + EPS)
-  end function smoothness
+  endfunction smoothness
 
   impure real(rk) function delta(a, b)
     !$omp declare simd(delta)
@@ -133,25 +133,25 @@ contains
     if(abs(delta) < epsilon(1.0_rk)) then
       delta = 0.0_rk
       return
-    end if
+    endif
 
     if(abs(a) < tiny(1.0_rk) .and. abs(b) < tiny(1.0_rk)) then
       delta = 0.0_rk
       return
-    end if
+    endif
 
     if(abs(delta) < abs_err) then
       delta = 0.0_rk
       return
-    end if
-  end function delta
+    endif
+  endfunction delta
 
   elemental real(rk) function none(R) result(psi_lim)
     !< Unlimited slope
     real(rk), intent(in) :: R !< smoothness indicator
 
     psi_lim = 1.0_rk
-  end function none
+  endfunction none
 
   elemental real(rk) function minmod(R) result(psi_lim)
     !$omp declare simd(minmod)
@@ -164,8 +164,8 @@ contains
       psi_lim = 1.0_rk
     else
       psi_lim = max(0.0_rk, min(R, 1.0_rk))
-    end if
-  end function minmod
+    endif
+  endfunction minmod
 
   elemental real(rk) function van_leer(R) result(psi_lim)
     !< van Leer flux limiter. See Eq. 9 in [2]
@@ -175,8 +175,8 @@ contains
       psi_lim = 0.0_rk
     else
       psi_lim = (R + abs(R)) / (1.0_rk + abs(R))
-    end if
-  end function van_leer
+    endif
+  endfunction van_leer
 
   elemental real(rk) function superbee(R) result(psi_lim)
     !< Superbee flux limiter. See Eq. 3 in [1]
@@ -188,7 +188,7 @@ contains
       psi_lim = 2.0_rk
     else
       psi_lim = max(0.0_rk, min(2.0_rk * R, 1.0_rk), min(R, 2.0_rk))
-    end if
-  end function superbee
+    endif
+  endfunction superbee
 
-end module mod_flux_limiter
+endmodule mod_flux_limiter

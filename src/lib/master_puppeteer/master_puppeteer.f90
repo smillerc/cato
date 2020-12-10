@@ -66,11 +66,11 @@ module mod_master_puppeteer
     procedure, public :: set_time
     procedure, public :: get_timestep
     final :: finalize
-  end type
+  endtype
 
   interface make_master
     module procedure :: constructor
-  end interface
+  endinterface
 
 contains
 
@@ -81,7 +81,7 @@ contains
     allocate(master)
     call master%initialize(input)
 
-  end function constructor
+  endfunction constructor
 
   subroutine initialize(self, input)
     !< Construct the puppeteer class
@@ -115,9 +115,9 @@ contains
         ! Do nothing, since seconds is what the code works in
       case default
         error stop "Unknown time units in .h5 file. Acceptable units are 'ns' or 's'."
-      end select
+      endselect
       call h5%finalize()
-    end if
+    endif
 
     self%title = trim(input%title)
 
@@ -147,7 +147,7 @@ contains
     endif
 
     call debug_print('Done initializing master_puppeteer_t', __FILE__, __LINE__)
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine finalize(self)
     !< Implementation of the class cleanup
@@ -155,7 +155,7 @@ contains
     call debug_print('Running master_puppeteer_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%grid)) deallocate(self%grid)
     if(allocated(self%fluid)) deallocate(self%fluid)
-  end subroutine finalize
+  endsubroutine finalize
 
   subroutine integrate(self, dt, error_code)
     !< Advance the simulation forward in time
@@ -169,7 +169,7 @@ contains
       self%dt = dt
     else
       self%dt = 0.0_rk
-    end if
+    endif
 
     self%iteration = self%iteration + 1
     min_dt = self%get_timestep()
@@ -182,7 +182,7 @@ contains
       endif
     else
       self%dt = min_dt
-    end if
+    endif
 
     self%time = self%time + self%dt
 
@@ -193,9 +193,9 @@ contains
 
       call self%fluid%integrate(dt=self%dt, source_term=self%source_term, &
                                 grid=self%grid, error_code=error_code)
-    end select
+    endselect
 
-  end subroutine integrate
+  endsubroutine integrate
 
   real(rk) function get_timestep(self) result(dt)
     !< Get the maximum allowable timestep from each physics package
@@ -204,8 +204,8 @@ contains
     select type(grid => self%grid)
     class is(grid_block_2d_t)
       dt = self%fluid%get_timestep(self%grid)
-    end select
-  end function
+    endselect
+  endfunction
 
   subroutine set_time(self, time, iteration)
     !< Set the time statistics
@@ -216,6 +216,6 @@ contains
     self%time = time
     self%iteration = iteration
     call self%fluid%set_time(time, iteration)
-  end subroutine set_time
+  endsubroutine set_time
 
-end module mod_master_puppeteer
+endmodule mod_master_puppeteer

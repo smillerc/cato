@@ -66,7 +66,7 @@ type is(character(*))
     character(len(value)) :: buf
     call h5ltread_dataset_string_f(self%lid, dname, buf, ier)
     value = buf
-  end block
+  endblock
   return
 type is(real(real64))
   call h5dread_f(did, H5T_NATIVE_DOUBLE, value, dims, ier)
@@ -76,7 +76,7 @@ type is(integer(int32))
   call h5dread_f(did, H5T_NATIVE_INTEGER, value, dims, ier)
 class default
   error stop 'h5fortran:reader: incorrect data type'
-end select
+endselect
 
 call hdf_wrapup(did, sid, ier)
 
@@ -120,7 +120,7 @@ type is(integer(int32))
   call h5dread_f(did, H5T_NATIVE_INTEGER, value, dims, ier, mem_sid, sid)
 class default
   error stop 'h5fortran:reader: incorrect type'
-end select
+endselect
 if(ier /= 0) then
   write(stderr, *) 'h5fortran:ERROR:reader: could not read ', dname, ' from ', self%filename
   error stop
@@ -168,7 +168,7 @@ type is(integer(int32))
   call h5dread_f(did, H5T_NATIVE_INTEGER, value, dims, ier, mem_sid, sid)
 class default
   error stop 'h5fortran:reader: incorrect type'
-end select
+endselect
 if(ier /= 0) then
   write(stderr, *) 'h5fortran:ERROR:reader: could not read ', dname, ' from ', self%filename
   error stop
@@ -216,7 +216,7 @@ type is(integer(int32))
   call h5dread_f(did, H5T_NATIVE_INTEGER, value, dims, ier, mem_sid, sid)
 class default
   error stop 'h5fortran:reader: incorrect type'
-end select
+endselect
 if(ier /= 0) then
   write(stderr, *) 'h5fortran:ERROR:reader: could not read ', dname, ' from ', self%filename
   error stop
@@ -264,7 +264,7 @@ type is(integer(int32))
   call h5dread_f(did, H5T_NATIVE_INTEGER, value, dims, ier, mem_sid, sid)
 class default
   error stop 'h5fortran:reader: incorrect type'
-end select
+endselect
 if(ier /= 0) then
   write(stderr, *) 'h5fortran:ERROR:reader: could not read ', dname, ' from ', self%filename
   error stop
@@ -312,7 +312,7 @@ type is(integer(int32))
   call h5dread_f(did, H5T_NATIVE_INTEGER, value, dims, ier, mem_sid, sid)
 class default
   error stop 'h5fortran:reader: incorrect type'
-end select
+endselect
 if(ier /= 0) then
   write(stderr, *) 'h5fortran:ERROR:reader: could not read ', dname, ' from ', self%filename
   error stop
@@ -360,7 +360,7 @@ type is(integer(int32))
   call h5dread_f(did, H5T_NATIVE_INTEGER, value, dims, ier, mem_sid, sid)
 class default
   error stop 'h5fortran:reader: incorrect type'
-end select
+endselect
 if(ier /= 0) then
   write(stderr, *) 'h5fortran:ERROR:reader: could not read ', dname, ' from ', self%filename
   error stop
@@ -408,7 +408,7 @@ type is(integer(int32))
   call h5dread_f(did, H5T_NATIVE_INTEGER, value, dims, ier, mem_sid, sid)
 class default
   error stop 'h5fortran:reader: incorrect type'
-end select
+endselect
 if(ier /= 0) then
   write(stderr, *) 'h5fortran:ERROR:reader: could not read ', dname, ' from ', self%filename
   error stop
@@ -421,4 +421,4 @@ if(check(ier, self%filename, dname) .and. .not. present(ierr)) error stop
 
 end procedure hdf_read_7d
 
-end submodule reader
+endsubmodule reader

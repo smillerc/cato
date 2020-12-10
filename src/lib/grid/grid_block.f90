@@ -20,7 +20,7 @@ module mod_grid_block
     integer(ik), dimension(3) :: ubounds = [0, 0, 0]     !< (i, j, k); Upper bounds for the domain not including boundary ghost cells
     integer(ik), dimension(3) :: lbounds_bc = [0, 0, 0]  !< (i, j, k); Lower bounds for the domain including boundary ghost cells
     integer(ik), dimension(3) :: ubounds_bc = [0, 0, 0]  !< (i, j, k); Upper bounds for the domain including boundary ghost cells
-  end type
+  endtype
 
   type, abstract :: grid_block_t
     logical :: is_axisymmetric = .false. !< Is this an axisymmetric grid? (need for volume computation)
@@ -48,14 +48,14 @@ module mod_grid_block
   contains
     procedure(initialize), deferred :: initialize
     procedure(gather), deferred :: gather
-  end type grid_block_t
+  endtype grid_block_t
 
   abstract interface
     subroutine initialize(self, input)
       import :: grid_block_t, input_t
       class(grid_block_t), intent(inout) :: self
       class(input_t), intent(in) :: input
-    end subroutine
+    endsubroutine
 
     function gather(self, var, image)
       import :: grid_block_t, ik, rk
@@ -63,8 +63,8 @@ module mod_grid_block
       integer(ik), intent(in) :: image
       character(len=*), intent(in) :: var
       real(rk), allocatable, dimension(:, :) :: gather
-    end function
-  end interface
+    endfunction
+  endinterface
 contains
 
-end module mod_grid_block
+endmodule mod_grid_block

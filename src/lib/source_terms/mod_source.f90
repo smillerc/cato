@@ -86,7 +86,7 @@ module mod_source
     procedure, public :: read_input_file
     procedure, public :: get_desired_source_input
     procedure, public :: get_source_field
-  end type
+  endtype
 
 contains
 
@@ -114,7 +114,7 @@ contains
         call new_source%read_input_file()
       else
         new_source%constant_source_value = input%constant_source_value
-      end if
+      endif
 
       select case(new_source%source_geometry)
       case('uniform')
@@ -126,7 +126,7 @@ contains
       case default
         call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
              module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
-      end select
+      endselect
 
       ! Determine the extents of the source term (if any)
       select case(new_source%source_geometry)
@@ -145,19 +145,19 @@ contains
         if(new_source%gaussian_order < 1) then
           call error_msg(message="Source term gaussian order is invalid (< 1)", &
              module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
-        end if
+        endif
 
         if(new_source%fwhm_x > 0.0_rk .and. new_source%fwhm_y <= 0.0_rk) then
           new_source%constant_in_y = .true.
         else if(new_source%fwhm_y > 0.0_rk .and. new_source%fwhm_x <= 0.0_rk) then
           new_source%constant_in_x = .true.
-        end if
-      end select
+        endif
+      endselect
 
       allocate(new_source%data, mold=grid%centroid_x)
       new_source%data = 0.0_rk
-    end select
-  end function new_source
+    endselect
+  endfunction new_source
 
   subroutine read_input_file(self)
     !< Read the input file and initialize the linear iterpolated object. This
@@ -179,7 +179,7 @@ contains
 
     if(.not. file_exists) then
       error stop 'Error in source_t%read_input_file(); input file not found, exiting...'
-    end if
+    endif
 
     open(newunit=input_unit, file=trim(self%input_filename))
     nlines = 0
@@ -188,18 +188,18 @@ contains
       if(nlines == 0) then
         line_buffer = adjustl(line_buffer)
         if(line_buffer(1:1) == '#') has_header_line = .true.
-      end if
+      endif
 
       if(io_status /= 0) exit
       nlines = nlines + 1
-    end do
+    enddo
     close(input_unit)
 
     open(newunit=input_unit, file=trim(self%input_filename))
     if(has_header_line) then
       read(input_unit, *, iostat=io_status) ! skip the first line
       nlines = nlines - 1
-    end if
+    endif
 
     allocate(time(nlines))
     allocate(source_data(nlines))
@@ -209,7 +209,7 @@ contains
     do line = 1, nlines
       read(input_unit, *, iostat=io_status) time(line), source_data(line)
       if(io_status /= 0) exit
-    end do
+    enddo
     close(input_unit)
 
     time = time / t_0
@@ -223,7 +223,7 @@ contains
 
     deallocate(time)
     deallocate(source_data)
-  end subroutine read_input_file
+  endsubroutine read_input_file
 
   real(rk) function get_desired_source_input(self) result(source_value)
     !< Get the desired source term amount. This can vary with time, so this can
@@ -245,17 +245,17 @@ contains
             "source_t%get_desired_source_input()"
           error stop "Unable to interpolate value within "// &
             "source_t%get_desired_source_input()"
-        end if
+        endif
       else
         source_value = 0.0_rk
-      end if
-    end if
+      endif
+    endif
 
     if(source_value > 0.0_rk) then
       write(*, '(a, es10.3)') 'Applying source term of: ', source_value * self%nondim_scale_factor
-    end if
+    endif
 
-  end function get_desired_source_input
+  endfunction get_desired_source_input
 
   subroutine integrate(self, dt)
     !< Create the source field to be passed to the fluid class or others
@@ -266,7 +266,7 @@ contains
     self%time = self%time + dt
 
     call self%get_source_field()
-  end subroutine integrate
+  endsubroutine integrate
 
   subroutine get_source_field(self)
     !< For the given time find the source strength and distribution based on the geometry type
@@ -285,8 +285,8 @@ contains
       case('constant_xy')
         where(self%centroid_x < self%xhi .and. self%centroid_x > self%xlo .and. &
               self%centroid_y < self%yhi .and. self%centroid_x > self%ylo)
-        self%data = 1.0_rk
-        end where
+          self%data = 1.0_rk
+        endwhere
       case('1d_gaussian')
         if(self%constant_in_y) then
           associate(x => self%centroid_x, x0 => self%x_center, &
@@ -296,14 +296,14 @@ contains
             gauss_amplitude = source_value / (sqrt(2.0_rk * pi) * abs(c))
             self%data = gauss_amplitude * exp(-((((x - x0)**2) / ((2.0_rk * c)**2))))
 
-          end associate
+          endassociate
         else
           error stop "not done yet"
           associate(y => self%centroid_y, y0 => self%y_center, &
                     fwhm => self%fwhm_y, order => self%gaussian_order)
             self%data = exp(-((((y - y0)**2) / fwhm**2)**order))
-          end associate
-        end if
+          endassociate
+        endif
       case('2d_gaussian')
 
         associate(x => self%centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &
@@ -311,8 +311,8 @@ contains
                   order => self%gaussian_order)
           self%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
                              (((y - y0)**2) / fwhm_y**2))**order))
-        end associate
-      end select
+        endassociate
+      endselect
 
       ! Remove tiny numbers
       where(abs(self%data) < tiny(1.0_rk)) self%data = 0.0_rk
@@ -325,9 +325,9 @@ contains
       ! write(*,'(a, es16.6)') "sum(self%volume, mask=abs(self%data) > 0.0_rk)", sum(self%volume, mask=abs(self%data) > 0.0_rk)
       self%data = self%data / sum(self%volume, mask=abs(self%data) > 0.0_rk)
       ! write(*,'(a, es16.6)') "self%data", sum(self%data)
-    end if
+    endif
     ! error stop
-  end subroutine get_source_field
+  endsubroutine get_source_field
 
   subroutine finalize(self)
     type(source_t), intent(inout) :: self
@@ -340,5 +340,5 @@ contains
     if(associated(self%centroid_x)) deallocate(self%centroid_x)
     if(associated(self%centroid_y)) deallocate(self%centroid_y)
     if(associated(self%volume)) deallocate(self%volume)
-  end subroutine finalize
-end module mod_source
+  endsubroutine finalize
+endmodule mod_source

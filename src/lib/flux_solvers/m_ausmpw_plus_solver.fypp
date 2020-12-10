@@ -77,13 +77,13 @@ module mod_m_ausmpw_plus_solver
     ! procedure, public :: flux_split_edges
     ! Private methods
     #:for DIR in DIRECTIONS
-    procedure, private :: get_${DIR}$flux
+      procedure, private :: get_${DIR}$flux
     #:endfor
     final :: finalize
 
     ! Operators
     generic :: assignment(=) => copy
-  end type m_ausmpw_plus_solver_t
+  endtype m_ausmpw_plus_solver_t
 contains
   subroutine initialize_m_ausmpw_plus(self, input, time)
     !< Constructor for the M-AUSMPW+ solver
@@ -96,7 +96,7 @@ contains
     self%gamma = eos%get_gamma()
     self%name = 'M-AUSMPW+_'//input%limiter
     self%apply_low_mach_fix = input%apply_low_mach_fix
-  end subroutine initialize_m_ausmpw_plus
+  endsubroutine initialize_m_ausmpw_plus
 
   subroutine copy_m_ausmpw_plus(lhs, rhs)
     !< Implement LHS = RHS
@@ -111,7 +111,7 @@ contains
     lhs%dt = rhs%dt
     lhs%gamma = rhs%gamma
 
-  end subroutine copy_m_ausmpw_plus
+  endsubroutine copy_m_ausmpw_plus
 
   subroutine solve_m_ausmpw_plus(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
@@ -123,10 +123,10 @@ contains
     class(field_2d_t), intent(inout) :: v   !< y-velocity
     class(field_2d_t), intent(inout) :: p   !< pressure
 
-    real(rk), dimension(:,:), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
-    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
-    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
-    real(rk), dimension(:,:), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
+    real(rk), dimension(:, :), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
 
     ! type(field_2d_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
     ! type(field_2d_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
@@ -175,7 +175,7 @@ contains
                      procedure_name='solve_m_ausmpw_plus', &
                      message="The timestep dt is < tiny(1.0_rk)", &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     self%time = self%time + dt
     self%dt = dt
@@ -279,444 +279,444 @@ contains
 
     deallocate(self%iflux)
     deallocate(self%jflux)
-  end subroutine solve_m_ausmpw_plus
+  endsubroutine solve_m_ausmpw_plus
 
   #:for DIR in DIRECTIONS
-  subroutine get_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, &
-                             rho_edge_sb, u_edge_sb, v_edge_sb, p_edge_sb, &
-                             rho_bar, u_bar, v_bar, p_bar, eflux_lbounds, edge_flux)
-    !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
-    class(m_ausmpw_plus_solver_t), intent(inout) :: self
-    class(grid_block_2d_t), intent(in) :: grid
-    integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
-    class(field_2d_t), intent(in) :: rho_bar    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
-    class(field_2d_t), intent(in) :: u_bar    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
-    class(field_2d_t), intent(in) :: v_bar    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
-    class(field_2d_t), intent(in) :: p_bar    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
+    subroutine get_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, &
+                               rho_edge_sb, u_edge_sb, v_edge_sb, p_edge_sb, &
+                               rho_bar, u_bar, v_bar, p_bar, eflux_lbounds, edge_flux)
+      !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
+      class(m_ausmpw_plus_solver_t), intent(inout) :: self
+      class(grid_block_2d_t), intent(in) :: grid
+      integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
+      class(field_2d_t), intent(in) :: rho_bar    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
+      class(field_2d_t), intent(in) :: u_bar    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
+      class(field_2d_t), intent(in) :: v_bar    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
+      class(field_2d_t), intent(in) :: p_bar    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
 
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
 
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge_sb    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge_sb    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge_sb      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
 
-    integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
-    real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux !< ((rho, u, v, p), i, j); edge fluxes
+      integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
+      real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux !< ((rho, u, v, p), i, j); edge fluxes
 
-    integer(ik) :: i, j
-    integer(ik) :: ilo, ihi, jlo, jhi
-    real(rk) :: w2
-    real(rk) :: gamma      !< polytropic gas index
-    real(rk) :: rho_L      !< density left state w/ limiter of choice
-    real(rk) :: rho_R      !< density right state w/ limiter of choice
-    real(rk) :: u_LHS      !< x-velocity left state w/ limiter of choice
-    real(rk) :: u_RHS      !< x-velocity right state w/ limiter of choice
-    real(rk) :: v_LHS      !< y-velocity left state w/ limiter of choice
-    real(rk) :: v_RHS      !< y-velocity right state w/ limiter of choice
-    real(rk) :: p_L        !< pressure left state w/ limiter of choice
-    real(rk) :: p_R        !< pressure right state w/ limiter of choice
-    real(rk) :: rho_L_sb   !< density left state w/ limiter of choice
-    real(rk) :: rho_R_sb   !< density right state w/ limiter of choice
-    real(rk) :: u_LHS_sb   !< x-velocity left state w/ limiter of choice
-    real(rk) :: u_RHS_sb   !< x-velocity right state w/ limiter of choice
-    real(rk) :: v_LHS_sb   !< y-velocity left state w/ limiter of choice
-    real(rk) :: v_RHS_sb   !< y-velocity right state w/ limiter of choice
-    real(rk) :: p_L_sb     !< pressure left state w/ limiter of choice
-    real(rk) :: p_R_sb     !< pressure right state w/ limiter of choice
-    real(rk) :: p_s        !< p_s = p_L * P_L_plus + p_R * P_R_minus
-    real(rk) :: U_L        !< left state velocity component normal to the interface
-    real(rk) :: U_R        !< right state velocity component normal to the interface
-    real(rk) :: V_L        !< left state velocity component parallel to the interface
-    real(rk) :: V_R        !< right state velocity component parallel to the interface
-    real(rk) :: rho_L_half !< final interface density left state
-    real(rk) :: rho_R_half !< final interface density right state
-    real(rk) :: u_L_half   !< final interface x-velocity left state
-    real(rk) :: u_R_half   !< final interface x-velocity right state
-    real(rk) :: v_L_half   !< final interface y-velocity left state
-    real(rk) :: v_R_half   !< final interface y-velocity right state
-    real(rk) :: p_L_half   !< final interface pressure left state
-    real(rk) :: p_R_half   !< final interface pressure right state
-    real(rk) :: H_L_half   !< final interface enthalpy left state
-    real(rk) :: H_R_half   !< final interface enthalpy right state
-    real(rk) :: H_normal   !< total enthalpy in the normal direction to the interface
-    real(rk) :: M_L        !< initial Mach number left state
-    real(rk) :: M_R        !< initial Mach number right state
-    real(rk) :: H_L        !< initial total enthalpy left state
-    real(rk) :: H_R        !< initial total enthalpy right state
-    real(rk) :: f_L        !< left state shock sensing function (Eq 33 in Ref [1])
-    real(rk) :: f_R        !< right state shock sensing function (Eq 33 in Ref [1])
-    real(rk) :: w1         !< pressure sensing function: this detects if there is a shock in the normal direction to the interface
-    real(rk) :: w          !< shock sensing function: max(w1, w2); w1: normal direction, w2: transverse direction
-    real(rk) :: c_s        !< transversal interface sound speed
-    real(rk) :: c_half     !< final interface sound speed
-    real(rk) :: m_half     !< interface Mach number
-    real(rk) :: a               !< supersonic sensor
-    real(rk) :: M_bar_L_plus    !< left final split Mach
-    real(rk) :: M_bar_R_minus   !< right final split Mach
-    real(rk) :: P_L_plus        !< left split pressure function
-    real(rk) :: P_R_minus       !< right split pressure function
-    real(rk) :: M_L_plus        !< left split Mach function
-    real(rk) :: M_R_minus       !< right split Mach function
-    real(rk) :: n_x             !< normal vectors of each face
-    real(rk) :: n_y             !< normal vectors of each face
-    real(rk) :: M_star_i, M_star_ip1, M_star_1
-    real(rk) :: U_i, U_ip1
-    real(rk) :: mass_flux_L, mass_flux_R
-    real(rk) :: u_LHS_fix !< apply fix from Ref [4] for low Mach flows
-    real(rk) :: u_RHS_fix !< apply fix from Ref [4] for low Mach flows
-    real(rk) :: v_LHS_fix !< apply fix from Ref [4] for low Mach flows
-    real(rk) :: v_RHS_fix !< apply fix from Ref [4] for low Mach flows
-    real(rk) :: cs_L, cs_R
-    real(rk) :: M_LHS, M_RHS, f_M, min_term, numer_w2, denom_w2
-    logical :: apply_low_mach_fix
+      integer(ik) :: i, j
+      integer(ik) :: ilo, ihi, jlo, jhi
+      real(rk) :: w2
+      real(rk) :: gamma      !< polytropic gas index
+      real(rk) :: rho_L      !< density left state w/ limiter of choice
+      real(rk) :: rho_R      !< density right state w/ limiter of choice
+      real(rk) :: u_LHS      !< x-velocity left state w/ limiter of choice
+      real(rk) :: u_RHS      !< x-velocity right state w/ limiter of choice
+      real(rk) :: v_LHS      !< y-velocity left state w/ limiter of choice
+      real(rk) :: v_RHS      !< y-velocity right state w/ limiter of choice
+      real(rk) :: p_L        !< pressure left state w/ limiter of choice
+      real(rk) :: p_R        !< pressure right state w/ limiter of choice
+      real(rk) :: rho_L_sb   !< density left state w/ limiter of choice
+      real(rk) :: rho_R_sb   !< density right state w/ limiter of choice
+      real(rk) :: u_LHS_sb   !< x-velocity left state w/ limiter of choice
+      real(rk) :: u_RHS_sb   !< x-velocity right state w/ limiter of choice
+      real(rk) :: v_LHS_sb   !< y-velocity left state w/ limiter of choice
+      real(rk) :: v_RHS_sb   !< y-velocity right state w/ limiter of choice
+      real(rk) :: p_L_sb     !< pressure left state w/ limiter of choice
+      real(rk) :: p_R_sb     !< pressure right state w/ limiter of choice
+      real(rk) :: p_s        !< p_s = p_L * P_L_plus + p_R * P_R_minus
+      real(rk) :: U_L        !< left state velocity component normal to the interface
+      real(rk) :: U_R        !< right state velocity component normal to the interface
+      real(rk) :: V_L        !< left state velocity component parallel to the interface
+      real(rk) :: V_R        !< right state velocity component parallel to the interface
+      real(rk) :: rho_L_half !< final interface density left state
+      real(rk) :: rho_R_half !< final interface density right state
+      real(rk) :: u_L_half   !< final interface x-velocity left state
+      real(rk) :: u_R_half   !< final interface x-velocity right state
+      real(rk) :: v_L_half   !< final interface y-velocity left state
+      real(rk) :: v_R_half   !< final interface y-velocity right state
+      real(rk) :: p_L_half   !< final interface pressure left state
+      real(rk) :: p_R_half   !< final interface pressure right state
+      real(rk) :: H_L_half   !< final interface enthalpy left state
+      real(rk) :: H_R_half   !< final interface enthalpy right state
+      real(rk) :: H_normal   !< total enthalpy in the normal direction to the interface
+      real(rk) :: M_L        !< initial Mach number left state
+      real(rk) :: M_R        !< initial Mach number right state
+      real(rk) :: H_L        !< initial total enthalpy left state
+      real(rk) :: H_R        !< initial total enthalpy right state
+      real(rk) :: f_L        !< left state shock sensing function (Eq 33 in Ref [1])
+      real(rk) :: f_R        !< right state shock sensing function (Eq 33 in Ref [1])
+      real(rk) :: w1         !< pressure sensing function: this detects if there is a shock in the normal direction to the interface
+      real(rk) :: w          !< shock sensing function: max(w1, w2); w1: normal direction, w2: transverse direction
+      real(rk) :: c_s        !< transversal interface sound speed
+      real(rk) :: c_half     !< final interface sound speed
+      real(rk) :: m_half     !< interface Mach number
+      real(rk) :: a               !< supersonic sensor
+      real(rk) :: M_bar_L_plus    !< left final split Mach
+      real(rk) :: M_bar_R_minus   !< right final split Mach
+      real(rk) :: P_L_plus        !< left split pressure function
+      real(rk) :: P_R_minus       !< right split pressure function
+      real(rk) :: M_L_plus        !< left split Mach function
+      real(rk) :: M_R_minus       !< right split Mach function
+      real(rk) :: n_x             !< normal vectors of each face
+      real(rk) :: n_y             !< normal vectors of each face
+      real(rk) :: M_star_i, M_star_ip1, M_star_1
+      real(rk) :: U_i, U_ip1
+      real(rk) :: mass_flux_L, mass_flux_R
+      real(rk) :: u_LHS_fix !< apply fix from Ref [4] for low Mach flows
+      real(rk) :: u_RHS_fix !< apply fix from Ref [4] for low Mach flows
+      real(rk) :: v_LHS_fix !< apply fix from Ref [4] for low Mach flows
+      real(rk) :: v_RHS_fix !< apply fix from Ref [4] for low Mach flows
+      real(rk) :: cs_L, cs_R
+      real(rk) :: M_LHS, M_RHS, f_M, min_term, numer_w2, denom_w2
+      logical :: apply_low_mach_fix
 
-    integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
-    integer(ik), parameter ::  RIGHT_IDX = 2 !< edge index for the right edge of the current cell
-    integer(ik), parameter ::    TOP_IDX = 3 !< edge index for the top edge of the current cell
-    integer(ik), parameter ::   LEFT_IDX = 4 !< edge index for the left edge of the current cell
+      integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
+      integer(ik), parameter ::  RIGHT_IDX = 2 !< edge index for the right edge of the current cell
+      integer(ik), parameter ::    TOP_IDX = 3 !< edge index for the top edge of the current cell
+      integer(ik), parameter ::   LEFT_IDX = 4 !< edge index for the left edge of the current cell
 
-    !dir$ assume_aligned rho_edge: __ALIGNBYTES__
-    !dir$ assume_aligned u_edge: __ALIGNBYTES__
-    !dir$ assume_aligned v_edge: __ALIGNBYTES__
-    !dir$ assume_aligned p_edge: __ALIGNBYTES__
+      !dir$ assume_aligned rho_edge: __ALIGNBYTES__
+      !dir$ assume_aligned u_edge: __ALIGNBYTES__
+      !dir$ assume_aligned v_edge: __ALIGNBYTES__
+      !dir$ assume_aligned p_edge: __ALIGNBYTES__
 
-    !dir$ assume_aligned rho_edge_sb: __ALIGNBYTES__
-    !dir$ assume_aligned u_edge_sb: __ALIGNBYTES__
-    !dir$ assume_aligned v_edge_sb: __ALIGNBYTES__
-    !dir$ assume_aligned p_edge_sb: __ALIGNBYTES__
+      !dir$ assume_aligned rho_edge_sb: __ALIGNBYTES__
+      !dir$ assume_aligned u_edge_sb: __ALIGNBYTES__
+      !dir$ assume_aligned v_edge_sb: __ALIGNBYTES__
+      !dir$ assume_aligned p_edge_sb: __ALIGNBYTES__
 
-    !dir$ assume_aligned edge_flux: __ALIGNBYTES__
+      !dir$ assume_aligned edge_flux: __ALIGNBYTES__
 
-    gamma = self%gamma
-    apply_low_mach_fix = self%apply_low_mach_fix
+      gamma = self%gamma
+      apply_low_mach_fix = self%apply_low_mach_fix
 
-    ilo = lbound(edge_flux, dim=2)
-    ihi = ubound(edge_flux, dim=2)
-    jlo = lbound(edge_flux, dim=3)
-    jhi = ubound(edge_flux, dim=3)
+      ilo = lbound(edge_flux, dim=2)
+      ihi = ubound(edge_flux, dim=2)
+      jlo = lbound(edge_flux, dim=3)
+      jhi = ubound(edge_flux, dim=3)
 
-    !                   edge(3)
-    !                  jflux(i,j+1)  'R'
-    !               o--------------------o
-    !               |                'L' |
-    !               |                    |
-    !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
-    !    edge(4)    |                    |  edge(2)
-    !               |                'L' | 'R'
-    !               o--------------------o
-    !                  jflux(i,j)
-    !                   edge(1)
-    !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
-    !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
+      !                   edge(3)
+      !                  jflux(i,j+1)  'R'
+      !               o--------------------o
+      !               |                'L' |
+      !               |                    |
+      !   iflux(i, j) |     cell (i,j)     | iflux(i+1, j)
+      !    edge(4)    |                    |  edge(2)
+      !               |                'L' | 'R'
+      !               o--------------------o
+      !                  jflux(i,j)
+      !                   edge(1)
+      !  For jflux: "R" is the bottom of the cell above, "L" is the top of the current cell
+      !  For iflux: "R" is the left of the cell to the right, "L" is the right of the current cell
 
-    !$omp parallel default(none), &
-    !$omp firstprivate(gamma, ilo, ihi, jlo, jhi, apply_low_mach_fix) &
-    !$omp private(i, j) &
-    !$omp private(rho_L, rho_R, u_LHS, u_RHS, v_LHS, v_RHS, p_L, p_R, m_half) &
-    !$omp private(rho_L_sb, rho_R_sb, u_LHS_sb, u_RHS_sb, v_LHS_sb, v_RHS_sb, p_L_sb, p_R_sb) &
-    !$omp private(n_x, n_y, p_s, U_L, U_R, V_L, V_R) &
-    !$omp private(rho_L_half, rho_R_half ,u_L_half, u_R_half, v_L_half, v_R_half, p_L_half, p_R_half) &
-    !$omp private(H_L_half, H_R_half, H_normal, M_L, M_R, H_L, H_R, f_L, f_R, w1, w,c_s ,c_half, a) &
-    !$omp private(M_bar_L_plus, M_bar_R_minus, P_L_plus, P_R_minus, M_L_plus, M_R_minus) &
-    !$omp private(mass_flux_L, mass_flux_R) &
-    !$omp private(M_star_i, M_star_ip1, M_star_1, U_i, U_ip1) &
-    !$omp private(u_LHS_fix, u_RHS_fix, v_LHS_fix, v_RHS_fix) &
-    !$omp private(cs_L, cs_R, M_LHS, M_RHS, f_M, min_term, numer_w2, denom_w2) &
-    !$omp shared(rho_bar, u_bar, v_bar, p_bar) &
-    !$omp shared(grid, w2, rho_edge, u_edge, v_edge, p_edge, rho_edge_sb, u_edge_sb, v_edge_sb, p_edge_sb, edge_flux)
-    !$omp do
-    do j = jlo, jhi
-      !$omp simd __INTERP_ALIGN__
-      !dir$ vector aligned
-      do i = ilo, ihi
+      !$omp parallel default(none), &
+      !$omp firstprivate(gamma, ilo, ihi, jlo, jhi, apply_low_mach_fix) &
+      !$omp private(i, j) &
+      !$omp private(rho_L, rho_R, u_LHS, u_RHS, v_LHS, v_RHS, p_L, p_R, m_half) &
+      !$omp private(rho_L_sb, rho_R_sb, u_LHS_sb, u_RHS_sb, v_LHS_sb, v_RHS_sb, p_L_sb, p_R_sb) &
+      !$omp private(n_x, n_y, p_s, U_L, U_R, V_L, V_R) &
+      !$omp private(rho_L_half, rho_R_half ,u_L_half, u_R_half, v_L_half, v_R_half, p_L_half, p_R_half) &
+      !$omp private(H_L_half, H_R_half, H_normal, M_L, M_R, H_L, H_R, f_L, f_R, w1, w,c_s ,c_half, a) &
+      !$omp private(M_bar_L_plus, M_bar_R_minus, P_L_plus, P_R_minus, M_L_plus, M_R_minus) &
+      !$omp private(mass_flux_L, mass_flux_R) &
+      !$omp private(M_star_i, M_star_ip1, M_star_1, U_i, U_ip1) &
+      !$omp private(u_LHS_fix, u_RHS_fix, v_LHS_fix, v_RHS_fix) &
+      !$omp private(cs_L, cs_R, M_LHS, M_RHS, f_M, min_term, numer_w2, denom_w2) &
+      !$omp shared(rho_bar, u_bar, v_bar, p_bar) &
+      !$omp shared(grid, w2, rho_edge, u_edge, v_edge, p_edge, rho_edge_sb, u_edge_sb, v_edge_sb, p_edge_sb, edge_flux)
+      !$omp do
+      do j = jlo, jhi
+        !$omp simd __INTERP_ALIGN__
+        !dir$ vector aligned
+        do i = ilo, ihi
 
-        ! Left state
-        rho_L = rho_edge(1, i, j)
-        u_LHS = u_edge(1, i, j)
-        v_LHS = v_edge(1, i, j)
-        p_L = p_edge(1, i, j)
+          ! Left state
+          rho_L = rho_edge(1, i, j)
+          u_LHS = u_edge(1, i, j)
+          v_LHS = v_edge(1, i, j)
+          p_L = p_edge(1, i, j)
 
-        ! Right state
-        rho_R = rho_edge(2, i, j)
-        u_RHS = u_edge(2, i, j)
-        v_RHS = v_edge(2, i, j)
-        p_R = p_edge(2, i, j)
+          ! Right state
+          rho_R = rho_edge(2, i, j)
+          u_RHS = u_edge(2, i, j)
+          v_RHS = v_edge(2, i, j)
+          p_R = p_edge(2, i, j)
 
-        rho_L_sb = rho_edge_sb(1, i, j)
-        u_LHS_sb = u_edge_sb(1, i, j)
-        v_LHS_sb = v_edge_sb(1, i, j)
-        p_L_sb = p_edge_sb(1, i, j)
+          rho_L_sb = rho_edge_sb(1, i, j)
+          u_LHS_sb = u_edge_sb(1, i, j)
+          v_LHS_sb = v_edge_sb(1, i, j)
+          p_L_sb = p_edge_sb(1, i, j)
 
-        rho_R_sb = rho_edge_sb(2, i, j)
-        u_RHS_sb = u_edge_sb(2, i, j)
-        v_RHS_sb = v_edge_sb(2, i, j)
-        p_R_sb = p_edge_sb(2, i, j)
+          rho_R_sb = rho_edge_sb(2, i, j)
+          u_RHS_sb = u_edge_sb(2, i, j)
+          v_RHS_sb = v_edge_sb(2, i, j)
+          p_R_sb = p_edge_sb(2, i, j)
 
-      #:if DIR == 'i'
-        n_x = grid%edge_norm_vectors(1, RIGHT_IDX, i, j)
-        n_y = grid%edge_norm_vectors(2, RIGHT_IDX, i, j)
+          #:if DIR == 'i'
+            n_x = grid%edge_norm_vectors(1, RIGHT_IDX, i, j)
+            n_y = grid%edge_norm_vectors(2, RIGHT_IDX, i, j)
 
-        U_L = u_LHS
-        U_R = u_RHS
-        V_L = v_LHS
-        V_R = v_RHS
+            U_L = u_LHS
+            U_R = u_RHS
+            V_L = v_LHS
+            V_R = v_RHS
 
-      #:elif DIR == 'j'
-        n_x = grid%edge_norm_vectors(1, TOP_IDX, i, j)
-        n_y = grid%edge_norm_vectors(2, TOP_IDX, i, j)
+          #:elif DIR == 'j'
+            n_x = grid%edge_norm_vectors(1, TOP_IDX, i, j)
+            n_y = grid%edge_norm_vectors(2, TOP_IDX, i, j)
 
-        U_L = v_LHS
-        U_R = v_RHS
-        V_L = u_LHS
-        V_R = u_RHS
-      #:endif
+            U_L = v_LHS
+            U_R = v_RHS
+            V_L = u_LHS
+            V_R = u_RHS
+          #:endif
 
-        cs_L = sqrt(gamma * p_L / rho_L)
-        cs_R = sqrt(gamma * p_R / rho_R)
-        M_LHS = sqrt(u_LHS**2 + v_LHS**2) / cs_L
-        M_RHS = sqrt(u_RHS**2 + v_RHS**2) / cs_R
+          cs_L = sqrt(gamma * p_L / rho_L)
+          cs_R = sqrt(gamma * p_R / rho_R)
+          M_LHS = sqrt(u_LHS**2 + v_LHS**2) / cs_L
+          M_RHS = sqrt(u_RHS**2 + v_RHS**2) / cs_R
 
-        if(apply_low_mach_fix .and. (abs(M_LHS) < LOW_MACH .or. abs(M_RHS) < LOW_MACH)) then
-          f_M = min(1.0_rk, max(M_LHS, M_RHS))
+          if(apply_low_mach_fix .and. (abs(M_LHS) < LOW_MACH .or. abs(M_RHS) < LOW_MACH)) then
+            f_M = min(1.0_rk, max(M_LHS, M_RHS))
 
-          ! Eq 8 in Ref [4]
-          u_LHS_fix = 0.5_rk * (u_LHS + u_RHS) + f_M * 0.5_rk * (u_LHS - u_RHS)
-          u_RHS_fix = 0.5_rk * (u_LHS + u_RHS) - f_M * 0.5_rk * (u_LHS - u_RHS)
-          v_LHS_fix = 0.5_rk * (v_LHS + v_RHS) + f_M * 0.5_rk * (v_LHS - v_RHS)
-          v_RHS_fix = 0.5_rk * (v_LHS + v_RHS) - f_M * 0.5_rk * (v_LHS - v_RHS)
+            ! Eq 8 in Ref [4]
+            u_LHS_fix = 0.5_rk * (u_LHS + u_RHS) + f_M * 0.5_rk * (u_LHS - u_RHS)
+            u_RHS_fix = 0.5_rk * (u_LHS + u_RHS) - f_M * 0.5_rk * (u_LHS - u_RHS)
+            v_LHS_fix = 0.5_rk * (v_LHS + v_RHS) + f_M * 0.5_rk * (v_LHS - v_RHS)
+            v_RHS_fix = 0.5_rk * (v_LHS + v_RHS) - f_M * 0.5_rk * (v_LHS - v_RHS)
 
-          u_LHS = u_LHS_fix
-          u_RHS = u_RHS_fix
-          v_LHS = v_LHS_fix
-          v_RHS = v_RHS_fix
-        end if
+            u_LHS = u_LHS_fix
+            u_RHS = u_RHS_fix
+            v_LHS = v_LHS_fix
+            v_RHS = v_RHS_fix
+          endif
 
-        ! Velocity normal to the edge, see Fig 2 in Ref[3]
-        ! _RHS/_LHS is to avoid naming conflicts with _L and _R (slightly different meaning)
-        ! U_L = u_LHS * n_x + v_LHS * n_y
-        ! U_R = u_RHS * n_x + v_RHS * n_y
+          ! Velocity normal to the edge, see Fig 2 in Ref[3]
+          ! _RHS/_LHS is to avoid naming conflicts with _L and _R (slightly different meaning)
+          ! U_L = u_LHS * n_x + v_LHS * n_y
+          ! U_R = u_RHS * n_x + v_RHS * n_y
 
-        ! ! Velocity component parallel to the edge
-        ! V_L = u_LHS * (-n_y) + v_LHS * n_x
-        ! V_R = u_RHS * (-n_y) + v_RHS * n_x
+          ! ! Velocity component parallel to the edge
+          ! V_L = u_LHS * (-n_y) + v_LHS * n_x
+          ! V_R = u_RHS * (-n_y) + v_RHS * n_x
 
-        H_L = (gamma / (gamma - 1.0_rk)) * (p_L / rho_L) + 0.5_rk * (u_LHS**2 + v_LHS**2)
-        H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_RHS**2 + v_RHS**2)
+          H_L = (gamma / (gamma - 1.0_rk)) * (p_L / rho_L) + 0.5_rk * (u_LHS**2 + v_LHS**2)
+          H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_RHS**2 + v_RHS**2)
 
-        ! Total enthalpy normal to the edge
-        H_normal = min(H_L - 0.5_rk * V_L**2, H_R - 0.5_rk * V_R**2)
+          ! Total enthalpy normal to the edge
+          H_normal = min(H_L - 0.5_rk * V_L**2, H_R - 0.5_rk * V_R**2)
 
-        ! Speed of sound normal to the edge, also like the critical sound speed
-        ! across a normal shock
-        c_s = sqrt(2.0_rk * ((gamma - 1.0_rk) / (gamma + 1.0_rk)) * H_normal)
+          ! Speed of sound normal to the edge, also like the critical sound speed
+          ! across a normal shock
+          c_s = sqrt(2.0_rk * ((gamma - 1.0_rk) / (gamma + 1.0_rk)) * H_normal)
 
-        ! Interface sound speed
-        if(0.5_rk * (U_L + U_R) < 0.0_rk) then  ! part (ii) in the paper after Eq 3
-          c_half = c_s**2 / max(abs(U_R), c_s)
-        else
-          c_half = c_s**2 / max(abs(U_L), c_s) ! part (i)
-        end if
+          ! Interface sound speed
+          if(0.5_rk * (U_L + U_R) < 0.0_rk) then  ! part (ii) in the paper after Eq 3
+            c_half = c_s**2 / max(abs(U_R), c_s)
+          else
+            c_half = c_s**2 / max(abs(U_L), c_s) ! part (i)
+          endif
 
-        ! Left/Right Mach number
-        M_L = U_L / c_half
-        M_R = U_R / c_half
+          ! Left/Right Mach number
+          M_L = U_L / c_half
+          M_R = U_R / c_half
 
-        ! Mach splitting functions
-        if(abs(M_L) > 1.0_rk) then
-          M_L_plus = 0.5_rk * (M_L + abs(M_L))
-        else ! |M_L| <= 1
-          M_L_plus = 0.25_rk * (M_L + 1.0_rk)**2
-        endif
+          ! Mach splitting functions
+          if(abs(M_L) > 1.0_rk) then
+            M_L_plus = 0.5_rk * (M_L + abs(M_L))
+          else ! |M_L| <= 1
+            M_L_plus = 0.25_rk * (M_L + 1.0_rk)**2
+          endif
 
-        if(abs(M_R) > 1.0_rk) then
-          M_R_minus = 0.5_rk * (M_R - abs(M_R))
-        else ! |M_L| <= 1
-          M_R_minus = -0.25_rk * (M_R - 1.0_rk)**2
-        endif
+          if(abs(M_R) > 1.0_rk) then
+            M_R_minus = 0.5_rk * (M_R - abs(M_R))
+          else ! |M_L| <= 1
+            M_R_minus = -0.25_rk * (M_R - 1.0_rk)**2
+          endif
 
-        ! Pressure splitting functions: Eq. 39 or Eq 4, in Ref [1]
-        ! ------------------------------------------------------------------------------------------
+          ! Pressure splitting functions: Eq. 39 or Eq 4, in Ref [1]
+          ! ------------------------------------------------------------------------------------------
 
-        ! Use all of the M-AUSMPW+ logic in the paper (this has some issues and I'm not sure why yet...)
+          ! Use all of the M-AUSMPW+ logic in the paper (this has some issues and I'm not sure why yet...)
 
-        ! Intermediate characteristic Mach numbers M*. This is used to to account for a sonic transition
-        ! point that occurs within a single cell (between the cell center and cell edge interface)
+          ! Intermediate characteristic Mach numbers M*. This is used to to account for a sonic transition
+          ! point that occurs within a single cell (between the cell center and cell edge interface)
 
-        ! Current cell i
-        ! U_i = sqrt(u_bar%data(i, j)**2 + v_bar%data(i, j)**2) ! U(i)
-        ! M_star_i = U_i / sqrt(gamma * p_bar%data(i, j) / rho_bar%data(i, j))! M*i
+          ! Current cell i
+          ! U_i = sqrt(u_bar%data(i, j)**2 + v_bar%data(i, j)**2) ! U(i)
+          ! M_star_i = U_i / sqrt(gamma * p_bar%data(i, j) / rho_bar%data(i, j))! M*i
 
-        ! #:if DIR == 'i'
-        !   ! Cell to the right, e.g. i + 1
-        !   U_ip1 = sqrt(u_bar%data(i + 1, j)**2 + v_bar%data(i + 1, j)**2) ! U(i+1)
-        !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar%data(i + 1, j) / rho_bar%data(i + 1, j)) ! M*(i+1)
+          ! #:if DIR == 'i'
+          !   ! Cell to the right, e.g. i + 1
+          !   U_ip1 = sqrt(u_bar%data(i + 1, j)**2 + v_bar%data(i + 1, j)**2) ! U(i+1)
+          !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar%data(i + 1, j) / rho_bar%data(i + 1, j)) ! M*(i+1)
 
-        ! #:elif DIR == 'j'
-        !   ! Cell above, e.g. j + 1
-        !   U_ip1 = sqrt(u_bar%data(i, j + 1)**2 + v_bar%data(i, j + 1)**2) ! U(i+1)
-        !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar%data(i, j + 1) / rho_bar%data(i, j + 1)) ! M*(j+1)
-        ! #:endif
+          ! #:elif DIR == 'j'
+          !   ! Cell above, e.g. j + 1
+          !   U_ip1 = sqrt(u_bar%data(i, j + 1)**2 + v_bar%data(i, j + 1)**2) ! U(i+1)
+          !   M_star_ip1 = U_ip1 / sqrt(gamma * p_bar%data(i, j + 1) / rho_bar%data(i, j + 1)) ! M*(j+1)
+          ! #:endif
 
-        ! ! P_R-
-        ! if(M_star_i > 1.0_rk .and. M_star_ip1 < 1.0_rk .and. (0.0_rk < M_star_i * M_star_ip1 .and. M_star_i * M_star_ip1 < 1.0_rk)) then
-        !   ! P-(i+1)
-        !   #:if DIR == 'i'
-        !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j) * U_i * (U_i - U_ip1) + p_bar%data(i,j)) / p_bar%data(i + 1, j))))
-        !   #:elif DIR == 'j'
-        !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j) * U_i * (U_i - U_ip1) + p_bar%data(i,j)) / p_bar%data(i, j + 1))))
+          ! ! P_R-
+          ! if(M_star_i > 1.0_rk .and. M_star_ip1 < 1.0_rk .and. (0.0_rk < M_star_i * M_star_ip1 .and. M_star_i * M_star_ip1 < 1.0_rk)) then
+          !   ! P-(i+1)
+          !   #:if DIR == 'i'
+          !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j) * U_i * (U_i - U_ip1) + p_bar%data(i,j)) / p_bar%data(i + 1, j))))
+          !   #:elif DIR == 'j'
+          !     P_R_minus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j) * U_i * (U_i - U_ip1) + p_bar%data(i,j)) / p_bar%data(i, j + 1))))
 
-        !   #:endif
-        ! else
-        !   if(abs(M_R) > 1.0_rk) then
-        !     P_R_minus = 0.5_rk * (1.0_rk - sign(1.0_rk, M_R))
-        !   else ! |M_R| <= 1
-        !     P_R_minus = 0.25_rk * ((M_R - 1.0_rk)**2) * (2.0_rk + M_R)
-        !   end if
-        ! end if
+          !   #:endif
+          ! else
+          !   if(abs(M_R) > 1.0_rk) then
+          !     P_R_minus = 0.5_rk * (1.0_rk - sign(1.0_rk, M_R))
+          !   else ! |M_R| <= 1
+          !     P_R_minus = 0.25_rk * ((M_R - 1.0_rk)**2) * (2.0_rk + M_R)
+          !   end if
+          ! end if
 
-        ! ! P_L+
-        ! if(M_star_i < -1.0_rk .and. M_star_ip1 < -1.0_rk .and. (0.0_rk < M_star_i * M_star_ip1 .and. M_star_i * M_star_ip1 < 1.0_rk)) then
-        !   ! P+(i)
-        !   #:if DIR == 'i'
-        !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i + 1,j) * U_ip1 * (U_ip1 - U_i) + p_bar%data(i + 1,j)) / p_bar%data(i, j))))
-        !   #:elif DIR == 'j'
-        !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j + 1) * U_ip1 * (U_ip1 - U_i) + p_bar%data(i,j + 1)) / p_bar%data(i, j))))
-        !   #:endif
-        ! else
-        !   if(abs(M_L) > 1.0_rk) then
-        !     P_L_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M_L))
-        !   else ! |M_R| <= 1
-        !     P_L_plus = 0.25_rk * ((M_L + 1.0_rk)**2) * (2.0_rk - M_L)
-        !   end if
-        ! end if
+          ! ! P_L+
+          ! if(M_star_i < -1.0_rk .and. M_star_ip1 < -1.0_rk .and. (0.0_rk < M_star_i * M_star_ip1 .and. M_star_i * M_star_ip1 < 1.0_rk)) then
+          !   ! P+(i)
+          !   #:if DIR == 'i'
+          !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i + 1,j) * U_ip1 * (U_ip1 - U_i) + p_bar%data(i + 1,j)) / p_bar%data(i, j))))
+          !   #:elif DIR == 'j'
+          !     P_L_plus = max(0.0_rk, min(0.5_rk, 1.0_rk - ((rho_bar%data(i,j + 1) * U_ip1 * (U_ip1 - U_i) + p_bar%data(i,j + 1)) / p_bar%data(i, j))))
+          !   #:endif
+          ! else
+          !   if(abs(M_L) > 1.0_rk) then
+          !     P_L_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M_L))
+          !   else ! |M_R| <= 1
+          !     P_L_plus = 0.25_rk * ((M_L + 1.0_rk)**2) * (2.0_rk - M_L)
+          !   end if
+          ! end if
 
-        ! ------------------------------------------------------------------------------------------
+          ! ------------------------------------------------------------------------------------------
 
-        ! Or just use the AUSMPW+ version
-        if(abs(M_R) > 1.0_rk) then
-          P_R_minus = 0.5_rk * (1.0_rk - sign(1.0_rk, M_R))
-        else ! |M_R| <= 1
-          P_R_minus = 0.25_rk * ((M_R - 1.0_rk)**2) * (2.0_rk + M_R)
-        end if
+          ! Or just use the AUSMPW+ version
+          if(abs(M_R) > 1.0_rk) then
+            P_R_minus = 0.5_rk * (1.0_rk - sign(1.0_rk, M_R))
+          else ! |M_R| <= 1
+            P_R_minus = 0.25_rk * ((M_R - 1.0_rk)**2) * (2.0_rk + M_R)
+          endif
 
-        if(abs(M_L) > 1.0_rk) then
-          P_L_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M_L))
-        else ! |M_R| <= 1
-          P_L_plus = 0.25_rk * ((M_L + 1.0_rk)**2) * (2.0_rk - M_L)
-        end if
-        ! ------------------------------------------------------------------------------------------
+          if(abs(M_L) > 1.0_rk) then
+            P_L_plus = 0.5_rk * (1.0_rk + sign(1.0_rk, M_L))
+          else ! |M_R| <= 1
+            P_L_plus = 0.25_rk * ((M_L + 1.0_rk)**2) * (2.0_rk - M_L)
+          endif
+          ! ------------------------------------------------------------------------------------------
 
-        ! ------------------------------------------------------------------------------------------
-        ! M-AUSMPW+ version
-        ! Eq. 30b: w1 detects whether a shock exists in the normal direction to a cell-interface or not
-        ! min_term = min(p_L / p_R, p_R / p_L)
-        ! w1 = 1.0_rk - (min_term * min_term * min_term)
+          ! ------------------------------------------------------------------------------------------
+          ! M-AUSMPW+ version
+          ! Eq. 30b: w1 detects whether a shock exists in the normal direction to a cell-interface or not
+          ! min_term = min(p_L / p_R, p_R / p_L)
+          ! w1 = 1.0_rk - (min_term * min_term * min_term)
 
-        ! #:if DIR == 'i'
-        !   numer_w2 = p_bar%data(i + 1, j) - p_bar%data(i, j)
-        !   denom_w2 = 0.25_rk * (p_bar%data(i + 1, j + 1) + p_bar%data(i, j + 1) - p_bar%data(i + 1, j - 1) - p_bar%data(i, j - 1))
+          ! #:if DIR == 'i'
+          !   numer_w2 = p_bar%data(i + 1, j) - p_bar%data(i, j)
+          !   denom_w2 = 0.25_rk * (p_bar%data(i + 1, j + 1) + p_bar%data(i, j + 1) - p_bar%data(i + 1, j - 1) - p_bar%data(i, j - 1))
 
-        !   if(abs(numer_w2) < epsilon(1.0_rk)) then
-        !     ! The shock is aligned well with the cell interface
-        !     w2 = (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i + 1, j), p_bar%data(i + 1, j) / p_bar%data(i, j)))**2
-        !   else if (abs(denom_w2) < epsilon(1.0_rk)) then
-        !     w2 = 0.0_rk
-        !   else
-        !     w2 = (1.0_rk - min(1.0_rk, numer_w2 / denom_w2))**2 * &
-        !           (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i + 1, j), p_bar%data(i + 1, j) / p_bar%data(i, j)))**2
-        !   end if
-        !   #:elif DIR == 'j'
+          !   if(abs(numer_w2) < epsilon(1.0_rk)) then
+          !     ! The shock is aligned well with the cell interface
+          !     w2 = (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i + 1, j), p_bar%data(i + 1, j) / p_bar%data(i, j)))**2
+          !   else if (abs(denom_w2) < epsilon(1.0_rk)) then
+          !     w2 = 0.0_rk
+          !   else
+          !     w2 = (1.0_rk - min(1.0_rk, numer_w2 / denom_w2))**2 * &
+          !           (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i + 1, j), p_bar%data(i + 1, j) / p_bar%data(i, j)))**2
+          !   end if
+          !   #:elif DIR == 'j'
 
-        !   numer_w2 = p_bar%data(i, j + 1) - p_bar%data(i, j)
-        !   denom_w2 = 0.25_rk * (p_bar%data(i + 1, j + 1) + p_bar%data(i + 1, j) - p_bar%data(i - 1, j + 1) - p_bar%data(i - 1, j))
-        !   if(abs(numer_w2) < epsilon(1.0_rk)) then
-        !     ! The shock is aligned well with the cell interface
-        !     w2 = (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i, j + 1), p_bar%data(i, j + 1) / p_bar%data(i, j)))**2
-        !   else if (abs(denom_w2) < epsilon(1.0_rk)) then
-        !     w2 = 0.0_rk
-        !   else
-        !     w2 = (1.0_rk - min(1.0_rk, numer_w2 / denom_w2))**2 *  &
-        !           (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i, j + 1), p_bar%data(i, j + 1) / p_bar%data(i, j)))**2
-        !   end if
-        ! #:endif
+          !   numer_w2 = p_bar%data(i, j + 1) - p_bar%data(i, j)
+          !   denom_w2 = 0.25_rk * (p_bar%data(i + 1, j + 1) + p_bar%data(i + 1, j) - p_bar%data(i - 1, j + 1) - p_bar%data(i - 1, j))
+          !   if(abs(numer_w2) < epsilon(1.0_rk)) then
+          !     ! The shock is aligned well with the cell interface
+          !     w2 = (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i, j + 1), p_bar%data(i, j + 1) / p_bar%data(i, j)))**2
+          !   else if (abs(denom_w2) < epsilon(1.0_rk)) then
+          !     w2 = 0.0_rk
+          !   else
+          !     w2 = (1.0_rk - min(1.0_rk, numer_w2 / denom_w2))**2 *  &
+          !           (1.0_rk - min(p_bar%data(i, j) / p_bar%data(i, j + 1), p_bar%data(i, j + 1) / p_bar%data(i, j)))**2
+          !   end if
+          ! #:endif
 
-        ! ! Eq. 29
-        ! w = max(w1, w2)
+          ! ! Eq. 29
+          ! w = max(w1, w2)
 
-        ! ! Determine the pressure weighting function f
-        ! p_s = p_L * P_L_plus + p_R * P_R_minus
-        ! if (abs(p_s) > epsilon(1.0_rk)) then ! p_s /= 0
-        !   f_L = ((p_L/ p_s) - 1.0_rk) * (1.0_rk - w2)
-        !   f_R = ((p_R/ p_s) - 1.0_rk) * (1.0_rk - w2)
-        ! else
-        !   f_L = 0.0_rk
-        !   f_R = 0.0_rk
-        ! end if
+          ! ! Determine the pressure weighting function f
+          ! p_s = p_L * P_L_plus + p_R * P_R_minus
+          ! if (abs(p_s) > epsilon(1.0_rk)) then ! p_s /= 0
+          !   f_L = ((p_L/ p_s) - 1.0_rk) * (1.0_rk - w2)
+          !   f_R = ((p_R/ p_s) - 1.0_rk) * (1.0_rk - w2)
+          ! else
+          !   f_L = 0.0_rk
+          !   f_R = 0.0_rk
+          ! end if
 
-        ! AUSMPW+ version
-        ! ------------------------------------------------------------------------------------------
-        p_s = p_L * P_L_plus + p_R * P_R_minus
-        min_term = min(p_L / p_R, p_R / p_L)
-        w = 1.0_rk - (min_term * min_term * min_term)
+          ! AUSMPW+ version
+          ! ------------------------------------------------------------------------------------------
+          p_s = p_L * P_L_plus + p_R * P_R_minus
+          min_term = min(p_L / p_R, p_R / p_L)
+          w = 1.0_rk - (min_term * min_term * min_term)
 
-        #:if DIR == 'i'
-        call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_bar%data(i, j - 1), p1_R=p_bar%data(i + 1, j - 1), &
-                   p2_L=p_bar%data(i, j + 1), p2_R=p_bar%data(i + 1, j + 1), &
-                   f_L=f_L, f_R=f_R)
-        #:else
-        call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
-                   p1_L=p_bar%data(i + 1, j), p1_R=p_bar%data(i + 1, j + 1), &
-                   p2_L=p_bar%data(i - 1, j), p2_R=p_bar%data(i - 1, j + 1), &
-                   f_L=f_L, f_R=f_R)
-        #:endif
-        ! ------------------------------------------------------------------------------------------
+          #:if DIR == 'i'
+            call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
+                       p1_L=p_bar%data(i, j - 1), p1_R=p_bar%data(i + 1, j - 1), &
+                       p2_L=p_bar%data(i, j + 1), p2_R=p_bar%data(i + 1, j + 1), &
+                       f_L=f_L, f_R=f_R)
+          #:else
+            call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
+                       p1_L=p_bar%data(i + 1, j), p1_R=p_bar%data(i + 1, j + 1), &
+                       p2_L=p_bar%data(i - 1, j), p2_R=p_bar%data(i - 1, j + 1), &
+                       f_L=f_L, f_R=f_R)
+          #:endif
+          ! ------------------------------------------------------------------------------------------
 
-        ! Determine the Mach number interpolation functions
-        if(M_L_plus + M_R_minus < 0.0_rk) then ! Eq. 2b in Ref [1]
-          M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
-          M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
+          ! Determine the Mach number interpolation functions
+          if(M_L_plus + M_R_minus < 0.0_rk) then ! Eq. 2b in Ref [1]
+            M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
+            M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
 
-        else ! Eq. 2a in Ref [1]
-          M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
-          M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
-        end if
+          else ! Eq. 2a in Ref [1]
+            M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
+            M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
+          endif
 
-        a = 1.0_rk - min(1.0_rk, max(abs(M_L), abs(M_R)))**2
-        rho_L_half = phi_L_half(phi_L=rho_L, phi_R=rho_R, phi_L_superbee=rho_L_sb, a=a)
-        rho_R_half = phi_R_half(phi_L=rho_L, phi_R=rho_R, phi_R_superbee=rho_R_sb, a=a)
+          a = 1.0_rk - min(1.0_rk, max(abs(M_L), abs(M_R)))**2
+          rho_L_half = phi_L_half(phi_L=rho_L, phi_R=rho_R, phi_L_superbee=rho_L_sb, a=a)
+          rho_R_half = phi_R_half(phi_L=rho_L, phi_R=rho_R, phi_R_superbee=rho_R_sb, a=a)
 
-        u_L_half = phi_L_half(phi_L=u_LHS, phi_R=u_RHS, phi_L_superbee=u_LHS_sb, a=a)
-        u_R_half = phi_R_half(phi_L=u_LHS, phi_R=u_RHS, phi_R_superbee=u_RHS_sb, a=a)
+          u_L_half = phi_L_half(phi_L=u_LHS, phi_R=u_RHS, phi_L_superbee=u_LHS_sb, a=a)
+          u_R_half = phi_R_half(phi_L=u_LHS, phi_R=u_RHS, phi_R_superbee=u_RHS_sb, a=a)
 
-        v_L_half = phi_L_half(phi_L=v_LHS, phi_R=v_RHS, phi_L_superbee=v_LHS_sb, a=a)
-        v_R_half = phi_R_half(phi_L=v_LHS, phi_R=v_RHS, phi_R_superbee=v_RHS_sb, a=a)
+          v_L_half = phi_L_half(phi_L=v_LHS, phi_R=v_RHS, phi_L_superbee=v_LHS_sb, a=a)
+          v_R_half = phi_R_half(phi_L=v_LHS, phi_R=v_RHS, phi_R_superbee=v_RHS_sb, a=a)
 
-        p_L_half = phi_L_half(phi_L=p_L, phi_R=p_R, phi_L_superbee=p_L_sb, a=a)
-        p_R_half = phi_R_half(phi_L=p_L, phi_R=p_R, phi_R_superbee=p_R_sb, a=a)
+          p_L_half = phi_L_half(phi_L=p_L, phi_R=p_R, phi_L_superbee=p_L_sb, a=a)
+          p_R_half = phi_R_half(phi_L=p_L, phi_R=p_R, phi_R_superbee=p_R_sb, a=a)
 
-        ! Enthalpy
-        H_L_half = (gamma / (gamma - 1.0_rk)) * (p_L_half / rho_L_half) + 0.5_rk * (u_L_half**2 + v_L_half**2)
-        H_R_half = (gamma / (gamma - 1.0_rk)) * (p_R_half / rho_R_half) + 0.5_rk * (u_R_half**2 + v_R_half**2)
+          ! Enthalpy
+          H_L_half = (gamma / (gamma - 1.0_rk)) * (p_L_half / rho_L_half) + 0.5_rk * (u_L_half**2 + v_L_half**2)
+          H_R_half = (gamma / (gamma - 1.0_rk)) * (p_R_half / rho_R_half) + 0.5_rk * (u_R_half**2 + v_R_half**2)
 
-        mass_flux_L = M_bar_L_plus * c_half * rho_L_half
-        mass_flux_R = M_bar_R_minus * c_half * rho_R_half
-        edge_flux(1, i, j) = (mass_flux_L) + (mass_flux_R)
-        edge_flux(2, i, j) = (mass_flux_L * u_L_half) + (mass_flux_R * u_R_half) + &
-                             ((P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R))
-        edge_flux(3, i, j) = (mass_flux_L * v_L_half) + (mass_flux_R * v_R_half) + &
-                             ((P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R))
-        edge_flux(4, i, j) = (mass_flux_L * H_L_half) + (mass_flux_R * H_R_half)
+          mass_flux_L = M_bar_L_plus * c_half * rho_L_half
+          mass_flux_R = M_bar_R_minus * c_half * rho_R_half
+          edge_flux(1, i, j) = (mass_flux_L) + (mass_flux_R)
+          edge_flux(2, i, j) = (mass_flux_L * u_L_half) + (mass_flux_R * u_R_half) + &
+                               ((P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R))
+          edge_flux(3, i, j) = (mass_flux_L * v_L_half) + (mass_flux_R * v_R_half) + &
+                               ((P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R))
+          edge_flux(4, i, j) = (mass_flux_L * H_L_half) + (mass_flux_R * H_R_half)
 
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-  end subroutine get_${DIR}$flux
+        enddo
+      enddo
+      !$omp end do
+      !$omp end parallel
+    end subroutine get_${DIR}$flux
 
   #:endfor
 
@@ -729,7 +729,7 @@ contains
 
     b_parallel = (dot_product(b, a) / dot_product(a, a)) * a
     b_perpendicular = b - b_parallel
-  end subroutine project_vector
+  endsubroutine project_vector
 
   subroutine finalize(self)
     !< Cleanup the M-AUSMPW+ solver
@@ -737,7 +737,7 @@ contains
     call debug_print('Running m_ausmpw_plus_solver_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%iflux)) deallocate(self%iflux) ! these should already be deallocated
     if(allocated(self%jflux)) deallocate(self%jflux) ! these should already be deallocated
-  end subroutine finalize
+  endsubroutine finalize
 
   pure real(rk) function f(p, p_s, w_2)
     !< Implementation of the f function (Eq. 33 in Ref [1]). This is used to help determine
@@ -750,8 +750,8 @@ contains
       f = 0.0_rk
     else
       f = ((p / p_s) - 1.0_rk) * (1.0_rk - w_2)
-    end if
-  end function f
+    endif
+  endfunction f
 
   pure real(rk) function w_1(p_L, p_R)
     !< Discontinuity sensor w_1 (Eq. 33b in Ref [1]). This detects whether a shock
@@ -763,7 +763,7 @@ contains
 
     min_term = min((p_L / p_R),(p_R / p_L))
     w_1 = 1.0_rk - min_term * min_term * min_term
-  end function w_1
+  endfunction w_1
 
   pure real(rk) function phi_L_half(phi_L, phi_R, phi_L_superbee, a)
     !$omp declare simd(phi_L_half) linear(ref(phi_L, phi_R, phi_L_superbee, a)) simdlen(__ALIGNBYTES__)
@@ -780,7 +780,7 @@ contains
                    * min(a, 0.5_rk * abs(phi_R - phi_L), abs(phi_L_superbee - phi_L))
     endif
 
-  end function phi_L_half
+  endfunction phi_L_half
 
   pure real(rk) function phi_R_half(phi_L, phi_R, phi_R_superbee, a)
     !$omp declare simd(phi_R_half) linear(ref(phi_L, phi_R, phi_R_superbee, a)) simdlen(__ALIGNBYTES__)
@@ -796,7 +796,7 @@ contains
                    ((phi_L - phi_R) * abs(phi_R_superbee - phi_R)) &
                    * min(a, 0.5_rk * abs(phi_L - phi_R), abs(phi_R_superbee - phi_R))
     endif
-  end function phi_R_half
+  endfunction phi_R_half
 
   pure subroutine get_f(p_L, p_R, p_s, p1_L, p1_R, p2_L, p2_R, f_L, f_R)
     !< Implementation of the f function (Eq. 26 in Ref [1]). This is used to help determine
@@ -821,8 +821,8 @@ contains
       min_term = min(1.0_rk, min(p1_L, p1_R, p2_L, p2_R) / min(p_L, p_R))**2
       f_L = ((p_L / p_s) - 1.0_rk) * min_term
       f_R = ((p_R / p_s) - 1.0_rk) * min_term
-    end if
-  end subroutine get_f
+    endif
+  endsubroutine get_f
 
   pure real(rk) function get_w(p_L, p_R) result(w)
     !< Discontinuity sensor w_1 (Eq. 25 in Ref [1]). This detects whether a shock
@@ -834,6 +834,6 @@ contains
 
     min_term = min((p_L / p_R),(p_R / p_L))
     w = 1.0_rk - min_term * min_term * min_term
-  end function get_w
+  endfunction get_w
 
-end module mod_m_ausmpw_plus_solver
+endmodule mod_m_ausmpw_plus_solver

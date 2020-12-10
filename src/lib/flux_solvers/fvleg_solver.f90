@@ -63,7 +63,7 @@ module mod_fvleg_solver
 
     ! Operators
     generic :: assignment(=) => copy
-  end type fvleg_solver_t
+  endtype fvleg_solver_t
 
 contains
   subroutine initialize_fvleg(self, input, time)
@@ -78,7 +78,7 @@ contains
     self%name = 'FVLEG'
     self%input = input
     self%time = time
-  end subroutine initialize_fvleg
+  endsubroutine initialize_fvleg
 
   subroutine copy_fvleg(lhs, rhs)
     !< Implement LHS = RHS
@@ -92,7 +92,7 @@ contains
     lhs%dt = rhs%dt
     lhs%reconstruct_p_prime = rhs%reconstruct_p_prime
 
-  end subroutine copy_fvleg
+  endsubroutine copy_fvleg
 
   subroutine solve_fvleg(self, dt, grid, lbounds, rho, u, v, p, &
                          d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
@@ -174,7 +174,7 @@ contains
       allocate(u_recon_state(1:8, imin:imax, jmin:jmax))
       allocate(v_recon_state(1:8, imin:imax, jmin:jmax))
       allocate(p_recon_state(1:8, imin:imax, jmin:jmax))
-    end associate
+    endassociate
 
     associate(imin_node => grid%ilo_node, imax_node => grid%ihi_node, &
               jmin_node => grid%jlo_node, jmax_node => grid%jhi_node, &
@@ -196,7 +196,7 @@ contains
       allocate(evolved_du_mid_v(imin_node:imax_node, jmin_cell:jmax_cell))
       allocate(evolved_du_mid_p(imin_node:imax_node, jmin_cell:jmax_cell))
 
-    end associate
+    endassociate
 
     write(stage_name, '(2(a, i0))') 'iter_', self%iteration, 'stage_', stage
 
@@ -319,7 +319,7 @@ contains
     deallocate(v_recon_state)
     deallocate(p_recon_state)
 
-  end subroutine solve_fvleg
+  endsubroutine solve_fvleg
 
   subroutine flux_edges(grid, &
                         evolved_corner_rho, evolved_corner_u, evolved_corner_v, evolved_corner_p, &
@@ -411,8 +411,8 @@ contains
         do edge = 1, 4
           do xy = 1, 2
             n_hat(xy, edge) = grid%edge_norm_vectors(xy, edge, i, j)
-          end do
-        end do
+          enddo
+        enddo
 
         associate(F_c1 => corner_fluxes%F(:, i, j), &
                   G_c1 => corner_fluxes%G(:, i, j), &
@@ -441,7 +441,7 @@ contains
             f_sum = sum([F_c1(k), 4.0_rk * F_m1(k), F_c2(k)]) * n_hat_1(1)
             g_sum = sum([G_c1(k), 4.0_rk * G_m1(k), G_c2(k)]) * n_hat_1(2)
             bottom_flux(k) = (f_sum + g_sum) * (delta_l(1) / 6.0_rk)
-          end do
+          enddo
 
           ! Right
           ! right_flux (rho, rhou, rhov, rhoE)
@@ -449,7 +449,7 @@ contains
             f_sum = sum([F_c2(k), 4.0_rk * F_m2(k), F_c3(k)]) * n_hat_2(1)
             g_sum = sum([G_c2(k), 4.0_rk * G_m2(k), G_c3(k)]) * n_hat_2(2)
             right_flux(k) = (f_sum + g_sum) * (delta_l(2) / 6.0_rk)
-          end do
+          enddo
 
           ! Top
           ! top_flux (rho, rhou, rhov, rhoE)
@@ -457,7 +457,7 @@ contains
             f_sum = sum([F_c3(k), 4.0_rk * F_m3(k), F_c4(k)]) * n_hat_3(1)
             g_sum = sum([G_c3(k), 4.0_rk * G_m3(k), G_c4(k)]) * n_hat_3(2)
             top_flux(k) = (f_sum + g_sum) * (delta_l(3) / 6.0_rk)
-          end do
+          enddo
 
           ! Left
           ! left_flux (rho, rhou, rhov, rhoE)
@@ -465,7 +465,7 @@ contains
             f_sum = sum([F_c4(k), 4.0_rk * F_m4(k), F_c1(k)]) * n_hat_4(1)
             g_sum = sum([G_c4(k), 4.0_rk * G_m4(k), G_c1(k)]) * n_hat_4(2)
             left_flux(k) = (f_sum + g_sum) * (delta_l(4) / 6.0_rk)
-          end do
+          enddo
 
           ave_rho_flux = sum([abs(left_flux(1)), abs(right_flux(1)), abs(top_flux(1)), abs(bottom_flux(1))]) / 4.0_rk
           ave_rhou_flux = sum([abs(left_flux(2)), abs(right_flux(2)), abs(top_flux(2)), abs(bottom_flux(2))]) / 4.0_rk
@@ -481,31 +481,31 @@ contains
           threshold = abs(ave_rho_flux) * REL_THRESHOLD
           if(abs(rho_flux) < threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
             rho_flux = 0.0_rk
-          end if
+          endif
 
           threshold = abs(ave_rhou_flux) * REL_THRESHOLD
           if(abs(rhou_flux) < threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
             rhou_flux = 0.0_rk
-          end if
+          endif
 
           threshold = abs(ave_rhov_flux) * REL_THRESHOLD
           if(abs(rhov_flux) < threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
             rhov_flux = 0.0_rk
-          end if
+          endif
 
           threshold = abs(ave_rhoE_flux) * REL_THRESHOLD
           if(abs(rhoE_flux) < threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
             rhoE_flux = 0.0_rk
-          end if
+          endif
 
           d_rho_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rho_flux
           d_rhou_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhou_flux
           d_rhov_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhov_flux
           d_rhoE_dt(i, j) = (-1.0_rk / grid%volume(i, j)) * rhoE_flux
-        end associate
+        endassociate
 
-      end do ! i
-    end do ! j
+      enddo ! i
+    enddo ! j
     !$omp end do simd
     !$omp end parallel
 
@@ -530,12 +530,12 @@ contains
     d_rhoE_dt(ihi, :) = 0.0_rk
     d_rhoE_dt(:, jlo) = 0.0_rk
     d_rhoE_dt(:, jhi) = 0.0_rk
-  end subroutine flux_edges
+  endsubroutine flux_edges
 
   subroutine finalize(self)
     !< Class finalizer
     type(fvleg_solver_t), intent(inout) :: self
 
     call debug_print('Running fvleg_solver_t%finalize()', __FILE__, __LINE__)
-  end subroutine finalize
-end module mod_fvleg_solver
+  endsubroutine finalize
+endmodule mod_fvleg_solver

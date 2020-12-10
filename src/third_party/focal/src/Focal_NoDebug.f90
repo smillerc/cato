@@ -35,64 +35,64 @@ submodule(Focal) Focal_NoDebug
   !! @note This is an implementation submodule: it contains the code implementing the subroutines defined in the
   !!  corresponding header module file. See header module file (Focal.f90) for interface definitions. @endnote
 
-implicit none
+  implicit none
 
 contains
 
-module procedure fclDbgCheckContext !(ctx)
+  module procedure fclDbgCheckContext !(ctx)
     !! Check the (default) context is initialised.
 
-end procedure fclDbgCheckContext
+  end procedure fclDbgCheckContext
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgCheckDevice !(device,descrip)
+  module procedure fclDbgCheckDevice !(device,descrip)
     !! Check a device object is valid
 
-end procedure fclDbgCheckDevice
+  end procedure fclDbgCheckDevice
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgCheckBufferInit !(memObject)
+  module procedure fclDbgCheckBufferInit !(memObject)
     !! Check that a device buffer object has been initialised.
 
-end procedure fclDbgCheckBufferInit
+  end procedure fclDbgCheckBufferInit
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgCheckBufferSize !(memObject,hostBytes)
+  module procedure fclDbgCheckBufferSize !(memObject,hostBytes)
     !! Check that a host buffer matches the size in bytes of a device buffer
 
-end procedure fclDbgCheckBufferSize
+  end procedure fclDbgCheckBufferSize
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgCheckCopyBufferSize !(memObject1,memObject2)
+  module procedure fclDbgCheckCopyBufferSize !(memObject1,memObject2)
     !! Check that device buffers match in size in bytes for copying
 
-end procedure fclDbgCheckCopyBufferSize
+  end procedure fclDbgCheckCopyBufferSize
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgCheckKernelNArg !(kernel,nArg)
+  module procedure fclDbgCheckKernelNArg !(kernel,nArg)
     !! Check that number of actual args matches number of kernel args
 
-end procedure fclDbgCheckKernelNArg
+  end procedure fclDbgCheckKernelNArg
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgCheckKernelArgType !(kernel,argNo,type)
+  module procedure fclDbgCheckKernelArgType !(kernel,argNo,type)
 
-end procedure fclDbgCheckKernelArgType
+  end procedure fclDbgCheckKernelArgType
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgCheckKernelArgQualifier !(kernel,argNo,qualifier)
+  module procedure fclDbgCheckKernelArgQualifier !(kernel,argNo,qualifier)
 
-end procedure fclDbgCheckKernelArgQualifier
+  end procedure fclDbgCheckKernelArgQualifier
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgOptions !(options)
-options = ''
-end procedure fclDbgOptions
+  module procedure fclDbgOptions !(options)
+  options = ''
+  end procedure fclDbgOptions
 ! ---------------------------------------------------------------------------
 
-module procedure fclDbgWait !(event,descrip)
+  module procedure fclDbgWait !(event,descrip)
 
-end procedure fclDbgWait
+  end procedure fclDbgWait
 ! ---------------------------------------------------------------------------
 
-end submodule Focal_NoDebug
+endsubmodule Focal_NoDebug

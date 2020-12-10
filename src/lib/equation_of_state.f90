@@ -61,11 +61,11 @@ module mod_eos
     generic, public :: conserved_to_primitive => conserved_to_primitive_real, conserved_to_primitive_field_2d
     generic, public :: primitive_to_conserved => primitive_to_conserved_real, primitive_to_conserved_field_2d
 
-  end type eos_t
+  endtype eos_t
 
   interface new_eos
     module procedure :: constructor
-  end interface
+  endinterface
 
   type(eos_t) :: eos !< singleton equation of state object
 
@@ -74,33 +74,33 @@ contains
     !< Constructor for the equation of state type
     class(input_t), intent(in) :: input
     call eq_of_state%set_gamma(input%polytropic_index)
-  end function constructor
+  endfunction constructor
 
   subroutine set_gamma(self, gamma)
     class(eos_t), intent(inout) :: self
     real(rk), intent(in) :: gamma
     self%gamma = gamma
-  end subroutine set_gamma
+  endsubroutine set_gamma
 
   real(rk) pure function get_gamma(self) result(gamma)
     class(eos_t), intent(in) :: self
     gamma = self%gamma
-  end function get_gamma
+  endfunction get_gamma
 
   real(rk) pure function get_cp(self) result(cp)
     class(eos_t), intent(in) :: self
     cp = self%c_p
-  end function get_cp
+  endfunction get_cp
 
   real(rk) pure function get_cv(self) result(cv)
     class(eos_t), intent(in) :: self
     cv = self%c_v
-  end function get_cv
+  endfunction get_cv
 
   subroutine set_equation_of_state(input)
     class(input_t), intent(in) :: input
     eos = constructor(input)
-  end subroutine set_equation_of_state
+  endsubroutine set_equation_of_state
 
   elemental subroutine total_energy_real(self, rho, u, v, p, E)
     !< Calculate total energy
@@ -118,7 +118,7 @@ contains
 
     E = (p / (rho * gamma_m_one)) + 0.5_rk * (u * u + v * v)
 
-  end subroutine total_energy_real
+  endsubroutine total_energy_real
 
   elemental subroutine total_enthalpy_real(self, rho, u, v, p, H)
     !< Calculate total enthalpy
@@ -131,7 +131,7 @@ contains
 
     H = (p / rho) * (self%gamma / (self%gamma - 1.0_rk)) + 0.5_rk * (u * u + v * v)
 
-  end subroutine total_enthalpy_real
+  endsubroutine total_enthalpy_real
 
   elemental subroutine sound_speed_real(self, p, rho, cs)
     !< Calculate sound speed
@@ -143,7 +143,7 @@ contains
 
     cs = sqrt(self%gamma * p / rho)
 
-  end subroutine sound_speed_real
+  endsubroutine sound_speed_real
 
   elemental subroutine temperature_real(self, p, rho, t)
     !< Calculate sound speed
@@ -155,7 +155,7 @@ contains
 
     t = p / (rho * self%R)
 
-  end subroutine temperature_real
+  endsubroutine temperature_real
 
   elemental subroutine conserved_to_primitive_real(self, rho, rho_u, rho_v, rho_E, u, v, p)
     !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
@@ -179,7 +179,7 @@ contains
     v = rho_v / rho
     p = rho * gamma_m_one * ((rho_E / rho) - 0.5_rk * (u * u + v * v))
 
-  end subroutine conserved_to_primitive_real
+  endsubroutine conserved_to_primitive_real
 
   elemental subroutine primitive_to_conserved_real(self, rho, u, v, p, rho_u, rho_v, rho_E)
     !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
@@ -203,7 +203,7 @@ contains
     rho_v = v * rho
     rho_E = (p / gamma_m_one) + rho * 0.5_rk * (u * u + v * v)
 
-  end subroutine primitive_to_conserved_real
+  endsubroutine primitive_to_conserved_real
 
   subroutine total_energy_field_2d(self, rho, u, v, p, E)
     !< Calculate total energy
@@ -221,7 +221,7 @@ contains
 
     E = (p / (rho * gamma_m_one)) + (0.5_rk * (u * u + v * v))
 
-  end subroutine total_energy_field_2d
+  endsubroutine total_energy_field_2d
 
   subroutine total_enthalpy_field_2d(self, rho, u, v, p, H)
     !< Calculate total enthalpy
@@ -234,7 +234,7 @@ contains
 
     H = (p / rho) * (self%gamma / (self%gamma - 1.0_rk)) + (0.5_rk * (u * u + v * v))
 
-  end subroutine total_enthalpy_field_2d
+  endsubroutine total_enthalpy_field_2d
 
   subroutine sound_speed_field_2d(self, p, rho, cs)
     !< Calculate sound speed
@@ -246,7 +246,7 @@ contains
 
     cs = self%gamma * (p / rho)
     cs%data = sqrt(cs%data)
-  end subroutine sound_speed_field_2d
+  endsubroutine sound_speed_field_2d
 
   subroutine temperature_field_2d(self, p, rho, t)
     !< Calculate sound speed
@@ -258,7 +258,7 @@ contains
 
     t = p / (rho * self%R)
 
-  end subroutine temperature_field_2d
+  endsubroutine temperature_field_2d
 
   subroutine conserved_to_primitive_field_2d(self, rho, rho_u, rho_v, rho_E, u, v, p)
     !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
@@ -282,7 +282,7 @@ contains
     v = rho_v / rho
     p = rho * gamma_m_one * ((rho_E / rho) - (0.5_rk * (u * u + v * v)))
 
-  end subroutine conserved_to_primitive_field_2d
+  endsubroutine conserved_to_primitive_field_2d
 
   subroutine primitive_to_conserved_field_2d(self, rho, u, v, p, rho_u, rho_v, rho_E)
     !< Convert conserved quantities [rho, rho u, rho v, rho E] into primitive [rho, u, v, p]. This
@@ -306,6 +306,6 @@ contains
     rho_v = v * rho
     rho_E = (p / gamma_m_one) + rho * 0.5_rk * (u * u + v * v)
 
-  end subroutine primitive_to_conserved_field_2d
+  endsubroutine primitive_to_conserved_field_2d
 
-end module mod_eos
+endmodule mod_eos

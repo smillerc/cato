@@ -25,14 +25,14 @@ module mod_muscl_interpolation
     ! procedure(initialize), deferred, public ::  initialize
     procedure(distinguish_continuous_regions), deferred, public :: distinguish_continuous_regions
     procedure(interpolate_edge_values), deferred, public :: interpolate_edge_values
-  end type
+  endtype
 
   abstract interface
     subroutine initialize(self, limiter)
       import :: muscl_interpolation_t
       class(muscl_interpolation_t), intent(inout) :: self
       character(len=*), intent(in) :: limiter
-    end subroutine initialize
+    endsubroutine initialize
 
     subroutine interpolate_edge_values(self, q, i_edges, j_edges)
       import :: muscl_interpolation_t, field_2d_t, ik, rk
@@ -40,7 +40,7 @@ module mod_muscl_interpolation
       class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
       real(rk), dimension(:, :, :), allocatable, intent(out) :: i_edges !<((L,R), i, j); L/R state for each edge
       real(rk), dimension(:, :, :), allocatable, intent(out) :: j_edges !<((L,R), i, j); L/R state for each edge
-    end subroutine interpolate_edge_values
+    endsubroutine interpolate_edge_values
 
     subroutine distinguish_continuous_regions(self, rho, u, v, p)
       import :: muscl_interpolation_t, field_2d_t, ik, rk
@@ -49,8 +49,8 @@ module mod_muscl_interpolation
       class(field_2d_t), intent(in) :: u   !< x-velocity
       class(field_2d_t), intent(in) :: v   !< y-velocity
       class(field_2d_t), intent(in) :: p   !< pressure
-    end subroutine distinguish_continuous_regions
-  end interface
+    endsubroutine distinguish_continuous_regions
+  endinterface
 
 contains
-end module mod_muscl_interpolation
+endmodule mod_muscl_interpolation

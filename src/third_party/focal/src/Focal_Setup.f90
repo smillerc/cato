@@ -34,794 +34,794 @@ submodule(Focal) Focal_Setup
   !! @note This is an implementation submodule: it contains the code implementing the subroutines defined in the
   !!  corresponding header module file. See header module file (Focal.f90) for interface definitions. @endnote
 
-use clfortran
-use M_strings, only: upperStr => upper, splitStr => split
-implicit none
+  use clfortran
+  use M_strings, only: upperStr => upper, splitStr => split
+  implicit none
 
 contains
 
-module procedure fclCreateContextWithPlatform !(platform) result(ctx)
+  module procedure fclCreateContextWithPlatform !(platform) result(ctx)
 
-integer(c_intptr_t), target :: properties(3)
-integer(c_int32_t) :: errcode
+  integer(c_intptr_t), target :: properties(3)
+  integer(c_int32_t) :: errcode
 
-properties(1) = CL_CONTEXT_PLATFORM
-properties(2) = platform%cl_platform_id
-properties(3) = 0
+  properties(1) = CL_CONTEXT_PLATFORM
+  properties(2) = platform%cl_platform_id
+  properties(3) = 0
 
-ctx%cl_context = clCreateContext(c_loc(properties), &
-                                 platform%numDevice, c_loc(platform%cl_device_ids), &
-                                 C_NULL_FUNPTR, C_NULL_PTR, errcode)
+  ctx%cl_context = clCreateContext(c_loc(properties), &
+                                   platform%numDevice, c_loc(platform%cl_device_ids), &
+                                   C_NULL_FUNPTR, C_NULL_PTR, errcode)
 
-call fclErrorHandler(errcode, 'fclCreateContextWithPlatform', 'clCreateContext')
+  call fclErrorHandler(errcode, 'fclCreateContextWithPlatform', 'clCreateContext')
 
 ! platform%ctx = ctx
-ctx%platform = platform
+  ctx%platform = platform
 
-return
+  return
 
-end procedure fclCreateContextWithPlatform
+  end procedure fclCreateContextWithPlatform
 ! ---------------------------------------------------------------------------
 
-module procedure fclCreateContextWithVendor !(vendor) result(ctx)
+  module procedure fclCreateContextWithVendor !(vendor) result(ctx)
 
-integer :: vi, i
-logical :: vendorFound
+  integer :: vi, i
+  logical :: vendorFound
 
-type(fclPlatform), allocatable :: platforms(:)
-type(fclPlatform) :: chosenPlatform
-character(:), allocatable :: vendors(:)
+  type(fclPlatform), allocatable :: platforms(:)
+  type(fclPlatform) :: chosenPlatform
+  character(:), allocatable :: vendors(:)
 
 ! Get platforms
-platforms = fclGetPlatforms(); 
+  platforms = fclGetPlatforms(); 
 ! Check for multiple vendors
-call splitStr(vendor, vendors, delimiters=',')
+  call splitStr(vendor, vendors, delimiters=',')
 
-vendorFound = .FALSE.
-vendorLoop: do vi = 1, size(vendors, 1)
+  vendorFound = .FALSE.
+  vendorLoop: do vi = 1, size(vendors, 1)
 
-  do i = 1, size(platforms, 1)
+    do i = 1, size(platforms, 1)
 
-    if(index(upperstr(platforms(i)%vendor), upperstr(trim(vendors(vi)))) > 0 .or. &
-       index(upperstr(platforms(i)%name), upperstr(trim(vendors(vi)))) > 0) then
-      chosenPlatform = platforms(i)
-      vendorFound = .TRUE.
-      exit vendorLoop
-    end if
+      if(index(upperstr(platforms(i)%vendor), upperstr(trim(vendors(vi)))) > 0 .or. &
+         index(upperstr(platforms(i)%name), upperstr(trim(vendors(vi)))) > 0) then
+        chosenPlatform = platforms(i)
+        vendorFound = .TRUE.
+        exit vendorLoop
+      endif
 
-  end do
+    enddo
 
-end do vendorLoop
+  enddo vendorLoop
 
-if(vendorFound) then
-  ctx = fclCreateContextWithPlatform(chosenPlatform)
-else
-  call fclRuntimeError('fclCreateContextWithVendor: vendor(s) "'//trim(vendor)//'" was not found.')
-end if
+  if(vendorFound) then
+    ctx = fclCreateContextWithPlatform(chosenPlatform)
+  else
+    call fclRuntimeError('fclCreateContextWithVendor: vendor(s) "'//trim(vendor)//'" was not found.')
+  endif
 
-end procedure fclCreateContextWithVendor
+  end procedure fclCreateContextWithVendor
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetDefaultContext !(ctx)
+  module procedure fclSetDefaultContext !(ctx)
 ! Set the global default context
 
-call fclDbgCheckContext('fclSetDefaultContext', ctx)
-fclDefaultCtx = ctx
+  call fclDbgCheckContext('fclSetDefaultContext', ctx)
+  fclDefaultCtx = ctx
 
-end procedure fclSetDefaultContext
+  end procedure fclSetDefaultContext
 ! ---------------------------------------------------------------------------
 
-module procedure fclFilterDevices !(devices,vendor,type,nameLike,extensions,sortBy) result(deviceList)
+  module procedure fclFilterDevices !(devices,vendor,type,nameLike,extensions,sortBy) result(deviceList)
     !! Filter and sort list of devices based on criteria
-use futils_sorting, only: argsort
-integer :: i, j
+  use futils_sorting, only: argsort
+  integer :: i, j
 
-integer :: sortMetric(size(devices, 1))
-integer :: sortList(size(devices, 1))
-logical :: filter(size(devices, 1)), platformMatch
+  integer :: sortMetric(size(devices, 1))
+  integer :: sortList(size(devices, 1))
+  logical :: filter(size(devices, 1)), platformMatch
 
-integer(c_int64_t) :: typeFilter
-integer(c_int64_t) :: deviceType
-integer :: nFiltered, nFill
+  integer(c_int64_t) :: typeFilter
+  integer(c_int64_t) :: deviceType
+  integer :: nFiltered, nFill
 
-integer(c_int64_t) :: int64Metric
+  integer(c_int64_t) :: int64Metric
 
-character(3) :: CPU_TYPE
-character(:), allocatable :: extensionList(:)
-character(:), allocatable :: vendorList(:)
+  character(3) :: CPU_TYPE
+  character(:), allocatable :: extensionList(:)
+  character(:), allocatable :: vendorList(:)
 
-CPU_TYPE = 'CPU'
+  CPU_TYPE = 'CPU'
 
 ! --- Parse any request to filter by device type ---
-typeFilter = 0
-if(present(type)) then
-  if(index(upperstr(type), 'CPU') > 0 .and. index(upperstr(type), 'GPU') > 0) then
-    typeFilter = 0
-  else if(index(upperstr(type), 'CPU') > 0) then
-    typeFilter = CL_DEVICE_TYPE_CPU
-  elseif(index(upperstr(type), 'GPU') > 0) then
-    typeFilter = CL_DEVICE_TYPE_GPU
-  else
-    call fclRuntimeError("fclFindDevices: "// &
-                         "Unknown type specified for type argument. Expecting 'cpu' or 'gpu'.'")
-  end if
-end if
+  typeFilter = 0
+  if(present(type)) then
+    if(index(upperstr(type), 'CPU') > 0 .and. index(upperstr(type), 'GPU') > 0) then
+      typeFilter = 0
+    else if(index(upperstr(type), 'CPU') > 0) then
+      typeFilter = CL_DEVICE_TYPE_CPU
+    elseif(index(upperstr(type), 'GPU') > 0) then
+      typeFilter = CL_DEVICE_TYPE_GPU
+    else
+      call fclRuntimeError("fclFindDevices: "// &
+                           "Unknown type specified for type argument. Expecting 'cpu' or 'gpu'.'")
+    endif
+  endif
 
-if(present(extensions)) then
-  call splitStr(extensions, extensionList, delimiters=',')
-end if
+  if(present(extensions)) then
+    call splitStr(extensions, extensionList, delimiters=',')
+  endif
 
-if(present(vendor)) then
-  call splitStr(vendor, vendorList, delimiters=',')
-end if
+  if(present(vendor)) then
+    call splitStr(vendor, vendorList, delimiters=',')
+  endif
 
 ! --- Process the devices ---
-filter = .true.
+  filter = .true.
 
-do i = 1, size(devices, 1)
+  do i = 1, size(devices, 1)
 
-  ! --- Filter by device type ---
-  if(typeFilter > 0) then
+    ! --- Filter by device type ---
+    if(typeFilter > 0) then
 
-    call fclGetDeviceInfo(devices(i), CL_DEVICE_TYPE, deviceType)
+      call fclGetDeviceInfo(devices(i), CL_DEVICE_TYPE, deviceType)
 
-    if(deviceType /= typeFilter) then
-      filter(i) = .false.         ! Filtered out by device type
-    end if
+      if(deviceType /= typeFilter) then
+        filter(i) = .false.         ! Filtered out by device type
+      endif
 
-  end if
+    endif
 
-  ! --- Filter by device extensions ---
-  if(allocated(extensionList)) then
-    do j = 1, size(extensionList, 1)
-      if(index(upperstr(devices(i)%extensions), &
-               upperstr(trim(extensionList(j)))) == 0) then
-        filter(i) = .false.      ! Filtered out by device extensions
-        exit
-      end if
-    end do
-  end if
+    ! --- Filter by device extensions ---
+    if(allocated(extensionList)) then
+      do j = 1, size(extensionList, 1)
+        if(index(upperstr(devices(i)%extensions), &
+                 upperstr(trim(extensionList(j)))) == 0) then
+          filter(i) = .false.      ! Filtered out by device extensions
+          exit
+        endif
+      enddo
+    endif
 
-  ! --- Filter by device platform vendor ---
-  if(allocated(vendorList)) then
-    platformMatch = .false.
-    do j = 1, size(vendorList, 1)
-      if(index(upperstr(devices(i)%platformName), upperstr(trim(vendorList(j)))) > 0 .or. &
-         index(upperstr(devices(i)%platformVendor), upperstr(trim(vendorList(j)))) > 0) then
-        platformMatch = .true.
-        exit
-      end if
-    end do
-    filter(i) = filter(i) .and. platformMatch ! Filtered out by device platform vendor
-  end if
+    ! --- Filter by device platform vendor ---
+    if(allocated(vendorList)) then
+      platformMatch = .false.
+      do j = 1, size(vendorList, 1)
+        if(index(upperstr(devices(i)%platformName), upperstr(trim(vendorList(j)))) > 0 .or. &
+           index(upperstr(devices(i)%platformVendor), upperstr(trim(vendorList(j)))) > 0) then
+          platformMatch = .true.
+          exit
+        endif
+      enddo
+      filter(i) = filter(i) .and. platformMatch ! Filtered out by device platform vendor
+    endif
 
-  ! --- Extract sorting metric ---
-  if(present(sortBy)) then
+    ! --- Extract sorting metric ---
+    if(present(sortBy)) then
 
-    select case(upperstr(sortBy))
-    case('MEMORY')
-      call fclGetDeviceInfo(devices(i), CL_DEVICE_GLOBAL_MEM_SIZE, int64Metric)
-      sortMetric(i) = int(int64Metric / 1000000, c_int32_t) ! Convert to megabytes to avoid overflow in int32
+      select case(upperstr(sortBy))
+      case('MEMORY')
+        call fclGetDeviceInfo(devices(i), CL_DEVICE_GLOBAL_MEM_SIZE, int64Metric)
+        sortMetric(i) = int(int64Metric / 1000000, c_int32_t) ! Convert to megabytes to avoid overflow in int32
 
-    case('CORES')
-      call fclGetDeviceInfo(devices(i), CL_DEVICE_MAX_COMPUTE_UNITS, sortMetric(i))
+      case('CORES')
+        call fclGetDeviceInfo(devices(i), CL_DEVICE_MAX_COMPUTE_UNITS, sortMetric(i))
 
-    case('CLOCK')
-      call fclGetDeviceInfo(devices(i), CL_DEVICE_MAX_CLOCK_FREQUENCY, sortMetric(i))
+      case('CLOCK')
+        call fclGetDeviceInfo(devices(i), CL_DEVICE_MAX_CLOCK_FREQUENCY, sortMetric(i))
 
-    end select
+      endselect
 
-  else
-    sortMetric(i) = 0
-  end if
+    else
+      sortMetric(i) = 0
+    endif
 
-  ! --- Filter by device name ---
-  if(present(nameLike)) then
-    if(index(upperstr(devices(i)%name), upperstr(nameLike)) == 0) then
-      filter(i) = .false.         ! Filtered out by device name
-    end if
-  end if
+    ! --- Filter by device name ---
+    if(present(nameLike)) then
+      if(index(upperstr(devices(i)%name), upperstr(nameLike)) == 0) then
+        filter(i) = .false.         ! Filtered out by device name
+      endif
+    endif
 
-end do
+  enddo
 
 ! --- Sort by sorting metric ---
-sortMetric = -sortMetric          ! Sort descending
-sortList = argsort(sortMetric)
+  sortMetric = -sortMetric          ! Sort descending
+  sortList = argsort(sortMetric)
 
-nFiltered = count(filter)
-allocate(deviceList(nFiltered))
-if(nFiltered < 1) then
-  return
-end if
+  nFiltered = count(filter)
+  allocate(deviceList(nFiltered))
+  if(nFiltered < 1) then
+    return
+  endif
 
 ! --- Output filtered sorted list of devices ---
-nFill = 1
-do i = 1, size(devices, 1)
+  nFill = 1
+  do i = 1, size(devices, 1)
 
-  j = sortList(i)
-  if(filter(j)) then
-    deviceList(nFill) = devices(j)
-    nFill = nFill + 1
-  end if
+    j = sortList(i)
+    if(filter(j)) then
+      deviceList(nFill) = devices(j)
+      nFill = nFill + 1
+    endif
 
-  if(nFill > nFiltered) then
-    exit
-  end if
+    if(nFill > nFiltered) then
+      exit
+    endif
 
-end do
+  enddo
 
-end procedure fclFilterDevices
+  end procedure fclFilterDevices
 ! ---------------------------------------------------------------------------
 
-module procedure fclInit !(vendor,type,nameLike,extensions,sortBy) result(device)
+  module procedure fclInit !(vendor,type,nameLike,extensions,sortBy) result(device)
     !! Quick setup helper function: find a single device based on criteria
     !!  and set the default context accordingly.
     !!  Raises runtime error if no matching device is found.
 
-integer :: i
+  integer :: i
 
-type(fclPlatform) :: chosenPlatform
-type(fclPlatform), allocatable :: platforms(:)
-type(fclDevice), allocatable :: devices(:), deviceList(:)
-integer :: nDevice
-logical :: found
+  type(fclPlatform) :: chosenPlatform
+  type(fclPlatform), allocatable :: platforms(:)
+  type(fclDevice), allocatable :: devices(:), deviceList(:)
+  integer :: nDevice
+  logical :: found
 
 ! Get platforms
-platforms = fclGetPlatforms(); 
+  platforms = fclGetPlatforms(); 
 ! Count total number of system devices
-nDevice = 0
-do i = 1, size(platforms, 1)
-  nDevice = nDevice + platforms(i)%numDevice
-end do
+  nDevice = 0
+  do i = 1, size(platforms, 1)
+    nDevice = nDevice + platforms(i)%numDevice
+  enddo
 
 ! Concatenate device lists across platforms
-allocate(devices(nDevice))
-nDevice = 0
-do i = 1, size(platforms, 1)
-  devices(nDevice + 1:nDevice + platforms(i)%numDevice) = platforms(i)%devices(:)
-  nDevice = nDevice + platforms(i)%numDevice
-end do
+  allocate(devices(nDevice))
+  nDevice = 0
+  do i = 1, size(platforms, 1)
+    devices(nDevice + 1:nDevice + platforms(i)%numDevice) = platforms(i)%devices(:)
+    nDevice = nDevice + platforms(i)%numDevice
+  enddo
 
 ! Find devices based on criteria
-deviceList = fclFilterDevices(devices, vendor, type, nameLike, extensions, sortBy)
+  deviceList = fclFilterDevices(devices, vendor, type, nameLike, extensions, sortBy)
 
-if(size(deviceList, 1) < 1) then
-  call fclRuntimeError('fclInit: no devices matching the specified criteria were found.')
-end if
+  if(size(deviceList, 1) < 1) then
+    call fclRuntimeError('fclInit: no devices matching the specified criteria were found.')
+  endif
 
 ! Choose first device in filtered, sorted list
-device = deviceList(1)
+  device = deviceList(1)
 
 ! Find corresponding platform for creating context
-found = .false.
-do i = 1, size(platforms, 1)
+  found = .false.
+  do i = 1, size(platforms, 1)
 
-  if(platforms(i)%cl_platform_id == device%cl_platform_id) then
-    chosenPlatform = platforms(i)
-    found = .true.
-    exit
-  end if
+    if(platforms(i)%cl_platform_id == device%cl_platform_id) then
+      chosenPlatform = platforms(i)
+      found = .true.
+      exit
+    endif
 
-end do
+  enddo
 
 ! Create context and set as default
-call fclSetDefaultContext(fclCreateContext(chosenPlatform))
+  call fclSetDefaultContext(fclCreateContext(chosenPlatform))
 
-end procedure fclInit
+  end procedure fclInit
 ! ---------------------------------------------------------------------------
 
-module procedure fclFindDevices_1 !(ctx,vendor,type,nameLike,extensions,sortBy) result(deviceList)
+  module procedure fclFindDevices_1 !(ctx,vendor,type,nameLike,extensions,sortBy) result(deviceList)
     !! Create command queue by finding a device
-use futils_sorting, only: argsort
+  use futils_sorting, only: argsort
 
-call fclDbgCheckContext('fclFindDevices', ctx)
+  call fclDbgCheckContext('fclFindDevices', ctx)
 
-deviceList = fclFilterDevices(ctx%platform%devices, vendor, type, nameLike, extensions, sortBy)
+  deviceList = fclFilterDevices(ctx%platform%devices, vendor, type, nameLike, extensions, sortBy)
 
-if(.not. allocated(deviceList)) then
-  call fclRuntimeError('fclFindDevices: no devices matching the specified criteria were found.')
-end if
+  if(.not. allocated(deviceList)) then
+    call fclRuntimeError('fclFindDevices: no devices matching the specified criteria were found.')
+  endif
 
-end procedure fclFindDevices_1
+  end procedure fclFindDevices_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclFindDevices_2 !(type,vendor,nameLike,extensions,sortBy) result(deviceList)
+  module procedure fclFindDevices_2 !(type,vendor,nameLike,extensions,sortBy) result(deviceList)
 
-call fclDbgCheckContext('fclFindDevices')
+  call fclDbgCheckContext('fclFindDevices')
 
-deviceList = fclFindDevices_1(fclDefaultCtx, vendor, type, nameLike, extensions, sortBy)
+  deviceList = fclFindDevices_1(fclDefaultCtx, vendor, type, nameLike, extensions, sortBy)
 
-end procedure fclFindDevices_2
+  end procedure fclFindDevices_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclCreateCommandQ_1 !(ctx,device,enableProfiling,outOfOrderExec,&
+  module procedure fclCreateCommandQ_1 !(ctx,device,enableProfiling,outOfOrderExec,&
 !blockingWrite,blockingRead) result(cmdq)
     !! Create a command queue with a Focal device object
 
-integer(c_int32_t) :: errcode
-integer(c_int64_t) :: properties
+  integer(c_int32_t) :: errcode
+  integer(c_int64_t) :: properties
 
-properties = 0
+  properties = 0
 
-call fclDbgCheckContext('fclCreateCommandQ', ctx)
+  call fclDbgCheckContext('fclCreateCommandQ', ctx)
 
-if(present(enableProfiling)) then
-  if(enableProfiling) then
-    properties = ior(properties, CL_QUEUE_PROFILING_ENABLE)
-  end if
-end if
+  if(present(enableProfiling)) then
+    if(enableProfiling) then
+      properties = ior(properties, CL_QUEUE_PROFILING_ENABLE)
+    endif
+  endif
 
-if(present(outOfOrderExec)) then
-  if(outOfOrderExec) then
-    properties = ior(properties, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
-  end if
-end if
+  if(present(outOfOrderExec)) then
+    if(outOfOrderExec) then
+      properties = ior(properties, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
+    endif
+  endif
 
-if(present(blockingWrite)) then
-  cmdq%blockingWrite = blockingWrite
-end if
+  if(present(blockingWrite)) then
+    cmdq%blockingWrite = blockingWrite
+  endif
 
-if(present(blockingRead)) then
-  cmdq%blockingRead = blockingRead
-end if
+  if(present(blockingRead)) then
+    cmdq%blockingRead = blockingRead
+  endif
 
-cmdq%cl_command_queue = clCreateCommandQueue(ctx%cl_context, device%cl_device_id, &
-                                             properties, errcode)
+  cmdq%cl_command_queue = clCreateCommandQueue(ctx%cl_context, device%cl_device_id, &
+                                               properties, errcode)
 
-call fclErrorHandler(errcode, 'fclCreateDeviceCommandQWithDevice', 'clCreateCommandQueue')
+  call fclErrorHandler(errcode, 'fclCreateDeviceCommandQWithDevice', 'clCreateCommandQueue')
 
-end procedure fclCreateCommandQ_1
+  end procedure fclCreateCommandQ_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclCreateCommandQ_2 !(device,enableProfiling,outOfOrderExec,&
+  module procedure fclCreateCommandQ_2 !(device,enableProfiling,outOfOrderExec,&
 !blockingWrite,blockingRead) result(cmdq)
     !! Create a command queue with a Focal device object using default context
 
-call fclDbgCheckContext('fclCreateCommandQ')
+  call fclDbgCheckContext('fclCreateCommandQ')
 
-cmdq = fclCreateCommandQ_1(fclDefaultCtx, device, enableProfiling, outOfOrderExec, &
-                           blockingWrite, blockingRead)
+  cmdq = fclCreateCommandQ_1(fclDefaultCtx, device, enableProfiling, outOfOrderExec, &
+                             blockingWrite, blockingRead)
 
-end procedure fclCreateCommandQ_2
+  end procedure fclCreateCommandQ_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclCreateCommandQPool_1 !(ctx,N,device,enableProfiling,outOfOrderExec,&
+  module procedure fclCreateCommandQPool_1 !(ctx,N,device,enableProfiling,outOfOrderExec,&
 ! blockingWrite,blockingRead) result(qPool)
     !! Create a command queue pool with a Focal device object
 
-integer :: i
+  integer :: i
 
-call fclDbgCheckContext('fclCreateCommandQPool', ctx)
+  call fclDbgCheckContext('fclCreateCommandQPool', ctx)
 
-qPool%length = N
+  qPool%length = N
 
-allocate(qPool%queues(N))
+  allocate(qPool%queues(N))
 
-do i = 1, N
-  qPool%queues(i) = fclCreateCommandQ_1(ctx, device, enableProfiling, outOfOrderExec, &
-                                        blockingWrite, blockingRead)
-end do
+  do i = 1, N
+    qPool%queues(i) = fclCreateCommandQ_1(ctx, device, enableProfiling, outOfOrderExec, &
+                                          blockingWrite, blockingRead)
+  enddo
 
-end procedure fclCreateCommandQPool_1
+  end procedure fclCreateCommandQPool_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclCreateCommandQPool_2 !(N,device,enableProfiling,outOfOrderExec,&
+  module procedure fclCreateCommandQPool_2 !(N,device,enableProfiling,outOfOrderExec,&
 ! blockingWrite,blockingRead) result(qPool)
     !! Create a command queue pool with a Focal device object using the default context
 
-call fclDbgCheckContext('fclCreateCommandQPool')
+  call fclDbgCheckContext('fclCreateCommandQPool')
 
-qPool = fclCreateCommandQPool_1(fclDefaultCtx, N, device, enableProfiling, outOfOrderExec, &
-                                blockingWrite, blockingRead)
+  qPool = fclCreateCommandQPool_1(fclDefaultCtx, N, device, enableProfiling, outOfOrderExec, &
+                                  blockingWrite, blockingRead)
 
-end procedure fclCreateCommandQPool_2
+  end procedure fclCreateCommandQPool_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclCommandQPool_Next !(qPool) result(cmdQ)
+  module procedure fclCommandQPool_Next !(qPool) result(cmdQ)
     !! Returns next scheduled queue in queue pool
 
 ! Increment queue index (round-robin scheduling)
-qPool%idx = qPool%idx + 1
-qPool%idx = mod(qPool%idx - 1, qPool%length) + 1
+  qPool%idx = qPool%idx + 1
+  qPool%idx = mod(qPool%idx - 1, qPool%length) + 1
 
 ! Return next queue
-cmdQ => qPool%queues(qPool%idx)
+  cmdQ => qPool%queues(qPool%idx)
 
-end procedure fclCommandQPool_Next
+  end procedure fclCommandQPool_Next
 ! ---------------------------------------------------------------------------
 
-module procedure fclCommandQPool_Current !(qPool) result(cmdQ)
+  module procedure fclCommandQPool_Current !(qPool) result(cmdQ)
     !! Returns current scheduled queue in queue pool
 
-cmdQ => qPool%queues(qPool%idx)
+  cmdQ => qPool%queues(qPool%idx)
 
-end procedure fclCommandQPool_Current
+  end procedure fclCommandQPool_Current
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetDefaultCommandQ !(cmdq)
+  module procedure fclSetDefaultCommandQ !(cmdq)
     !! Set the global default command queue
-fclDefaultCmdQ = cmdq
+  fclDefaultCmdQ = cmdq
 
-end procedure fclSetDefaultCommandQ
+  end procedure fclSetDefaultCommandQ
 ! ---------------------------------------------------------------------------
 
-module procedure fclCompileProgram_1 !(ctx,source,options) result(prog)
+  module procedure fclCompileProgram_1 !(ctx,source,options) result(prog)
 
-integer :: i
-integer(c_int32_t) :: errcode
-character(len=1, kind=c_char), target :: c_source(len(source) + 1)
-type(c_ptr), target :: c_source_p
-character(:), allocatable :: options_temp
-character(len=1, kind=c_char), allocatable, target :: c_options(:)
+  integer :: i
+  integer(c_int32_t) :: errcode
+  character(len=1, kind=c_char), target :: c_source(len(source) + 1)
+  type(c_ptr), target :: c_source_p
+  character(:), allocatable :: options_temp
+  character(len=1, kind=c_char), allocatable, target :: c_options(:)
 
-call fclDbgCheckContext('fclCompileProgram', ctx)
+  call fclDbgCheckContext('fclCompileProgram', ctx)
 
 ! Convert to c character array
-do i = 1, len(source)
-  c_source(i) = source(i:i)
-end do
-c_source(len(source) + 1) = C_NULL_CHAR
+  do i = 1, len(source)
+    c_source(i) = source(i:i)
+  enddo
+  c_source(len(source) + 1) = C_NULL_CHAR
 
-c_source_p = c_loc(c_source)
-prog%cl_program = clCreateProgramWithSource(ctx%cl_context, 1, &
-                                            C_LOC(c_source_p), C_NULL_PTR, errcode)
+  c_source_p = c_loc(c_source)
+  prog%cl_program = clCreateProgramWithSource(ctx%cl_context, 1, &
+                                              C_LOC(c_source_p), C_NULL_PTR, errcode)
 
-call fclErrorHandler(errcode, 'fclCompileProgram', 'clCreateProgramWithSource')
+  call fclErrorHandler(errcode, 'fclCompileProgram', 'clCreateProgramWithSource')
 
-if(present(options)) then
-  options_temp = options//' '//fclDbgOptions()
-else
-  options_temp = fclDbgOptions()
-end if
+  if(present(options)) then
+    options_temp = options//' '//fclDbgOptions()
+  else
+    options_temp = fclDbgOptions()
+  endif
 
-allocate(c_options(len(options_temp) + 1))
-do i = 1, len(options_temp)
-  c_options(i) = options_temp(i:i)
-end do
-c_options(len(options_temp) + 1) = C_NULL_CHAR
+  allocate(c_options(len(options_temp) + 1))
+  do i = 1, len(options_temp)
+    c_options(i) = options_temp(i:i)
+  enddo
+  c_options(len(options_temp) + 1) = C_NULL_CHAR
 
-errcode = clBuildProgram(prog%cl_program, 0, &
-                         C_NULL_PTR, C_LOC(c_options), C_NULL_FUNPTR, C_NULL_PTR)
+  errcode = clBuildProgram(prog%cl_program, 0, &
+                           C_NULL_PTR, C_LOC(c_options), C_NULL_FUNPTR, C_NULL_PTR)
 
-call fclHandleBuildError(errcode, prog, ctx)
+  call fclHandleBuildError(errcode, prog, ctx)
 
-deallocate(c_options)
+  deallocate(c_options)
 
-end procedure fclCompileProgram_1
+  end procedure fclCompileProgram_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclCompileProgram_2 !(source,options) result(prog)
+  module procedure fclCompileProgram_2 !(source,options) result(prog)
 
-call fclDbgCheckContext('fclCompileProgram')
+  call fclDbgCheckContext('fclCompileProgram')
 
-prog = fclCompileProgram_1(fclDefaultCtx, source, options)
+  prog = fclCompileProgram_1(fclDefaultCtx, source, options)
 
-end procedure fclCompileProgram_2
+  end procedure fclCompileProgram_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclDumpBuildLog_1 !(ctx,prog,device,outputUnit)
-use iso_fortran_env, only: stdout => output_unit
+  module procedure fclDumpBuildLog_1 !(ctx,prog,device,outputUnit)
+  use iso_fortran_env, only: stdout => output_unit
 
-integer(c_int32_t) :: errcode
-integer :: out
-integer(c_size_t) :: buffLen, int32_ret
-character(len=1), allocatable, target :: buildLogBuffer(:)
+  integer(c_int32_t) :: errcode
+  integer :: out
+  integer(c_size_t) :: buffLen, int32_ret
+  character(len=1), allocatable, target :: buildLogBuffer(:)
 
-call fclDbgCheckContext('fclDumpBuildLog', ctx)
+  call fclDbgCheckContext('fclDumpBuildLog', ctx)
 
-if(present(outputUnit)) then
-  out = outputUnit
-else
-  out = stdout
-end if
+  if(present(outputUnit)) then
+    out = outputUnit
+  else
+    out = stdout
+  endif
 
-errcode = clGetProgramBuildInfo(prog%cl_program, device%cl_device_id, &
-                                CL_PROGRAM_BUILD_LOG, int(0, c_size_t), C_NULL_PTR, buffLen)
+  errcode = clGetProgramBuildInfo(prog%cl_program, device%cl_device_id, &
+                                  CL_PROGRAM_BUILD_LOG, int(0, c_size_t), C_NULL_PTR, buffLen)
 
-call fclErrorHandler(errcode, 'fclCompileProgram', 'clGetProgramBuildInfo')
+  call fclErrorHandler(errcode, 'fclCompileProgram', 'clGetProgramBuildInfo')
 
-allocate(buildLogBuffer(buffLen))
-buffLen = size(buildLogBuffer, 1)
+  allocate(buildLogBuffer(buffLen))
+  buffLen = size(buildLogBuffer, 1)
 
-errcode = clGetProgramBuildInfo(prog%cl_program, device%cl_device_id, &
-                                CL_PROGRAM_BUILD_LOG, buffLen, c_loc(buildLogBuffer), int32_ret)
+  errcode = clGetProgramBuildInfo(prog%cl_program, device%cl_device_id, &
+                                  CL_PROGRAM_BUILD_LOG, buffLen, c_loc(buildLogBuffer), int32_ret)
 
-call fclErrorHandler(errcode, 'fclCompileProgram', 'clGetProgramBuildInfo')
+  call fclErrorHandler(errcode, 'fclCompileProgram', 'clGetProgramBuildInfo')
 
-write(*, *) ' fclDumpBuildLog: Build log for context device: ', device%name
-write(out, *) buildLogBuffer
-write(out, *)
+  write(*, *) ' fclDumpBuildLog: Build log for context device: ', device%name
+  write(out, *) buildLogBuffer
+  write(out, *)
 
-deallocate(buildLogBuffer)
+  deallocate(buildLogBuffer)
 
-end procedure fclDumpBuildLog_1
+  end procedure fclDumpBuildLog_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclDumpBuildLog_2 !(prog,device,outputUnit)
+  module procedure fclDumpBuildLog_2 !(prog,device,outputUnit)
 
-call fclDbgCheckContext('fclDumpBuildLog')
+  call fclDbgCheckContext('fclDumpBuildLog')
 
-call fclDumpBuildLog_1(fclDefaultCtx, prog, device, outputUnit)
+  call fclDumpBuildLog_1(fclDefaultCtx, prog, device, outputUnit)
 
-end procedure fclDumpBuildLog_2
+  end procedure fclDumpBuildLog_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclGetProgramKernel !(prog,kernelName,global_work_size,local_work_size, &
+  module procedure fclGetProgramKernel !(prog,kernelName,global_work_size,local_work_size, &
 ! work_dim,global_work_offset) result(kern)
 
-integer :: i
-integer(c_int32_t) :: errcode
-character(len=1, kind=c_char), target :: c_name(len(kernelName) + 1)
+  integer :: i
+  integer(c_int32_t) :: errcode
+  character(len=1, kind=c_char), target :: c_name(len(kernelName) + 1)
 
-do i = 1, len(kernelName)
-  c_name(i) = kernelName(i:i)
-end do
-c_name(len(kernelName) + 1) = C_NULL_CHAR
+  do i = 1, len(kernelName)
+    c_name(i) = kernelName(i:i)
+  enddo
+  c_name(len(kernelName) + 1) = C_NULL_CHAR
 
-kern%cl_kernel = clCreateKernel(prog%cl_program, C_LOC(c_name), errcode)
+  kern%cl_kernel = clCreateKernel(prog%cl_program, C_LOC(c_name), errcode)
 
-call fclErrorHandler(errcode, 'fclGetProgramKernel', 'clCreateKernel')
+  call fclErrorHandler(errcode, 'fclGetProgramKernel', 'clCreateKernel')
 
-allocate(character(len=len(kernelName)) :: kern%name)
-kern%name = kernelName
+  allocate(character(len=len(kernelName)) :: kern%name)
+  kern%name = kernelName
 
-if(present(global_work_size)) then
-  if(size(global_work_size, 1) > 3) then
-    call fclRuntimeError('fclGetProgramKernel: global work size must have dimension less than or equal to three.')
-  else
-    kern%work_dim = size(global_work_size, 1)
-    kern%global_work_size(1:size(global_work_size, 1)) = global_work_size
-  end if
-end if
+  if(present(global_work_size)) then
+    if(size(global_work_size, 1) > 3) then
+      call fclRuntimeError('fclGetProgramKernel: global work size must have dimension less than or equal to three.')
+    else
+      kern%work_dim = size(global_work_size, 1)
+      kern%global_work_size(1:size(global_work_size, 1)) = global_work_size
+    endif
+  endif
 
-if(present(local_work_size)) then
-  if(size(local_work_size, 1) > 3) then
-    call fclRuntimeError('fclGetProgramKernel: local work size must have dimension less than or equal to three.')
-  else
-    kern%local_work_size(1:size(local_work_size, 1)) = local_work_size
-  end if
-end if
+  if(present(local_work_size)) then
+    if(size(local_work_size, 1) > 3) then
+      call fclRuntimeError('fclGetProgramKernel: local work size must have dimension less than or equal to three.')
+    else
+      kern%local_work_size(1:size(local_work_size, 1)) = local_work_size
+    endif
+  endif
 
-if(present(work_dim)) then
-  if(work_dim > 3) then
-    call fclRuntimeError('fclGetProgramKernel: kernel work dimensionmust be less than or equal to three.')
-  else
-    kern%work_dim = work_dim
-  end if
-end if
+  if(present(work_dim)) then
+    if(work_dim > 3) then
+      call fclRuntimeError('fclGetProgramKernel: kernel work dimensionmust be less than or equal to three.')
+    else
+      kern%work_dim = work_dim
+    endif
+  endif
 
-if(present(global_work_offset)) then
-  if(size(global_work_offset, 1) > 3) then
-    call fclRuntimeError('fclGetProgramKernel: global work offset must have dimension less than or equal to three.')
-  else
-    kern%global_work_offset(1:size(global_work_offset, 1)) = global_work_offset
-  end if
-end if
+  if(present(global_work_offset)) then
+    if(size(global_work_offset, 1) > 3) then
+      call fclRuntimeError('fclGetProgramKernel: global work offset must have dimension less than or equal to three.')
+    else
+      kern%global_work_offset(1:size(global_work_offset, 1)) = global_work_offset
+    endif
+  endif
 
-end procedure fclGetProgramKernel
+  end procedure fclGetProgramKernel
 ! ---------------------------------------------------------------------------
 
-module procedure fclLaunchKernelAfterEvent_1 !(kernel,cmdQ,event)
+  module procedure fclLaunchKernelAfterEvent_1 !(kernel,cmdQ,event)
     !! Specific interface for a single event dependency on a specific command queue
 
-call fclSetDependency(cmdQ, event)
-call fclLaunchKernel(kernel, cmdQ)
+  call fclSetDependency(cmdQ, event)
+  call fclLaunchKernel(kernel, cmdQ)
 
-end procedure fclLaunchKernelAfterEvent_1
+  end procedure fclLaunchKernelAfterEvent_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclLaunchKernelAfterEvent_2 !(kernel,event)
+  module procedure fclLaunchKernelAfterEvent_2 !(kernel,event)
     !! Specific interface a single event dependency on the __default command queue__
 
-call fclLaunchKernelAfterEvent_1(kernel, fclDefaultCmdQ, event)
+  call fclLaunchKernelAfterEvent_1(kernel, fclDefaultCmdQ, event)
 
-end procedure fclLaunchKernelAfterEvent_2
+  end procedure fclLaunchKernelAfterEvent_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclLaunchKernelAfterEventList_1 !(kernel,cmdQ,eventList)
+  module procedure fclLaunchKernelAfterEventList_1 !(kernel,cmdQ,eventList)
     !! Specific interface for a multiple event dependencies on a specific command queue
 
-call fclSetDependency(cmdQ, eventList)
-call fclLaunchKernel(kernel, cmdQ)
+  call fclSetDependency(cmdQ, eventList)
+  call fclLaunchKernel(kernel, cmdQ)
 
-end procedure fclLaunchKernelAfterEventList_1
+  end procedure fclLaunchKernelAfterEventList_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclLaunchKernelAfterEventList_2 !(kernel,eventList)
+  module procedure fclLaunchKernelAfterEventList_2 !(kernel,eventList)
     !! Specific interface for a multiple event dependencies on the __default command queue__
 
-call fclLaunchKernelAfterEventList_1(kernel, fclDefaultCmdQ, eventList)
+  call fclLaunchKernelAfterEventList_1(kernel, fclDefaultCmdQ, eventList)
 
-end procedure fclLaunchKernelAfterEventList_2
+  end procedure fclLaunchKernelAfterEventList_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclLaunchKernel !(kernel,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,&
+  module procedure fclLaunchKernel !(kernel,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,&
 ! a10,a11,a12,a13,a14,a15,a16,a17,a18,a19)
 
-integer(c_size_t) :: i, nBlocki
-integer(c_int32_t) :: errcode
-type(fclCommandQ), pointer :: cmdQ
-type(c_ptr) :: localSizePtr
-integer :: nArg
-type(fclEvent), target :: kernelEvent
+  integer(c_size_t) :: i, nBlocki
+  integer(c_int32_t) :: errcode
+  type(fclCommandQ), pointer :: cmdQ
+  type(c_ptr) :: localSizePtr
+  integer :: nArg
+  type(fclEvent), target :: kernelEvent
 
 ! Check global size has been set
-if(sum(abs(kernel%global_work_size)) == 0) then
-  write(*, *) 'Kernel name: ', trim(kernel%name)
-  call fclRuntimeError('fclLaunchKernel: kernel global_work_size is unset.')
-end if
+  if(sum(abs(kernel%global_work_size)) == 0) then
+    write(*, *) 'Kernel name: ', trim(kernel%name)
+    call fclRuntimeError('fclLaunchKernel: kernel global_work_size is unset.')
+  endif
 
 ! Check if local size has been set
-if(sum(abs(kernel%local_work_size)) == 0) then
-  localSizePtr = C_NULL_PTR
-else
-  localSizePtr = c_loc(kernel%local_work_size)
+  if(sum(abs(kernel%local_work_size)) == 0) then
+    localSizePtr = C_NULL_PTR
+  else
+    localSizePtr = c_loc(kernel%local_work_size)
 
-  ! Check global dims are multiples of user-specified
-  !  local dims and update if necessary
-  do i = 1, kernel%work_dim
-    if(mod(kernel%global_work_size(i), kernel%local_work_size(i)) > 0) then
-      nBlocki = (kernel%global_work_size(i) + kernel%local_work_size(i) - 1) / kernel%local_work_size(i)
-      kernel%global_work_size(i) = nBlocki * kernel%local_work_size(i)
-    end if
-  end do
+    ! Check global dims are multiples of user-specified
+    !  local dims and update if necessary
+    do i = 1, kernel%work_dim
+      if(mod(kernel%global_work_size(i), kernel%local_work_size(i)) > 0) then
+        nBlocki = (kernel%global_work_size(i) + kernel%local_work_size(i) - 1) / kernel%local_work_size(i)
+        kernel%global_work_size(i) = nBlocki * kernel%local_work_size(i)
+      endif
+    enddo
 
-end if
+  endif
 
 ! Set arguments and parse (get number of args and cmdq if specified)
-call fclProcessKernelArgs(kernel, cmdq, narg, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, &
-                          a10, a11, a12, a13, a14, a15, a16, a17, a18, a19)
+  call fclProcessKernelArgs(kernel, cmdq, narg, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, &
+                            a10, a11, a12, a13, a14, a15, a16, a17, a18, a19)
 
-errcode = clEnqueueNDRangeKernel(cmdq%cl_command_queue, &
-                                 kernel%cl_kernel, kernel%work_dim, &
-                                 c_loc(kernel%global_work_offset), &
-                                 c_loc(kernel%global_work_size), localSizePtr, &
-                                 cmdq%nDependency, cmdq%dependencyListPtr, &
-                                 c_loc(kernelEvent%cl_event))
+  errcode = clEnqueueNDRangeKernel(cmdq%cl_command_queue, &
+                                   kernel%cl_kernel, kernel%work_dim, &
+                                   c_loc(kernel%global_work_offset), &
+                                   c_loc(kernel%global_work_size), localSizePtr, &
+                                   cmdq%nDependency, cmdq%dependencyListPtr, &
+                                   c_loc(kernelEvent%cl_event))
 
-call fclDbgWait(kernelEvent)
-call fclPopDependencies(cmdq)
-call fclErrorHandler(errcode, 'fclLaunchKernel', 'clEnqueueNDRangeKernel')
+  call fclDbgWait(kernelEvent)
+  call fclPopDependencies(cmdq)
+  call fclErrorHandler(errcode, 'fclLaunchKernel', 'clEnqueueNDRangeKernel')
 
-fclLastKernelEvent = kernelEvent
-cmdQ%lastKernelEvent = kernelEvent
+  fclLastKernelEvent = kernelEvent
+  cmdQ%lastKernelEvent = kernelEvent
 
-call kernel%pushProfileEvent(kernelEvent)
+  call kernel%pushProfileEvent(kernelEvent)
 
-end procedure fclLaunchKernel
+  end procedure fclLaunchKernel
 ! ---------------------------------------------------------------------------
 
-module procedure fclProcessKernelArgs !(kernel,cmdq,narg,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9, &
+  module procedure fclProcessKernelArgs !(kernel,cmdq,narg,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9, &
 ! a10,a11,a12,a13,a14,a15,a16,a17,a18,a19)
     !! Sets kernel arguments and parses argument list for optional cmdq and actual number of arguments
 
-integer :: i0
+  integer :: i0
 
 ! --- Check if command queue was specified ---
-nArg = 0
-i0 = 0
-cmdQ => fclDefaultCmdQ
-if(present(a0)) then
-  select type(arg => a0)
+  nArg = 0
+  i0 = 0
+  cmdQ => fclDefaultCmdQ
+  if(present(a0)) then
+    select type(arg => a0)
 
-  class is(fclCommandQ)
+    class is(fclCommandQ)
         !! cmdQ is specified in first arg
-    cmdQ => arg
-    i0 = 0
+      cmdQ => arg
+      i0 = 0
 
-  class default
+    class default
         !! First arg is not cmdQ: then it is a kernel arg
-    call fclSetKernelArg(kernel, 0, arg)
-    i0 = 1
-    nArg = nArg + 1
+      call fclSetKernelArg(kernel, 0, arg)
+      i0 = 1
+      nArg = nArg + 1
 
-  end select
-end if
+    endselect
+  endif
 
 ! --- Set arguments ---
-if(present(a1)) then
-  call fclSetKernelArg(kernel, i0 + 0, a1)
-  nArg = nArg + 1
-end if
-if(present(a2)) then
-  call fclSetKernelArg(kernel, i0 + 1, a2)
-  nArg = nArg + 1
-end if
-if(present(a3)) then
-  call fclSetKernelArg(kernel, i0 + 2, a3)
-  nArg = nArg + 1
-end if
-if(present(a4)) then
-  call fclSetKernelArg(kernel, i0 + 3, a4)
-  nArg = nArg + 1
-end if
-if(present(a5)) then
-  call fclSetKernelArg(kernel, i0 + 4, a5)
-  nArg = nArg + 1
-end if
-if(present(a6)) then
-  call fclSetKernelArg(kernel, i0 + 5, a6)
-  nArg = nArg + 1
-end if
-if(present(a7)) then
-  call fclSetKernelArg(kernel, i0 + 6, a7)
-  nArg = nArg + 1
-end if
-if(present(a8)) then
-  call fclSetKernelArg(kernel, i0 + 7, a8)
-  nArg = nArg + 1
-end if
-if(present(a9)) then
-  call fclSetKernelArg(kernel, i0 + 8, a9)
-  nArg = nArg + 1
-end if
-if(present(a10)) then
-  call fclSetKernelArg(kernel, i0 + 9, a10)
-  nArg = nArg + 1
-end if
-if(present(a11)) then
-  call fclSetKernelArg(kernel, i0 + 10, a11)
-  nArg = nArg + 1
-end if
-if(present(a12)) then
-  call fclSetKernelArg(kernel, i0 + 11, a12)
-  nArg = nArg + 1
-end if
-if(present(a13)) then
-  call fclSetKernelArg(kernel, i0 + 12, a13)
-  nArg = nArg + 1
-end if
-if(present(a14)) then
-  call fclSetKernelArg(kernel, i0 + 13, a14)
-  nArg = nArg + 1
-end if
-if(present(a15)) then
-  call fclSetKernelArg(kernel, i0 + 14, a15)
-  nArg = nArg + 1
-end if
-if(present(a16)) then
-  call fclSetKernelArg(kernel, i0 + 15, a16)
-  nArg = nArg + 1
-end if
-if(present(a17)) then
-  call fclSetKernelArg(kernel, i0 + 16, a17)
-  nArg = nArg + 1
-end if
-if(present(a18)) then
-  call fclSetKernelArg(kernel, i0 + 17, a18)
-  nArg = nArg + 1
-end if
-if(present(a19)) then
-  call fclSetKernelArg(kernel, i0 + 18, a19)
-  nArg = nArg + 1
-end if
+  if(present(a1)) then
+    call fclSetKernelArg(kernel, i0 + 0, a1)
+    nArg = nArg + 1
+  endif
+  if(present(a2)) then
+    call fclSetKernelArg(kernel, i0 + 1, a2)
+    nArg = nArg + 1
+  endif
+  if(present(a3)) then
+    call fclSetKernelArg(kernel, i0 + 2, a3)
+    nArg = nArg + 1
+  endif
+  if(present(a4)) then
+    call fclSetKernelArg(kernel, i0 + 3, a4)
+    nArg = nArg + 1
+  endif
+  if(present(a5)) then
+    call fclSetKernelArg(kernel, i0 + 4, a5)
+    nArg = nArg + 1
+  endif
+  if(present(a6)) then
+    call fclSetKernelArg(kernel, i0 + 5, a6)
+    nArg = nArg + 1
+  endif
+  if(present(a7)) then
+    call fclSetKernelArg(kernel, i0 + 6, a7)
+    nArg = nArg + 1
+  endif
+  if(present(a8)) then
+    call fclSetKernelArg(kernel, i0 + 7, a8)
+    nArg = nArg + 1
+  endif
+  if(present(a9)) then
+    call fclSetKernelArg(kernel, i0 + 8, a9)
+    nArg = nArg + 1
+  endif
+  if(present(a10)) then
+    call fclSetKernelArg(kernel, i0 + 9, a10)
+    nArg = nArg + 1
+  endif
+  if(present(a11)) then
+    call fclSetKernelArg(kernel, i0 + 10, a11)
+    nArg = nArg + 1
+  endif
+  if(present(a12)) then
+    call fclSetKernelArg(kernel, i0 + 11, a12)
+    nArg = nArg + 1
+  endif
+  if(present(a13)) then
+    call fclSetKernelArg(kernel, i0 + 12, a13)
+    nArg = nArg + 1
+  endif
+  if(present(a14)) then
+    call fclSetKernelArg(kernel, i0 + 13, a14)
+    nArg = nArg + 1
+  endif
+  if(present(a15)) then
+    call fclSetKernelArg(kernel, i0 + 14, a15)
+    nArg = nArg + 1
+  endif
+  if(present(a16)) then
+    call fclSetKernelArg(kernel, i0 + 15, a16)
+    nArg = nArg + 1
+  endif
+  if(present(a17)) then
+    call fclSetKernelArg(kernel, i0 + 16, a17)
+    nArg = nArg + 1
+  endif
+  if(present(a18)) then
+    call fclSetKernelArg(kernel, i0 + 17, a18)
+    nArg = nArg + 1
+  endif
+  if(present(a19)) then
+    call fclSetKernelArg(kernel, i0 + 18, a19)
+    nArg = nArg + 1
+  endif
 
-if(nArg > 0) then
-  ! If any kernel arguments are specified, check that they are all present
-  call fclDbgCheckKernelNArg(kernel, nArg)
-end if
+  if(nArg > 0) then
+    ! If any kernel arguments are specified, check that they are all present
+    call fclDbgCheckKernelNArg(kernel, nArg)
+  endif
 
-end procedure fclProcessKernelArgs
+  end procedure fclProcessKernelArgs
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetKernelArgs !(kernel,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9, &
+  module procedure fclSetKernelArgs !(kernel,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9, &
 ! a10,a11,a12,a13,a14,a15,a16,a17,a18,a19)
     !! Set all kernel arguments at once without launching kernel.
 
-type(fclCommandQ), pointer :: cmdq
-integer :: nArg
+  type(fclCommandQ), pointer :: cmdq
+  integer :: nArg
 
-call fclProcessKernelArgs(kernel, cmdq, narg, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, &
-                          a10, a11, a12, a13, a14, a15, a16, a17, a18, a19)
+  call fclProcessKernelArgs(kernel, cmdq, narg, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, &
+                            a10, a11, a12, a13, a14, a15, a16, a17, a18, a19)
 
-end procedure fclSetKernelArgs
+  end procedure fclSetKernelArgs
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetKernelArg !(kernel,argIndex,argValue)
+  module procedure fclSetKernelArg !(kernel,argIndex,argValue)
 
-integer(c_int32_t) :: errcode
-type(c_ptr) :: argPtr
-integer(c_size_t) :: argSize
+  integer(c_int32_t) :: errcode
+  type(c_ptr) :: argPtr
+  integer(c_size_t) :: argSize
 
     !! @note
     !! " The argument data pointed to by arg_value is copied and the arg_value pointer
@@ -831,392 +831,392 @@ integer(c_size_t) :: argSize
 
     !! @todo Debug check argument types against kernel arg types (clGetKernelArgInfo) @endtodo
 
-argPtr = C_NULL_PTR
-argSize = -1
-
-select type(arg => argValue)
-
-class is(fclDeviceBuffer)
-  argPtr = c_loc(arg%cl_mem)
-  argSize = c_sizeof(arg%cl_mem)
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'global,constant')
-  call fclDbgCheckBufferInit(arg, 'fclSetKernelArg')
-
-class is(fclDeviceInt32)
-  argPtr = c_loc(arg%cl_mem)
-  argSize = c_sizeof(arg%cl_mem)
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'int*')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'global,constant')
-  call fclDbgCheckBufferInit(arg, 'fclSetKernelArg')
-
-class is(fclDeviceFloat)
-  argPtr = c_loc(arg%cl_mem)
-  argSize = c_sizeof(arg%cl_mem)
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'float*')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'global,constant')
-  call fclDbgCheckBufferInit(arg, 'fclSetKernelArg')
-
-class is(fclDeviceDouble)
-  argPtr = c_loc(arg%cl_mem)
-  argSize = c_sizeof(arg%cl_mem)
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'double*')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'global,constant')
-  call fclDbgCheckBufferInit(arg, 'fclSetKernelArg')
-
-class is(fclLocalArgument)
   argPtr = C_NULL_PTR
-  argSize = arg%nBytes
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'local')
+  argSize = -1
 
-class is(fclLocalArgInt32)
-  argPtr = C_NULL_PTR
-  argSize = arg%nBytes
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'int*')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'local')
+  select type(arg => argValue)
 
-class is(fclLocalArgFloat)
-  argPtr = C_NULL_PTR
-  argSize = arg%nBytes
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'float*')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'local')
+  class is(fclDeviceBuffer)
+    argPtr = c_loc(arg%cl_mem)
+    argSize = c_sizeof(arg%cl_mem)
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'global,constant')
+    call fclDbgCheckBufferInit(arg, 'fclSetKernelArg')
 
-class is(fclLocalArgDouble)
-  argPtr = C_NULL_PTR
-  argSize = arg%nBytes
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'double*')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'local')
+  class is(fclDeviceInt32)
+    argPtr = c_loc(arg%cl_mem)
+    argSize = c_sizeof(arg%cl_mem)
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'int*')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'global,constant')
+    call fclDbgCheckBufferInit(arg, 'fclSetKernelArg')
 
-type is(integer(c_int32_t))
-  argPtr = c_loc(arg)
-  argSize = c_sizeof(int(1, c_int32_t))
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'int')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'private')
+  class is(fclDeviceFloat)
+    argPtr = c_loc(arg%cl_mem)
+    argSize = c_sizeof(arg%cl_mem)
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'float*')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'global,constant')
+    call fclDbgCheckBufferInit(arg, 'fclSetKernelArg')
 
-type is(real(c_float))
-  argPtr = c_loc(arg)
-  argSize = c_sizeof(real(1.0, c_float))
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'float')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'private')
+  class is(fclDeviceDouble)
+    argPtr = c_loc(arg%cl_mem)
+    argSize = c_sizeof(arg%cl_mem)
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'double*')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'global,constant')
+    call fclDbgCheckBufferInit(arg, 'fclSetKernelArg')
 
-type is(real(c_double))
-  argPtr = c_loc(arg)
-  argSize = c_sizeof(real(1.0d0, c_double))
-  call fclDbgCheckKernelArgType(kernel, argIndex, 'double')
-  call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'private')
+  class is(fclLocalArgument)
+    argPtr = C_NULL_PTR
+    argSize = arg%nBytes
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'local')
 
-class default
-  write(*, *) 'Kernel name: ', trim(kernel%name)
-  write(*, '(A,I4)') 'Argument index: ', argIndex
-  call fclRuntimeError('fclSetKernelArg: unsupported argument type passed to kernel.')
+  class is(fclLocalArgInt32)
+    argPtr = C_NULL_PTR
+    argSize = arg%nBytes
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'int*')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'local')
 
-end select
+  class is(fclLocalArgFloat)
+    argPtr = C_NULL_PTR
+    argSize = arg%nBytes
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'float*')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'local')
 
-errcode = clSetKernelArg(kernel%cl_kernel, argIndex, argSize, argPtr)
+  class is(fclLocalArgDouble)
+    argPtr = C_NULL_PTR
+    argSize = arg%nBytes
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'double*')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'local')
 
-call fclErrorHandler(errcode, 'fclSetKernelArg', 'clSetKernelArg')
+  type is(integer(c_int32_t))
+    argPtr = c_loc(arg)
+    argSize = c_sizeof(int(1, c_int32_t))
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'int')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'private')
 
-end procedure fclSetKernelArg
+  type is(real(c_float))
+    argPtr = c_loc(arg)
+    argSize = c_sizeof(real(1.0, c_float))
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'float')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'private')
+
+  type is(real(c_double))
+    argPtr = c_loc(arg)
+    argSize = c_sizeof(real(1.0d0, c_double))
+    call fclDbgCheckKernelArgType(kernel, argIndex, 'double')
+    call fclDbgCheckKernelArgQualifier(kernel, argIndex, 'private')
+
+  class default
+    write(*, *) 'Kernel name: ', trim(kernel%name)
+    write(*, '(A,I4)') 'Argument index: ', argIndex
+    call fclRuntimeError('fclSetKernelArg: unsupported argument type passed to kernel.')
+
+  endselect
+
+  errcode = clSetKernelArg(kernel%cl_kernel, argIndex, argSize, argPtr)
+
+  call fclErrorHandler(errcode, 'fclSetKernelArg', 'clSetKernelArg')
+
+  end procedure fclSetKernelArg
 ! ---------------------------------------------------------------------------
 
-module procedure fclLocalInt32 !(nElem) result(localArg)
+  module procedure fclLocalInt32 !(nElem) result(localArg)
     !! Create a integer local kernel argument object for launching kernels
-localArg%nBytes = c_sizeof(int(1, c_int32_t)) * nElem
+  localArg%nBytes = c_sizeof(int(1, c_int32_t)) * nElem
 
-end procedure fclLocalInt32
+  end procedure fclLocalInt32
 ! ---------------------------------------------------------------------------
 
-module procedure fclLocalFloat !(nElem) result(localArg)
+  module procedure fclLocalFloat !(nElem) result(localArg)
     !! Create a integer local kernel argument object for launching kernels
-localArg%nBytes = c_sizeof(real(1.0, c_float)) * nElem
+  localArg%nBytes = c_sizeof(real(1.0, c_float)) * nElem
 
-end procedure fclLocalFloat
+  end procedure fclLocalFloat
 ! ---------------------------------------------------------------------------
 
-module procedure fclLocalDouble !(nElem) result(localArg)
+  module procedure fclLocalDouble !(nElem) result(localArg)
     !! Create a integer local kernel argument object for launching kernels
-localArg%nBytes = c_sizeof(real(1.0d0, c_double)) * nElem
+  localArg%nBytes = c_sizeof(real(1.0d0, c_double)) * nElem
 
-end procedure fclLocalDouble
+  end procedure fclLocalDouble
 ! ---------------------------------------------------------------------------
 
-module procedure fclBarrier_1 !(cmdq)
+  module procedure fclBarrier_1 !(cmdq)
     !! Enqueue barrier on all events in command queue
-integer(c_int32_t) :: errcode
-type(fclEvent), target :: barrierEvent
+  integer(c_int32_t) :: errcode
+  type(fclEvent), target :: barrierEvent
 
-errcode = clEnqueueBarrierWithWaitList(cmdq%cl_command_queue, &
-                                       cmdq%nDependency, cmdq%dependencyListPtr, &
-                                       c_loc(barrierEvent%cl_event))
+  errcode = clEnqueueBarrierWithWaitList(cmdq%cl_command_queue, &
+                                         cmdq%nDependency, cmdq%dependencyListPtr, &
+                                         c_loc(barrierEvent%cl_event))
 
-call fclPopDependencies(cmdq)
-call fclErrorHandler(errcode, 'fclBarrierAll', 'clEnqueueBarrierWithWaitList')
+  call fclPopDependencies(cmdq)
+  call fclErrorHandler(errcode, 'fclBarrierAll', 'clEnqueueBarrierWithWaitList')
 
-fclLastBarrierEvent = barrierEvent
-cmdq%lastBarrierEvent = barrierEvent
+  fclLastBarrierEvent = barrierEvent
+  cmdq%lastBarrierEvent = barrierEvent
 
-end procedure fclBarrier_1
+  end procedure fclBarrier_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclBarrier_2 !(cmdq)
+  module procedure fclBarrier_2 !(cmdq)
     !! Enqueue barrier on all events in default command queue
-call fclBarrier_1(fclDefaultCmdQ)
+  call fclBarrier_1(fclDefaultCmdQ)
 
-end procedure fclBarrier_2
+  end procedure fclBarrier_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclFinish_1 !(cmdq)
+  module procedure fclFinish_1 !(cmdq)
     !! Wait on host for all events in user-specified command queue
-integer(c_int32_t) :: errcode
+  integer(c_int32_t) :: errcode
 
-errcode = clFinish(cmdq%cl_command_queue)
+  errcode = clFinish(cmdq%cl_command_queue)
 
-call fclErrorHandler(errcode, 'fclFinish', 'clFinish')
+  call fclErrorHandler(errcode, 'fclFinish', 'clFinish')
 
-end procedure fclFinish_1
+  end procedure fclFinish_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclFinish_2
+  module procedure fclFinish_2
     !! Wait on host for all events in focal default command queue
-call fclFinish_1(fclDefaultCmdQ)
+  call fclFinish_1(fclDefaultCmdQ)
 
-end procedure fclFinish_2
+  end procedure fclFinish_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclFinish_3 !(qPool)
+  module procedure fclFinish_3 !(qPool)
     !! Wait on host for all events in all queues in a queue pool
 
-integer :: i
+  integer :: i
 
-do i = 1, qPool%length
-  call fclFinish_1(qPool%queues(i))
-end do
+  do i = 1, qPool%length
+    call fclFinish_1(qPool%queues(i))
+  enddo
 
-end procedure fclFinish_3
+  end procedure fclFinish_3
 ! ---------------------------------------------------------------------------
 
-module procedure fclWaitEvent !(event)
+  module procedure fclWaitEvent !(event)
     !! Wait on host for a specific event
-integer(c_int32_t) :: errcode
+  integer(c_int32_t) :: errcode
 
-errcode = clWaitForEvents(1, c_loc(event%cl_event))
+  errcode = clWaitForEvents(1, c_loc(event%cl_event))
 
-call fclErrorHandler(errcode, 'fclWaitEvent', 'clWaitForEvents')
+  call fclErrorHandler(errcode, 'fclWaitEvent', 'clWaitForEvents')
 
-end procedure fclWaitEvent
+  end procedure fclWaitEvent
 ! ---------------------------------------------------------------------------
 
-module procedure fclWaitEventList !(eventList)
+  module procedure fclWaitEventList !(eventList)
     !! Wait on host for set of events
-integer :: i
-integer(c_int32_t) :: errcode
-integer(c_intptr_t), target :: cl_eventList(size(eventList, 1))
+  integer :: i
+  integer(c_int32_t) :: errcode
+  integer(c_intptr_t), target :: cl_eventList(size(eventList, 1))
 
 ! Populate array of c_ptr
-cl_eventList = [(eventList(i)%cl_event, i=1, size(eventList, 1))]
+  cl_eventList = [(eventList(i)%cl_event, i=1, size(eventList, 1))]
 
-errcode = clWaitForEvents(size(eventList, 1), c_loc(cl_eventList))
+  errcode = clWaitForEvents(size(eventList, 1), c_loc(cl_eventList))
 
-call fclErrorHandler(errcode, 'fclWaitEventList', 'clWaitForEvents')
+  call fclErrorHandler(errcode, 'fclWaitEventList', 'clWaitForEvents')
 
-end procedure fclWaitEventList
+  end procedure fclWaitEventList
 ! ---------------------------------------------------------------------------
 
-module procedure fclEventCopy !(target, source)
+  module procedure fclEventCopy !(target, source)
     !! Overloaded assignment for event assignment.
     !!  Handles opencl reference counting for the underlying event object
 
-if(target%cl_event > 0) then
+  if(target%cl_event > 0) then
 
-  call fclReleaseEvent(target)
+    call fclReleaseEvent(target)
 
-end if
+  endif
 
-call fclRetainEvent(source)
+  call fclRetainEvent(source)
 
-target%cl_event = source%cl_event
+  target%cl_event = source%cl_event
 
-end procedure fclEventCopy
+  end procedure fclEventCopy
 ! ---------------------------------------------------------------------------
 
-module procedure fclReleaseEvent !(event)
+  module procedure fclReleaseEvent !(event)
     !! Light weight wrapper for clReleaseEvent (decrement reference count)
-integer(c_int32_t) :: errcode
+  integer(c_int32_t) :: errcode
 
-if(event%cl_event > 0) then
+  if(event%cl_event > 0) then
 
-  errcode = clReleaseEvent(event%cl_event)
-  call fclErrorHandler(errcode, 'fclReleaseEvent', 'clReleaseEvent')
+    errcode = clReleaseEvent(event%cl_event)
+    call fclErrorHandler(errcode, 'fclReleaseEvent', 'clReleaseEvent')
 
-end if
+  endif
 
-end procedure fclReleaseEvent
+  end procedure fclReleaseEvent
 ! ---------------------------------------------------------------------------
 
-module procedure fclRetainEvent !(event)
+  module procedure fclRetainEvent !(event)
     !! Light weight wrapper for clRetainEvent (increment reference count)
-integer(c_int32_t) :: errcode
+  integer(c_int32_t) :: errcode
 
-if(event%cl_event > 0) then
+  if(event%cl_event > 0) then
 
-  errcode = clRetainEvent(event%cl_event)
-  call fclErrorHandler(errcode, 'fclRetainEvent', 'clRetainEvent')
+    errcode = clRetainEvent(event%cl_event)
+    call fclErrorHandler(errcode, 'fclRetainEvent', 'clRetainEvent')
 
-end if
+  endif
 
-end procedure fclRetainEvent
+  end procedure fclRetainEvent
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetDependencyEvent_1 !(cmdq,event,hold)
+  module procedure fclSetDependencyEvent_1 !(cmdq,event,hold)
     !! Specify a single event dependency on specific cmdq
 
-integer(c_int32_t) :: errcode
+  integer(c_int32_t) :: errcode
 
-if(.not. allocated(cmdq%dependencyList)) then
+  if(.not. allocated(cmdq%dependencyList)) then
 
-  allocate(cmdq%dependencyList(fclAllocationSize))
+    allocate(cmdq%dependencyList(fclAllocationSize))
 
-end if
+  endif
 
-cmdq%dependencyList(1) = event%cl_event
-cmdq%nDependency = 1
-cmdq%dependencyListPtr = c_loc(cmdq%dependencyList)
+  cmdq%dependencyList(1) = event%cl_event
+  cmdq%nDependency = 1
+  cmdq%dependencyListPtr = c_loc(cmdq%dependencyList)
 
 ! Explicitly increment event reference counter
-errcode = clRetainEvent(event%cl_event)
-call fclErrorHandler(errcode, 'fclSetDependencyEvent', 'clRetainEvent')
+  errcode = clRetainEvent(event%cl_event)
+  call fclErrorHandler(errcode, 'fclSetDependencyEvent', 'clRetainEvent')
 
-if(present(hold)) then
-  cmdq%holdDependencies = hold
-end if
+  if(present(hold)) then
+    cmdq%holdDependencies = hold
+  endif
 
-end procedure fclSetDependencyEvent_1
+  end procedure fclSetDependencyEvent_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetDependencyEvent_2 !(event,hold)
+  module procedure fclSetDependencyEvent_2 !(event,hold)
     !! Specify a single event dependency on default cmdq
-call fclSetDependencyEvent_1(fclDefaultCmdQ, event, hold)
+  call fclSetDependencyEvent_1(fclDefaultCmdQ, event, hold)
 
-end procedure fclSetDependencyEvent_2
+  end procedure fclSetDependencyEvent_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetDependencyEventList_1 !(cmdq,eventList,hold)
+  module procedure fclSetDependencyEventList_1 !(cmdq,eventList,hold)
     !! Specify a list of dependent events on specific cmdq
 
-integer :: i, nEvent, nAlloc
-integer(c_int32_t) :: errcode
+  integer :: i, nEvent, nAlloc
+  integer(c_int32_t) :: errcode
 
-nEvent = size(eventList, 1)
-nAlloc = max(fclAllocationSize, nEvent)
+  nEvent = size(eventList, 1)
+  nAlloc = max(fclAllocationSize, nEvent)
 
-if(.not. allocated(cmdq%dependencyList)) then
+  if(.not. allocated(cmdq%dependencyList)) then
      !! Allocate for first time
-  allocate(cmdq%dependencyList(nAlloc))
+    allocate(cmdq%dependencyList(nAlloc))
 
-elseif(size(cmdq%dependencyList, 1) < nEvent) then
+  elseif(size(cmdq%dependencyList, 1) < nEvent) then
      !! Re-allocate bigger
-  deallocate(cmdq%dependencyList)
-  allocate(cmdq%dependencyList(nAlloc))
+    deallocate(cmdq%dependencyList)
+    allocate(cmdq%dependencyList(nAlloc))
 
-end if
+  endif
 
-cmdq%dependencyList(1:nEvent) = [(eventList(i)%cl_event, i=1, nEvent)]
-cmdq%nDependency = nEvent
-cmdq%dependencyListPtr = c_loc(cmdq%dependencyList)
+  cmdq%dependencyList(1:nEvent) = [(eventList(i)%cl_event, i=1, nEvent)]
+  cmdq%nDependency = nEvent
+  cmdq%dependencyListPtr = c_loc(cmdq%dependencyList)
 
 ! Explicitly increment event reference counters
-do i = 1, nEvent
-  errcode = clRetainEvent(eventList(i)%cl_event)
-  call fclErrorHandler(errcode, 'fclSetDependencyEvent', 'clRetainEvent')
-end do
+  do i = 1, nEvent
+    errcode = clRetainEvent(eventList(i)%cl_event)
+    call fclErrorHandler(errcode, 'fclSetDependencyEvent', 'clRetainEvent')
+  enddo
 
-if(present(hold)) then
-  cmdq%holdDependencies = hold
-end if
+  if(present(hold)) then
+    cmdq%holdDependencies = hold
+  endif
 
-end procedure fclSetDependencyEventList_1
+  end procedure fclSetDependencyEventList_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetDependencyEventList_2 !(eventList,hold)
+  module procedure fclSetDependencyEventList_2 !(eventList,hold)
     !! Specify a list of dependent events on the default cmdq
 
-call fclSetDependencyEventList_1(fclDefaultCmdQ, eventList, hold)
+  call fclSetDependencyEventList_1(fclDefaultCmdQ, eventList, hold)
 
-end procedure fclSetDependencyEventList_2
+  end procedure fclSetDependencyEventList_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclPopDependencies !(cmdq)
+  module procedure fclPopDependencies !(cmdq)
     !! Called after every enqueue operation:
     !! Clear dependencies unless dependency hold is .true.
 
-if(.not. cmdq%holdDependencies) then
-  call fclClearDependencies(cmdq)
-end if
+  if(.not. cmdq%holdDependencies) then
+    call fclClearDependencies(cmdq)
+  endif
 
-end procedure fclPopDependencies
+  end procedure fclPopDependencies
 ! ---------------------------------------------------------------------------
 
-module procedure fclClearDependencies_1 !(cmdq)
+  module procedure fclClearDependencies_1 !(cmdq)
     !! Reset dependency list
 
-integer :: i
-integer(c_int32_t) :: errcode
+  integer :: i
+  integer(c_int32_t) :: errcode
 
 ! Explicitly decrement event reference counters
-do i = 1, cmdq%nDependency
-  errcode = clReleaseEvent(cmdq%dependencyList(i))
-  call fclErrorHandler(errcode, 'fclClearDependencies', 'clReleaseEvent')
-end do
+  do i = 1, cmdq%nDependency
+    errcode = clReleaseEvent(cmdq%dependencyList(i))
+    call fclErrorHandler(errcode, 'fclClearDependencies', 'clReleaseEvent')
+  enddo
 
-cmdq%nDependency = 0
-cmdq%dependencyListPtr = C_NULL_PTR
-cmdq%holdDependencies = .false.
+  cmdq%nDependency = 0
+  cmdq%dependencyListPtr = C_NULL_PTR
+  cmdq%holdDependencies = .false.
 
-end procedure fclClearDependencies_1
+  end procedure fclClearDependencies_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclClearDependencies_2
+  module procedure fclClearDependencies_2
     !! Reset dependency list on default command queue
-call fclClearDependencies_1(fclDefaultCmdQ)
+  call fclClearDependencies_1(fclDefaultCmdQ)
 
-end procedure fclClearDependencies_2
+  end procedure fclClearDependencies_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclCreateUserEvent_1 !(ctx) result(userEvent)
+  module procedure fclCreateUserEvent_1 !(ctx) result(userEvent)
     !! Create user event in a specific context
 
-integer(c_int32_t) :: errcode
+  integer(c_int32_t) :: errcode
 
-userEvent%cl_event = clCreateUserEvent(ctx%cl_context, errcode)
+  userEvent%cl_event = clCreateUserEvent(ctx%cl_context, errcode)
 
-call fclErrorHandler(errcode, 'fclCreateUserEvent', 'clCreateUserEvent')
+  call fclErrorHandler(errcode, 'fclCreateUserEvent', 'clCreateUserEvent')
 
-end procedure fclCreateUserEvent_1
+  end procedure fclCreateUserEvent_1
 ! ---------------------------------------------------------------------------
 
-module procedure fclCreateUserEvent_2 !() result(userEvent)
+  module procedure fclCreateUserEvent_2 !() result(userEvent)
     !! Create user event in in the default context
 
-userEvent = fclCreateUserEvent_1(fclDefaultCtx)
+  userEvent = fclCreateUserEvent_1(fclDefaultCtx)
 
-end procedure fclCreateUserEvent_2
+  end procedure fclCreateUserEvent_2
 ! ---------------------------------------------------------------------------
 
-module procedure fclSetUserEvent !(event,stat)
+  module procedure fclSetUserEvent !(event,stat)
      !! Set status of a user event
 
-integer(c_int32_t) :: errcode, eStatus
+  integer(c_int32_t) :: errcode, eStatus
 
-if(present(stat)) then
-  eStatus = stat
-else
-  eStatus = 0
-end if
+  if(present(stat)) then
+    eStatus = stat
+  else
+    eStatus = 0
+  endif
 
-errcode = clSetUserEventStatus(event%cl_event, eStatus)
+  errcode = clSetUserEventStatus(event%cl_event, eStatus)
 
-call fclErrorHandler(errcode, 'fclSetUserEvent', 'clSetUserEventStatus')
+  call fclErrorHandler(errcode, 'fclSetUserEvent', 'clSetUserEventStatus')
 
-end procedure fclSetUserEvent
+  end procedure fclSetUserEvent
 ! ---------------------------------------------------------------------------
 
-end submodule Focal_Setup
+endsubmodule Focal_Setup

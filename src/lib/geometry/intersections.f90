@@ -80,7 +80,7 @@ contains
       x1 = 0.0_rk
     else
       x1 = x1 / circle_radius
-    end if
+    endif
 
     y1 = line_xy(2, 1) - circle_xy(2)
     threshold = abs(line_xy(2, 1) + circle_xy(2)) * EPS
@@ -88,7 +88,7 @@ contains
       y1 = 0.0_rk
     else
       y1 = y1 / circle_radius
-    end if
+    endif
 
     x2 = line_xy(1, 2) - circle_xy(1)
     threshold = abs(line_xy(1, 2) + circle_xy(1)) * EPS
@@ -96,7 +96,7 @@ contains
       x2 = 0.0_rk
     else
       x2 = x2 / circle_radius
-    end if
+    endif
 
     y2 = line_xy(2, 2) - circle_xy(2)
     threshold = abs(line_xy(2, 2) + circle_xy(2)) * EPS
@@ -104,7 +104,7 @@ contains
       y2 = 0.0_rk
     else
       y2 = y2 / circle_radius
-    end if
+    endif
 
     A = y2 - y1
     if(abs(A) < epsilon(1.0_rk)) A = 0.0_rk
@@ -133,7 +133,7 @@ contains
       bx = x0 - B * m
       ay = y0 - A * m
       by = y0 + A * m
-    end if
+    endif
 
     ! Get rid of very small numbers and signed 0's, i.e. -0
     if(abs(ax) < tiny(1.0_rk)) ax = 0.0_rk
@@ -150,9 +150,9 @@ contains
 
       if(valid_intersections(1)) angles(1) = atan2(y=ay, x=ax)
       if(valid_intersections(2)) angles(2) = atan2(y=by, x=bx)
-    end if
+    endif
 
-  end subroutine intersect
+  endsubroutine intersect
 
   pure logical function between_zero_and_one(val)
     !< Stupidly simple function to check if a value is between 0 and 1 with
@@ -164,8 +164,8 @@ contains
       between_zero_and_one = .false.
     else
       between_zero_and_one = .true.
-    end if
-  end function between_zero_and_one
+    endif
+  endfunction between_zero_and_one
 
   pure logical function is_on(a, b, c)
     ! Check to see if the point c on the line segment ab
@@ -197,12 +197,12 @@ contains
     if(abs(ab_dy) < EPS_2X) then
       ab_is_horizontal = .true.
       ab_dy = 0.0_rk
-    end if
+    endif
 
     if(abs(ab_dx) < EPS_2X) then
       ab_is_vertical = .true.
       ab_dx = 0.0_rk
-    end if
+    endif
 
     if(abs(ab_dx) < EPS_2X .and. abs(ab_dy) < EPS_2X) then
       ! a and b are the same point,
@@ -222,9 +222,9 @@ contains
         else
           m2 = cb_dy / ab_dy
           is_on = abs(m2 - m1) < EPS_2X
-        end if
-      end if
-    end if
-  end function is_on
+        endif
+      endif
+    endif
+  endfunction is_on
 
-end module mod_intersections
+endmodule mod_intersections

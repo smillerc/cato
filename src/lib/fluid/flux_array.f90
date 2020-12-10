@@ -36,7 +36,7 @@ module mod_flux_array
     real(rk), dimension(:, :, :), allocatable :: G !< ((rhov, rhouv, rhov^2 + p, v(rhoE + p)), i, j); y-direction flux array
     !dir$ attributes align:__ALIGNBYTES__ :: G
   contains
-  end type flux_array_t
+  endtype flux_array_t
 
 contains
 
@@ -103,7 +103,7 @@ contains
           rho_u_sq_plus_p = 0.0_rk
         else
           rho_u_sq_plus_p = rho_u_sq + p(i, j)
-        end if
+        endif
 
         ! rho v^2 + p
         rho_v_sq = rho(i, j) * v(i, j)**2
@@ -111,7 +111,7 @@ contains
           rho_v_sq_plus_p = 0.0_rk
         else
           rho_v_sq_plus_p = rho_v_sq + p(i, j)
-        end if
+        endif
 
         flux%F(1, i, j) = rho_u
         flux%F(2, i, j) = rho_u_sq_plus_p
@@ -123,9 +123,9 @@ contains
         flux%G(3, i, j) = rho_v_sq_plus_p
         flux%G(4, i, j) = v(i, j) * rho_E_plus_p
 
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
     !$omp end parallel
-  end function
-end module mod_flux_array
+  endfunction
+endmodule mod_flux_array

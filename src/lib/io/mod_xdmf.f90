@@ -29,7 +29,7 @@ module mod_xdmf
 
     ! Internal
     final :: finalize_xdmf
-  end type xdmf_writer_t
+  endtype xdmf_writer_t
 
 contains
 
@@ -37,18 +37,18 @@ contains
     class(xdmf_writer_t), intent(inout) :: self
     character(len=*), intent(in) :: name
     integer(int32), dimension(:, :), intent(in) :: data
-  end subroutine add_field_int_2d
+  endsubroutine add_field_int_2d
 
   subroutine add_field_real32_2d(self, name, data)
     class(xdmf_writer_t), intent(inout) :: self
     character(len=*), intent(in) :: name
     real(real32), dimension(:, :), intent(in) :: data
-  end subroutine add_field_real32_2d
+  endsubroutine add_field_real32_2d
 
   subroutine add_field_real64_2d(self, name, data)
     class(xdmf_writer_t), intent(inout) :: self
     character(len=*), intent(in) :: name
     real(real64), dimension(:, :), intent(in) :: data
-  end subroutine add_field_real64_2d
+  endsubroutine add_field_real64_2d
 
-end module mod_xdmf
+endmodule mod_xdmf

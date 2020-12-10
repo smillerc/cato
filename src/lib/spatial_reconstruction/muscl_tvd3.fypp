@@ -53,11 +53,11 @@ module mod_muscl_tvd3
     procedure, public :: distinguish_continuous_regions
 
     #:for DIR in DIRECTIONS
-    procedure, private :: interp_muscl_tvd3_${DIR}$_edge
+      procedure, private :: interp_muscl_tvd3_${DIR}$_edge
     #:endfor
 
     final :: finalize
-  end type
+  endtype
 
 contains
   function new_muscl_tvd3(limiter) result(interpolator)
@@ -67,16 +67,16 @@ contains
     allocate(interpolator)
     interpolator%limiter_name = trim(limiter)
     interpolator%order = 3
-  end function
+  endfunction
 
   subroutine init_muscl_tvd3(self, limiter)
     class(muscl_tvd3_t), intent(inout) :: self
     character(len=*), intent(in) :: limiter
     self%limiter_name = trim(limiter)
     self%order = 3
-  end subroutine init_muscl_tvd3
+  endsubroutine init_muscl_tvd3
 
-  subroutine interpolate_edge_values(self, q,  i_edges, j_edges)
+  subroutine interpolate_edge_values(self, q, i_edges, j_edges)
     class(muscl_tvd3_t), intent(in) :: self
     class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
 
@@ -86,9 +86,9 @@ contains
     if(enable_debug_print) call debug_print('Running muscl_tvd3_t%interpolate_edge_values()', __FILE__, __LINE__)
 
     #:for DIR in DIRECTIONS
-    call self%interp_muscl_tvd3_${DIR}$_edge(q,  ${DIR}$_edges)
+      call self%interp_muscl_tvd3_${DIR}$_edge(q, ${DIR}$_edges)
     #:endfor
-  end subroutine interpolate_edge_values
+  endsubroutine interpolate_edge_values
 
   subroutine distinguish_continuous_regions(self, rho, u, v, p)
     !< For plain-jane TVD2, there is no need to distinguish the regions which are continuous or linear/non-linear discontinuity regions. This
@@ -100,111 +100,111 @@ contains
     class(field_2d_t), intent(in) :: p !< (i,j); density
 
     if(enable_debug_print) call debug_print('Running muscl_tvd3_t%distinguish_continuous_regions()', __FILE__, __LINE__)
-  end subroutine distinguish_continuous_regions
+  endsubroutine distinguish_continuous_regions
 
   subroutine finalize(self)
     !< Finalizer routine to clean up allocated data
     type(muscl_tvd3_t), intent(inout) :: self
-  end subroutine finalize
+  endsubroutine finalize
 
-#:for DIR in DIRECTIONS
-  subroutine interp_muscl_tvd3_${DIR}$_edge(self, q,  edge_values)
-    class(muscl_tvd3_t), intent(in) :: self
-    class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
+  #:for DIR in DIRECTIONS
+    subroutine interp_muscl_tvd3_${DIR}$_edge(self, q, edge_values)
+      class(muscl_tvd3_t), intent(in) :: self
+      class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
 
-    real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values !<((L,R), i, j); L/R state for each edge
+      real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values !<((L,R), i, j); L/R state for each edge
 
-    integer(ik) :: i, j, m, n
-    integer(ik) :: ilo, ihi, jlo, jhi
+      integer(ik) :: i, j, m, n
+      integer(ik) :: ilo, ihi, jlo, jhi
 
-    real(rk) :: delta_ij_minus_half      !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
-    real(rk) :: delta_ij_plus_half       !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
-    real(rk) :: delta_ij_plus_three_half !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
-    real(rk) :: r_R_ij_p1 !< smoothness parameter
-    real(rk) :: r_L_ij !< smoothness parameter
+      real(rk) :: delta_ij_minus_half      !< Delta Phi_{i-1/2, j} = q(i, j) - q(i - 1, j) (or j-1/2 depending on direction)
+      real(rk) :: delta_ij_plus_half       !< Delta Phi_{i+1/2, j} = q(i + 1, j) - q(i, j) (or j+1/2 depending on direction)
+      real(rk) :: delta_ij_plus_three_half !< Delta Phi_{i+3/2, j} = q(i + 2, j) - q(i + 1, j) (or j+3/2 depending on direction)
+      real(rk) :: r_R_ij_p1 !< smoothness parameter
+      real(rk) :: r_L_ij !< smoothness parameter
 
-    real(rk) :: beta_L, beta_R
+      real(rk) :: beta_L, beta_R
 
-    !dir$ assume_aligned edge_values: __ALIGNBYTES__
+      !dir$ assume_aligned edge_values: __ALIGNBYTES__
 
-    if(enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_tvd3_${DIR}$_edge()', __FILE__, __LINE__)
+      if(enable_debug_print) call debug_print('Running muscl_tvd2_t%interp_muscl_tvd3_${DIR}$_edge()', __FILE__, __LINE__)
 
-    ! Because this is an edge-based array, the indexing is # cells + 1, and
-    ! only goes into the single nearest ghost layer
-    ilo = q%lbounds(1) - 1
-    jlo = q%lbounds(2) - 1
-    ihi = q%ubounds(1)
-    jhi = q%ubounds(2)
+      ! Because this is an edge-based array, the indexing is # cells + 1, and
+      ! only goes into the single nearest ghost layer
+      ilo = q%lbounds(1) - 1
+      jlo = q%lbounds(2) - 1
+      ihi = q%ubounds(1)
+      jhi = q%ubounds(2)
 
-    #:if DIR == 'i'
-    allocate(edge_values(1:2, ilo - 1:ihi, jlo:jhi))
-    #:elif DIR == 'j'
-    allocate(edge_values(1:2, ilo:ihi, jlo - 1:jhi))
-    #:endif
+      #:if DIR == 'i'
+        allocate(edge_values(1:2, ilo - 1:ihi, jlo:jhi))
+      #:elif DIR == 'j'
+        allocate(edge_values(1:2, ilo:ihi, jlo - 1:jhi))
+      #:endif
 
-    edge_values = 0.0_rk
-    !
-    !                    jflux(i,j)  'R'
-    !               o--------------------o
-    !               |                'L' |
-    !               |                    |
-    ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
-    !               |                    |
-    !               |                'L' | 'R'
-    !               o--------------------o
-    !                  jflux(i,j-1)
-    !
-    ! This is the numbering convention that this module uses
+      edge_values = 0.0_rk
+      !
+      !                    jflux(i,j)  'R'
+      !               o--------------------o
+      !               |                'L' |
+      !               |                    |
+      ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+      !               |                    |
+      !               |                'L' | 'R'
+      !               o--------------------o
+      !                  jflux(i,j-1)
+      !
+      ! This is the numbering convention that this module uses
 
-    !$omp parallel default(none), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi) &
-    !$omp private(i, j, m, n, delta_ij_minus_half, delta_ij_plus_half, delta_ij_plus_three_half) &
-    !$omp private(r_L_ij, r_R_ij_p1, beta_L, beta_R) &
-    !$omp shared(q, edge_values, self)
-    !$omp do
-    do j = jlo, jhi
+      !$omp parallel default(none), &
+      !$omp firstprivate(ilo, ihi, jlo, jhi) &
+      !$omp private(i, j, m, n, delta_ij_minus_half, delta_ij_plus_half, delta_ij_plus_three_half) &
+      !$omp private(r_L_ij, r_R_ij_p1, beta_L, beta_R) &
+      !$omp shared(q, edge_values, self)
+      !$omp do
+      do j = jlo, jhi
       !! $omp simd __INTERP_ALIGN__
       !! dir$ vector aligned
-      do i = ilo, ihi
+        do i = ilo, ihi
           #:if DIR == 'i'
-        delta_ij_minus_half = q%data(i, j) - q%data(i - 1, j)
-        delta_ij_plus_half = q%data(i + 1, j) - q%data(i, j)
-        delta_ij_plus_three_half = q%data(i + 2, j) - q%data(i + 1, j)
+            delta_ij_minus_half = q%data(i, j) - q%data(i - 1, j)
+            delta_ij_plus_half = q%data(i + 1, j) - q%data(i, j)
+            delta_ij_plus_three_half = q%data(i + 2, j) - q%data(i + 1, j)
           #:elif DIR == 'j'
-        delta_ij_minus_half = q%data(i, j) - q%data(i, j - 1)
-        delta_ij_plus_half = q%data(i, j + 1) - q%data(i, j)
-        delta_ij_plus_three_half = q%data(i, j + 2) - q%data(i, j + 1)
+            delta_ij_minus_half = q%data(i, j) - q%data(i, j - 1)
+            delta_ij_plus_half = q%data(i, j + 1) - q%data(i, j)
+            delta_ij_plus_three_half = q%data(i, j + 2) - q%data(i, j + 1)
           #:endif
 
-        if(abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
-        if(abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
-        if(abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
+          if(abs(delta_ij_minus_half) < epsilon(1.0_rk)) delta_ij_minus_half = 0.0_rk
+          if(abs(delta_ij_plus_half) < epsilon(1.0_rk)) delta_ij_plus_half = 0.0_rk
+          if(abs(delta_ij_plus_three_half) < epsilon(1.0_rk)) delta_ij_plus_three_half = 0.0_rk
 
-        r_L_ij = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
-        r_R_ij_p1 = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
+          r_L_ij = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
+          r_R_ij_p1 = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
 
-        ! 3rd order interpolation. Eq 33 in Ref [1]
-        beta_L = (1.0_rk + 2.0_rk * r_L_ij) / 3.0_rk
-        beta_R = (1.0_rk + 2.0_rk * r_R_ij_p1) / 3.0_rk
+          ! 3rd order interpolation. Eq 33 in Ref [1]
+          beta_L = (1.0_rk + 2.0_rk * r_L_ij) / 3.0_rk
+          beta_R = (1.0_rk + 2.0_rk * r_R_ij_p1) / 3.0_rk
 
-        ! Phi L, e.g. left state
-        edge_values(1, i, j) = q%data(i, j) + 0.5_rk * max(0.0_rk, min(2.0_rk, &
-                                                                  2.0_rk * r_L_ij, &
-                                                                  beta_L)) * delta_ij_minus_half
-        ! Phi R, e.g. right state
+          ! Phi L, e.g. left state
+          edge_values(1, i, j) = q%data(i, j) + 0.5_rk * max(0.0_rk, min(2.0_rk, &
+                                                                         2.0_rk * r_L_ij, &
+                                                                         beta_L)) * delta_ij_minus_half
+          ! Phi R, e.g. right state
           #:if DIR == 'i'
-        edge_values(2, i, j) = q%data(i + 1, j) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
-                                                                      2.0_rk * r_R_ij_p1, &
-                                                                      beta_R)) * delta_ij_plus_three_half
+            edge_values(2, i, j) = q%data(i + 1, j) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
+                                                                               2.0_rk * r_R_ij_p1, &
+                                                                               beta_R)) * delta_ij_plus_three_half
           #:elif DIR == 'j'
-        edge_values(2, i, j) = q%data(i, j + 1) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
-                                                                      2.0_rk * r_R_ij_p1, &
-                                                                      beta_R)) * delta_ij_plus_three_half
+            edge_values(2, i, j) = q%data(i, j + 1) - 0.5_rk * max(0.0_rk, min(2.0_rk, &
+                                                                               2.0_rk * r_R_ij_p1, &
+                                                                               beta_R)) * delta_ij_plus_three_half
           #:endif
-      end do
-    end do
-    !$omp end do
-    !$omp end parallel
-  end subroutine interp_muscl_tvd3_${DIR}$_edge
-#:endfor
-end module mod_muscl_tvd3
+        enddo
+      enddo
+      !$omp end do
+      !$omp end parallel
+    end subroutine interp_muscl_tvd3_${DIR}$_edge
+  #:endfor
+endmodule mod_muscl_tvd3

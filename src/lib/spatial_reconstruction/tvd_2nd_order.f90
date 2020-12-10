@@ -52,7 +52,7 @@ module mod_tvd_2nd_order
   contains
     procedure, public :: initialize
     procedure, public :: interpolate_edge_values
-  end type tvd_2nd_order_t
+  endtype tvd_2nd_order_t
 
 contains
 
@@ -64,7 +64,7 @@ contains
     interpolator%limiter_name = trim(limiter)
     interpolator%order = 2
     interpolator%limiter = flux_limiter_t(trim(limiter))
-  end function
+  endfunction
 
   subroutine initialize(self, limiter)
     class(tvd_2nd_order_t), intent(inout) :: self
@@ -72,7 +72,7 @@ contains
     self%limiter_name = trim(limiter)
     self%order = 2
     self%limiter = flux_limiter_t(trim(limiter))
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine interpolate_edge_values(self, q, lbounds, edge_values)
     !< Reconstruct the cell interface values, e.g. q_i-1/2, q_i+1/2. This assumes a cartesian
@@ -152,8 +152,8 @@ contains
       do i = ilo_real, ihi_real
         ! (i, j-1/2), cell "bottom" edge -> corresponds to the "R" side of the interface, thus the "R" terms
         edge_values(1, i, j) = q(i, j) - 0.5_rk * phi_r_R_j(i, j) * delta_j_plus(i, j)
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -164,8 +164,8 @@ contains
         ! (i+1/2, j), cell "right" edge -> corresponds to the "L" side of the interface, thus the "L" terms
         ! phi_L = q + .5 * psi(r_L) * delta-
         edge_values(2, i, j) = q(i, j) + 0.5_rk * phi_r_L_i(i, j) * delta_i_minus(i, j)
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -175,8 +175,8 @@ contains
       do i = ilo_real, ihi_real
         ! (i, j+1/2), cell "top" edge -> corresponds to the "L" side of the interface, thus the "L" terms
         edge_values(3, i, j) = q(i, j) + 0.5_rk * phi_r_L_j(i, j) * delta_j_minus(i, j)
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -186,8 +186,8 @@ contains
       do i = ilo_real, ihi_real
         ! (i-1/2, j), cell "left" edge -> corresponds to the "R" side of the interface, thus the "R" terms
         edge_values(4, i, j) = q(i, j) - 0.5_rk * phi_r_R_i(i, j) * delta_i_plus(i, j)
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
     !$omp end parallel
 
@@ -205,6 +205,6 @@ contains
     deallocate(delta_i_minus)
     deallocate(delta_j_plus)
     deallocate(delta_j_minus)
-  end subroutine interpolate_edge_values
+  endsubroutine interpolate_edge_values
 
-end module mod_tvd_2nd_order
+endmodule mod_tvd_2nd_order

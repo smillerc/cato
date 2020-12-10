@@ -62,8 +62,8 @@ contains
                      procedure_name='bc_factory', &
                      message="Unsupported boundary condition type in bc_factory: '"//trim(bc_type)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
-  end function bc_factory
+  endfunction bc_factory
 
-end module mod_bc_factory
+endmodule mod_bc_factory

@@ -110,20 +110,20 @@ contains
             grad_x(i, j) = 0.0_rk
           else
             grad_x(i, j) = d_dx / grid%volume(i, j)
-          end if
+          endif
 
           if(abs(d_dy) < EPS) then
             grad_y(i, j) = 0.0_rk
           else
             grad_y(i, j) = d_dy / grid%volume(i, j)
-          end if
+          endif
         else
           grad_x(i, j) = d_dx / grid%volume(i, j)
           grad_y(i, j) = d_dy / grid%volume(i, j)
-        end if
+        endif
 
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
     !$omp end parallel
 
@@ -140,13 +140,13 @@ contains
           call h5%initialize(filename=filename, status='old', action='rw', comp_lvl=6)
         else
           call h5%initialize(filename=filename, status='new', action='rw', comp_lvl=6)
-        end if
+        endif
 
         call h5%add("d_dx_"//name, grad_x)
         call h5%add("d_dy_"//name, grad_y)
         call h5%finalize()
-      end block io
-    end if
-  end subroutine green_gauss_gradient
+      endblock io
+    endif
+  endsubroutine green_gauss_gradient
 
-end module mod_gradients
+endmodule mod_gradients

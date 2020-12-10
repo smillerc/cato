@@ -72,7 +72,7 @@ module mod_local_evo_operator
     procedure, public :: evolve
     procedure, public, nopass :: e0_operator
     final :: finalize
-  end type local_evo_operator_t
+  endtype local_evo_operator_t
 
 contains
 
@@ -88,7 +88,7 @@ contains
     self%grid => grid_target
     self%reconstruction_operator => recon_operator_target
 
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine finalize(self)
     !< Cleanup the operator type
@@ -110,7 +110,7 @@ contains
 
     if(allocated(self%name)) deallocate(self%name)
 
-  end subroutine finalize
+  endsubroutine finalize
 
   subroutine evolve(self, dt, location, evolved_rho, evolved_u, evolved_v, evolved_p, lbounds, error_code)
     !< Create Mach cones and evolve the state at all of the left/right midpoints in the domain. Left/right midpoints
@@ -196,9 +196,9 @@ contains
             corner_neighbors(:, 2, i, j) = [i, j - 1]     ! lower right
             corner_neighbors(:, 3, i, j) = [i, j]         ! upper right
             corner_neighbors(:, 4, i, j) = [i - 1, j]     ! upper left
-          end do
-        end do
-      end if
+          enddo
+        enddo
+      endif
 
       allocate(reconstructed_rho(4, ilo:ihi, jlo:jhi))
       allocate(reconstructed_u(4, ilo:ihi, jlo:jhi))
@@ -239,8 +239,8 @@ contains
           reconstructed_v(4, i, j) = self%reconstructed_v(C2, i - 1, j)
           reconstructed_p(4, i, j) = self%reconstructed_p(C2, i - 1, j)
 
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
 
@@ -285,9 +285,9 @@ contains
           do i = ilo, ihi
             leftright_midpoint_neighbors(:, 1, i, j) = [i, j]     ! above
             leftright_midpoint_neighbors(:, 2, i, j) = [i, j - 1] ! below
-          end do
-        end do
-      end if
+          enddo
+        enddo
+      endif
 
       allocate(reconstructed_rho(2, ilo:ihi, jlo:jhi))
       allocate(reconstructed_u(2, ilo:ihi, jlo:jhi))
@@ -313,8 +313,8 @@ contains
           reconstructed_u(2, i, j) = self%reconstructed_u(M3, i, j - 1)
           reconstructed_v(2, i, j) = self%reconstructed_v(M3, i, j - 1)
           reconstructed_p(2, i, j) = self%reconstructed_p(M3, i, j - 1)
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
 
@@ -348,9 +348,9 @@ contains
           do i = ilo, ihi
             downup_midpoint_neighbors(:, 1, i, j) = [i - 1, j] ! left
             downup_midpoint_neighbors(:, 2, i, j) = [i, j]     ! right
-          end do
-        end do
-      end if
+          enddo
+        enddo
+      endif
 
       allocate(reconstructed_rho(2, ilo:ihi, jlo:jhi))
       allocate(reconstructed_u(2, ilo:ihi, jlo:jhi))
@@ -376,8 +376,8 @@ contains
           reconstructed_u(2, i, j) = self%reconstructed_u(M4, i, j)
           reconstructed_v(2, i, j) = self%reconstructed_v(M4, i, j)
           reconstructed_p(2, i, j) = self%reconstructed_p(M4, i, j)
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
 
@@ -395,13 +395,13 @@ contains
 
     case default
       error stop "Unsupported location in local_evo_operator_t%evolve()"
-    end select
+    endselect
 
     if(allocated(reconstructed_rho)) deallocate(reconstructed_rho)
     if(allocated(reconstructed_u)) deallocate(reconstructed_u)
     if(allocated(reconstructed_v)) deallocate(reconstructed_v)
     if(allocated(reconstructed_p)) deallocate(reconstructed_p)
-  end subroutine evolve
+  endsubroutine evolve
 
   subroutine e0_operator(cones, rho, u, v, p)
     type(mach_cone_collection_t), intent(in) :: cones
@@ -439,8 +439,8 @@ contains
       do j = 1, cones%nj
         do i = 1, cones%ni
           rho_a_tilde(i, j) = cones%reference_density(i, j) * cones%reference_sound_speed(i, j)
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
 
       !$omp do
@@ -451,8 +451,8 @@ contains
           t3 = neumaier_sum(rho_a_tilde(i, j) * v_i(:, i, j) * cos_dtheta(:, i, j))
           t_tot = [t1, t2, t3]
           p(i, j) = neumaier_sum(t_tot) / (2.0_rk * pi)
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
 
       !$omp do
@@ -460,8 +460,8 @@ contains
         do i = 1, cones%ni
           t_tot = [rho_p_prime(i, j),(p(i, j) / a_tilde(i, j)**2), -pressure_p_prime(i, j) / a_tilde(i, j)**2]
           rho(i, j) = neumaier_sum(t_tot)
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
 
       !$omp do
@@ -478,8 +478,8 @@ contains
 
           t_tot = [t1, t2, t3]
           u(i, j) = neumaier_sum(t_tot) / pi
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
 
       !$omp do
@@ -496,12 +496,12 @@ contains
 
           t_tot = [t1, t2, t3]
           v(i, j) = neumaier_sum(t_tot) / pi
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
-    end associate
+    endassociate
     deallocate(rho_a_tilde)
-  end subroutine e0_operator
+  endsubroutine e0_operator
 
-end module mod_local_evo_operator
+endmodule mod_local_evo_operator

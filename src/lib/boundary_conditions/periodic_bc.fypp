@@ -48,7 +48,7 @@ module mod_periodic_bc
   contains
     procedure, public :: apply => apply_periodic_primitive_var_bc
     final :: finalize
-  end type periodic_bc_t
+  endtype periodic_bc_t
 
 contains
 
@@ -69,9 +69,9 @@ contains
        trim(input%minus_y_bc) == 'periodic') then
 
       bc%do_corners = .true.
-    end if
+    endif
 
-  end function periodic_bc_constructor
+  endfunction periodic_bc_constructor
 
   subroutine apply_periodic_primitive_var_bc(self, rho, u, v, p)
 
@@ -99,7 +99,7 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: ilo_halo, ihi_halo, jlo_halo, jhi_halo
     integer(ik) :: nh, ni, nj
-    
+
     if(enable_debug_print) call debug_print('Running periodic_bc_t%apply_periodic_primitive_var_bc() ', __FILE__, __LINE__)
     sync_stat = 0
     sync_err_msg = ''
@@ -121,157 +121,157 @@ contains
     if(.not. allocated(ihi_jlo_corner)) allocate(ihi_jlo_corner(nh, nh)[*])
 
     #:for F in ['rho', 'u', 'v', 'p']
-    ilo_jhi_corner = 0.0_rk
-    ihi_jhi_corner = 0.0_rk
-    ilo_jlo_corner = 0.0_rk
-    ihi_jlo_corner = 0.0_rk
-    ilo_edge = 0.0_rk
-    ihi_edge = 0.0_rk
-    jhi_edge = 0.0_rk
-    jlo_edge = 0.0_rk
+      ilo_jhi_corner = 0.0_rk
+      ihi_jhi_corner = 0.0_rk
+      ilo_jlo_corner = 0.0_rk
+      ihi_jlo_corner = 0.0_rk
+      ilo_edge = 0.0_rk
+      ihi_edge = 0.0_rk
+      jhi_edge = 0.0_rk
+      jlo_edge = 0.0_rk
 
-    ilo = ${F}$%lbounds(1) 
-    ihi = ${F}$%ubounds(1)
-    jlo = ${F}$%lbounds(2) 
-    jhi = ${F}$%ubounds(2)
-    ilo_halo = ${F}$%lbounds_halo(1) 
-    ihi_halo = ${F}$%ubounds_halo(1)
-    jlo_halo = ${F}$%lbounds_halo(2) 
-    jhi_halo = ${F}$%ubounds_halo(2)
-    nh = ${F}$%n_halo_cells
-    neighbors = ${F}$%neighbors
+      ilo = ${F}$%lbounds(1)
+      ihi = ${F}$%ubounds(1)
+      jlo = ${F}$%lbounds(2)
+      jhi = ${F}$%ubounds(2)
+      ilo_halo = ${F}$%lbounds_halo(1)
+      ihi_halo = ${F}$%ubounds_halo(1)
+      jlo_halo = ${F}$%lbounds_halo(2)
+      jhi_halo = ${F}$%ubounds_halo(2)
+      nh = ${F}$%n_halo_cells
+      neighbors = ${F}$%neighbors
 
-    select case(self%location)
-    case('+x', '-x')
-      ! if(${F}$%on_ilo_bc .or. ${F}$%on_ihi_bc) then
-      if(num_images() > 1) then
-        sync images(set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), &
-                    stat=sync_stat, errmsg=sync_err_msg)
-      endif
+      select case(self%location)
+      case('+x', '-x')
+        ! if(${F}$%on_ilo_bc .or. ${F}$%on_ihi_bc) then
+        if(num_images() > 1) then
+          sync images(set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), &
+                      stat=sync_stat, errmsg=sync_err_msg)
+        endif
 
-      if(sync_stat /= 0) then
-        write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", &
-          set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), "]"
-        call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                        procedure_name='apply_periodic_primitive_var_bc', &
-                        message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                        file_name=__FILE__, line_number=__LINE__)
-      end if
+        if(sync_stat /= 0) then
+          write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", &
+            set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), "]"
+          call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                         procedure_name='apply_periodic_primitive_var_bc', &
+                         message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                         file_name=__FILE__, line_number=__LINE__)
+        endif
 
-      ! Put to the coarray buffer
-      if(${F}$%on_ilo_bc .or. ${F}$%on_ihi_bc) then
-        ilo_edge(:, :)[neighbors(ihi_neighbor)] = ${F}$%data(ihi - nh + 1:ihi, jlo:jhi) ! ihi -> ilo
-        ihi_edge(:, :)[neighbors(ilo_neighbor)] = ${F}$%data(ilo:ilo + nh - 1, jlo:jhi) ! ilo -> ihi
-      endif
+        ! Put to the coarray buffer
+        if(${F}$%on_ilo_bc .or. ${F}$%on_ihi_bc) then
+          ilo_edge(:, :)[neighbors(ihi_neighbor)] = ${F}$%data(ihi - nh + 1:ihi, jlo:jhi) ! ihi -> ilo
+          ihi_edge(:, :)[neighbors(ilo_neighbor)] = ${F}$%data(ilo:ilo + nh - 1, jlo:jhi) ! ilo -> ihi
+        endif
 
-      if(num_images() > 1) sync images(set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), &
-                                        stat=sync_stat, errmsg=sync_err_msg)
-      if(sync_stat /= 0) then
-        write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", &
-          set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), "]"
-        call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                        procedure_name='apply_periodic_primitive_var_bc', &
-                        message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                        file_name=__FILE__, line_number=__LINE__)
-      end if
+        if(num_images() > 1) sync images(set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), &
+                                         stat=sync_stat, errmsg=sync_err_msg)
+        if(sync_stat /= 0) then
+          write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", &
+            set([${F}$%host_image_id, neighbors(ilo_neighbor), neighbors(ihi_neighbor)]), "]"
+          call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                         procedure_name='apply_periodic_primitive_var_bc', &
+                         message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                         file_name=__FILE__, line_number=__LINE__)
+        endif
 
-      ! Get from the coarray buffer
-      if(${F}$%on_ihi_bc) ${F}$%data(ihi + 1:ihi_halo, jlo:jhi) = ihi_edge
-      if(${F}$%on_ilo_bc) ${F}$%data(ilo_halo:ilo - 1, jlo:jhi) = ilo_edge
-      ! endif ! on ilo or ihi bc
+        ! Get from the coarray buffer
+        if(${F}$%on_ihi_bc) ${F}$%data(ihi + 1:ihi_halo, jlo:jhi) = ihi_edge
+        if(${F}$%on_ilo_bc) ${F}$%data(ilo_halo:ilo - 1, jlo:jhi) = ilo_edge
+        ! endif ! on ilo or ihi bc
 
-    case('+y', '-y')
-      ! if(${F}$%on_jlo_bc .or. ${F}$%on_jhi_bc) then
-      if(num_images() > 1) sync images(set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), &
-                                        stat=sync_stat, errmsg=sync_err_msg)
-      if(sync_stat /= 0) then
-        write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", &
-          set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), "]"
-        call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                        procedure_name='apply_periodic_primitive_var_bc', &
-                        message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                        file_name=__FILE__, line_number=__LINE__)
-      end if
+      case('+y', '-y')
+        ! if(${F}$%on_jlo_bc .or. ${F}$%on_jhi_bc) then
+        if(num_images() > 1) sync images(set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), &
+                                         stat=sync_stat, errmsg=sync_err_msg)
+        if(sync_stat /= 0) then
+          write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", &
+            set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), "]"
+          call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                         procedure_name='apply_periodic_primitive_var_bc', &
+                         message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                         file_name=__FILE__, line_number=__LINE__)
+        endif
 
-      ! Put to the coarray buffer
-      if(${F}$%on_jlo_bc .or. ${F}$%on_jhi_bc) then
-        jlo_edge(:, :)[neighbors(jhi_neighbor)] = ${F}$%data(ilo:ihi, jhi - nh + 1:jhi) ! jhi -> jlo
-        jhi_edge(:, :)[neighbors(jlo_neighbor)] = ${F}$%data(ilo:ihi, jlo:jlo + nh - 1) ! jlo -> jhi
-      endif
+        ! Put to the coarray buffer
+        if(${F}$%on_jlo_bc .or. ${F}$%on_jhi_bc) then
+          jlo_edge(:, :)[neighbors(jhi_neighbor)] = ${F}$%data(ilo:ihi, jhi - nh + 1:jhi) ! jhi -> jlo
+          jhi_edge(:, :)[neighbors(jlo_neighbor)] = ${F}$%data(ilo:ihi, jlo:jlo + nh - 1) ! jlo -> jhi
+        endif
 
-      if(num_images() > 1) sync images(set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), &
-                                        stat=sync_stat, errmsg=sync_err_msg)
-      if(sync_stat /= 0) then
-        write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", &
-          set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), "]"
-        call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                        procedure_name='apply_periodic_primitive_var_bc', &
-                        message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                        file_name=__FILE__, line_number=__LINE__)
-      end if
+        if(num_images() > 1) sync images(set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), &
+                                         stat=sync_stat, errmsg=sync_err_msg)
+        if(sync_stat /= 0) then
+          write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", &
+            set([${F}$%host_image_id, neighbors(jlo_neighbor), neighbors(jhi_neighbor)]), "]"
+          call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                         procedure_name='apply_periodic_primitive_var_bc', &
+                         message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                         file_name=__FILE__, line_number=__LINE__)
+        endif
 
-      ! Get from the coarray buffer
-      if(${F}$%on_jlo_bc) ${F}$%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
-      if(${F}$%on_jhi_bc) ${F}$%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
-      ! endif ! on jlo or jhi bc
-    end select
+        ! Get from the coarray buffer
+        if(${F}$%on_jlo_bc) ${F}$%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
+        if(${F}$%on_jhi_bc) ${F}$%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
+        ! endif ! on jlo or jhi bc
+      endselect
 
-    if(self%do_corners) then
-      ! if((${F}$%on_ilo_bc .and. ${F}$%on_jlo_bc) .or. &
-      !    (${F}$%on_ihi_bc .and. ${F}$%on_jlo_bc) .or. &
-      !    (${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) .or. &
-      !    (${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc)) then
+      if(self%do_corners) then
+        ! if((${F}$%on_ilo_bc .and. ${F}$%on_jlo_bc) .or. &
+        !    (${F}$%on_ihi_bc .and. ${F}$%on_jlo_bc) .or. &
+        !    (${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) .or. &
+        !    (${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc)) then
 
-      if(num_images() > 1) sync images(set([${F}$%host_image_id, &
-                                            neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
-                                            neighbors(ihi_jlo_neighbor), neighbors(ihi_jhi_neighbor)]), &
-                                        stat=sync_stat, errmsg=sync_err_msg)
-      if(sync_stat /= 0) then
-        write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", set([${F}$%host_image_id, &
-                                                                  neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
-                                                                  neighbors(ihi_jlo_neighbor), neighbors(ihi_jhi_neighbor)]), "]"
-        call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                        procedure_name='apply_periodic_primitive_var_bc', &
-                        message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                        file_name=__FILE__, line_number=__LINE__)
-      end if
+        if(num_images() > 1) sync images(set([${F}$%host_image_id, &
+                                              neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
+                                              neighbors(ihi_jlo_neighbor), neighbors(ihi_jhi_neighbor)]), &
+                                         stat=sync_stat, errmsg=sync_err_msg)
+        if(sync_stat /= 0) then
+          write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", set([${F}$%host_image_id, &
+                                                                    neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
+                                                                    neighbors(ihi_jlo_neighbor), neighbors(ihi_jhi_neighbor)]), "]"
+          call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                         procedure_name='apply_periodic_primitive_var_bc', &
+                         message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                         file_name=__FILE__, line_number=__LINE__)
+        endif
 
-      ! Put to the coarray buffer
-      if((${F}$%on_ilo_bc .and. ${F}$%on_jlo_bc) .or. &
-         (${F}$%on_ihi_bc .and. ${F}$%on_jlo_bc) .or. &
-         (${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) .or. &
-         (${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc)) then
-        ilo_jlo_corner(:, :)[neighbors(ihi_jhi_neighbor)] = ${F}$%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1) ! ihi_jhi -> ilo_jlo
-        ihi_jlo_corner(:, :)[neighbors(ilo_jhi_neighbor)] = ${F}$%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1) ! ilo_jhi -> ihi_jlo
-        ilo_jhi_corner(:, :)[neighbors(ihi_jlo_neighbor)] = ${F}$%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi) ! ihi_jlo -> ilo_jhi
-        ihi_jhi_corner(:, :)[neighbors(ilo_jlo_neighbor)] = ${F}$%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi) ! ilo_jlo -> ihi_jhi
-      endif
+        ! Put to the coarray buffer
+        if((${F}$%on_ilo_bc .and. ${F}$%on_jlo_bc) .or. &
+           (${F}$%on_ihi_bc .and. ${F}$%on_jlo_bc) .or. &
+           (${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) .or. &
+           (${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc)) then
+          ilo_jlo_corner(:, :)[neighbors(ihi_jhi_neighbor)] = ${F}$%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1) ! ihi_jhi -> ilo_jlo
+          ihi_jlo_corner(:, :)[neighbors(ilo_jhi_neighbor)] = ${F}$%data(ihi - nh + 1:ihi, jlo:jlo + nh - 1) ! ilo_jhi -> ihi_jlo
+          ilo_jhi_corner(:, :)[neighbors(ihi_jlo_neighbor)] = ${F}$%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi) ! ihi_jlo -> ilo_jhi
+          ihi_jhi_corner(:, :)[neighbors(ilo_jlo_neighbor)] = ${F}$%data(ihi - nh + 1:ihi, jhi - nh + 1:jhi) ! ilo_jlo -> ihi_jhi
+        endif
 
-      if(num_images() > 1) sync images(set([${F}$%host_image_id, &
-                                            neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
-                                            neighbors(ihi_jlo_neighbor), neighbors(ihi_jhi_neighbor)]), &
-                                        stat=sync_stat, errmsg=sync_err_msg)
-      if(sync_stat /= 0) then
-        write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", set([${F}$%host_image_id, &
-                                                                  neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
-                                                                  neighbors(ihi_jlo_neighbor), neighbors(ihi_jhi_neighbor)]), "]"
-        call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
-                        procedure_name='apply_periodic_primitive_var_bc', &
-                        message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
-                        file_name=__FILE__, line_number=__LINE__)
-      end if
+        if(num_images() > 1) sync images(set([${F}$%host_image_id, &
+                                              neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
+                                              neighbors(ihi_jlo_neighbor), neighbors(ihi_jhi_neighbor)]), &
+                                         stat=sync_stat, errmsg=sync_err_msg)
+        if(sync_stat /= 0) then
+          write(img_err_msg, '(a,10(i0, 1x), a)') "Images: [", set([${F}$%host_image_id, &
+                                                                    neighbors(ilo_jlo_neighbor), neighbors(ilo_jhi_neighbor), &
+                                                                    neighbors(ihi_jlo_neighbor), neighbors(ihi_jhi_neighbor)]), "]"
+          call error_msg(module_name='mod_periodic_bc', class_name='periodic_bc_t', &
+                         procedure_name='apply_periodic_primitive_var_bc', &
+                         message="Unable to sync "//trim(img_err_msg)//", sync_err_msg: '"//trim(sync_err_msg)//"'", &
+                         file_name=__FILE__, line_number=__LINE__)
+        endif
 
-      ! Get from the coarray buffer
-      if(${F}$%on_ilo_bc .and. ${F}$%on_jlo_bc) ${F}$%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = ihi_jhi_corner
-      if(${F}$%on_ihi_bc .and. ${F}$%on_jlo_bc) ${F}$%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = ilo_jhi_corner
-      if(${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) ${F}$%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = ihi_jlo_corner
-      if(${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc) ${F}$%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = ilo_jlo_corner
+        ! Get from the coarray buffer
+        if(${F}$%on_ilo_bc .and. ${F}$%on_jlo_bc) ${F}$%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = ihi_jhi_corner
+        if(${F}$%on_ihi_bc .and. ${F}$%on_jlo_bc) ${F}$%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = ilo_jhi_corner
+        if(${F}$%on_ilo_bc .and. ${F}$%on_jhi_bc) ${F}$%data(ilo_halo:ilo - 1, jhi + 1:jhi_halo) = ihi_jlo_corner
+        if(${F}$%on_ihi_bc .and. ${F}$%on_jhi_bc) ${F}$%data(ihi + 1:ihi_halo, jhi + 1:jhi_halo) = ilo_jlo_corner
 
-      ! endif
-    end if ! do_corners
+        ! endif
+      endif ! do_corners
 
     #:endfor
-  end subroutine apply_periodic_primitive_var_bc
+  endsubroutine apply_periodic_primitive_var_bc
 
   subroutine finalize(self)
     type(periodic_bc_t), intent(inout) :: self
@@ -280,6 +280,6 @@ contains
     if(allocated(self%ihi_ghost)) deallocate(self%ihi_ghost)
     if(allocated(self%jlo_ghost)) deallocate(self%jlo_ghost)
     if(allocated(self%jhi_ghost)) deallocate(self%jhi_ghost)
-  end subroutine
+  endsubroutine
 
-end module mod_periodic_bc
+endmodule mod_periodic_bc

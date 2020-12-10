@@ -81,11 +81,11 @@ module mod_regular_2d_grid
     procedure, public :: print_grid_stats
     final :: force_finalization
 
-  end type regular_2d_grid_t
+  endtype regular_2d_grid_t
 
   interface new_regular_2d_grid
     module procedure :: constructor
-  end interface
+  endinterface
 contains
 
   function constructor(input) result(grid)
@@ -93,7 +93,7 @@ contains
     class(input_t), intent(in) :: input
     allocate(grid)
     call grid%initialize(input)
-  end function constructor
+  endfunction constructor
 
   subroutine initialize(self, input)
     !< Implementation of the grid initialization process for a regular 2d grid
@@ -114,7 +114,7 @@ contains
     else
       write(*, '(a)') 'Initializing the grid via .ini'
       call self%initialize_from_ini(input)
-    end if
+    endif
 
     ! Allocate cell based arrays
     associate(imin => self%ilo_bc_cell, imax => self%ihi_bc_cell, &
@@ -155,7 +155,7 @@ contains
       allocate(self%cell_node_y(1:8, imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%cell_node_y"
       self%cell_node_y = 0.0_rk
-    end associate
+    endassociate
 
     ! Allocate the edge vector arrays
     associate(imin_node => self%ilo_node, imax_node => self%ihi_node, &
@@ -180,7 +180,7 @@ contains
 
       allocate(self%leftright_midpoint_edge_vectors_scale(imin_cell:imax_cell, jmin_node:jmax_node), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%leftright_midpoint_edge_vectors_scale"
-    end associate
+    endassociate
 
     call self%populate_element_specifications()
 
@@ -191,7 +191,7 @@ contains
     call self%get_midpoint_persistent_vectors(edge='bottom', scale=.false., shift=.false.)
 
     call self%print_grid_stats()
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine copy(out_grid, in_grid)
     class(grid_t), intent(in) :: in_grid
@@ -258,7 +258,7 @@ contains
     ! if(allocated(out_grid%cell_edge_norm_vectors)) deallocate(out_grid%cell_edge_norm_vectors)
     ! allocate(out_grid%cell_edge_norm_vectors, source=in_grid%cell_edge_norm_vectors)
     out_grid%cell_edge_norm_vectors = in_grid%cell_edge_norm_vectors
-  end subroutine copy
+  endsubroutine copy
 
   subroutine print_grid_stats(self)
     class(regular_2d_grid_t), intent(inout) :: self
@@ -301,7 +301,7 @@ contains
     write(*, '(a)') "========================="
     write(*, *)
 
-  end subroutine print_grid_stats
+  endsubroutine print_grid_stats
 
   subroutine initialize_from_hdf5(self, input)
     !< Initialize the grid from an .hdf5 file. This allows flexibility on the shape
@@ -324,7 +324,7 @@ contains
       filename = trim(input%restart_file)
     else
       filename = trim(input%initial_condition_file)
-    end if
+    endif
 
     file_exists = .false.
     inquire(file=filename, exist=file_exists)
@@ -332,7 +332,7 @@ contains
     if(.not. file_exists) then
       write(*, '(a)') 'Error in regular_2d_grid_t%initialize_from_hdf5(); file not found: "'//filename//'"'
       error stop 'Error in regular_2d_grid_t%initialize_from_hdf5(); file not found, exiting...'
-    end if
+    endif
 
     call h5%initialize(filename=filename, status='old', action='r')
 
@@ -347,7 +347,7 @@ contains
                      procedure_name='initialize_from_hdf5', &
                      message=msg, &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     call h5%get('/x', x)
     call h5%get('/y', y)
@@ -362,8 +362,8 @@ contains
         ! Do nothing, since cm is what the code works in
       case default
         error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
-      end select
-    end if
+      endselect
+    endif
 
     call h5%finalize()
 
@@ -413,11 +413,11 @@ contains
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_y from .ini input file"
       self%node_x(imin:imax, jmin:jmax) = x!(1:imax,1:jmax)
       self%node_y(imin:imax, jmin:jmax) = y!(1:imax,1:jmax)
-    end associate
+    endassociate
 
     deallocate(x)
     deallocate(y)
-  end subroutine initialize_from_hdf5
+  endsubroutine initialize_from_hdf5
 
   subroutine initialize_from_ini(self, input)
     !< Initialize the nodes from the .ini input file -> requires equal spacing
@@ -460,7 +460,7 @@ contains
 
       allocate(self%node_y(imin:imax, jmin:jmax), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate regular_2d_grid_t%node_y from .ini input file"
-    end associate
+    endassociate
 
     self%xmin = input%xmin / l_0
     self%xmax = input%xmax / l_0
@@ -484,14 +484,14 @@ contains
     do j = self%jlo_bc_node, self%jhi_bc_node
       self%node_x(:, j) = arange(start=self%xmin - self%n_ghost_layers * self%min_dx, &
                                  end=self%xmax + self%n_ghost_layers * self%min_dx, increment=self%min_dx)
-    end do
+    enddo
 
     do i = self%ilo_bc_node, self%ihi_bc_node
       self%node_y(i, :) = arange(start=self%ymin - self%n_ghost_layers * self%min_dy, &
                                  end=self%ymax + self%n_ghost_layers * self%min_dy, increment=self%min_dy)
-    end do
+    enddo
 
-  end subroutine initialize_from_ini
+  endsubroutine initialize_from_ini
 
   subroutine populate_element_specifications(self)
     !< Summary: Fill the element arrays up with the geometric information
@@ -519,7 +519,7 @@ contains
 
           call quad%initialize(x_coords, y_coords)
 
-        end associate
+        endassociate
 
         self%cell_volume(i, j) = quad%volume
         self%cell_centroid_x(i, j) = quad%centroid(1)
@@ -533,10 +533,10 @@ contains
         self%cell_edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
         self%cell_dx(i, j) = quad%min_dx
         self%cell_dy(i, j) = quad%min_dy
-      end do
-    end do
+      enddo
+    enddo
 
-  end subroutine populate_element_specifications
+  endsubroutine populate_element_specifications
 
   subroutine scale_and_nondimensionalize(self)
     !< Scale the grid so that the cells are of size close to 1. If the grid is uniform,
@@ -556,7 +556,7 @@ contains
     diff = max_edge_length - min_edge_length
     if(diff < 2.0_rk * epsilon(1.0_rk)) then
       self%grid_is_uniform = .true.
-    end if
+    endif
 
     ! Set l_0 for the entire code
     call set_length_scale(length_scale=min_edge_length)
@@ -592,7 +592,7 @@ contains
                            self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
       self%max_dy = maxval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
                            self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
-    end if
+    endif
 
     self%xmin = minval(self%node_x)
     self%xmax = maxval(self%node_x)
@@ -605,12 +605,12 @@ contains
     self%y_length = abs(self%ymax - self%ymin)
     if(self%y_length <= 0) error stop "grid%x_length <= 0"
 
-  end subroutine scale_and_nondimensionalize
+  endsubroutine scale_and_nondimensionalize
 
   subroutine force_finalization(self)
     type(regular_2d_grid_t), intent(inout) :: self
     call self%finalize()
-  end subroutine force_finalization
+  endsubroutine force_finalization
 
   subroutine finalize(self)
     class(regular_2d_grid_t), intent(inout) :: self
@@ -632,7 +632,7 @@ contains
     if(allocated(self%cell_dx)) deallocate(self%cell_dx)
     if(allocated(self%cell_dy)) deallocate(self%cell_dy)
 
-  end subroutine finalize
+  endsubroutine finalize
 
   pure function get_x(self, i, j) result(x)
     !< Public interface to get x
@@ -640,7 +640,7 @@ contains
     integer(ik), intent(in) :: i, j
     real(rk) :: x
     x = self%node_x(i, j)
-  end function get_x
+  endfunction get_x
 
   pure function get_y(self, i, j) result(y)
     !< Public interface to get y
@@ -648,7 +648,7 @@ contains
     integer(ik), intent(in) :: i, j
     real(rk) :: y
     y = self%node_y(i, j)
-  end function get_y
+  endfunction get_y
 
   pure function get_cell_volumes(self, i, j) result(cell_volume)
     !< Public interface to get cell_volume
@@ -656,7 +656,7 @@ contains
     integer(ik), intent(in) :: i, j
     real(rk) :: cell_volume
     cell_volume = self%cell_volume(i, j)
-  end function get_cell_volumes
+  endfunction get_cell_volumes
 
   pure function get_cell_edge_lengths(self, i, j, f) result(cell_edge_lengths)
     !< Public interface to get cell_edge_lengths
@@ -664,7 +664,7 @@ contains
     integer(ik), intent(in) :: i, j, f
     real(rk) :: cell_edge_lengths
     cell_edge_lengths = self%cell_edge_lengths(f, i, j)
-  end function get_cell_edge_lengths
+  endfunction get_cell_edge_lengths
 
   pure function get_cell_edge_norm_vectors(self, i, j, f, xy) result(cell_edge_norm_vectors)
     !< Public interface to get cell_edge_norm_vectors
@@ -672,7 +672,7 @@ contains
     integer(ik), intent(in) :: i, j, f, xy
     real(rk) :: cell_edge_norm_vectors
     cell_edge_norm_vectors = self%cell_edge_norm_vectors(xy, f, i, j)
-  end function get_cell_edge_norm_vectors
+  endfunction get_cell_edge_norm_vectors
 
   subroutine get_midpoint_persistent_vectors(self, edge, scale, shift)
     !< Public interface to get_midpoint_vectors
@@ -751,12 +751,12 @@ contains
           !                                                   / minval(vector_length)
           ! end if
 
-        end do
-      end do
+        enddo
+      enddo
 
       if(.not. scale) then
         self%downup_midpoint_edge_vectors_scale = 1.0_rk
-      end if
+      endif
 
     case('bottom')
       ! Bottom edge of cell (i,j)
@@ -781,33 +781,33 @@ contains
           if(shift) then
             do v = 1, 2
               self%leftright_midpoint_edge_vectors(:, v, i, j) = self%leftright_midpoint_edge_vectors(:, v, i, j) - origin
-            end do
-          end if
+            enddo
+          endif
 
           ! get the length of each vector
           if(scale) then
             do v = 1, 2
               vector_length(v) = sqrt(self%leftright_midpoint_edge_vectors(1, v, i, j)**2 + &
                                       self%leftright_midpoint_edge_vectors(2, v, i, j)**2)
-            end do
+            enddo
 
             ! scale by the smallest length
             self%leftright_midpoint_edge_vectors_scale(i, j) = minval(vector_length)
             self%leftright_midpoint_edge_vectors(:, :, i, j) = self%leftright_midpoint_edge_vectors(:, :, i, j) &
                                                                / minval(vector_length)
-          end if
-        end do
-      end do
+          endif
+        enddo
+      enddo
 
       if(.not. scale) then
         self%leftright_midpoint_edge_vectors_scale = 1.0_rk
-      end if
+      endif
 
     case default
       error stop "Invalid location for midpoint edge vector request"
-    end select
+    endselect
 
-  end subroutine get_midpoint_persistent_vectors
+  endsubroutine get_midpoint_persistent_vectors
 
   subroutine get_corner_persistent_vectors(self, scale, shift)
     !< Public interface to get_corner_vectors
@@ -886,26 +886,26 @@ contains
         if(shift) then
           do v = 1, 4
             self%corner_edge_vectors(:, v, i, j) = self%corner_edge_vectors(:, v, i, j) - origin
-          end do
-        end if
+          enddo
+        endif
 
         ! get the length of each vector
         if(scale) then
           do v = 1, 4
             vector_length(v) = sqrt(self%corner_edge_vectors(1, v, i, j)**2 + &
                                     self%corner_edge_vectors(2, v, i, j)**2)
-          end do
+          enddo
 
           ! scale by the smallest length
           self%corner_edge_vectors_scale(i, j) = minval(vector_length)
           self%corner_edge_vectors(:, :, i, j) = self%corner_edge_vectors(:, :, i, j) / minval(vector_length)
-        end if
-      end do
-    end do
+        endif
+      enddo
+    enddo
 
     if(.not. scale) then
       self%corner_edge_vectors_scale = 1.0_rk
-    end if
-  end subroutine get_corner_persistent_vectors
+    endif
+  endsubroutine get_corner_persistent_vectors
 
-end module mod_regular_2d_grid
+endmodule mod_regular_2d_grid

@@ -59,15 +59,15 @@ module linear_interpolation_module
     private
     procedure(destroy_func), deferred, public :: destroy  !< destructor
     procedure :: check_inputs
-  end type linear_interp_class
+  endtype linear_interp_class
 
   abstract interface
     pure elemental subroutine destroy_func(me)  !< interface for bspline destructor routines
       import :: linear_interp_class
       implicit none
       class(linear_interp_class), intent(inout) :: me
-    end subroutine destroy_func
-  end interface
+    endsubroutine destroy_func
+  endinterface
 
   type, extends(linear_interp_class), public :: linear_interp_1d
     !< Class for 1d linear interpolation.
@@ -81,7 +81,7 @@ module linear_interpolation_module
     procedure, public :: evaluate => interp_1d
     procedure, public :: destroy => destroy_1d
     final :: finalize_1d
-  end type linear_interp_1d
+  endtype linear_interp_1d
 
   type, extends(linear_interp_class), public :: linear_interp_2d
     !< Class for 2d linear interpolation.
@@ -97,7 +97,7 @@ module linear_interpolation_module
     procedure, public :: evaluate => interp_2d
     procedure, public :: destroy => destroy_2d
     final :: finalize_2d
-  end type linear_interp_2d
+  endtype linear_interp_2d
 
   type, extends(linear_interp_class), public :: linear_interp_3d
     !< Class for 3d linear interpolation.
@@ -115,7 +115,7 @@ module linear_interpolation_module
     procedure, public :: evaluate => interp_3d
     procedure, public :: destroy => destroy_3d
     final :: finalize_3d
-  end type linear_interp_3d
+  endtype linear_interp_3d
 
   type, extends(linear_interp_class), public :: linear_interp_4d
     !< Class for 4d linear interpolation.
@@ -135,7 +135,7 @@ module linear_interpolation_module
     procedure, public :: evaluate => interp_4d
     procedure, public :: destroy => destroy_4d
     final :: finalize_4d
-  end type linear_interp_4d
+  endtype linear_interp_4d
 
   type, extends(linear_interp_class), public :: linear_interp_5d
     !< Class for 5d linear interpolation.
@@ -157,7 +157,7 @@ module linear_interpolation_module
     procedure, public :: evaluate => interp_5d
     procedure, public :: destroy => destroy_5d
     final :: finalize_5d
-  end type linear_interp_5d
+  endtype linear_interp_5d
 
   type, extends(linear_interp_class), public :: linear_interp_6d
     !< Class for 6d linear interpolation.
@@ -181,43 +181,43 @@ module linear_interpolation_module
     procedure, public :: evaluate => interp_6d
     procedure, public :: destroy => destroy_6d
     final :: finalize_6d
-  end type linear_interp_6d
+  endtype linear_interp_6d
 
   type, extends(linear_interp_1d), public :: nearest_interp_1d
     !< Class for 1d nearest neighbor interpolation.
   contains
     procedure, public :: evaluate => nearest_1d
-  end type nearest_interp_1d
+  endtype nearest_interp_1d
 
   type, extends(linear_interp_2d), public :: nearest_interp_2d
     !< Class for 2d nearest neighbor interpolation.
   contains
     procedure, public :: evaluate => nearest_2d
-  end type nearest_interp_2d
+  endtype nearest_interp_2d
 
   type, extends(linear_interp_3d), public :: nearest_interp_3d
     !< Class for 3d nearest neighbor interpolation.
   contains
     procedure, public :: evaluate => nearest_3d
-  end type nearest_interp_3d
+  endtype nearest_interp_3d
 
   type, extends(linear_interp_4d), public :: nearest_interp_4d
     !< Class for 4d nearest neighbor interpolation.
   contains
     procedure, public :: evaluate => nearest_4d
-  end type nearest_interp_4d
+  endtype nearest_interp_4d
 
   type, extends(linear_interp_5d), public :: nearest_interp_5d
     !< Class for 5d nearest neighbor interpolation.
   contains
     procedure, public :: evaluate => nearest_5d
-  end type nearest_interp_5d
+  endtype nearest_interp_5d
 
   type, extends(linear_interp_6d), public :: nearest_interp_6d
     !< Class for 6d nearest neighbor interpolation.
   contains
     procedure, public :: evaluate => nearest_6d
-  end type nearest_interp_6d
+  endtype nearest_interp_6d
 
 contains
 !*****************************************************************************************
@@ -233,7 +233,7 @@ contains
     type(linear_interp_1d), intent(inout) :: me
     call me%destroy()
 
-  end subroutine finalize_1d
+  endsubroutine finalize_1d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -247,7 +247,7 @@ contains
     type(linear_interp_2d), intent(inout) :: me
     call me%destroy()
 
-  end subroutine finalize_2d
+  endsubroutine finalize_2d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -261,7 +261,7 @@ contains
     type(linear_interp_3d), intent(inout) :: me
     call me%destroy()
 
-  end subroutine finalize_3d
+  endsubroutine finalize_3d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -275,7 +275,7 @@ contains
     type(linear_interp_4d), intent(inout) :: me
     call me%destroy()
 
-  end subroutine finalize_4d
+  endsubroutine finalize_4d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -289,7 +289,7 @@ contains
     type(linear_interp_5d), intent(inout) :: me
     call me%destroy()
 
-  end subroutine finalize_5d
+  endsubroutine finalize_5d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -303,7 +303,7 @@ contains
     type(linear_interp_6d), intent(inout) :: me
     call me%destroy()
 
-  end subroutine finalize_6d
+  endsubroutine finalize_6d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -321,7 +321,7 @@ contains
     me%ilox = 1
     me%initialized = .false.
 
-  end subroutine destroy_1d
+  endsubroutine destroy_1d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -341,7 +341,7 @@ contains
     me%iloy = 1
     me%initialized = .false.
 
-  end subroutine destroy_2d
+  endsubroutine destroy_2d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -363,7 +363,7 @@ contains
     me%iloz = 1
     me%initialized = .false.
 
-  end subroutine destroy_3d
+  endsubroutine destroy_3d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -387,7 +387,7 @@ contains
     me%iloq = 1
     me%initialized = .false.
 
-  end subroutine destroy_4d
+  endsubroutine destroy_4d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -413,7 +413,7 @@ contains
     me%ilor = 1
     me%initialized = .false.
 
-  end subroutine destroy_5d
+  endsubroutine destroy_5d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -441,7 +441,7 @@ contains
     me%ilos = 1
     me%initialized = .false.
 
-  end subroutine destroy_6d
+  endsubroutine destroy_6d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -472,10 +472,10 @@ contains
         allocate(me%f(size(x))); me%f = f
         allocate(me%x(size(x))); me%x = x
         me%initialized = .true.
-      end if
-    end if
+      endif
+    endif
 
-  end subroutine initialize_1d
+  endsubroutine initialize_1d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -511,10 +511,10 @@ contains
         allocate(me%x(size(x))); me%x = x
         allocate(me%y(size(y))); me%y = y
         me%initialized = .true.
-      end if
-    end if
+      endif
+    endif
 
-  end subroutine initialize_2d
+  endsubroutine initialize_2d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -555,10 +555,10 @@ contains
         allocate(me%y(size(y))); me%y = y
         allocate(me%z(size(z))); me%z = z
         me%initialized = .true.
-      end if
-    end if
+      endif
+    endif
 
-  end subroutine initialize_3d
+  endsubroutine initialize_3d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -604,10 +604,10 @@ contains
         allocate(me%z(size(z))); me%z = z
         allocate(me%q(size(q))); me%q = q
         me%initialized = .true.
-      end if
-    end if
+      endif
+    endif
 
-  end subroutine initialize_4d
+  endsubroutine initialize_4d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -658,10 +658,10 @@ contains
         allocate(me%q(size(q))); me%q = q
         allocate(me%r(size(r))); me%r = r
         me%initialized = .true.
-      end if
-    end if
+      endif
+    endif
 
-  end subroutine initialize_5d
+  endsubroutine initialize_5d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -717,10 +717,10 @@ contains
         allocate(me%r(size(r))); me%r = r
         allocate(me%s(size(s))); me%s = s
         me%initialized = .true.
-      end if
-    end if
+      endif
+    endif
 
-  end subroutine initialize_6d
+  endsubroutine initialize_6d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -757,9 +757,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine interp_1d
+  endsubroutine interp_1d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -804,9 +804,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine interp_2d
+  endsubroutine interp_2d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -859,9 +859,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine interp_3d
+  endsubroutine interp_3d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -929,9 +929,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine interp_4d
+  endsubroutine interp_4d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1022,9 +1022,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine interp_5d
+  endsubroutine interp_5d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1157,9 +1157,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine interp_6d
+  endsubroutine interp_6d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1212,8 +1212,8 @@ contains
       if(present(inearest)) then
         inearest = 1
         return
-      end if
-    end if
+      endif
+    endif
 
     ihi = ilo + 1
     if(ihi >= n) then
@@ -1223,14 +1223,14 @@ contains
         iright = n
         if(present(inearest)) inearest = n
         return
-      end if
+      endif
       if(n <= 1) then
         mflag = -1
         ileft = 1
         iright = 2
         if(present(inearest)) inearest = 1
         return
-      end if
+      endif
       ilo = n - 1
       ihi = n
     endif
@@ -1249,14 +1249,14 @@ contains
             iright = n
             if(present(inearest)) inearest = n
             return
-          end if
+          endif
           ihi = n
         elseif(x >= xt(ihi)) then
           istep = istep * 2
           cycle
         endif
         exit
-      end do
+      enddo
 
     else
 
@@ -1269,10 +1269,10 @@ contains
             inearest = ileft
           else
             inearest = iright
-          end if
-        end if
+          endif
+        endif
         return
-      end if
+      endif
 ! now x <= xt(ihi). find lower bound
       istep = 1
       do
@@ -1286,13 +1286,13 @@ contains
             iright = 2
             if(present(inearest)) inearest = 1
             return
-          end if
+          endif
         elseif(x < xt(ilo)) then
           istep = istep * 2
           cycle
         endif
         exit
-      end do
+      enddo
 
     endif
 
@@ -1308,19 +1308,19 @@ contains
             inearest = ileft
           else
             inearest = iright
-          end if
-        end if
+          endif
+        endif
         return
-      end if
+      endif
 ! note. it is assumed that imid = ilo in case ihi = ilo+1
       if(x < xt(imid)) then
         ihi = imid
       else
         ilo = imid
       endif
-    end do
+    enddo
 
-  end subroutine dintrv
+  endsubroutine dintrv
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1353,9 +1353,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine nearest_1d
+  endsubroutine nearest_1d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1390,9 +1390,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine nearest_2d
+  endsubroutine nearest_2d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1429,9 +1429,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine nearest_3d
+  endsubroutine nearest_3d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1470,9 +1470,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine nearest_4d
+  endsubroutine nearest_4d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1513,9 +1513,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine nearest_5d
+  endsubroutine nearest_5d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1558,9 +1558,9 @@ contains
       if(present(istat)) istat = -1
       f = zero
 
-    end if
+    endif
 
-  end subroutine nearest_6d
+  endsubroutine nearest_6d
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1585,10 +1585,10 @@ contains
       if(x(i) == x(i + 1)) then
         unique = .false.
         exit
-      end if
-    end do
+      endif
+    enddo
 
-  end function check_if_unique
+  endfunction check_if_unique
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1685,11 +1685,11 @@ contains
             do
               j = j - 1
               if(dx(j) <= dmnmx) exit
-            end do
+            enddo
             do
               i = i + 1
               if(dx(i) >= dmnmx) exit
-            end do
+            enddo
             if(i < j) then
               tmp = dx(i)
               dx(i) = dx(j)
@@ -1700,7 +1700,7 @@ contains
             else
               exit
             endif
-          end do
+          enddo
           if(j - start > endd - j - 1) then
             stkpnt = stkpnt + 1
             stack(1, stkpnt) = start
@@ -1721,11 +1721,11 @@ contains
 
         if(stkpnt <= 0) exit
 
-      end do
+      enddo
 
-    end if
+    endif
 
-  end subroutine sort
+  endsubroutine sort
 !*****************************************************************************************
 
 !*****************************************************************************************
@@ -1780,8 +1780,8 @@ contains
       class default
 ! need at least two points for linear interpolation:
         if(size(x) == 1) ierr = 100
-      end select
-    end if
+      endselect
+    endif
 
   contains
 !*****************************************************************************************
@@ -1802,14 +1802,14 @@ contains
         if(v(i) <= v(i - 1)) then
           ierr = error_code
           exit
-        end if
-      end do
+        endif
+      enddo
 
-    end subroutine check
+    endsubroutine check
 
-  end subroutine check_inputs
+  endsubroutine check_inputs
 !*****************************************************************************************
 
 !*****************************************************************************************
-end module linear_interpolation_module
+endmodule linear_interpolation_module
 !*****************************************************************************************

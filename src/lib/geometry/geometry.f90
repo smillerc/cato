@@ -103,8 +103,8 @@ contains
     do i = 1, 2
       if(valid_intersections(i)) then
         n_intersections(1) = n_intersections(1) + 1
-      end if
-    end do
+      endif
+    enddo
     intersection_angles(1, :) = intersection_angles_per_line
     total_valid_intersections(:, 1) = valid_intersections
 
@@ -117,8 +117,8 @@ contains
     do i = 1, 2
       if(valid_intersections(i)) then
         n_intersections(2) = n_intersections(2) + 1
-      end if
-    end do
+      endif
+    enddo
     intersection_angles(2, :) = intersection_angles_per_line
     total_valid_intersections(:, 2) = valid_intersections
 
@@ -128,7 +128,7 @@ contains
                              n_intersections=n_intersections, &
                              theta_start_end=arc_segments, n_arcs=n_arcs)
 
-  end subroutine find_arc_segments
+  endsubroutine find_arc_segments
 
   pure subroutine get_theta_start_end(thetas, origin_in_cell, valid_intersections, n_intersections, theta_start_end, n_arcs)
     !< Find the starting and ending angle of the arc
@@ -154,14 +154,14 @@ contains
           n_arcs = 1
           theta_ib(1) = 0.0_rk
           theta_ie(1) = 2.0_rk * pi
-        end if
+        endif
       else ! origin not in cell
         if(n1 == 0 .and. n2 == 0) then
           n_arcs = 0
           theta_ib = 0.0_rk
           theta_ie = 0.0_rk
-        end if
-      end if
+        endif
+      endif
 
       if(n1 == 0 .and. n2 == 2) then
         n_arcs = 1
@@ -190,8 +190,8 @@ contains
         if(theta_ie(1) < theta_ib(1)) then
           if(theta_ie(1) < 0.0_rk) then
             theta_ie(1) = theta_ie(1) + 2 * pi
-          end if
-        end if
+          endif
+        endif
 
         theta_ib(2) = thetas(1, 2)
         theta_ie(2) = thetas(2, 2)
@@ -199,13 +199,13 @@ contains
         if(theta_ie(2) < theta_ib(2)) then
           if(theta_ie(2) < 0.0_rk) then
             theta_ie(2) = theta_ie(2) + 2 * pi
-          end if
-        end if
+          endif
+        endif
 
-      end if ! if there are intersections
+      endif ! if there are intersections
 
-    end associate
-  end subroutine get_theta_start_end
+    endassociate
+  endsubroutine get_theta_start_end
 
   pure subroutine super_circle(origins, radii, new_origin, new_radius)
     !< Given 2 circles with origins and radii, find a new circle that will
@@ -233,12 +233,12 @@ contains
         d = norm2(x2 - x1)
         new_radius = ((r1 + r2 + d) / 2.0_rk)
         new_origin = x1 + (new_radius - r1) * (x2 - x1) / d
-      end associate
-    end if
+      endassociate
+    endif
 
     ! if(abs(new_origin(1)) < TINY_DIST) new_origin(1) = 0.0_rk
     ! if(abs(new_origin(2)) < TINY_DIST) new_origin(2) = 0.0_rk
-  end subroutine super_circle
+  endsubroutine super_circle
 
   logical pure function circle_inside_circle(origins, radii) result(is_inside)
     !< Given 2 circles with origins and radii, determine if the 2nd circle is
@@ -254,7 +254,7 @@ contains
       smaller_circle = 2
     else
       smaller_circle = 1
-    end if
+    endif
 
     associate(x1 => origins(1, larger_circle), y1 => origins(2, larger_circle), &
               x2 => origins(1, smaller_circle), y2 => origins(2, smaller_circle), &
@@ -270,9 +270,9 @@ contains
           is_inside = .true.
         else
           is_inside = .false.
-        end if
-      end if
-    end associate
-  end function circle_inside_circle
+        endif
+      endif
+    endassociate
+  endfunction circle_inside_circle
 
-end module mod_geometry
+endmodule mod_geometry

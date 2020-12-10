@@ -41,7 +41,7 @@ module mod_grid_block_2d
 
     ! Finalize
     final :: finalize_2d_block
-  end type grid_block_2d_t
+  endtype grid_block_2d_t
 
 contains
   function new_2d_grid_block(input) result(grid)
@@ -49,7 +49,7 @@ contains
     class(input_t), intent(in) :: input
     allocate(grid)
     call grid%initialize(input)
-  end function new_2d_grid_block
+  endfunction new_2d_grid_block
 
   subroutine init_2d_block(self, input)
     class(grid_block_2d_t), intent(inout) :: self
@@ -108,7 +108,7 @@ contains
               jlo => self%lbounds_halo(2), jhi => self%ubounds_halo(2) + 1)
       allocate(self%node_x(ilo:ihi, jlo:jhi))  !< (i, j); x location of each node
       allocate(self%node_y(ilo:ihi, jlo:jhi))  !< (i, j); y location of each node
-    end associate
+    endassociate
 
     ! Allocate all of the cell-based arrays
     associate(ilo => self%lbounds_halo(1), ihi => self%ubounds_halo(1), &
@@ -120,7 +120,7 @@ contains
       allocate(self%centroid_y(ilo:ihi, jlo:jhi))              !< (i, j); y location of the cell centroid
       allocate(self%edge_lengths(4, ilo:ihi, jlo:jhi))         !< ((edge_1:edge_n), i, j); length of each edge
       allocate(self%edge_norm_vectors(2, 4, ilo:ihi, jlo:jhi)) !< ((x,y), edge, i, j);
-    end associate
+    endassociate
 
     self%volume = 0.0_rk
     self%dx = 0.0_rk
@@ -135,7 +135,7 @@ contains
     call self%read_from_h5(input)
     call self%populate_element_specifications()
     call self%scale_and_nondimensionalize()
-  end subroutine init_2d_block
+  endsubroutine init_2d_block
 
   subroutine print_grid_stats(self)
     class(grid_block_2d_t), intent(in) :: self
@@ -153,8 +153,8 @@ contains
       write(*, '(a, i0)') "Number of i cells: ", self%global_dims(1)
       write(*, '(a, i0)') "Number of j cells: ", self%global_dims(2)
       write(*, '(a, i0)') "Total cells      : ", size(self%global_dims)
-    end if
-  end subroutine print_grid_stats
+    endif
+  endsubroutine print_grid_stats
 
   subroutine finalize_2d_block(self)
     type(grid_block_2d_t), intent(inout) :: self
@@ -168,7 +168,7 @@ contains
     if(allocated(self%centroid_y)) deallocate(self%centroid_y)
     if(allocated(self%edge_lengths)) deallocate(self%edge_lengths)
     if(allocated(self%edge_norm_vectors)) deallocate(self%edge_norm_vectors)
-  end subroutine
+  endsubroutine
 
   ! --------------------------------------------------------------------
   ! I/O for HDF5
@@ -195,7 +195,7 @@ contains
       filename = trim(input%restart_file)
     else
       filename = trim(input%initial_condition_file)
-    end if
+    endif
 
     file_exists = .false.
     inquire(file=filename, exist=file_exists)
@@ -205,7 +205,7 @@ contains
                      procedure_name='read_from_h5', &
                      message='Error in regular_2d_grid_t%initialize_from_hdf5(); file not found: "'//filename//'"', &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     call h5%initialize(filename=trim(filename), status='old', action='r')
 
@@ -218,23 +218,22 @@ contains
                      procedure_name='read_from_h5', &
                      message=msg, &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     ! I couldn't get the slice read to work, so we read the whole array
     ! in and extract the slice later
     call h5%shape('/x', dims)
     allocate(x(dims(1), dims(2)))
-    
 
     associate(ilo => self%lbounds_halo(1), ihi => self%ubounds_halo(1), &
               jlo => self%lbounds_halo(2), jhi => self%ubounds_halo(2), &
               nh => self%n_halo_cells)
       call h5%read(dname='/x', value=x)
       self%node_x(ilo:ihi + 1, jlo:jhi + 1) = x(ilo + nh:ihi + 1 + nh, jlo + nh:jhi + 1 + nh)
-      
+
       call h5%read(dname='/y', value=x)
       self%node_y(ilo:ihi + 1, jlo:jhi + 1) = x(ilo + nh:ihi + 1 + nh, jlo + nh:jhi + 1 + nh)
-    end associate
+    endassociate
 
     if(input%restart_from_file) then
       call h5%readattr('/x', 'units', str_buff)
@@ -246,11 +245,11 @@ contains
         ! Do nothing, since cm is what the code works in
       case default
         error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
-      end select
-    end if
+      endselect
+    endif
 
     call h5%finalize()
-  end subroutine read_from_h5
+  endsubroutine read_from_h5
 
   subroutine write_to_h5(self, filename, dataset)
     !< Write the global data to an hdf5 file. This gathers all to image 1 and
@@ -268,7 +267,7 @@ contains
     call h5%write(dname='/volume', value=self%gather(var='volume', image=1))
 
     call h5%finalize()
-  end subroutine write_to_h5
+  endsubroutine write_to_h5
 
   function gather(self, var, image)
     !< Performs a gather of field data to image.
@@ -299,7 +298,7 @@ contains
                        procedure_name='apply_periodic_primitive_var_bc', &
                        message="Unable to allocate , alloc_err_msg: '"//trim(alloc_err_msg)//"'", &
                        file_name=__FILE__, line_number=__LINE__)
-      end if
+      endif
 
       ilo = self%lbounds(1)
       ihi = self%ubounds(1) + 1
@@ -310,7 +309,7 @@ contains
         gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_x(ilo:ihi, jlo:jhi)
       case('y')
         gather_coarray(ilo:ihi, jlo:jhi)[image] = self%node_y(ilo:ihi, jlo:jhi)
-      end select
+      endselect
 
       sync all
       if(this_image() == image) gather = gather_coarray
@@ -332,10 +331,10 @@ contains
       sync all
       if(this_image() == image) gather = gather_coarray
 
-    end select
+    endselect
 
     if(allocated(gather_coarray)) deallocate(gather_coarray)
-  end function gather
+  endfunction gather
 
   subroutine populate_element_specifications(self)
     !< Summary: Fill the element arrays up with the geometric information
@@ -363,7 +362,7 @@ contains
 
           call quad%initialize(x_coords, y_coords)
 
-        end associate
+        endassociate
 
         self%volume(i, j) = quad%volume
         self%centroid_x(i, j) = quad%centroid(1)
@@ -377,10 +376,10 @@ contains
         self%edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
         self%dx(i, j) = quad%min_dx
         self%dy(i, j) = quad%min_dy
-      end do
-    end do
+      enddo
+    enddo
 
-  end subroutine populate_element_specifications
+  endsubroutine populate_element_specifications
 
   subroutine scale_and_nondimensionalize(self)
     !< Scale the grid so that the cells are of size close to 1. If the grid is uniform,
@@ -409,7 +408,7 @@ contains
     diff = max_edge_length - min_edge_length
     if(diff < 2.0_rk * epsilon(1.0_rk)) then
       self%is_uniform = .true.
-    end if
+    endif
 
     ! Set l_0 for the entire code
     call set_length_scale(length_scale=min_edge_length)
@@ -445,7 +444,7 @@ contains
       !                     self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
       ! self%max_dy = maxval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
       !                     self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
-    end if
+    endif
 
     ! self%xmin = minval(self%node_x)
     ! self%xmax = maxval(self%node_x)
@@ -458,5 +457,5 @@ contains
     ! self%y_length = abs(self%ymax - self%ymin)
     ! if(self%y_length <= 0) error stop "grid%x_length <= 0"
 
-  end subroutine scale_and_nondimensionalize
-end module
+  endsubroutine scale_and_nondimensionalize
+endmodule

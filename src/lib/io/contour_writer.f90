@@ -70,11 +70,11 @@ module mod_contour_writer
     procedure, private :: write_2d_integer_data
     procedure, private :: write_2d_real_data
     final :: finalize
-  end type
+  endtype
 
   interface contour_writer_t
     module procedure :: constructor
-  end interface
+  endinterface
 contains
 
   type(contour_writer_t) function constructor(input) result(writer)
@@ -98,7 +98,7 @@ contains
         'results_', dt(1), '_', dt(2), '_', dt(3), '-', dt(5), '_', dt(6)
     else
       str_buff = 'results'
-    end if
+    endif
 
     writer%results_folder = trim(str_buff)
     call execute_command_line('mkdir -p '//writer%results_folder, exitstat=estat, cmdstat=cstat, cmdmsg=cmsg)
@@ -108,7 +108,7 @@ contains
     else if(cstat < 0) then
       write(*, '(a)') "Unable to make results folder"
       error stop "Unable to make results folder"
-    end if
+    endif
 
     writer%format = input%contour_io_format
 
@@ -128,14 +128,14 @@ contains
       write(*, *)
     endif
 
-  end function
+  endfunction
 
   subroutine finalize(self)
     type(contour_writer_t), intent(inout) :: self
     if(allocated(self%format)) deallocate(self%format)
     if(allocated(self%hdf5_filename)) deallocate(self%hdf5_filename)
     if(allocated(self%xdmf_filename)) deallocate(self%xdmf_filename)
-  end subroutine
+  endsubroutine
 
   subroutine write_contour(self, master, iteration)
     class(contour_writer_t), intent(inout) :: self
@@ -170,7 +170,7 @@ contains
       self%ihi_node = master%grid%ubounds(1) + 1
       self%jlo_node = master%grid%lbounds(2)
       self%jhi_node = master%grid%ubounds(2) + 1
-    end if
+    endif
 
     if(this_image() == 1) write(*, '(a,a)') "Saving contour file: "//self%hdf5_filename
     select case(self%format)
@@ -183,9 +183,9 @@ contains
       call error_msg(module_name='mod_contour_writer', class_name='contour_writer_t', procedure_name='write_contour', &
                      message="Unsupported I/O contour format'"//self%format//"' (must be .xdmf .h5 or .hdf5)", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
-  end subroutine write_contour
+  endsubroutine write_contour
 
   subroutine write_hdf5(self, master, time, iteration)
     class(contour_writer_t), intent(inout) :: self
@@ -237,7 +237,7 @@ contains
       call self%hdf5_file%writeattr('/cato_info', 'compile_hostname', compile_host)
       call self%hdf5_file%writeattr('/cato_info', 'compile_os', compile_os)
       call self%hdf5_file%writeattr('/cato_info', 'build_type', build_type)
-    end if
+    endif
 
     ! Node Data
     dataset_name = '/x'
@@ -245,14 +245,14 @@ contains
     if(this_image() == 1) then
       io_data_buffer = io_data_buffer * l_0 * io_length_units
       call self%write_2d_real_data(data=io_data_buffer, name='/x', description='X Coordinate', units=trim(io_length_label))
-    end if
+    endif
 
     dataset_name = '/y'
     io_data_buffer = master%grid%gather(var='y', image=1)
     if(this_image() == 1) then
       io_data_buffer = io_data_buffer * l_0 * io_length_units
       call self%write_2d_real_data(data=io_data_buffer, name='/y', description='Y Coordinate', units=trim(io_length_label))
-    end if
+    endif
 
     if(allocated(io_data_buffer)) deallocate(io_data_buffer)
 
@@ -283,7 +283,7 @@ contains
 
       int_gather_coarray(ilo:ihi, jlo:jhi)[1] = master%fluid%rho%host_image_id
       sync all
-    end associate
+    endassociate
 
     if(this_image() == 1) then
       int_data_buffer = int_gather_coarray
@@ -297,7 +297,7 @@ contains
       int_data_buffer = 0
       do i = ilo, ihi
         int_data_buffer(i, :) = i
-      end do
+      enddo
 
       call self%write_2d_integer_data(data=int_data_buffer, name='/i', &
                                       description='Cell i Index', units='dimensionless')
@@ -308,7 +308,7 @@ contains
       int_data_buffer = 0
       do j = jlo, jhi
         int_data_buffer(:, j) = j
-      end do
+      enddo
       call self%write_2d_integer_data(data=int_data_buffer, name='/j', &
                                       description='Cell j Index', units='dimensionless')
     endif
@@ -354,7 +354,7 @@ contains
     if(allocated(int_data_buffer)) deallocate(int_data_buffer)
     if(allocated(io_data_buffer)) deallocate(io_data_buffer)
     if(this_image() == 1) call self%hdf5_file%finalize()
-  end subroutine write_hdf5
+  endsubroutine write_hdf5
 
   subroutine write_xdmf(self, master, time, iteration)
     class(contour_writer_t), intent(inout) :: self
@@ -484,7 +484,7 @@ contains
 
     if(allocated(cell_shape)) deallocate(cell_shape)
     if(allocated(node_shape)) deallocate(node_shape)
-  end subroutine write_xdmf
+  endsubroutine write_xdmf
 
   subroutine write_2d_integer_data(self, data, name, description, units)
     !< Helper subroutine to write data to the hdf5 file.
@@ -497,7 +497,7 @@ contains
     call self%hdf5_file%add(name, data)
     call self%hdf5_file%writeattr(name, 'description', trim(description))
     call self%hdf5_file%writeattr(name, 'units', trim(units))
-  end subroutine write_2d_integer_data
+  endsubroutine write_2d_integer_data
 
   subroutine write_2d_real_data(self, data, name, description, units)
     !< Helper subroutine to write data to the hdf5 file.
@@ -531,16 +531,16 @@ contains
             single_prec_data(i, j) = 0.0_rk
           else
             single_prec_data(i, j) = real(data(i, j), real32)
-          end if
-        end do
-      end do
+          endif
+        enddo
+      enddo
 
       call self%hdf5_file%add(name, single_prec_data)
 
       deallocate(single_prec_data)
-    end if
+    endif
 
     call self%hdf5_file%writeattr(name, 'description', trim(description))
     call self%hdf5_file%writeattr(name, 'units', trim(units))
-  end subroutine write_2d_real_data
-end module mod_contour_writer
+  endsubroutine write_2d_real_data
+endmodule mod_contour_writer

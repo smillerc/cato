@@ -112,7 +112,7 @@ contains
         cs_b = first_term * (1.0_rk + cos_theta * sqrt(second_term - third_term))
       else
         cs_b = first_term
-      end if
+      endif
 
       R_plus = v_dot_n + (2.0_rk * cs_b / (gamma - 1.0_rk))
       v_tot_b = (2.0_rk * cs_b / (gamma - 1.0_rk)) - R_plus
@@ -124,11 +124,11 @@ contains
       p_b = p_0 * (1.0_rk + 0.5_rk * (gamma - 1.0_rk) * mach_b**2)**(-gamma / (gamma - 1.0_rk))
       rho_b = rho_0 * (1.0_rk + 0.5_rk * (gamma - 1.0_rk) * mach_b**2)**(-1.0_rk / (gamma - 1.0_rk))
 
-    end associate
+    endassociate
 
     boundary_prim_vars = [rho_b, u_b, v_b, p_b]
 
-  end function subsonic_inlet
+  endfunction subsonic_inlet
 
   pure function subsonic_outlet(domain_prim_vars, exit_pressure, boundary_norm) result(boundary_prim_vars)
     !< Set the boundary to be a subsonic outlet. The only input parameter is the exit pressure
@@ -157,23 +157,23 @@ contains
       rho_b = rho_d + (p_b - p_d) / cs_d**2
       u_b = u_d + n_x * (p_d - p_b) / (rho_d * cs_d)
       v_b = v_d + n_y * (p_d - p_b) / (rho_d * cs_d)
-    end associate
+    endassociate
 
     boundary_prim_vars = [rho_b, u_b, v_b, p_b]
 
-  end function subsonic_outlet
+  endfunction subsonic_outlet
 
   pure function supersonic_inlet(inlet_prim_vars) result(boundary_prim_vars)
     real(rk), dimension(4) :: boundary_prim_vars !< (rho, u, v, p); primitive vars at the boundary
     real(rk), dimension(4), intent(in) :: inlet_prim_vars !< (rho, u, v, p); primitive vars specified at the inlet
 
     boundary_prim_vars = inlet_prim_vars
-  end function supersonic_inlet
+  endfunction supersonic_inlet
 
   pure function supersonic_outlet(domain_prim_vars) result(boundary_prim_vars)
     real(rk), dimension(4) :: boundary_prim_vars !< (rho, u, v, p); primitive vars at the boundary
     real(rk), dimension(4), intent(in) :: domain_prim_vars !< (rho, u, v, p); primitive vars w/in the domain (real values)
 
     boundary_prim_vars = domain_prim_vars
-  end function supersonic_outlet
-end module mod_inlet_outlet
+  endfunction supersonic_outlet
+endmodule mod_inlet_outlet

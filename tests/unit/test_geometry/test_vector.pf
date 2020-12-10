@@ -16,7 +16,7 @@ contains
     norm_vec = .unitnorm.vec
     @assertEqual(1.0_rk, norm_vec%length)
 
-  end subroutine test_vector_stats
+  endsubroutine test_vector_stats
 
   @test
   subroutine test_from_2d()
@@ -26,7 +26,7 @@ contains
     vec1d = vector_t(x=2.0_rk, y=2.0_rk)
     @assertEqual(vec2d%length, vec1d%length)
 
-  end subroutine test_from_2d
+  endsubroutine test_from_2d
 
   @test
   subroutine test_cross_product()
@@ -36,7 +36,7 @@ contains
     vec2 = vector_t(x=1, y=5)
 
     @assertEqual(8.0_rk, vec1.cross.vec2)
-  end subroutine test_cross_product
+  endsubroutine test_cross_product
 
   @test
   subroutine test_dot_product()
@@ -46,6 +46,6 @@ contains
     vec2 = vector_t(x=1, y=5)
 
     @assertEqual(12.0_rk, vec1.dot.vec2)
-  end subroutine test_dot_product
+  endsubroutine test_dot_product
 
-end module test_vector
+endmodule test_vector

@@ -33,7 +33,7 @@ module mod_vector_2d
   contains
     procedure, public :: initialize
     ! procedure, private :: unit_normal
-  end type
+  endtype
 
   ! constructor
   ! interface vector_2d_t
@@ -42,7 +42,7 @@ module mod_vector_2d
 
   interface operator(.unitnorm.)
     module procedure unit_normal
-  end interface
+  endinterface
 
   ! interface operator(.cross.)
   !   module procedure cross_product
@@ -63,7 +63,7 @@ contains
     self%x = x_coords
     self%y = y_coords
     self%length = sqrt((self%x(2) - self%x(1))**2 + (self%y(2) - self%y(1))**2)
-  end subroutine
+  endsubroutine
 
   ! pure type(vector_2d_t) function make_vector(x_coords, y_coords) result(vec)
   !   !< Constructor for vector_2d_t
@@ -87,6 +87,6 @@ contains
     vec_at_origin = vec_at_origin / norm2(vec_at_origin)
     call norm_vec%initialize(x_coords=[vec%x(1), vec%x(1) + vec_at_origin(1)], y_coords=[vec%y(1), vec%y(1) + vec_at_origin(2)])
 
-  end function
+  endfunction
 
-end module mod_vector_2d
+endmodule mod_vector_2d

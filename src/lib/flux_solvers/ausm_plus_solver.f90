@@ -71,7 +71,7 @@ module mod_ausm_plus_solver
 
     ! Operators
     generic :: assignment(=) => copy
-  end type ausm_plus_solver_t
+  endtype ausm_plus_solver_t
 
 contains
 
@@ -102,14 +102,14 @@ contains
 
       error stop "Unknown variant of the AUSM+ family, must be one of the following"// &
         "['AUSM+-u', 'AUSM+-up','AUSM+-up_all_speed']"
-    end select
+    endselect
 
     if(input%ausm_beta < (-1.0_rk / 16.0_rk) .or. input%ausm_beta > 0.5_rk) then
       error stop "Invalid value of input%ausm_beta in ausm_plus_solver_t%initialize_ausm_plus(); "// &
         "beta must be in the interval -1/16 <= beta <= 1/2"
     else
       self%mach_split_beta = input%ausm_beta
-    end if
+    endif
 
     if(input%ausm_pressure_diffusion_coeff < 0.0_rk .or. input%ausm_pressure_diffusion_coeff > 1.0_rk) then
       error stop "Invalid value of the input%ausm_pressure_diffusion_coeff (K_p) "// &
@@ -117,7 +117,7 @@ contains
         "K_p must be in the interval 0 <= K_p <= 1"
     else
       self%pressure_diffusion_coeff = input%ausm_pressure_diffusion_coeff
-    end if
+    endif
 
     if(input%ausm_sonic_point_sigma < 0.25_rk .or. input%ausm_sonic_point_sigma > 1.0_rk) then
       error stop "Invalid value of the sonic point resolution parameter input%ausm_sonic_point_sigma in "// &
@@ -125,8 +125,8 @@ contains
         "the interval  0.25 <= sigma < 1"
     else
       self%sigma = input%ausm_sonic_point_sigma
-    end if
-  end subroutine initialize_ausm_plus
+    endif
+  endsubroutine initialize_ausm_plus
 
   subroutine copy_ausm_plus(lhs, rhs)
     !< Implement LHS = RHS
@@ -139,7 +139,7 @@ contains
     lhs%time = rhs%time
     lhs%dt = rhs%dt
 
-  end subroutine copy_ausm_plus
+  endsubroutine copy_ausm_plus
 
   subroutine solve_ausm_plus(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
@@ -389,7 +389,7 @@ contains
 
     ! if(allocated(self%iflux)) deallocate(self%iflux)
     ! if(allocated(self%jflux)) deallocate(self%jflux)
-  end subroutine solve_ausm_plus
+  endsubroutine solve_ausm_plus
 
   pure function split_mach_deg_1(M, plus_or_minus) result(M_split)
     !< Implementation of the 1st order polynomial split Mach function M±(1). See Eq. 18 in Ref [1]
@@ -401,8 +401,8 @@ contains
       M_split = 0.5_rk * (M + abs(M)) ! M+(1)
     else
       M_split = 0.5_rk * (M - abs(M)) ! M-(1)
-    end if
-  end function split_mach_deg_1
+    endif
+  endfunction split_mach_deg_1
 
   pure function split_mach_deg_2(M, plus_or_minus) result(M_split)
     !< Implementation of the 2nd order polynomial split Mach function  M±(2). See Eq. 19 in Ref [1]
@@ -414,9 +414,9 @@ contains
       M_split = 0.25_rk * (M + 1.0_rk)**2  ! M+(2)
     else
       M_split = -0.25_rk * (M - 1.0_rk)**2 ! M-(2)
-    end if
+    endif
 
-  end function split_mach_deg_2
+  endfunction split_mach_deg_2
 
   pure function split_mach_deg_4(M, beta, plus_or_minus) result(M_split)
     !< Implementation of the 4th order polynomial split Mach function M±(4).
@@ -440,16 +440,16 @@ contains
       else
         ! M+(4)
         M_split = M_2_plus * (1.0_rk - 16.0_rk * beta * M_2_minus)
-      end if
+      endif
     else ! '-'
       if(abs(M) >= 1.0_rk) then
         M_split = split_mach_deg_1(M, '-')
       else
         ! M-(4)
         M_split = M_2_minus * (1.0_rk + 16.0_rk * beta * M_2_plus)
-      end if
-    end if
-  end function split_mach_deg_4
+      endif
+    endif
+  endfunction split_mach_deg_4
 
   pure function split_pressure_deg_5(M, plus_or_minus, alpha) result(P_split)
     !< Implementation of the 5th order polynomial split pressure function P±(5).
@@ -473,28 +473,28 @@ contains
         P_split = split_mach_deg_1(M, '+') / M
       else
         P_split = M_2_plus * ((2.0_rk - M) - 16.0_rk * alpha * M * M_2_minus)
-      end if
+      endif
     else
       ! P-(5)
       if(abs(M) >= 1.0_rk) then
         P_split = split_mach_deg_1(M, '-') / M
       else
         P_split = M_2_minus * ((-2.0_rk - M) + 16.0_rk * alpha * M * M_2_plus)
-      end if
-    end if
-  end function split_pressure_deg_5
+      endif
+    endif
+  endfunction split_pressure_deg_5
 
   pure real(rk) function scaling_factor(M_0) result(f_a)
     !< Scaling function, Eq. 72
     real(rk), intent(in) :: M_0 ! Reference Mach number
     f_a = M_0 * (2.0_rk - M_0)
-  end function scaling_factor
+  endfunction scaling_factor
 
   pure real(rk) function alpha(f_a)
     !< alpha parameter, Eq. 76
     real(rk), intent(in) :: f_a ! Scaling factor -> [0,1]
     alpha = (3.0_rk / 16.0_rk) * (-4.0_rk + 5.0_rk * f_a**2)
-  end function alpha
+  endfunction alpha
 
   pure subroutine interface_state(self, n, rho, u, v, p, M_half, p_half, a_half, H)
     !< Interface Mach number, e.g. M_(1/2)
@@ -557,7 +557,7 @@ contains
       ! Critical sound speed, Eq. 29
       a_crit_L = sqrt(gamma_factor * abs(H_L)) ! a*_L
       a_crit_R = sqrt(gamma_factor * abs(H_R)) ! a*_R
-    end associate
+    endassociate
 
     ! Eq. 30
     a_circumflex_L = a_crit_L**2 / max(a_crit_L, vel_L)  ! â_L
@@ -583,7 +583,7 @@ contains
       ! Mean local Mach, Eq. 13
       M_bar_sq = 0.5_rk * (M_L + M_R)
       alpha_param = self%pressure_split_alpha ! alpha parameter, Eq. 76
-    end if
+    endif
 
     ! Interface Mach number, Eq. 73
     M_plus = split_mach_deg_4(M=M_L, plus_or_minus='+', beta=self%mach_split_beta)
@@ -605,8 +605,8 @@ contains
         M_p = -(K_p / f_a) * max(1.0_rk - sigma * M_bar_sq, 0.0_rk) * ((p_R - p_L) / (rho_half * a_half**2))
       else
         M_p = 0.0_rk
-      end if
-    end associate
+      endif
+    endassociate
 
     ! Interface Mach number
     M_sum = M_plus + M_minus
@@ -631,16 +631,16 @@ contains
         p_u = -K_u * P_plus * P_minus * (rho_L + rho_R) * (f_a * a_half) * (vel_R - vel_L)
       else
         p_u = 0.0_rk
-      end if
-    end associate
+      endif
+    endassociate
 
     ! Interface pressure, Eq. 75
     associate(p_L => p(1), p_R => p(2))
       p_half = P_plus * p_L + P_minus * p_R + p_u
-    end associate
+    endassociate
 
     ! write(*, '(10(es16.6))') M_half, p_half, a_half, H
-  end subroutine interface_state
+  endsubroutine interface_state
 
   subroutine finalize(self)
     !< Class finalizer
@@ -655,5 +655,5 @@ contains
     ! if(allocated(self%bc_plus_y)) deallocate(self%bc_plus_y)
     ! if(allocated(self%bc_minus_x)) deallocate(self%bc_minus_x)
     ! if(allocated(self%bc_minus_y)) deallocate(self%bc_minus_y)
-  end subroutine finalize
-end module mod_ausm_plus_solver
+  endsubroutine finalize
+endmodule mod_ausm_plus_solver

@@ -167,7 +167,7 @@ module mod_mach_cone_collection
     procedure, private :: get_p_prime_quantities
     procedure, private :: get_transonic_cone_extents
     final :: finalize
-  end type mach_cone_collection_t
+  endtype mach_cone_collection_t
 
 contains
 
@@ -207,7 +207,7 @@ contains
     self%nj = size(reconstructed_rho, dim=3)
     if(self%ni <= 0 .or. self%nj <= 0) then
       error stop "Error in mach_cone_collection_t%initialize(), ni <= 1 .or. nj <= 1, e.g. not enough mach cones!"
-    end if
+    endif
 
     self%cone_location = trim(cone_location)
     self%tau = tau
@@ -228,7 +228,7 @@ contains
       self%n_neighbor_cells = 2
     case default
       error stop "Error in mach_cone_collection_t%initialize(), unsupported cone location"
-    end select
+    endselect
 
     nc = self%n_neighbor_cells
     !$omp parallel default(none) &
@@ -246,7 +246,7 @@ contains
             write(std_err, '(a, i0, 1x, i0, a)') 'Cone index [i, j]: ', i, j
             write(std_err, '(a, 8(i0, 1x))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
             error stop "Error in mach_cone_collection_t%initialize(), density in the reconstructed state is < 0"
-          end if
+          endif
 
           if(reconstructed_p(c, i, j) < 0.0_rk) then
             write(std_err, '(a, 4(es16.8,1x))') 'Reconstructed pressure states ['// &
@@ -254,10 +254,10 @@ contains
             write(std_err, '(a, i0, ", ", i0, a)') 'Cone index [i, j]: [', i, j, ']'
             write(std_err, '(a, 4("[",i0, ", ", i0, "] "))') 'Cone neighbor cell indices [i, j]: ', cell_indices(:, :, i, j)
             error stop "Error in mach_cone_collection_t%initialize(), pressure in the reconstructed state is < 0"
-          end if
-        end do
-      end do
-    end do
+          endif
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp single
@@ -268,7 +268,7 @@ contains
         if(.not. allocated(self%edge_vectors)) then
           allocate(self%edge_vectors(2, 0:nc, self%ilo:self%ihi, self%jlo:self%jhi))
           self%edge_vectors = edge_vectors
-        end if
+        endif
 
         if(.not. allocated(self%p_prime_in_cell)) allocate(self%p_prime_in_cell(nc, ilo:ihi, jlo:jhi))
         if(.not. allocated(self%recon_rho)) allocate(self%recon_rho(nc, ilo:ihi, jlo:jhi))
@@ -299,9 +299,9 @@ contains
         if(.not. allocated(self%reference_sound_speed)) allocate(self%reference_sound_speed(ilo:ihi, jlo:jhi))
         if(.not. allocated(self%reference_pressure)) allocate(self%reference_pressure(ilo:ihi, jlo:jhi))
         if(.not. allocated(self%cone_is_transonic)) allocate(self%cone_is_transonic(ilo:ihi, jlo:jhi))
-      end associate
+      endassociate
 
-    end if
+    endif
     !$omp end single
 
     !$omp do
@@ -309,9 +309,9 @@ contains
       do i = self%ilo, self%ihi
         do c = 1, nc
           self%cell_indices(:, c, i, j) = cell_indices(:, c, i, j)
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -319,9 +319,9 @@ contains
       do i = self%ilo, self%ihi
         do c = 1, nc
           self%recon_rho(c, i, j) = reconstructed_rho(c, i, j)
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -329,9 +329,9 @@ contains
       do i = self%ilo, self%ihi
         do c = 1, nc
           self%recon_u(c, i, j) = reconstructed_u(c, i, j)
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -339,9 +339,9 @@ contains
       do i = self%ilo, self%ihi
         do c = 1, nc
           self%recon_v(c, i, j) = reconstructed_v(c, i, j)
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -349,9 +349,9 @@ contains
       do i = self%ilo, self%ihi
         do c = 1, nc
           self%recon_p(c, i, j) = reconstructed_p(c, i, j)
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
     !$omp end parallel
 
@@ -367,10 +367,10 @@ contains
         do i = self%ilo, self%ihi
           self%p0_x(i, j) = self%edge_vectors(1, 0, i, j)
           self%p0_y(i, j) = self%edge_vectors(2, 0, i, j)
-        end do
-      end do
+        enddo
+      enddo
       !$omp end do
-    end if
+    endif
 
     if(apply_transonic_fix) then
       with_transonic_fix: block
@@ -390,19 +390,19 @@ contains
                 self%p_prime_x(i, j) = self%p0_x(i, j)
               else
                 self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
-              end if
+              endif
 
               if(abs(self%p0_y(i, j) - self%tau * self%reference_v(i, j)) < epsilon(1.0_rk)) then
                 self%p_prime_y(i, j) = self%p0_y(i, j)
               else
                 self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
-              end if
+              endif
 
-            end if
-          end do
-        end do
+            endif
+          enddo
+        enddo
         !$omp end do
-      end block with_transonic_fix
+      endblock with_transonic_fix
     else
       no_transonic_fix: block
         !$omp do
@@ -414,18 +414,18 @@ contains
               self%p_prime_x(i, j) = self%p0_x(i, j)
             else
               self%p_prime_x(i, j) = self%p0_x(i, j) - self%tau * self%reference_u(i, j)
-            end if
+            endif
 
             if(abs(self%p0_y(i, j) - self%tau * self%reference_v(i, j)) < epsilon(1.0_rk)) then
               self%p_prime_y(i, j) = self%p0_y(i, j)
             else
               self%p_prime_y(i, j) = self%p0_y(i, j) - self%tau * self%reference_v(i, j)
-            end if
-          end do
-        end do
+            endif
+          enddo
+        enddo
         !$omp end do
-      end block no_transonic_fix
-    end if
+      endblock no_transonic_fix
+    endif
     !$omp end parallel
 
     call self%compute_trig_angles()
@@ -448,10 +448,10 @@ contains
             self%u(idx, i, j) = recon_u
             self%v(idx, i, j) = recon_v
             self%p(idx, i, j) = recon_p
-          end do
-        end do
-      end do
-    end do
+          enddo
+        enddo
+      enddo
+    enddo
     !$omp end do nowait
 
     !$omp end parallel
@@ -459,7 +459,7 @@ contains
 
     call self%sanity_checks()
     if(.not. self%is_initialized) self%is_initialized = .true.
-  end subroutine initialize
+  endsubroutine initialize
 
   subroutine finalize(self)
     ! Cleanup all the allocated arrays upon destruction of the mach_cone_collection_t object
@@ -495,7 +495,7 @@ contains
     if(allocated(self%reference_v)) deallocate(self%reference_v)
     if(allocated(self%reference_sound_speed)) deallocate(self%reference_sound_speed)
     if(allocated(self%reference_pressure)) deallocate(self%reference_pressure)
-  end subroutine finalize
+  endsubroutine finalize
 
   subroutine get_reference_state(self)
     !< Find the reference state of the cone only based on the cells that are touched by the cone
@@ -530,8 +530,8 @@ contains
       do i = self%ilo, self%ihi
         ref_rho = sum(self%recon_rho(:, i, j)) / n_cells_real
         self%reference_density(i, j) = ref_rho
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -541,8 +541,8 @@ contains
         ref_v = sum(self%recon_v(:, i, j)) / n_cells_real
         self%reference_u(i, j) = ref_u
         self%reference_v(i, j) = ref_v
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -550,16 +550,16 @@ contains
       do i = self%ilo, self%ihi
         ref_p = (sum(self%recon_p(:, i, j)) / n_cells_real)
         self%reference_pressure(i, j) = ref_p
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
     do j = self%jlo, self%jhi
       do i = self%ilo, self%ihi
         self%reference_sound_speed(i, j) = sqrt(gamma * self%reference_pressure(i, j) / self%reference_density(i, j))
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
     !$omp barrier
 
@@ -576,7 +576,7 @@ contains
           vel(c) = sqrt(self%recon_u(c, i, j)**2 + self%recon_v(c, i, j)**2)
           cs(c) = sqrt(gamma * self%recon_p(c, i, j) / self%recon_rho(c, i, j))
           if(vel(c) > cs(c) .or. abs(vel(c) - cs(c)) < epsilon(1.0_rk)) cell_is_supersonic(c) = .true.
-        end do
+        enddo
 
         n_supersonic_cells = count(cell_is_supersonic)
 
@@ -585,7 +585,7 @@ contains
           self%cone_is_transonic(i, j) = .true.
         else
           self%cone_is_transonic(i, j) = .false.
-        end if
+        endif
 
         ! If the cone is transonic, use the subsonic linearization, e.g. averages from the subsonic cells
         ! if(self%cone_is_transonic(i, j)) then
@@ -617,13 +617,13 @@ contains
         !   ! self%reference_density(i, j) = self%recon_rho(minloc(cs, dim=1), i, j)
 
         ! end if
-      end do
-    end do
+      enddo
+    enddo
     !$omp end do
 
     !$omp end parallel
 
-  end subroutine get_reference_state
+  endsubroutine get_reference_state
 
   subroutine get_transonic_cone_extents(self, i, j, origin, radius)
     !< If the set of neighbor cells are transonic (some supersonic, some subsonic),
@@ -661,7 +661,7 @@ contains
       cone_radii(c) = self%tau * cs
       cone_origins(1, c) = self%p0_x(i, j) - self%tau * self%recon_u(c, i, j)
       cone_origins(2, c) = self%p0_y(i, j) - self%tau * self%recon_v(c, i, j)
-    end do
+    enddo
 
     select case(self%n_neighbor_cells)
     case(2)
@@ -695,9 +695,9 @@ contains
     case default
       error stop "Error in mach_cone_collection_t%(get_transonic_cone_extents)"// &
         ", unsupported value of self%n_neighbor_cells"
-    end select
+    endselect
 
-  end subroutine get_transonic_cone_extents
+  endsubroutine get_transonic_cone_extents
 
   subroutine get_p_prime_quantities(self, recon_operator)
     !< Find the density and pressure at P' for the E0 operator to use
@@ -756,8 +756,8 @@ contains
                                                                             x=self%p_prime_x(i, j), &
                                                                             y=self%p_prime_y(i, j), &
                                                                             var='p')
-                end if
-              end do
+                endif
+              enddo
 
               ! Set P' to take the state of cell with the highest pressure
               self%pressure_p_prime(i, j) = sum(pressure_p_prime) / real(n_p_prime_cells, rk)
@@ -774,12 +774,12 @@ contains
                                                                                 x=self%p_prime_x(i, j), &
                                                                                 y=self%p_prime_y(i, j), &
                                                                                 var='p')
-            end if
-          end do
-        end do
+            endif
+          enddo
+        enddo
         !$omp end do
         !$omp end parallel
-      end block recon_p_prime
+      endblock recon_p_prime
     else
       no_recon_p_prime: block
         real(rk) :: pressure_p_prime
@@ -803,17 +803,17 @@ contains
                 if(self%p_prime_in_cell(c, i, j)) then
                   self%density_p_prime(i, j) = self%recon_rho(c, i, j)
                   self%pressure_p_prime(i, j) = self%recon_p(c, i, j)
-                end if
-              end do
-            end if
+                endif
+              enddo
+            endif
 
-          end do
-        end do
+          enddo
+        enddo
         !$omp end do
         !$omp end parallel
-      end block no_recon_p_prime
-    end if
-  end subroutine get_p_prime_quantities
+      endblock no_recon_p_prime
+    endif
+  endsubroutine get_p_prime_quantities
 
   subroutine compute_trig_angles(self)
     !< Precompute some of the trig values, like sin(theta_ie), etc. to save compute time. If
@@ -855,7 +855,7 @@ contains
       allocate(sin_theta_ie(idx_max, ilo:ihi, jlo:jhi))
       allocate(cos_theta_ie(idx_max, ilo:ihi, jlo:jhi))
       allocate(n_arcs_per_cell(self%n_neighbor_cells, ilo:ihi, jlo:jhi))
-    end associate
+    endassociate
 
     call self%find_arc_angles(theta_ib, theta_ie, n_arcs_per_cell)
 
@@ -874,9 +874,9 @@ contains
         do idx = 1, idx_max
           sin_theta_ib(idx, i, j) = sin(theta_ib(idx, i, j))
           cos_theta_ib(idx, i, j) = cos(theta_ib(idx, i, j))
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -885,9 +885,9 @@ contains
         do idx = 1, idx_max
           sin_theta_ie(idx, i, j) = sin(theta_ie(idx, i, j))
           cos_theta_ie(idx, i, j) = cos(theta_ie(idx, i, j))
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -901,9 +901,9 @@ contains
           ! else
           !   self%dtheta(idx, i, j) = diff
           ! end if
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -914,9 +914,9 @@ contains
           if(abs(cos_theta_ib(idx, i, j)) < 1e-14_rk) cos_theta_ib(idx, i, j) = 0.0_rk
           if(abs(sin_theta_ie(idx, i, j)) < 1e-14_rk) sin_theta_ie(idx, i, j) = 0.0_rk
           if(abs(cos_theta_ie(idx, i, j)) < 1e-14_rk) cos_theta_ie(idx, i, j) = 0.0_rk
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -930,9 +930,9 @@ contains
           ! else
           !   self%sin_dtheta(idx, i, j) = diff
           ! end if
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -946,9 +946,9 @@ contains
           ! else
           !   self%cos_dtheta(idx, i, j) = diff
           ! end if
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -964,9 +964,9 @@ contains
           ! else
           !   self%sin_d2theta(idx, i, j) = diff
           ! end if
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp do
@@ -982,9 +982,9 @@ contains
           ! else
           !   self%cos_d2theta(idx, i, j) = diff
           ! end if
-        end do
-      end do
-    end do
+        enddo
+      enddo
+    enddo
     !$omp end do
 
     !$omp end parallel
@@ -995,7 +995,7 @@ contains
     deallocate(cos_theta_ie)
     deallocate(n_arcs_per_cell)
 
-  end subroutine compute_trig_angles
+  endsubroutine compute_trig_angles
 
   subroutine find_arc_angles(self, theta_ib, theta_ie, n_arcs_per_cell)
     !< Find the starting and ending angle of each arc that is held within each cell
@@ -1030,7 +1030,7 @@ contains
       allocate(theta_ib(2 * self%n_neighbor_cells, ilo:ihi, jlo:jhi))
       allocate(theta_ie(2 * self%n_neighbor_cells, ilo:ihi, jlo:jhi))
       allocate(n_arcs_per_cell(self%n_neighbor_cells, ilo:ihi, jlo:jhi))
-    end associate
+    endassociate
 
     select case(trim(self%cone_location))
     case('corner')
@@ -1086,7 +1086,7 @@ contains
             case(4) ! Cell 4
               first_vector = corner_vector_set(:, 3)
               second_vector = corner_vector_set(:, 4)
-            end select
+            endselect
 
             associate(x0 => self%p0_x(i, j), y0 => self%p0_y(i, j))
               ! Determine if P' is in this cell
@@ -1095,7 +1095,7 @@ contains
 
               vec_2_cross_p_prime = ((second_vector(1) - x0) * (self%p_prime_y(i, j) - y0)) - &
                                     ((second_vector(2) - y0) * (self%p_prime_x(i, j) - x0))
-            end associate
+            endassociate
 
             if(p_prime_cross_vec_1 <= 0.0_rk .and. vec_2_cross_p_prime <= 0.0_rk) then
               self%p_prime_in_cell(c, i, j) = .true.
@@ -1103,7 +1103,7 @@ contains
               self%p_prime_ij(:, i, j) = self%cell_indices(:, c, i, j)
             else
               self%p_prime_in_cell(c, i, j) = .false.
-            end if
+            endif
 
             call find_arc_segments(origin=p_0, vector_1=first_vector, vector_2=second_vector, &
                                    origin_in_cell=self%p_prime_in_cell(c, i, j), &
@@ -1117,11 +1117,11 @@ contains
               idx = arc + (c - 1) * 2
               theta_ib(idx, i, j) = theta_ib_ie(1, arc)
               theta_ie(idx, i, j) = theta_ib_ie(2, arc)
-            end do
+            enddo
 
-          end do
-        end do
-      end do
+          enddo
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
 
@@ -1179,7 +1179,7 @@ contains
             case(2) ! Cell 2
               first_vector = midpoint_vector_set(:, 1)
               second_vector = midpoint_vector_set(:, 2)
-            end select
+            endselect
 
             associate(x0 => self%p0_x(i, j), y0 => self%p0_y(i, j))
               ! Determine if P' is in this cell
@@ -1188,7 +1188,7 @@ contains
 
               vec_2_cross_p_prime = ((second_vector(1) - x0) * (self%p_prime_y(i, j) - y0)) - &
                                     ((second_vector(2) - y0) * (self%p_prime_x(i, j) - x0))
-            end associate
+            endassociate
 
             if(p_prime_cross_vec_1 <= 0.0_rk .and. vec_2_cross_p_prime <= 0.0_rk) then
               self%p_prime_in_cell(c, i, j) = .true.
@@ -1196,7 +1196,7 @@ contains
               self%p_prime_ij(:, i, j) = self%cell_indices(:, c, i, j)
             else
               self%p_prime_in_cell(c, i, j) = .false.
-            end if
+            endif
 
             call find_arc_segments(origin=p_0, vector_1=first_vector, vector_2=second_vector, &
                                    origin_in_cell=self%p_prime_in_cell(c, i, j), &
@@ -1210,19 +1210,19 @@ contains
               idx = arc + (c - 1) * 2
               theta_ib(idx, i, j) = theta_ib_ie(1, arc)
               theta_ie(idx, i, j) = theta_ib_ie(2, arc)
-            end do
+            enddo
 
-          end do
-        end do
-      end do
+          enddo
+        enddo
+      enddo
       !$omp end do
       !$omp end parallel
 
     case default
       error stop 'Error in mach_cone_collection_t%find_arc_angles(), invalid cone location'
-    end select
+    endselect
 
-  end subroutine find_arc_angles
+  endsubroutine find_arc_angles
 
   subroutine sanity_checks(self)
     !< Do some sanity checks to make sure the mach cone is valid
@@ -1250,13 +1250,13 @@ contains
           print *, "Cone arcs do not add up to 2pi:", arc_sum
           call self%print(i, j)
           error stop "Cone arcs do not add up to 2pi"
-        end if
-      end do
-    end do
+        endif
+      enddo
+    enddo
     !! $omp end do
     !! $omp end parallel
 
-  end subroutine sanity_checks
+  endsubroutine sanity_checks
 
   subroutine print(self, i, j)
     class(mach_cone_collection_t), intent(in) :: self
@@ -1287,19 +1287,19 @@ contains
     write(*, *) '# Neighbor cell indices'
     do c = 1, self%n_neighbor_cells
       write(*, '(a,i0,a, i0, ", ", i0, a)') "cell_", c, ' = [', self%cell_indices(:, c, i, j), "]"
-    end do
+    enddo
 
     print *
     write(*, '(a)') "# Edge Vectors: head (x,y). Note, the tail is at P0(x,y)"
     do c = 1, self%n_neighbor_cells
       write(*, '(a,i0,a, 2(es16.8, a))') "vector_", c, " = [", &
         self%edge_vectors(1, c, i, j), ",", self%edge_vectors(2, c, i, j), "]"
-    end do
+    enddo
 
     do c = 1, self%n_neighbor_cells
       vlen = norm2(self%edge_vectors(:, c, i, j) - self%edge_vectors(:, 0, i, j))
       write(*, '(a, i0,a,es16.8)') "vector_", c, "_len = ", vlen
-    end do
+    enddo
 
     print *
     write(*, '(a, es16.8)') "reference_density =     ", self%reference_density(i, j)
@@ -1316,8 +1316,8 @@ contains
         idx = arc + (c - 1) * 2
         write(*, '(a, i0, a, f9.4, 2(a, i0))') &
           'dtheta[', c, '] = [', rad2deg(self%dtheta(idx, i, j)), '] arc ', arc, ', cell ', c
-      end do
-    end do
+      enddo
+    enddo
     print *
 
     do c = 1, self%n_neighbor_cells
@@ -1325,8 +1325,8 @@ contains
         idx = arc + (c - 1) * 2
         write(*, '(a, i0, a, es16.8, 2(a, i0))') &
           'sin_dtheta[', c, '] = [', self%sin_dtheta(idx, i, j), '] arc ', arc, ', cell ', c
-      end do
-    end do
+      enddo
+    enddo
     print *
 
     do c = 1, self%n_neighbor_cells
@@ -1334,8 +1334,8 @@ contains
         idx = arc + (c - 1) * 2
         write(*, '(a, i0, a, es16.8, 2(a, i0))') &
           'cos_dtheta[', c, '] = [', self%cos_dtheta(idx, i, j), '] arc ', arc, ', cell ', c
-      end do
-    end do
+      enddo
+    enddo
     print *
 
     do c = 1, self%n_neighbor_cells
@@ -1343,8 +1343,8 @@ contains
         idx = arc + (c - 1) * 2
         write(*, '(a, i0, a, es16.8, 2(a, i0))') &
           'sin_d2theta[', c, '] = [', self%sin_d2theta(idx, i, j), '] arc ', arc, ', cell ', c
-      end do
-    end do
+      enddo
+    enddo
     print *
 
     do c = 1, self%n_neighbor_cells
@@ -1352,8 +1352,8 @@ contains
         idx = arc + (c - 1) * 2
         write(*, '(a, i0, a, es16.8, 2(a, i0))') &
           'cos_d2theta[', c, '] = [', self%cos_d2theta(idx, i, j), '] arc ', arc, ', cell ', c
-      end do
-    end do
+      enddo
+    enddo
     print *
 
     write(*, '(a, es16.8)') 'arc_length_sum = ', rad2deg(sum(self%dtheta(:, i, j))), ' '
@@ -1364,7 +1364,7 @@ contains
         self%recon_u(c, i, j), &
         self%recon_v(c, i, j), &
         self%recon_p(c, i, j), ']'
-    end do
+    enddo
     print *
 
     write(*, '(a)') 'Cone state [u,v,p]'
@@ -1375,8 +1375,8 @@ contains
           self%v(idx, i, j), &
           self%p(idx, i, j), &
           '] arc ', arc, ', cell ', c
-      end do
-    end do
+      enddo
+    enddo
     print *
 
     ! write(*, '(a)') "# P' in cell?"
@@ -1394,5 +1394,5 @@ contains
     ! end do
 
     ! write(*, '(a)') new_line('a')
-  end subroutine
-end module mod_mach_cone_collection
+  endsubroutine
+endmodule mod_mach_cone_collection

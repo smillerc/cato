@@ -61,4 +61,4 @@ module mod_mlp_wave_ext_4th_order
   real(rk), parameter :: eta3 = 0.361_rk * pi !< Coefficient eta 2 in Table 1 in Ref [1]
   real(rk), parameter :: eta4 = 0.367_rk * pi !< Coefficient eta 2 in Table 1 in Ref [1]
 
-end module mod_mlp_wave_ext_4th_order
+endmodule mod_mlp_wave_ext_4th_order

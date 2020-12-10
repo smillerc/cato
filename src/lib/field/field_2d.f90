@@ -74,14 +74,14 @@ module mod_field
     logical, public :: on_jlo_bc = .false. !< does this field live on the +j boundary?
     logical, public :: on_jhi_bc = .false. !< does this field live on the -j boundary?
 
-    ! Sync settings: VERY IMPORTANT, check your algorithms to see if you need this to sync on every 
+    ! Sync settings: VERY IMPORTANT, check your algorithms to see if you need this to sync on every
     ! call to =, otherwise be selective about it. This will reduce communication, which is a good thing
     logical :: sync_on_equal = .false. !< Call sync_edges whenever the (=) operator is called (very crucial in some cases)
-    
+
     ! Parallel neighbor information
-    integer(ik), dimension(8) :: neighbors = 0 
+    integer(ik), dimension(8) :: neighbors = 0
     !< (ilo_jlo, jlo, ihi_jlo, ilo, ihi, ilo_jhi, jhi, ihi_jhi); parallel neighbor image indices
-    
+
     integer(ik) :: host_image_id = 0 !< what image owns this field instance?
 
     ! OpenCL stuff
@@ -129,11 +129,11 @@ module mod_field
     ! Finalization
     final :: finalize
 
-  end type field_2d_t
+  endtype field_2d_t
 
   interface field_2d
     module procedure :: new_field
-  end interface field_2d
+  endinterface field_2d
 
   ! --------------------------------------------------------------------
   ! Arithemetic operators (high level; these farm it out to cpu or gpu)
@@ -145,137 +145,137 @@ module mod_field
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       class(field_2d_t), intent(in) :: f
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_add_field_cpu
+    endsubroutine field_add_field_cpu
 
     module subroutine field_sub_field_cpu(lhs, f, res)
       !< Implementation of the field_2d_t + field_2d_t operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       class(field_2d_t), intent(in) :: f
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_sub_field_cpu
+    endsubroutine field_sub_field_cpu
 
     module subroutine field_mul_field_cpu(lhs, f, res)
       !< Implementation of the field_2d_t * field_2d_t operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       class(field_2d_t), intent(in) :: f
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_mul_field_cpu
+    endsubroutine field_mul_field_cpu
 
     module subroutine field_div_field_cpu(lhs, f, res)
       !< Implementation of the field_2d_t * field_2d_t operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       class(field_2d_t), intent(in) :: f
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_div_field_cpu
+    endsubroutine field_div_field_cpu
 
     module subroutine field_add_real_1d_cpu(lhs, x, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_add_real_1d_cpu
+    endsubroutine field_add_real_1d_cpu
 
     module subroutine field_add_real_2d_cpu(lhs, x, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), dimension(lhs%ilo:, lhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_add_real_2d_cpu
+    endsubroutine field_add_real_2d_cpu
 
     module subroutine field_sub_real_1d_cpu(lhs, x, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_sub_real_1d_cpu
+    endsubroutine field_sub_real_1d_cpu
 
     module subroutine field_sub_real_2d_cpu(lhs, x, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), dimension(lhs%ilo:, lhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_sub_real_2d_cpu
+    endsubroutine field_sub_real_2d_cpu
 
     module subroutine real_1d_sub_field_cpu(x, rhs, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine real_1d_sub_field_cpu
+    endsubroutine real_1d_sub_field_cpu
 
     module subroutine real_2d_sub_field_cpu(x, rhs, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
       real(rk), dimension(rhs%ilo:, rhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine real_2d_sub_field_cpu
+    endsubroutine real_2d_sub_field_cpu
 
     module subroutine field_div_real_1d_cpu(lhs, x, res)
       !< Implementation of the field_2d_t / real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_div_real_1d_cpu
+    endsubroutine field_div_real_1d_cpu
 
     module subroutine field_div_real_2d_cpu(lhs, x, res)
       !< Implementation of the field_2d_t / real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), dimension(lhs%ilo:, lhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_div_real_2d_cpu
+    endsubroutine field_div_real_2d_cpu
 
     module subroutine real_1d_div_field_cpu(x, rhs, res)
       !< Implementation of the field_2d_t / real64 operation
       class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine real_1d_div_field_cpu
+    endsubroutine real_1d_div_field_cpu
 
     module subroutine real_2d_div_field_cpu(x, rhs, res)
       !< Implementation of the field_2d_t / real64 operation
       class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
       real(rk), dimension(rhs%ilo:, rhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine real_2d_div_field_cpu
+    endsubroutine real_2d_div_field_cpu
 
     module subroutine field_mul_real_2d_cpu(lhs, x, res)
       !< Implementation of the field_2d_t * array operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), dimension(lhs%ilo:, lhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_mul_real_2d_cpu
+    endsubroutine field_mul_real_2d_cpu
 
     module subroutine field_mul_real_1d_cpu(lhs, x, res)
       !< Implementation of the field_2d_t * real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_mul_real_1d_cpu
+    endsubroutine field_mul_real_1d_cpu
 
     module function field_maxval_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
-    end function field_maxval_cpu
+    endfunction field_maxval_cpu
 
     module function field_maxloc_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       integer(ik), dimension(2) :: res
-    end function field_maxloc_cpu
+    endfunction field_maxloc_cpu
 
     module function field_minval_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
-    end function field_minval_cpu
+    endfunction field_minval_cpu
 
     module function field_minloc_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       integer(ik), dimension(2) :: res
-    end function field_minloc_cpu
+    endfunction field_minloc_cpu
 
     module function field_sum_cpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
-    end function field_sum_cpu
+    endfunction field_sum_cpu
 
     ! GPU operators
     module subroutine field_add_field_gpu(lhs, f, res)
@@ -283,138 +283,138 @@ module mod_field
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       class(field_2d_t), intent(in) :: f
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_add_field_gpu
+    endsubroutine field_add_field_gpu
 
     module subroutine field_sub_field_gpu(lhs, f, res)
       !< Implementation of the field_2d_t + field_2d_t operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       class(field_2d_t), intent(in) :: f
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_sub_field_gpu
+    endsubroutine field_sub_field_gpu
 
     module subroutine field_mul_field_gpu(lhs, f, res)
       !< Implementation of the field_2d_t * field_2d_t operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       class(field_2d_t), intent(in) :: f
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_mul_field_gpu
+    endsubroutine field_mul_field_gpu
 
     module subroutine field_div_field_gpu(lhs, f, res)
       !< Implementation of the field_2d_t * field_2d_t operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       class(field_2d_t), intent(in) :: f
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_div_field_gpu
+    endsubroutine field_div_field_gpu
 
     module subroutine field_add_real_1d_gpu(lhs, x, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_add_real_1d_gpu
+    endsubroutine field_add_real_1d_gpu
 
     module subroutine field_add_real_2d_gpu(lhs, x, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), dimension(lhs%ilo:, lhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_add_real_2d_gpu
+    endsubroutine field_add_real_2d_gpu
 
     module subroutine field_sub_real_1d_gpu(lhs, x, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_sub_real_1d_gpu
+    endsubroutine field_sub_real_1d_gpu
 
     module subroutine field_sub_real_2d_gpu(lhs, x, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), dimension(lhs%ilo:, lhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_sub_real_2d_gpu
+    endsubroutine field_sub_real_2d_gpu
 
     module subroutine real_1d_sub_field_gpu(x, rhs, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine real_1d_sub_field_gpu
+    endsubroutine real_1d_sub_field_gpu
 
     module subroutine real_2d_sub_field_gpu(x, rhs, res)
       !< Implementation of the field_2d_t + real64 operation
       class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
       real(rk), dimension(rhs%ilo:, rhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine real_2d_sub_field_gpu
+    endsubroutine real_2d_sub_field_gpu
 
     module subroutine field_div_real_1d_gpu(lhs, x, res)
       !< Implementation of the field_2d_t / real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_div_real_1d_gpu
+    endsubroutine field_div_real_1d_gpu
 
     module subroutine field_div_real_2d_gpu(lhs, x, res)
       !< Implementation of the field_2d_t / real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), dimension(lhs%ilo:, lhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_div_real_2d_gpu
+    endsubroutine field_div_real_2d_gpu
 
     module subroutine real_1d_div_field_gpu(x, rhs, res)
       !< Implementation of the field_2d_t / real64 operation
       class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine real_1d_div_field_gpu
+    endsubroutine real_1d_div_field_gpu
 
     module subroutine real_2d_div_field_gpu(x, rhs, res)
       !< Implementation of the field_2d_t / real64 operation
       class(field_2d_t), intent(in) :: rhs !< right-hand-side of the operation
       real(rk), dimension(rhs%ilo:, rhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine real_2d_div_field_gpu
+    endsubroutine real_2d_div_field_gpu
 
     module subroutine field_mul_real_2d_gpu(lhs, x, res)
       !< Implementation of the field_2d_t * array operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), dimension(lhs%ilo:, lhs%jlo:), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_mul_real_2d_gpu
+    endsubroutine field_mul_real_2d_gpu
 
     module subroutine field_mul_real_1d_gpu(lhs, x, res)
       !< Implementation of the field_2d_t * real64 operation
       class(field_2d_t), intent(in) :: lhs !< left-hand-side of the operation
       real(rk), intent(in) :: x
       type(field_2d_t), intent(inout) :: res
-    end subroutine field_mul_real_1d_gpu
+    endsubroutine field_mul_real_1d_gpu
 
     module function field_maxval_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
-    end function field_maxval_gpu
+    endfunction field_maxval_gpu
 
     module function field_maxloc_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       integer(ik), dimension(2) :: res
-    end function field_maxloc_gpu
+    endfunction field_maxloc_gpu
 
     module function field_minval_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
-    end function field_minval_gpu
+    endfunction field_minval_gpu
 
     module function field_minloc_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       integer(ik), dimension(2) :: res
-    end function field_minloc_gpu
+    endfunction field_minloc_gpu
 
     module function field_sum_gpu(f) result(res)
       class(field_2d_t), intent(in) :: f
       real(rk) :: res
-    end function field_sum_gpu
-  end interface
+    endfunction field_sum_gpu
+  endinterface
 
 contains
 
@@ -478,11 +478,11 @@ contains
       ! Allocate w/ halo cells
       allocate(self%data(ilo:ihi, jlo:jhi), stat=alloc_status)
       if(alloc_status /= 0) error stop "Unable to allocate field%data"
-    end associate
+    endassociate
 
     self%data = 0.0_rk
     self%neighbors = tile_neighbors_2d(is_periodic=.true.)
-  end function new_field
+  endfunction new_field
 
   function gather(self, image)
     !< Performs a gather of field data to image.
@@ -491,7 +491,6 @@ contains
     integer(ik) :: ilo, ihi, jlo, jhi
     real(rk) :: gather(self%global_dims(1), self%global_dims(2))
     real(rk), allocatable :: gather_coarray(:, :)[:]
-
 
     if(.not. allocated(gather_coarray)) allocate(gather_coarray(self%global_dims(1), self%global_dims(2))[*])
 
@@ -505,7 +504,7 @@ contains
 
     if(this_image() == image) gather = gather_coarray
     deallocate(gather_coarray)
-  end function gather
+  endfunction gather
 
   pure logical function field_shapes_match(lhs, rhs)
     class(field_2d_t), intent(in) :: lhs
@@ -515,8 +514,8 @@ contains
     if(lhs%domain_shape(1) == rhs%domain_shape(1) .and. &
        lhs%domain_shape(2) == rhs%domain_shape(2)) then
       field_shapes_match = .true.
-    end if
-  end function field_shapes_match
+    endif
+  endfunction field_shapes_match
 
   logical function shapes_match(lhs, rhs)
     class(field_2d_t), intent(in) :: lhs
@@ -526,8 +525,8 @@ contains
     if(lhs%domain_shape(1) == size(rhs, dim=1) .and. &
        lhs%domain_shape(2) == size(rhs, dim=2)) then
       shapes_match = .true.
-    end if
-  end function shapes_match
+    endif
+  endfunction shapes_match
 
   subroutine sync_edges(self)
     !< Syncronize the edges, e.g. exchange halo data, with neighboring fields / sub-domains. This will NOT sync the edge of
@@ -630,7 +629,7 @@ contains
     if(.not. self%on_ihi_bc .and. .not. self%on_jlo_bc) self%data(ihi + 1:ihi_halo, jlo_halo:jlo - 1) = ihi_jlo_corner
     if(.not. self%on_ilo_bc .and. .not. self%on_jlo_bc) self%data(ilo_halo:ilo - 1, jlo_halo:jlo - 1) = ilo_jlo_corner
 
-  end subroutine sync_edges
+  endsubroutine sync_edges
 
   pure recursive function set(a) result(res)
     integer, intent(in) :: a(:)
@@ -639,8 +638,8 @@ contains
       res = [a(1), set(pack(a(2:),.not. a(2:) == a(1)))]
     else
       res = a
-    end if
-  end function set
+    endif
+  endfunction set
 
   subroutine write_field(self, unit, iotype, v_list, iostat, iomsg)
     !< Implementation of write(*,*) field_2d_t
@@ -668,7 +667,7 @@ contains
                                                                     self%lbounds(2):self%ubounds(2))), nl
       write(unit, '(a, f0.4, a)') "data maxval: ", maxval(self%data(self%lbounds(1):self%ubounds(1), &
                                                                     self%lbounds(2):self%ubounds(2))), nl
-    end if
+    endif
 
     write(unit, '(a, 2(i0, 1x), a)') "global_dims: ", self%global_dims, nl
     write(unit, '(a, 2(i0, 1x), a)') "domain_shape: ", self%domain_shape, nl
@@ -686,7 +685,7 @@ contains
     write(unit, '(a, l1, a)') "On the global -x boundary: ", self%on_ilo_bc, nl
     write(unit, '(a, l1, a)') "On the global +y boundary: ", self%on_jhi_bc, nl
     write(unit, '(a, l1, a)') "On the global -y boundary: ", self%on_jlo_bc, nl
-  end subroutine write_field
+  endsubroutine write_field
 
   ! --------------------------------------------------------------------
   ! I/O for HDF5
@@ -717,7 +716,7 @@ contains
                      procedure_name='read_from_h5', &
                      message='file not found: "'//filename//'"', &
                      file_name=__FILE__, line_number=__LINE__)
-    end if
+    endif
 
     call h5%initialize(filename=trim(filename), status='old', action='r')
     ! I couldn't get the slice read to work, so we read the whole array
@@ -728,7 +727,7 @@ contains
     self%data = data(self%lbounds_halo(1) + self%n_halo_cells:self%ubounds_halo(1) + self%n_halo_cells, &
                      self%lbounds_halo(2) + self%n_halo_cells:self%ubounds_halo(2) + self%n_halo_cells)
     call h5%finalize()
-  end subroutine read_from_h5
+  endsubroutine read_from_h5
 
   subroutine write_to_h5(self, filename, dataset)
     !< Write the global data to an hdf5 file. This gathers all to image 1 and
@@ -743,7 +742,7 @@ contains
     call h5%initialize(filename=trim(filename), status='new', action='w')
     call h5%write(dname=dataset, value=self%gather(image=1))
     call h5%finalize()
-  end subroutine write_to_h5
+  endsubroutine write_to_h5
 
   ! --------------------------------------------------------------------
   ! Utitlities
@@ -761,8 +760,8 @@ contains
       self%data(ihi_s:ihi_e, :) = 0.0_rk ! upper i cells
       self%data(:, jlo_s:jlo_e) = 0.0_rk ! lower j cells
       self%data(:, jhi_s:jhi_e) = 0.0_rk ! upper j cells
-    end associate
-  end subroutine zero_out_halo
+    endassociate
+  endsubroutine zero_out_halo
 
   subroutine make_dimensional(self)
     !< Convert to the dimensional form
@@ -772,13 +771,13 @@ contains
 
       if(enable_debug_print) then
         call debug_print('Running field_2d_t%make_dimensional() for "'//self%name//'"', __FILE__, __LINE__)
-      end if
+      endif
 
       self%data = self%data * self%to_dim
       self%is_nondim = .false.
       self%is_dim = .true.
-    end if
-  end subroutine make_dimensional
+    endif
+  endsubroutine make_dimensional
 
   subroutine make_non_dimensional(self, non_dim_factor)
     !< Convert to the non-dimensional form
@@ -791,15 +790,15 @@ contains
 
       if(enable_debug_print) then
         call debug_print('Running field_2d_t%make_non_dimensional() for "'//self%name//'"', __FILE__, __LINE__)
-      end if
+      endif
 
       self%to_nondim = 1.0_rk / non_dim_factor
       self%to_dim = non_dim_factor
       self%data = self%data * self%to_nondim
       self%is_nondim = .true.
       self%is_dim = .false.
-    end if
-  end subroutine make_non_dimensional
+    endif
+  endsubroutine make_non_dimensional
 
   logical function has_nans(self)
     !< Check for NaNs
@@ -821,7 +820,7 @@ contains
     !     end if
     !   end do
     ! end do
-  end function has_nans
+  endfunction has_nans
 
   logical function has_negatives(self)
     !< Check for negative numbers
@@ -843,7 +842,7 @@ contains
     !     end if
     !   end do
     ! end do
-  end function has_negatives
+  endfunction has_negatives
 
   ! --------------------------------------------------------------------
   ! Clear-up all the memory
@@ -858,7 +857,7 @@ contains
     if(allocated(self%units)) deallocate(self%units)
     if(allocated(self%name)) deallocate(self%name)
     if(allocated(self%long_name)) deallocate(self%long_name)
-  end subroutine finalize
+  endsubroutine finalize
 
   ! --------------------------------------------------------------------
   ! Initializer operators
@@ -901,7 +900,7 @@ contains
     new%on_jhi_bc = old%on_jhi_bc
     new%neighbors = old%neighbors
     new%host_image_id = old%host_image_id
-  end subroutine from_field
+  endsubroutine from_field
 
   ! --------------------------------------------------------------------
   ! Assignment operators
@@ -914,16 +913,16 @@ contains
     if(enable_debug_print) call debug_print('Running assign_field ', __FILE__, __LINE__)
     call from_field(lhs, f)
 
-    if (lhs%sync_on_equal) call lhs%sync_edges()
-  end subroutine assign_field
+    if(lhs%sync_on_equal) call lhs%sync_edges()
+  endsubroutine assign_field
 
   subroutine assign_real_scalar(lhs, a)
     !< Implementation of the (=) operator from a real scalar
     class(field_2d_t), intent(inout) :: lhs !< left-hand-side of the operation
     real(rk), intent(in) :: a
     lhs%data = a
-    if (lhs%sync_on_equal) call lhs%sync_edges()
-  end subroutine assign_real_scalar
+    if(lhs%sync_on_equal) call lhs%sync_edges()
+  endsubroutine assign_real_scalar
 
   ! --------------------------------------------------------------------
   ! Arithmetic operators
@@ -936,16 +935,16 @@ contains
 
     if(.not. field_shapes_match(lhs, f)) then
       error stop "Error in field_2d_t%field_add_field(): field_2d_t shapes don't match"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_add_field_gpu(lhs, f, res)
     else
       call from_field(res, lhs)
       call field_add_field_cpu(lhs, f, res)
-    end if
+    endif
 
-  end function field_add_field
+  endfunction field_add_field
 
   function field_sub_field(lhs, f) result(res)
     !< Implementation of the field_2d_t + field_2d_t operation
@@ -955,15 +954,15 @@ contains
 
     if(.not. field_shapes_match(lhs, f)) then
       error stop "Error in field_2d_t%field_add_field(): field_2d_t shapes don't match"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_sub_field_gpu(lhs, f, res)
     else
       call from_field(res, lhs)
       call field_sub_field_cpu(lhs, f, res)
-    end if
-  end function field_sub_field
+    endif
+  endfunction field_sub_field
 
   function field_mul_field(lhs, f) result(res)
     !< Implementation of the field_2d_t * field_2d_t operation
@@ -973,16 +972,16 @@ contains
 
     if(.not. field_shapes_match(lhs, f)) then
       error stop "Error in field_2d_t%field_add_field(): field_2d_t shapes don't match"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_mul_field_gpu(lhs, f, res)
     else
       call from_field(res, lhs)
       call field_mul_field_cpu(lhs, f, res)
-    end if
+    endif
 
-  end function field_mul_field
+  endfunction field_mul_field
 
   function field_div_field(lhs, f) result(res)
     !< Implementation of the field_2d_t * field_2d_t operation
@@ -992,16 +991,16 @@ contains
 
     if(.not. field_shapes_match(lhs, f)) then
       error stop "Error in field_2d_t%field_add_field(): field_2d_t shapes don't match"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_div_field_gpu(lhs, f, res)
     else
       call from_field(res, lhs)
       call field_div_field_cpu(lhs, f, res)
-    end if
+    endif
 
-  end function field_div_field
+  endfunction field_div_field
 
   function field_add_real_1d(lhs, x) result(res)
     !< Implementation of the field_2d_t + real64 operation
@@ -1014,9 +1013,9 @@ contains
     else
       call from_field(res, lhs)
       call field_add_real_1d_cpu(lhs, x, res)
-    end if
+    endif
 
-  end function field_add_real_1d
+  endfunction field_add_real_1d
 
   function field_add_real_2d(lhs, x) result(res)
     !< Implementation of the field_2d_t + real64 operation
@@ -1026,15 +1025,15 @@ contains
 
     if(.not. shapes_match(lhs, x)) then
       error stop "Error in field_2d_t%field_add_real_2d(): field_2d_t and shapes don't match"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_add_real_2d_gpu(lhs, x, res)
     else
       call from_field(res, lhs)
       call field_add_real_2d_cpu(lhs, x, res)
-    end if
-  end function field_add_real_2d
+    endif
+  endfunction field_add_real_2d
 
   function real_1d_add_field(x, rhs) result(res)
     !< Implementation of the field_2d_t + real64 operation
@@ -1048,9 +1047,9 @@ contains
     else
       call from_field(res, rhs)
       call field_add_real_1d_cpu(rhs, x, res)
-    end if
+    endif
 
-  end function real_1d_add_field
+  endfunction real_1d_add_field
 
   function real_2d_add_field(x, rhs) result(res)
     !< Implementation of the field_2d_t + real64 operation
@@ -1060,7 +1059,7 @@ contains
 
     if(.not. shapes_match(rhs, x)) then
       error stop "Error in field_2d_t%real_2d_add_field(): field_2d_t and x shapes don't match"
-    end if
+    endif
 
     ! Reuse the field + 2d version
     if(rhs%use_gpu) then
@@ -1068,8 +1067,8 @@ contains
     else
       call from_field(res, rhs)
       call field_add_real_2d_cpu(rhs, x, res)
-    end if
-  end function real_2d_add_field
+    endif
+  endfunction real_2d_add_field
 
   function field_sub_real_1d(lhs, x) result(res)
     !< Implementation of the field_2d_t + real64 operation
@@ -1082,9 +1081,9 @@ contains
     else
       call from_field(res, lhs)
       call field_sub_real_1d_cpu(lhs, x, res)
-    end if
+    endif
 
-  end function field_sub_real_1d
+  endfunction field_sub_real_1d
 
   function field_sub_real_2d(lhs, x) result(res)
     !< Implementation of the field_2d_t + real64 operation
@@ -1094,15 +1093,15 @@ contains
 
     if(.not. shapes_match(lhs, x)) then
       error stop "Error in field_2d_t%field_sub_real_2d(): field_2d_t and x shapes don't match"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_sub_real_2d_gpu(lhs, x, res)
     else
       call from_field(res, lhs)
       call field_sub_real_2d_cpu(lhs, x, res)
-    end if
-  end function field_sub_real_2d
+    endif
+  endfunction field_sub_real_2d
 
   function real_1d_sub_field(x, rhs) result(res)
     !< Implementation of the field_2d_t + real64 operation
@@ -1115,9 +1114,9 @@ contains
     else
       call from_field(res, rhs)
       call real_1d_sub_field_cpu(x, rhs, res)
-    end if
+    endif
 
-  end function real_1d_sub_field
+  endfunction real_1d_sub_field
 
   function real_2d_sub_field(x, rhs) result(res)
     !< Implementation of the field_2d_t + real64 operation
@@ -1127,16 +1126,16 @@ contains
 
     if(.not. shapes_match(rhs, x)) then
       error stop "Error in field_2d_t%real_2d_sub_field(): field_2d_t and x shapes don't match"
-    end if
+    endif
 
     if(rhs%use_gpu) then
       call real_2d_sub_field_gpu(x, rhs, res)
     else
       call from_field(res, rhs)
       call real_2d_sub_field_cpu(x, rhs, res)
-    end if
+    endif
 
-  end function real_2d_sub_field
+  endfunction real_2d_sub_field
 
   function field_div_real_1d(lhs, x) result(res)
     !< Implementation of the field_2d_t / real64 operation
@@ -1150,16 +1149,16 @@ contains
 
     if(abs(x) < tiny(1.0_rk)) then
       error stop "Error in field_2d_t%field_div_real_1d: attempting a divide by 0 (abs(x) < tiny(1.0_rk))"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_mul_real_1d_gpu(lhs, one_over_x, res)
     else
       call from_field(res, lhs)
       call field_mul_real_1d_cpu(lhs, one_over_x, res)
-    end if
+    endif
 
-  end function field_div_real_1d
+  endfunction field_div_real_1d
 
   function field_div_real_2d(lhs, x) result(res)
     !< Implementation of the field_2d_t / real64 operation
@@ -1169,16 +1168,16 @@ contains
 
     if(.not. shapes_match(lhs, x)) then
       error stop "Error in field_2d_t%field_div_real_2d(): field_2d_t and x shapes don't match"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_div_real_2d_gpu(lhs, x, res)
     else
       call from_field(res, lhs)
       call field_div_real_2d_cpu(lhs, x, res)
-    end if
+    endif
 
-  end function field_div_real_2d
+  endfunction field_div_real_2d
 
   function real_1d_div_field(x, rhs) result(res)
     !< Implementation of the real64 / field_2d_t operation
@@ -1191,9 +1190,9 @@ contains
     else
       call from_field(res, rhs)
       call real_1d_div_field_cpu(x, rhs, res)
-    end if
+    endif
 
-  end function real_1d_div_field
+  endfunction real_1d_div_field
 
   function real_2d_div_field(x, rhs) result(res)
     !< Implementation of the field_2d_t / real64 operation
@@ -1203,16 +1202,16 @@ contains
 
     if(.not. shapes_match(rhs, x)) then
       error stop "Error in field_2d_t%real_2d_div_field(): field_2d_t and x shapes don't match"
-    end if
+    endif
 
     if(rhs%use_gpu) then
       call real_2d_div_field_gpu(x, rhs, res)
     else
       call from_field(res, rhs)
       call real_2d_div_field_cpu(x, rhs, res)
-    end if
+    endif
 
-  end function real_2d_div_field
+  endfunction real_2d_div_field
 
   function field_mul_real_2d(lhs, x) result(res)
     !< Implementation of the field_2d_t * array operation
@@ -1223,15 +1222,15 @@ contains
     if(enable_debug_print) call debug_print('Running field_mul_real_2d_cpu ', __FILE__, __LINE__)
     if(.not. shapes_match(lhs, x)) then
       error stop "Error in field_2d_t%field_mul_real_2d(): field_2d_t and x shapes don't match"
-    end if
+    endif
 
     if(lhs%use_gpu) then
       call field_mul_real_2d_gpu(lhs, x, res)
     else
       call from_field(res, lhs)
       call field_mul_real_2d_cpu(lhs, x, res)
-    end if
-  end function field_mul_real_2d
+    endif
+  endfunction field_mul_real_2d
 
   function field_mul_real_1d(lhs, x) result(res)
     !< Implementation of the field_2d_t * real64 operation
@@ -1245,9 +1244,9 @@ contains
     else
       call from_field(res, lhs)
       call field_mul_real_1d_cpu(lhs, x, res)
-    end if
+    endif
 
-  end function field_mul_real_1d
+  endfunction field_mul_real_1d
 
   function real_1d_mul_field(x, rhs) result(res)
     !< Implementation of the real64 * field_2d_t operation
@@ -1261,9 +1260,9 @@ contains
     else
       call from_field(res, rhs)
       call field_mul_real_1d_cpu(rhs, x, res)
-    end if
+    endif
 
-  end function real_1d_mul_field
+  endfunction real_1d_mul_field
 
   function real_2d_mul_field(x, rhs) result(res)
     !< Implementation of the real64 * field_2d_t operation
@@ -1273,7 +1272,7 @@ contains
 
     if(.not. shapes_match(rhs, x)) then
       error stop "Error in field_2d_t%real_2d_mul_field(): field_2d_t and x shapes don't match"
-    end if
+    endif
 
     ! Reuse the field * 2d operator
     if(rhs%use_gpu) then
@@ -1281,9 +1280,9 @@ contains
     else
       call from_field(res, rhs)
       call field_mul_real_2d_cpu(rhs, x, res)
-    end if
+    endif
 
-  end function real_2d_mul_field
+  endfunction real_2d_mul_field
 
   ! --------------------------------------------------------------------
   ! Reduction operators (min/max/sum val and loc)
@@ -1297,8 +1296,8 @@ contains
       res = field_maxval_gpu(self)
     else
       res = field_maxval_cpu(self)
-    end if
-  end function field_maxval
+    endif
+  endfunction field_maxval
 
   function field_maxloc(self) result(res)
     class(field_2d_t), intent(in) :: self
@@ -1308,8 +1307,8 @@ contains
       res = field_maxloc_gpu(self)
     else
       res = field_maxloc_cpu(self)
-    end if
-  end function field_maxloc
+    endif
+  endfunction field_maxloc
 
   function field_minval(self) result(res)
     class(field_2d_t), intent(in) :: self
@@ -1319,8 +1318,8 @@ contains
       res = field_minval_gpu(self)
     else
       res = field_minval_cpu(self)
-    end if
-  end function field_minval
+    endif
+  endfunction field_minval
 
   function field_minloc(self) result(res)
     class(field_2d_t), intent(in) :: self
@@ -1330,8 +1329,8 @@ contains
       res = field_minloc_gpu(self)
     else
       res = field_minloc_cpu(self)
-    end if
-  end function field_minloc
+    endif
+  endfunction field_minloc
 
   function field_sum(self) result(res)
     class(field_2d_t), intent(in) :: self
@@ -1342,7 +1341,7 @@ contains
     else
       ! res = field_sum_cpu(self)
       res = sum(self%data(self%ilo:self%ihi, self%jlo:self%jhi))
-    end if
-  end function field_sum
+    endif
+  endfunction field_sum
 
-end module mod_field
+endmodule mod_field

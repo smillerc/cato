@@ -59,6 +59,6 @@ contains
       call s1%evaluate(x_to_test(i), interp_x)
       real_x = x(i)
       @assertEqual(real_x, interp_x, tol)
-    end do
-  end subroutine
-end module
+    enddo
+  endsubroutine
+endmodule

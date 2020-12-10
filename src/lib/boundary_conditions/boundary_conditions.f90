@@ -55,7 +55,7 @@ module mod_boundary_conditions
     procedure, public :: set_indices
     procedure(apply), public, deferred :: apply
 
-  end type boundary_condition_t
+  endtype boundary_condition_t
 
   abstract interface
     subroutine apply(self, rho, u, v, p)
@@ -66,19 +66,19 @@ module mod_boundary_conditions
       class(field_2d_t), intent(inout) :: u
       class(field_2d_t), intent(inout) :: v
       class(field_2d_t), intent(inout) :: p
-    end subroutine apply
-  end interface
+    endsubroutine apply
+  endinterface
 contains
   pure subroutine set_time(self, time)
     class(boundary_condition_t), intent(inout) :: self
     real(rk), intent(in) :: time
     self%time = time
-  end subroutine
+  endsubroutine
 
   pure real(rk) function get_time(self) result(time)
     class(boundary_condition_t), intent(in) :: self
     time = self%time
-  end function
+  endfunction
 
   subroutine set_indices(self, grid)
     !< Save the indices for the cells that are tagged as ghost cells. These indices will be used
@@ -121,7 +121,7 @@ contains
 
         self%jlo_ghost(i) = grid%lbounds_halo(2) + i - 1
         self%jhi_ghost(i) = grid%ubounds_halo(2) - i + 1
-      end do
+      enddo
       self%ilo_ghost = .reverse.self%ilo_ghost
       self%jlo_ghost = .reverse.self%jlo_ghost
       self%ihi_ghost = .reverse.self%ihi_ghost
@@ -133,7 +133,7 @@ contains
       self%jhi = grid%ubounds(2)
     else
       error stop "Error in boundary_condition_t%set_indicies(), n_ghost_layers <= 0"
-    end if
+    endif
 
-  end subroutine set_indices
-end module mod_boundary_conditions
+  endsubroutine set_indices
+endmodule mod_boundary_conditions

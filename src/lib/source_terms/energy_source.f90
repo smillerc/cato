@@ -40,7 +40,7 @@ module mod_energy_source
   contains
     procedure :: integrate
     final :: finalize
-  end type
+  endtype
 
 contains
 
@@ -56,11 +56,11 @@ contains
       call energy_source%read_input_file()
     else
       energy_source%constant_source_value = input%constant_source_value
-    end if
+    endif
 
     open(newunit=energy_source%io_unit, file='input_source_value.dat')
     write(energy_source%io_unit, '(a)') 'Time [sec] Energy [erg]'
-  end function
+  endfunction
 
   subroutine finalize(self)
     type(energy_source_t), intent(inout) :: self
@@ -74,13 +74,13 @@ contains
     inquire(unit=self%io_unit, opened=is_open)
     if(is_open) close(self%io_unit)
 
-  end subroutine finalize
+  endsubroutine finalize
 
   subroutine integrate(self, dt)
     !< Inject energy into the conserved variables
     class(energy_source_t), intent(inout) :: self
     real(rk), intent(in) :: dt
 
-  end subroutine integrate
+  endsubroutine integrate
 
-end module mod_energy_source
+endmodule mod_energy_source

@@ -64,7 +64,7 @@ contains
       limiter = trim(limiter_name)
     else
       limiter = input%limiter
-    end if
+    endif
 
     select case(limiter)
     case('superbee', 'van_leer', 'minmod')
@@ -73,10 +73,10 @@ contains
       !   interpolator => new_muscl_tvd3(limiter=limiter)
       ! case('TVD5')
       !   interpolator => new_muscl_tvd5(limiter=limiter)
-      case('MLP3')
-        interpolator => new_muscl_mlp(limiter=limiter, order=3)
-      case('MLP5')
-        interpolator => new_muscl_mlp(limiter=limiter, order=5)
+    case('MLP3')
+      interpolator => new_muscl_mlp(limiter=limiter, order=3)
+    case('MLP5')
+      interpolator => new_muscl_mlp(limiter=limiter, order=5)
       ! case('e-MLP3')
       !   interpolator => new_muscl_e_mlp(limiter=limiter, order=3)
       ! case('e-MLP5')
@@ -87,10 +87,10 @@ contains
                      "['superbee', 'van_leer', 'minmod', '(e-)MLP3', or '(e-)MLP5]', the input value was '"// &
                      trim(input%spatial_reconstruction)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
-    end select
+    endselect
 
     deallocate(limiter)
 
-  end function
+  endfunction
 
-end module mod_muscl_interpolator_factory
+endmodule mod_muscl_interpolator_factory

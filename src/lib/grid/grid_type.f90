@@ -165,7 +165,7 @@ module mod_grid
     ! procedure(get_corner_persistent_vectors), deferred, public :: get_corner_persistent_vectors
     procedure(copy_grid), public, deferred :: copy
     generic :: assignment(=) => copy
-  end type grid_t
+  endtype grid_t
 
   abstract interface
     subroutine initialize(self, input)
@@ -173,13 +173,13 @@ module mod_grid
       import :: input_t
       class(grid_t), intent(inout) :: self
       class(input_t), intent(in) :: input
-    end subroutine
+    endsubroutine
 
     subroutine copy_grid(out_grid, in_grid)
       import :: grid_t
       class(grid_t), intent(in) :: in_grid
       class(grid_t), intent(inout) :: out_grid
-    end subroutine
+    endsubroutine
 
     pure function get_2d_data(self, i, j) result(x)
       !< Public interface to get get_2d_data
@@ -188,7 +188,7 @@ module mod_grid
       class(grid_t), intent(in) :: self
       integer(ik), intent(in) :: i, j
       real(rk) :: x
-    end function
+    endfunction
 
     pure function get_cell_centroid_xy(self, i, j) result(cell_centroid_xy)
       !< Public interface to get get_cell_centroid_xy
@@ -197,7 +197,7 @@ module mod_grid
       class(grid_t), intent(in) :: self
       integer(ik), intent(in) :: i, j
       real(rk), dimension(2) :: cell_centroid_xy
-    end function
+    endfunction
 
     pure function get_cell_edge_lengths(self, i, j, f) result(cell_centroids)
       !< Public interface to get get_cell_edge_lengths
@@ -206,7 +206,7 @@ module mod_grid
       class(grid_t), intent(in) :: self
       integer(ik), intent(in) :: i, j, f
       real(rk) :: cell_centroids
-    end function
+    endfunction
 
     pure function get_4d_data(self, i, j, f, xy) result(cell_edge_midpoints)
       !< Public interface to get get_4d_data
@@ -215,7 +215,7 @@ module mod_grid
       class(grid_t), intent(in) :: self
       integer(ik), intent(in) :: i, j, f, xy
       real(rk) :: cell_edge_midpoints
-    end function
+    endfunction
 
     pure function get_cell_node_xy(self, i, j, n, xy) result(cell_edge_norm_vectors)
       !< Public interface to get get_5d_data
@@ -224,7 +224,7 @@ module mod_grid
       class(grid_t), intent(in) :: self
       integer(ik), intent(in) :: i, j, n, xy
       real(rk) :: cell_edge_norm_vectors
-    end function
+    endfunction
 
     pure function get_midpoint_vectors(self, cell_ij, edge) result(vectors)
       !< Public interface to get_midpoint_vectors
@@ -234,7 +234,7 @@ module mod_grid
       integer(ik), dimension(2), intent(in) :: cell_ij
       character(len=*), intent(in) :: edge ! 'bottom', or 'top'
       real(rk), dimension(2, 2, 2) :: vectors !< ((x,y), (head,tail), (vector1, vector2))
-    end function
+    endfunction
 
     pure function get_corner_vectors(self, cell_ij, corner) result(vectors)
       !< Public interface to get_corner_vectors
@@ -244,7 +244,7 @@ module mod_grid
       integer(ik), dimension(2), intent(in) :: cell_ij
       character(len=*), intent(in) :: corner ! 'lowerleft', 'lowerright', 'upperright', 'upperleft'
       real(rk), dimension(2, 2, 4) :: vectors !< ((x,y), (head,tail), (vector1:vector4))
-    end function
+    endfunction
 
     subroutine get_corner_persistent_vectors(self, scale, shift)
       !< Public interface to get_corner_vectors_scaled_and_shifted
@@ -252,7 +252,7 @@ module mod_grid
       class(grid_t), intent(inout) :: self
       logical, intent(in) :: scale
       logical, intent(in) :: shift
-    end subroutine get_corner_persistent_vectors
+    endsubroutine get_corner_persistent_vectors
 
     subroutine get_midpoint_persistent_vectors(self, edge, scale, shift)
       !< Public interface to get_midpoint_vectors_scaled_and_shifted
@@ -261,7 +261,7 @@ module mod_grid
       character(len=*), intent(in) :: edge ! 'bottom', 'top', 'left', 'right'
       logical, intent(in) :: scale
       logical, intent(in) :: shift
-    end subroutine get_midpoint_persistent_vectors
-  end interface
+    endsubroutine get_midpoint_persistent_vectors
+  endinterface
 
-end module mod_grid
+endmodule mod_grid

@@ -83,6 +83,6 @@ contains
     @assertEqual(actual_cell_node_x, quad_cell_node_x)
     @assertEqual(actual_cell_node_y, quad_cell_node_y)
 
-  end subroutine test_quad_cell_stats
+  endsubroutine test_quad_cell_stats
 
-end module test_quad_cell
+endmodule test_quad_cell
