@@ -18,8 +18,6 @@
 ! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ! SOFTWARE.
 
-! Fypp variables. This allows us to generate an edge flux subroutine for each direction
-! and still allow the compiler to optimize
 #ifdef __OPENMP_THREADS__
 #define  
 #else
@@ -27,6 +25,8 @@
 #endif
 
 submodule(mod_field) field_2d_cpu_operators
+  !< Summary: This is the submodule to the field_2d_t type that contains
+  !<          all of the CPU arithmetic operators
 
 contains
 
