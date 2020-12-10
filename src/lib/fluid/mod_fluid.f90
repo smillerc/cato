@@ -48,7 +48,7 @@ module mod_fluid
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
   use mod_flux_solver, only: flux_solver_t
-  use collectives, only: min_to_all
+  use collectives, only: min_to_all, max_to_all
   ! use mod_ausm_plus_solver, only: ausm_plus_solver_t
   ! use mod_fvleg_solver, only: fvleg_solver_t
   use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
@@ -104,6 +104,7 @@ module mod_fluid
     private
     procedure :: initialize_from_hdf5
     procedure :: calculate_derived_quantities
+    procedure :: residual_smoother
     procedure :: sanity_check
     procedure :: ssp_rk_2_2
     procedure :: ssp_rk_3_3
@@ -426,17 +427,10 @@ contains
 
   subroutine sync_fields(self)
     class(fluid_t), intent(inout) :: self
-
     call self%rho%sync_edges()
     call self%u%sync_edges()
     call self%v%sync_edges()
     call self%p%sync_edges()
-    ! call rho_u %sync_edges()
-    ! call rho_v %sync_edges()
-    ! call rho_E %sync_edges()
-    ! call cs    %sync_edges()
-    ! call mach_u%sync_edges()
-    ! call mach_v%sync_edges()
   end subroutine
 
   function time_derivative(self, grid, source_term) result(d_dt)
@@ -548,6 +542,44 @@ contains
     self%mach_v = self%v / self%cs
     self%prim_vars_updated = .true.
   end subroutine calculate_derived_quantities
+
+  subroutine residual_smoother(self)
+    class(fluid_t), intent(inout) :: self
+
+    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j
+    real(rk) :: high, low, rel_diff
+    real(rk), parameter :: REL_TOL = 1e-5_rk
+    real(rk), parameter :: EPS = 5e-14_rk
+
+    call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
+    
+    if(self%smooth_residuals) then
+      ilo = self%rho%lbounds(1)
+      ihi = self%rho%ubounds(1)
+      jlo = self%rho%lbounds(2)
+      jhi = self%rho%ubounds(2)
+
+      do j = jlo, jhi
+        do i = ilo, ihi
+          if(abs(self%rho  %data(i, j) - self%rho  %data(i - 1, j)) < EPS) self%rho  %data(i, j) = self%rho  %data(i - 1, j)
+          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i - 1, j)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i - 1, j)
+          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i - 1, j)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i - 1, j)
+          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i - 1, j)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i - 1, j)
+        end do
+      end do
+
+      do j = jlo, jhi
+        do i = ilo, ihi
+          if(abs(self%rho  %data(i, j) - self%rho  %data(i, j - 1)) < EPS) self%rho  %data(i, j) = self%rho  %data(i, j - 1)
+          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i, j - 1)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i, j - 1)
+          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i, j - 1)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i, j - 1)
+          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i, j - 1)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i, j - 1)
+        end do
+      end do
+    end if
+
+  end subroutine residual_smoother
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
@@ -663,15 +695,6 @@ contains
     allocate(lhs%solver, source=solver)
     deallocate(solver)
 
-
-    
-    ! allocate(lhs%solver, source=rhs%solver, stat=alloc_status)
-    ! if(alloc_status /= 0) then
-    !   write(err_msg,'(a,i0)') "Unable to allocate lhs%solver, error code: ", alloc_status
-    !   call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
-    !                  message="Unable to allocate lhs%solver", file_name=__FILE__, line_number=__LINE__)
-    ! end if
-
     lhs%time_integration_scheme = rhs%time_integration_scheme
     lhs%time = rhs%time
     lhs%dt = rhs%dt
@@ -681,6 +704,8 @@ contains
     lhs%residual_hist_file = rhs%residual_hist_file
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
     call lhs%calculate_derived_quantities()
+
+    if(lhs%smooth_residuals) call lhs%residual_smoother()
 
   end subroutine assign_fluid
 
@@ -870,9 +895,13 @@ contains
     jhi = last_stage%rho%ubounds(2)
 
     rho_diff = maxval(abs(last_stage%rho%data(ilo:ihi, jlo:jhi) - first_stage%rho%data(ilo:ihi, jlo:jhi)))
+    rho_diff = max_to_all(rho_diff)
     rho_u_diff = maxval(abs(last_stage%rho_u%data(ilo:ihi, jlo:jhi) - first_stage%rho_u%data(ilo:ihi, jlo:jhi)))
+    rho_u_diff = max_to_all(rho_u_diff)
     rho_v_diff = maxval(abs(last_stage%rho_v%data(ilo:ihi, jlo:jhi) - first_stage%rho_v%data(ilo:ihi, jlo:jhi)))
+    rho_v_diff = max_to_all(rho_v_diff)
     rho_E_diff = maxval(abs(last_stage%rho_E%data(ilo:ihi, jlo:jhi) - first_stage%rho_E%data(ilo:ihi, jlo:jhi)))
+    rho_E_diff = max_to_all(rho_E_diff)
 
     open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
     write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &
