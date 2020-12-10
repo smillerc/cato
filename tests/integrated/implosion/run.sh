@@ -2,7 +2,7 @@
 
 export I_MPI_REMOVED_VAR_WARNING=0
 export I_MPI_VAR_CHECK_SPELLING=0
-export FOR_COARRAY_NUM_IMAGES=1
+export FOR_COARRAY_NUM_IMAGES=6
 export UCX_LOG_LEVEL=error
 
 cato_dir=../../../build
