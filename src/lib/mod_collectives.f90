@@ -8,14 +8,14 @@ contains
     !< Broadcast the sum of x to all images using a binary-tree algorithm.
     real(real64), intent(in) :: x                !< data to perform the operation on
     integer(int32), intent(in), optional :: root !< desired image to send result to, defaults to 1
-    real(real64), allocatable, save :: y[:]      !< (image); coarray buffer to perform operation on
+    real(real64), save :: y[*]      !< (image); coarray buffer to perform operation on
     integer(int32) :: img_idx                    !< image loop index
     logical :: is_valid_image                    !< ensure only valid images (w/in the tree) do the operation
 
     x_sum = 0.0_real64
 
     ! Allocate the coarray buffer and copy over the data
-    if (.not. allocated(y)) allocate(y[*])
+    !if (.not. allocated(y)) allocate(y[*])
     y = x
     sync all
 
@@ -46,14 +46,14 @@ contains
     !< Broadcast the maximum value of x to all images
     real(real64), intent(in) :: x                !< data to perform the operation on
     integer(int32), intent(in), optional :: root !< desired image to send result to, defaults to 1
-    real(real64), allocatable, save :: y[:]      !< (image); coarray buffer to perform operation on
+    real(real64), save :: y[*]      !< (image); coarray buffer to perform operation on
     integer(int32) :: img_idx                    !< image loop index
     logical :: is_valid_image                    !< ensure only valid images (w/in the tree) do the operation
     
     x_max = 0.0_real64
 
     ! Allocate the coarray buffer and copy over the data
-    if (.not. allocated(y)) allocate(y[*])
+    !if (.not. allocated(y)) allocate(y[*])
     y = x
     sync all
 
@@ -84,11 +84,11 @@ contains
     !< Broadcast the value of x to all images
     real(real64), intent(in) :: x                !< data to perform the operation on
     integer(int32), intent(in), optional :: root !< desired image to send result to, defaults to 1
-    real(real64), allocatable, save :: y[:]      !< (image); coarray buffer to perform operation on
+    real(real64), save :: y[*]      !< (image); coarray buffer to perform operation on
     integer(int32) :: img_idx                    !< image loop index
     logical :: is_valid_image                    !< ensure only valid images (w/in the tree) do the operation
 
-    if (.not. allocated(y)) allocate(y[*])
+    !if (.not. allocated(y)) allocate(y[*])
     
     if (present(root)) then
       if (this_image() == root) y[1] = x
