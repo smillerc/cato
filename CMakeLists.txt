@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 3.8)
 project(
   CATO
   VERSION 2.0.1
-  DESCRIPTION "A modern fortran implementation of the FVLEG scheme"
+  DESCRIPTION "A modern Fortran code for solving the Euler equations with various flux schemes"
   HOMEPAGE_URL "https://github.com/smillerc/cato"
   LANGUAGES Fortran C)
 
