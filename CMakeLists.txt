@@ -20,7 +20,7 @@ cmake_minimum_required(VERSION 3.8)
 
 project(
   CATO
-  VERSION 2.0.0
+  VERSION 2.0.1
   DESCRIPTION "A modern fortran implementation of the FVLEG scheme"
   HOMEPAGE_URL "https://github.com/smillerc/cato"
   LANGUAGES Fortran C)
