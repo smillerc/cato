@@ -161,7 +161,11 @@ contains
     do j = lhs%jlo, lhs%jhi
       !$omp simd
       do i = lhs%ilo, lhs%ihi
-        res%data(i, j) = lhs%data(i, j) / f%data(i, j)
+        if (abs(lhs%data(i, j)) < tiny(1.0_rk)) then
+          res%data(i, j) = 0.0_rk
+        else
+          res%data(i, j) = lhs%data(i, j) / f%data(i, j)
+        endif
       enddo
       !$omp end simd
     enddo

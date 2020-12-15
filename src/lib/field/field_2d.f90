@@ -8,6 +8,7 @@ module mod_field
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use, intrinsic :: iso_c_binding
+  use, intrinsic :: ieee_arithmetic
   use h5fortran, only: hdf5_file, hsize_t
   use mod_error, only: error_msg
   use mod_parallel, only: tile_indices, tile_neighbors_2d
@@ -105,8 +106,8 @@ module mod_field
     procedure, public :: make_non_dimensional
     procedure, public :: make_dimensional
     procedure, public :: zero_out_halo
-    procedure, public :: has_nans
-    procedure, public :: has_negatives
+    procedure, public :: check_for_nans
+    procedure, public :: check_for_negatives
     procedure, public :: write_field
     procedure, public :: gather
     procedure, public :: sync_edges
@@ -800,49 +801,49 @@ contains
     endif
   endsubroutine make_non_dimensional
 
-  logical function has_nans(self)
+  subroutine check_for_nans(self)
     !< Check for NaNs
     class(field_2d_t), intent(in) :: self
 
     ! Locals
     integer(ik) :: i, j
-    character(len=:), allocatable :: err_message
+    character(len=128) :: err_message = ''
 
-    has_nans = .false.
+    if(enable_debug_print) call debug_print('Running "'// trim(self%name) //'" field_2d_t%has_nans() ', __FILE__, __LINE__)
 
-    ! do j = lbound(self%data, dim=2), ubound(self%data, dim=2)
-    !   do i = lbound(self%data, dim=1), ubound(self%data, dim=1)
-    !     if(ieee_is_nan(self%data(i, j))) then
-    !       write(err_message, '(a, i0, ", ", i0, a)') "NaN "//self%name//" found at (", i, j, ")"
-    !       call error_msg(module_name='mod_field', class_name='field_2d_t', procedure_name='check_for_nans', &
-    !                      message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
-    !       has_nans = .true.
-    !     end if
-    !   end do
-    ! end do
-  endfunction has_nans
+    do j = self%lbounds(2), self%ubounds(2)
+      do i = self%lbounds(1), self%ubounds(1)
+        if(ieee_is_nan(self%data(i, j))) then
+          write(err_message, '(a, i0, ", ", i0, a)') "NaN "//self%name//" found at (", i, j, ")"
+          call error_msg(module_name='mod_field', class_name='field_2d_t', procedure_name='check_for_nans', &
+                         message=trim(err_message), file_name=__FILE__, line_number=__LINE__, error_stop=.true.)
+        end if
+      end do
+    end do
+  endsubroutine check_for_nans
 
-  logical function has_negatives(self)
+  subroutine check_for_negatives(self)
     !< Check for negative numbers
     class(field_2d_t), intent(in) :: self
 
     ! Locals
     integer(ik) :: i, j
-    character(len=:), allocatable :: err_message
+    character(len=128) :: err_message = ''
 
-    has_negatives = .false.
+    if(enable_debug_print) then
+      call debug_print('Running "'// trim(self%name) //'" field_2d_t%check_for_negatives() ', __FILE__, __LINE__)
+    endif
 
-    ! do j = lbound(self%data, dim=2), ubound(self%data, dim=2)
-    !   do i = lbound(self%data, dim=1), ubound(self%data, dim=1)
-    !     if(self%data(i, j) < 0.0_rk) then
-    !       write(err_message, '(a, i0, ", ", i0, a)') "Negative "//self%name//" found at (", i, j, ")"
-    !       call error_msg(module_name='mod_field', class_name='field_2d_t', procedure_name='check_for_negatives', &
-    !                      message=err_message, file_name=__FILE__, line_number=__LINE__, error_stop=.false.)
-    !       has_negatives = .true.
-    !     end if
-    !   end do
-    ! end do
-  endfunction has_negatives
+    do j = self%lbounds(2), self%ubounds(2)
+      do i = self%lbounds(1), self%ubounds(1)
+        if(self%data(i, j) < 0.0_rk) then
+          write(err_message, '(a, i0, ", ", i0, a, es16.6)') "Negative "//self%name//" found at (", i, j, ")", self%data(i,j)
+          call error_msg(module_name='mod_field', class_name='field_2d_t', procedure_name='check_for_negatives', &
+                         message=trim(err_message), file_name=__FILE__, line_number=__LINE__, error_stop=.true.)
+        end if
+      end do
+    end do
+  endsubroutine check_for_negatives
 
   ! --------------------------------------------------------------------
   ! Clear-up all the memory
@@ -851,7 +852,7 @@ contains
     !< Cleanup the field_2d_t object
     type(field_2d_t), intent(inout) :: self
 
-    if(enable_debug_print) call debug_print('Running field_2d_t%finalize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running "'// trim(self%name) //'" field_2d_t%finalize()', __FILE__, __LINE__)
 
     if(allocated(self%data)) deallocate(self%data)
     if(allocated(self%units)) deallocate(self%units)
@@ -910,7 +911,10 @@ contains
     class(field_2d_t), intent(inout) :: lhs !< left-hand-side of the operation
     class(field_2d_t), intent(in) :: f
 
-    if(enable_debug_print) call debug_print('Running assign_field ', __FILE__, __LINE__)
+    if(enable_debug_print) then
+      call debug_print('Running "'// trim(lhs%name) //'" field_2d_t%assign_field() ', __FILE__, __LINE__)
+    endif
+
     call from_field(lhs, f)
 
     if(lhs%sync_on_equal) call lhs%sync_edges()
@@ -920,6 +924,8 @@ contains
     !< Implementation of the (=) operator from a real scalar
     class(field_2d_t), intent(inout) :: lhs !< left-hand-side of the operation
     real(rk), intent(in) :: a
+
+    if(enable_debug_print) call debug_print('Running field_2d_t%assign_real_scalar() ', __FILE__, __LINE__)
     lhs%data = a
     if(lhs%sync_on_equal) call lhs%sync_edges()
   endsubroutine assign_real_scalar
