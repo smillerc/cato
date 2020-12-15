@@ -137,6 +137,8 @@ contains
 
   subroutine apply_primitive_bc(self, rho, u, v, p, &
                                 bc_plus_x, bc_minus_x, bc_plus_y, bc_minus_y)
+    !< Apply the boundary conditions to the primitive variables (rho, u, v, and p). BC's are applied
+    !< in order of their priority, with the highest going first
     class(flux_solver_t), intent(inout) :: self
     class(field_2d_t), intent(inout) :: rho
     class(field_2d_t), intent(inout) :: u
@@ -160,7 +162,6 @@ contains
     call bc_plus_y%set_time(time=self%time)
     call bc_minus_y%set_time(time=self%time)
 
-    !if(any([rho%on_ilo_bc, rho%on_ihi_bc, rho%on_jlo_bc, rho%on_jhi_bc])) then
     do priority = max_priority_bc, 0, -1
 
       if(bc_plus_x%priority == priority) then
@@ -180,7 +181,6 @@ contains
       endif
 
     enddo
-    !endif
 
   endsubroutine apply_primitive_bc
 

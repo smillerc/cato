@@ -245,6 +245,7 @@ contains
     class(field_2d_t), intent(in) :: p   !< pressure
     class(field_2d_t), intent(in) :: rho !< density
     class(field_2d_t), intent(inout) :: cs !< sound speed
+    integer(ik) :: i, j
 
     cs = self%gamma * (p / rho)
     cs%data = sqrt(cs%data)
@@ -316,7 +317,7 @@ contains
 
     rho_v = v * rho
     rho_v%name = 'rho_v'
-    
+
     rho_E = (p / gamma_m_one) + rho * 0.5_rk * (u * u + v * v)
     rho_E%name = 'rho_E'
 

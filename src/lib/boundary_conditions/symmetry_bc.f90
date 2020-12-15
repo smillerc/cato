@@ -49,6 +49,7 @@ contains
     allocate(bc)
     bc%name = 'symmetry'
     bc%location = location
+    bc%priority = 1
     call bc%set_indices(grid)
   endfunction symmetry_bc_constructor
 

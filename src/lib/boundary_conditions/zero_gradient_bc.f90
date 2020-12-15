@@ -47,6 +47,7 @@ contains
     allocate(bc)
     bc%name = 'zero_gradient'
     bc%location = location
+    bc%priority = 1
     call bc%set_indices(grid)
   endfunction zero_gradient_bc_constructor
 
