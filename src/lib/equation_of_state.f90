@@ -220,6 +220,7 @@ contains
     gamma_m_one = self%gamma - 1.0_rk
 
     E = (p / (rho * gamma_m_one)) + (0.5_rk * (u * u + v * v))
+    E%name = 'E'
 
   endsubroutine total_energy_field_2d
 
@@ -233,6 +234,7 @@ contains
     class(field_2d_t), intent(inout) :: H !< total enthalpy
 
     H = (p / rho) * (self%gamma / (self%gamma - 1.0_rk)) + (0.5_rk * (u * u + v * v))
+    H%name = 'H'
 
   endsubroutine total_enthalpy_field_2d
 
@@ -246,6 +248,7 @@ contains
 
     cs = self%gamma * (p / rho)
     cs%data = sqrt(cs%data)
+    cs%name = 'cs'
   endsubroutine sound_speed_field_2d
 
   subroutine temperature_field_2d(self, p, rho, t)
@@ -257,6 +260,7 @@ contains
     class(field_2d_t), intent(inout) :: t
 
     t = p / (rho * self%R)
+    t%name = 'T'
 
   endsubroutine temperature_field_2d
 
@@ -279,8 +283,13 @@ contains
     gamma_m_one = self%gamma - 1.0_rk
 
     u = rho_u / rho
+    u%name = 'u'
+    
     v = rho_v / rho
+    v%name = 'v'
+
     p = rho * gamma_m_one * ((rho_E / rho) - (0.5_rk * (u * u + v * v)))
+    p%name = 'p'
 
   endsubroutine conserved_to_primitive_field_2d
 
@@ -303,8 +312,13 @@ contains
     gamma_m_one = self%gamma - 1.0_rk
 
     rho_u = u * rho
+    rho_u%name = 'rho_u'
+
     rho_v = v * rho
+    rho_v%name = 'rho_v'
+    
     rho_E = (p / gamma_m_one) + rho * 0.5_rk * (u * u + v * v)
+    rho_E%name = 'rho_E'
 
   endsubroutine primitive_to_conserved_field_2d
 
