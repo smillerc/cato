@@ -74,6 +74,7 @@ contains
     allocate(bc)
     bc%name = 'pressure_input'
     bc%location = location
+    bc%priority = 0 !< currently the lowest (last to go) priority
     call bc%set_indices(grid)
 
     bc%time = time
@@ -185,6 +186,7 @@ contains
   endsubroutine read_pressure_input
 
   real(rk) function get_desired_pressure(self) result(desired_pressure)
+    !< Get the pressure specified in the input file or external file (for time-dependent cases).
     class(pressure_input_bc_t), intent(inout) :: self
     integer(ik) :: interp_stat
 
@@ -206,6 +208,7 @@ contains
   endfunction get_desired_pressure
 
   real(rk) function get_desired_density(self) result(desired_density)
+    !< Get the density specified in the input file or external file (for time-dependent cases).
     class(pressure_input_bc_t), intent(inout) :: self
     integer(ik) :: interp_stat
 
@@ -227,7 +230,7 @@ contains
   endfunction get_desired_density
 
   subroutine apply_pressure_input_primitive_var_bc(self, rho, u, v, p)
-    !< Apply pressure_input boundary conditions to the conserved state vector field
+    !< Apply pressure_input boundary conditions to the primitive variables
     class(pressure_input_bc_t), intent(inout) :: self
     class(field_2d_t), intent(inout) :: rho
     class(field_2d_t), intent(inout) :: u
@@ -250,7 +253,9 @@ contains
     real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
     real(rk), dimension(2) :: boundary_norm
 
- if(enable_debug_print) call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() ', __FILE__, __LINE__)
+    if(enable_debug_print) then
+      call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() ', __FILE__, __LINE__)
+    endif
 
     if(rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
        rho%on_jhi_bc .or. rho%on_jlo_bc) then
@@ -269,13 +274,22 @@ contains
       if(allocated(self%edge_p)) deallocate(self%edge_p)
     endif
 
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+    associate(left => self%ilo, right => self%ihi, &
+              bottom => minval(self%jlo_ghost), &
+              top => maxval(self%jhi_ghost), &
+              ! bottom => self%jlo, 
+              ! top => self%jhi, &
               left_ghost => minval(self%ilo_ghost), &
               right_ghost => maxval(self%ihi_ghost), &
               bottom_ghost => minval(self%jlo_ghost), &
               top_ghost => maxval(self%jhi_ghost), &
               n => self%n_ghost_layers)
 
+      ! print*, 'pressure bc edges'
+      ! print*, self%ilo, self%ihi, self%jlo, self%jhi
+      ! print*, self%ilo_ghost, self%ihi_ghost, self%jlo_ghost, self%jhi_ghost
+      ! print*
+      
       select case(self%location)
       case('+x', '-x')
         if(rho%on_ihi_bc .or. rho%on_ilo_bc) then
@@ -365,6 +379,8 @@ contains
             self%edge_u(j) = boundary_prim_vars(2)
             self%edge_v(j) = 0.0_rk
             self%edge_p(j) = boundary_prim_vars(4)
+
+            ! write(*, '(4(es10.3), a, 4(es10.3))') domain_prim_vars, ":", boundary_prim_vars
           enddo
 
           do i = 1, self%n_ghost_layers
@@ -373,6 +389,16 @@ contains
             v%data(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
             p%data(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
           enddo
+
+!           write(*, '(a, 50(es12.3))') 'rho', rho%data(:,1)
+!           write(*, '(a, 50(es12.3))') 'u  ', u%data(:,1)
+!           write(*, '(a, 50(es12.3))') 'v  ', v%data(:,1)
+!           write(*, '(a, 50(es12.3))') 'p  ', p%data(:,1)
+! print*
+!           write(*, '(a, 50(es12.3))') 'rho', rho%data(22,:)
+!           write(*, '(a, 50(es12.3))') 'u  ',   u%data(22,:)
+!           write(*, '(a, 50(es12.3))') 'v  ',   v%data(22,:)
+!           write(*, '(a, 50(es12.3))') 'p  ',   p%data(22,:)
         endif ! on_ihi_bc
       case default
         call error_msg(module_name='mod_pressure_bc', class_name='pressure_input_bc_t', &

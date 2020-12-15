@@ -24,11 +24,11 @@ vacuum_density = 0.001 * ureg("g/cc")
 vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s")
 
 # Mesh
-y_thickness = 5.0 * ureg("um")
+y_thickness = 1.0 * ureg("um")
 print(f"y_thickness: {y_thickness.to('um')}")
 dy = None  # will use smallest dx if None
 
-layer_thicknesses = [2, 2] * ureg("um")
+layer_thicknesses = [.5, .5] * ureg("um")
 layer_spacing = ["constant", "constant"]
 layer_resolution = [20, 20] * ureg("1/um")
 
@@ -37,8 +37,8 @@ layer_n_cells = np.round(
 ).m.astype(int)
 
 layer_density = [shell_density, vacuum_density]
-# layer_u = [0, -vacuum_u.m] * ureg("cm/s")
-layer_u = [0, 0] * ureg("cm/s")
+layer_u = [0, -vacuum_u.m] * ureg("cm/s")
+#layer_u = [0, 0] * ureg("cm/s")
 layer_v = [0, 0] * ureg("cm/s")
 layer_pressure = [init_pressure, init_pressure]
 

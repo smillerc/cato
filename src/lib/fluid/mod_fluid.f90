@@ -92,7 +92,7 @@ module mod_fluid
     integer(ik) :: iteration = 0 !< current iteration number
 
     logical, public :: prim_vars_updated = .false.
-    logical :: smooth_residuals = .true.
+    logical :: smooth_residuals = .false.
 
     ! Residual history
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
@@ -533,6 +533,16 @@ contains
     call eos%conserved_to_primitive(rho=self%rho, rho_u=self%rho_u, &
                                     rho_v=self%rho_v, rho_E=self%rho_E, &
                                     u=self%u, v=self%v, p=self%p)
+
+    ! print*, 'conserved to prim'     
+    ! print*, 'rho'
+    ! print*, self%rho%data(:,1)
+    ! print*, 'u'
+    ! print*, self%u%data(:,1)
+    ! print*, 'v'
+    ! print*, self%v%data(:,1)
+    ! print*, 'p'
+    ! print*, self%p%data(:,1)
     call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
 
     self%mach_u = self%u / self%cs
@@ -551,30 +561,48 @@ contains
 
     call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
 
-    if(self%smooth_residuals) then
-      ilo = self%rho%lbounds(1)
-      ihi = self%rho%ubounds(1)
-      jlo = self%rho%lbounds(2)
-      jhi = self%rho%ubounds(2)
+    ! if(self%smooth_residuals) then
+    !   ilo = self%rho%lbounds(1) - (self%rho%n_halo_cells - 1)
+    !   ihi = self%rho%ubounds(1) + (self%rho%n_halo_cells - 1)
+    !   jlo = self%rho%lbounds(2) - (self%rho%n_halo_cells - 1)
+    !   jhi = self%rho%ubounds(2) + (self%rho%n_halo_cells - 1)
 
-      do j = jlo, jhi
-        do i = ilo, ihi
-          if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
-          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i - 1, j)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i - 1, j)
-          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i - 1, j)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i - 1, j)
-          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i - 1, j)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i - 1, j)
-        enddo
-      enddo
+      ! do j = jlo, jhi
+      !   do i = ilo, ihi
+      !     if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
+      !     if(abs(self%u%data(i, j) - self%u%data(i - 1, j)) < EPS) self%u%data(i, j) = self%u%data(i - 1, j)
+      !     if(abs(self%v%data(i, j) - self%v%data(i - 1, j)) < EPS) self%v%data(i, j) = self%v%data(i - 1, j)
+      !     if(abs(self%p%data(i, j) - self%p%data(i - 1, j)) < EPS) self%p%data(i, j) = self%p%data(i - 1, j)
+      !   enddo
+      ! enddo
 
-      do j = jlo, jhi
-        do i = ilo, ihi
-          if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
-          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i, j - 1)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i, j - 1)
-          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i, j - 1)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i, j - 1)
-          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i, j - 1)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i, j - 1)
-        enddo
-      enddo
-    endif
+      ! do j = jlo, jhi
+      !   do i = ilo, ihi
+      !     if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
+      !     if(abs(self%u%data(i, j) - self%u%data(i, j - 1)) < EPS) self%u%data(i, j) = self%u%data(i, j - 1)
+      !     if(abs(self%v%data(i, j) - self%v%data(i, j - 1)) < EPS) self%v%data(i, j) = self%v%data(i, j - 1)
+      !     if(abs(self%p%data(i, j) - self%p%data(i, j - 1)) < EPS) self%p%data(i, j) = self%p%data(i, j - 1)
+      !   enddo
+      ! enddo
+
+    !   do j = jlo, jhi
+    !     do i = ilo, ihi
+    !       if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
+    !       if(abs(self%rho_u%data(i, j) - self%rho_u%data(i - 1, j)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i - 1, j)
+    !       if(abs(self%rho_v%data(i, j) - self%rho_v%data(i - 1, j)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i - 1, j)
+    !       if(abs(self%rho_E%data(i, j) - self%rho_E%data(i - 1, j)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i - 1, j)
+    !     enddo
+    !   enddo
+
+    !   do j = jlo, jhi
+    !     do i = ilo, ihi
+    !       if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
+    !       if(abs(self%rho_u%data(i, j) - self%rho_u%data(i, j - 1)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i, j - 1)
+    !       if(abs(self%rho_v%data(i, j) - self%rho_v%data(i, j - 1)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i, j - 1)
+    !       if(abs(self%rho_E%data(i, j) - self%rho_E%data(i, j - 1)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i, j - 1)
+    !     enddo
+    !   enddo
+    ! endif
 
   endsubroutine residual_smoother
 
@@ -700,7 +728,7 @@ contains
     lhs%smooth_residuals = rhs%smooth_residuals
     lhs%residual_hist_file = rhs%residual_hist_file
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
-    call lhs%calculate_derived_quantities()
+    ! call lhs%calculate_derived_quantities()
 
     if(lhs%smooth_residuals) call lhs%residual_smoother()
 
@@ -784,6 +812,7 @@ contains
         + U_2 * (2.0_rk / 3.0_rk) &
         + U_2%t(grid=grid, source_term=source_term) * ((2.0_rk / 3.0_rk) * dt)
     call U%sanity_check(error_code)
+    call U%calculate_derived_quantities()
 
     ! Convergence history
     call write_residual_history(first_stage=U_1, last_stage=U)
@@ -829,6 +858,7 @@ contains
     ! Final stage
     U = U_3 + (U_3%t(grid=grid, source_term=source_term) * 0.5_rk * dt)
     call U%sanity_check(error_code)
+    call U%calculate_derived_quantities()
 
     ! Convergence history
     call write_residual_history(first_stage=U_1, last_stage=U)
@@ -863,6 +893,7 @@ contains
         U_1%t(grid=grid, source_term=source_term) * (0.5_rk * dt)
     ! call U%sync_fields()
     call U%sanity_check(error_code)
+    call U%calculate_derived_quantities()
 
     ! ! Convergence history
     call write_residual_history(first_stage=U_1, last_stage=U)

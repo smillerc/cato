@@ -47,16 +47,12 @@ contains
     select case(trim(bc_type))
     case('periodic')
       bc => periodic_bc_constructor(location, input, grid)
-      bc%priority = 0
     case('symmetry')
       bc => symmetry_bc_constructor(location, input, grid)
-      bc%priority = 1
     case('pressure_input')
       bc => pressure_input_bc_constructor(location, input, grid, time)
-      bc%priority = 2
     case('zero_gradient')
       bc => zero_gradient_bc_constructor(location, input, grid)
-      bc%priority = 1
     case default
       call error_msg(module_name='mod_bc_factory', &
                      procedure_name='bc_factory', &

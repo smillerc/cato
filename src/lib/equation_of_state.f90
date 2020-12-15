@@ -243,9 +243,33 @@ contains
     class(field_2d_t), intent(in) :: p   !< pressure
     class(field_2d_t), intent(in) :: rho !< density
     class(field_2d_t), intent(inout) :: cs !< sound speed
+    integer(ik) :: i, j
 
     cs = self%gamma * (p / rho)
-    cs%data = sqrt(cs%data)
+
+    ! At the moment, there is no overload for the sqrt so the bounds need to be included to avoid floating point exceptions
+    ! caused by the sqrt on the halo data (which may be 0's or other nonesense data)
+! print*, 'i=19'
+!     write(*, '(a, 50(es12.3))') 'rho', rho%data(19,:)
+!     write(*, '(a, 50(es12.3))') 'p  ',   p%data(19,:)
+! print*, 'i=20'
+!     write(*, '(a, 50(es12.3))') 'rho', rho%data(20,:)
+!     write(*, '(a, 50(es12.3))') 'p  ',   p%data(20,:)
+! print*, 'i=21'
+!     write(*, '(a, 50(es12.3))') 'rho', rho%data(21,:)
+!     write(*, '(a, 50(es12.3))') 'p  ',   p%data(21,:)
+! print*, 'i=22'
+!     write(*, '(a, 50(es12.3))') 'rho', rho%data(22,:)
+!     write(*, '(a, 50(es12.3))') 'p  ',   p%data(22,:)
+
+    do j = cs%jlo, cs%jhi
+      !$omp simd
+      do i = cs%ilo, cs%ihi
+        print*, i, j, p%data(i,j), rho%data(i,j), cs%data(i,j)
+        cs%data(i,j) = sqrt(cs%data(i,j))
+      enddo
+      !$omp end simd
+    enddo
   endsubroutine sound_speed_field_2d
 
   subroutine temperature_field_2d(self, p, rho, t)

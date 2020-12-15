@@ -53,6 +53,7 @@ module mod_periodic_bc
 contains
 
   function periodic_bc_constructor(location, input, grid) result(bc)
+    !< Create the periodic boundary condition type
     type(periodic_bc_t), pointer :: bc
     character(len=2), intent(in) :: location !< Location (+x, -x, +y, or -y)
     class(input_t), intent(in) :: input
@@ -61,6 +62,7 @@ contains
     allocate(bc)
     bc%name = 'periodic'
     bc%location = location
+    bc%priority = 2 !< currently the highest (first to be applied) priority
     call bc%set_indices(grid)
 
     if(trim(input%plus_x_bc) == 'periodic' .and. &
@@ -74,7 +76,7 @@ contains
   endfunction periodic_bc_constructor
 
   subroutine apply_periodic_primitive_var_bc(self, rho, u, v, p)
-
+    !< Apply the periodic BC to the primitive variables (rho, u, v, and p)
     class(periodic_bc_t), intent(inout) :: self
     class(field_2d_t), intent(inout) :: rho
     class(field_2d_t), intent(inout) :: u
@@ -274,6 +276,7 @@ contains
   endsubroutine apply_periodic_primitive_var_bc
 
   subroutine finalize(self)
+    !< Cleanup the type
     type(periodic_bc_t), intent(inout) :: self
     call debug_print('Running periodic_bc_t%finalize()', __FILE__, __LINE__)
     if(allocated(self%ilo_ghost)) deallocate(self%ilo_ghost)
