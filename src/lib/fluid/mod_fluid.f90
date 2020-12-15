@@ -533,6 +533,9 @@ contains
     call eos%conserved_to_primitive(rho=self%rho, rho_u=self%rho_u, &
                                     rho_v=self%rho_v, rho_E=self%rho_E, &
                                     u=self%u, v=self%v, p=self%p)
+    call self%rho%check_for_negatives()
+    call self%p%check_for_negatives()
+
     call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
 
     self%mach_u = self%u / self%cs
@@ -700,6 +703,12 @@ contains
     lhs%smooth_residuals = rhs%smooth_residuals
     lhs%residual_hist_file = rhs%residual_hist_file
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
+
+    call lhs%rho%check_for_nans()
+    call lhs%u%check_for_nans()
+    call lhs%v%check_for_nans()
+    call lhs%p%check_for_nans()
+    
     call lhs%calculate_derived_quantities()
 
     if(lhs%smooth_residuals) call lhs%residual_smoother()
@@ -712,45 +721,11 @@ contains
     logical :: invalid_numbers, negative_numbers
     integer(ik), intent(out) :: error_code
 
+    error_code = 0
+
     if(enable_debug_print) call debug_print('Running fluid_t%sanity_check()', __FILE__, __LINE__)
-
-    error_code = ALL_OK
-
-    invalid_numbers = self%rho%has_nans()
-    if(invalid_numbers) then
-      error_code = NANS_FOUND
-      return
-    endif
-
-    invalid_numbers = self%u%has_nans()
-    if(invalid_numbers) then
-      error_code = NANS_FOUND
-      return
-    endif
-
-    invalid_numbers = self%v%has_nans()
-    if(invalid_numbers) then
-      error_code = NANS_FOUND
-      return
-    endif
-
-    invalid_numbers = self%p%has_nans()
-    if(invalid_numbers) then
-      error_code = NANS_FOUND
-      return
-    endif
-
-    negative_numbers = self%p%has_negatives()
-    if(negative_numbers) then
-      error_code = NEG_PRESSURE
-      return
-    endif
-
-    negative_numbers = self%rho%has_negatives()
-    if(negative_numbers) then
-      error_code = NEG_DENSITY
-      return
-    endif
+    call self%rho%check_for_negatives()
+    call self%p%check_for_negatives()
 
   endsubroutine sanity_check
 
@@ -856,12 +831,10 @@ contains
 
     ! 1st stage
     U_1 = U + U%t(grid=grid, source_term=source_term) * dt
-    ! call U_1%sync_fields()
 
     ! Final stage
     U = U * 0.5_rk + U_1 * 0.5_rk + &
         U_1%t(grid=grid, source_term=source_term) * (0.5_rk * dt)
-    ! call U%sync_fields()
     call U%sanity_check(error_code)
 
     ! ! Convergence history
