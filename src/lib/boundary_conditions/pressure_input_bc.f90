@@ -250,7 +250,9 @@ contains
     real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
     real(rk), dimension(2) :: boundary_norm
 
- if(enable_debug_print) call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() ', __FILE__, __LINE__)
+    if(enable_debug_print) then 
+      call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() ', __FILE__, __LINE__)
+    endif
 
     if(rho%on_ihi_bc .or. rho%on_ilo_bc .or. &
        rho%on_jhi_bc .or. rho%on_jlo_bc) then
@@ -269,7 +271,11 @@ contains
       if(allocated(self%edge_p)) deallocate(self%edge_p)
     endif
 
-    associate(left => self%ilo, right => self%ihi, bottom => self%jlo, top => self%jhi, &
+    associate(left => self%ilo, right => self%ihi, &
+              ! bottom => self%jlo, &
+              ! top => self%jhi, &
+              bottom => minval(self%jlo_ghost), &
+              top => maxval(self%jhi_ghost), &        
               left_ghost => minval(self%ilo_ghost), &
               right_ghost => maxval(self%ihi_ghost), &
               bottom_ghost => minval(self%jlo_ghost), &
