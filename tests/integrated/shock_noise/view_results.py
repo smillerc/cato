@@ -70,10 +70,12 @@ ds.mach_y[-1].plot.contour(x="x", y="y", colors="k", linewidths=0.5, antialiased
 
 t = ds.time[-1].data
 plt.title(
-    f"Sedov Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}"
+    f"Shock/Domain Mach Y Noise Test @ {now} \nsimulation t={t:.4f} s \nHint: nothing should be visible (no noise in Mach_y) \nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}"
 )
 
 plt.axis("equal")
+plt.tight_layout()
+plt.savefig("shock_domain_noise_results.png")
 
 try:
     plt.show()
