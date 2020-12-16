@@ -548,54 +548,34 @@ contains
 
     integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik) :: i, j
-    real(rk) :: high, low, rel_diff
-    real(rk), parameter :: REL_TOL = 1e-5_rk
     real(rk), parameter :: EPS = 5e-14_rk
 
     call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
 
-    ! if(self%smooth_residuals) then
-    !   ilo = self%rho%lbounds(1) - (self%rho%n_halo_cells - 1)
-    !   ihi = self%rho%ubounds(1) + (self%rho%n_halo_cells - 1)
-    !   jlo = self%rho%lbounds(2) - (self%rho%n_halo_cells - 1)
-    !   jhi = self%rho%ubounds(2) + (self%rho%n_halo_cells - 1)
+    if(self%smooth_residuals) then
+      ilo = self%rho%lbounds(1) - (self%rho%n_halo_cells - 1)
+      ihi = self%rho%ubounds(1) + (self%rho%n_halo_cells - 1)
+      jlo = self%rho%lbounds(2) - (self%rho%n_halo_cells - 1)
+      jhi = self%rho%ubounds(2) + (self%rho%n_halo_cells - 1)
 
-      ! do j = jlo, jhi
-      !   do i = ilo, ihi
-      !     if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
-      !     if(abs(self%u%data(i, j) - self%u%data(i - 1, j)) < EPS) self%u%data(i, j) = self%u%data(i - 1, j)
-      !     if(abs(self%v%data(i, j) - self%v%data(i - 1, j)) < EPS) self%v%data(i, j) = self%v%data(i - 1, j)
-      !     if(abs(self%p%data(i, j) - self%p%data(i - 1, j)) < EPS) self%p%data(i, j) = self%p%data(i - 1, j)
-      !   enddo
-      ! enddo
+      do j = jlo, jhi
+        do i = ilo, ihi
+          if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
+          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i - 1, j)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i - 1, j)
+          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i - 1, j)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i - 1, j)
+          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i - 1, j)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i - 1, j)
+        enddo
+      enddo
 
-      ! do j = jlo, jhi
-      !   do i = ilo, ihi
-      !     if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
-      !     if(abs(self%u%data(i, j) - self%u%data(i, j - 1)) < EPS) self%u%data(i, j) = self%u%data(i, j - 1)
-      !     if(abs(self%v%data(i, j) - self%v%data(i, j - 1)) < EPS) self%v%data(i, j) = self%v%data(i, j - 1)
-      !     if(abs(self%p%data(i, j) - self%p%data(i, j - 1)) < EPS) self%p%data(i, j) = self%p%data(i, j - 1)
-      !   enddo
-      ! enddo
-
-    !   do j = jlo, jhi
-    !     do i = ilo, ihi
-    !       if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
-    !       if(abs(self%rho_u%data(i, j) - self%rho_u%data(i - 1, j)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i - 1, j)
-    !       if(abs(self%rho_v%data(i, j) - self%rho_v%data(i - 1, j)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i - 1, j)
-    !       if(abs(self%rho_E%data(i, j) - self%rho_E%data(i - 1, j)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i - 1, j)
-    !     enddo
-    !   enddo
-
-    !   do j = jlo, jhi
-    !     do i = ilo, ihi
-    !       if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
-    !       if(abs(self%rho_u%data(i, j) - self%rho_u%data(i, j - 1)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i, j - 1)
-    !       if(abs(self%rho_v%data(i, j) - self%rho_v%data(i, j - 1)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i, j - 1)
-    !       if(abs(self%rho_E%data(i, j) - self%rho_E%data(i, j - 1)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i, j - 1)
-    !     enddo
-    !   enddo
-    ! endif
+      do j = jlo, jhi
+        do i = ilo, ihi
+          if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
+          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i, j - 1)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i, j - 1)
+          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i, j - 1)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i, j - 1)
+          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i, j - 1)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i, j - 1)
+        enddo
+      enddo
+    endif
 
   endsubroutine residual_smoother
 
@@ -681,7 +661,6 @@ contains
     !< Implementation of the (=) operator for the fluid type. e.g. lhs = rhs
     class(fluid_t), intent(inout) :: lhs
     class(fluid_t), intent(in) :: rhs
-    integer(ik) :: alloc_status
     character(len=50) :: err_msg
     class(flux_solver_t), pointer :: solver => null()
     err_msg = ''
@@ -736,7 +715,6 @@ contains
   subroutine sanity_check(self, error_code)
     !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.
     class(fluid_t), intent(in) :: self
-    logical :: invalid_numbers, negative_numbers
     integer(ik), intent(out) :: error_code
 
     error_code = 0
