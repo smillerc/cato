@@ -237,14 +237,14 @@ contains
     class(field_2d_t), intent(inout) :: v
     class(field_2d_t), intent(inout) :: p
 
-    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    integer(ik) :: i, j
     logical :: inflow
     logical :: outflow
 
     real(rk) :: desired_boundary_density  !< user-specified boundary value for density
     real(rk) :: desired_boundary_pressure !< user-specified boundary value for pressure
-    real(rk) :: boundary_density, gamma, boundary_cs
-    real(rk) :: mach_u, mach_v, mach, cs
+    real(rk) :: gamma, boundary_cs
+    real(rk) :: mach_u, cs
     real(rk), dimension(:), allocatable :: edge_pressure
     real(rk), dimension(:), allocatable :: domain_rho
     real(rk), dimension(:), allocatable :: domain_u

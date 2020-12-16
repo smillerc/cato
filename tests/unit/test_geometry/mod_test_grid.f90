@@ -51,7 +51,7 @@ contains
 
   subroutine test_xy_coords()
 
-    integer(ik) :: i, j
+    integer(ik) :: j
 
     sync all
     if(this_image() == 1) print*, new_line('') // "Running test_xy_coords" // new_line('')

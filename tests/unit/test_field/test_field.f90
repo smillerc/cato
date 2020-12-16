@@ -11,7 +11,7 @@ contains
 
   subroutine test_halo_exchange()
     type(field_2d_t) :: field
-    integer :: i, j
+    integer :: j
 
     field = field_2d(name='rho', long_name='density', &
                      descrip='Cell-centered mass density', &
@@ -189,8 +189,6 @@ contains
     real(rk), dimension(:, :), allocatable :: x_2d
     real(rk), dimension(ni, nj) :: global
     real(rk) :: x_1d, field_sum
-
-    integer :: i, j
 
     field = field_2d(name='rho', long_name='density', descrip='Cell-centered mass density', &
                      units='g/cc', global_dims=[ni, nj], n_halo_cells=2)
