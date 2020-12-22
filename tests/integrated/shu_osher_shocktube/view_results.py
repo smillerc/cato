@@ -65,7 +65,7 @@ plt.figure(figsize=(12, 6))
 ds.density.sel(time=t, method="nearest").plot(x="x")
 
 plt.title(
-    f"Shu-Osher 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}""
+    f"Shu-Osher 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}"
 )
 plt.ylabel("Density [g/cc]")
 plt.xlabel("X [cm]")
