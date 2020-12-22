@@ -40,7 +40,7 @@ integration_tests:
     - cd build
     - cmake .. -DCMAKE_BUILD_TYPE="Release" -DENABLE_COARRAY=ON -DENABLE_TESTING=OFF -DUSE_OPENMP_SIMD=ON
     - make -j
-    - cd tests/integrated
+    - cd ../tests/integrated
     - ./run_integration_tests.sh gnu
     - ls test_results
   artifacts:
