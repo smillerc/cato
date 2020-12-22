@@ -16,7 +16,7 @@ ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
 
 vacuum_pressure = 7.5e12 * ureg("barye")
-vacuum_density = 0.001 * ureg("g/cc")
+vacuum_density = 0.01 * ureg("g/cc")
 
 v_shell = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s").m
 print(v_shell)
