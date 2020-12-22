@@ -21,6 +21,8 @@ else
     run="cafrun -np ${FOR_COARRAY_NUM_IMAGES}"
 fi
 
+mkdir -p test_results
+
 # 1D Tests (serial mode)
 for test in sod_1d shu_osher_shocktube
 do
@@ -29,6 +31,7 @@ do
     python generate_ic.py && \
     ${cato_exe} input.ini && \
     python view_results.py && \
+    cp *results*.png ../test_results && \
     cd ..
 done
 
@@ -40,5 +43,7 @@ do
     python generate_ic.py && \
     ${run} ${cato_exe} input.ini && \
     python view_results.py && \
+    cp *results*.png ../test_results && \
     cd ..
 done
+

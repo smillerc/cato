@@ -56,11 +56,16 @@ with ProgressBar():
 t = 0.17
 actual_time = ds.density.sel(time=t, method="nearest").time.data
 
+try:
+    scheme = f"{ds.attrs['scheme_flux_solver']}({ds.attrs['scheme_spatial_reconstruction']} {ds.attrs['scheme_limiter']})"
+except Exception:
+    scheme = None
+    
 plt.figure(figsize=(12, 6))
 ds.density.sel(time=t, method="nearest").plot(x="x")
 
 plt.title(
-    f"Shu-Osher 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+    f"Shu-Osher 1D Test @ {now} \nsimulation t={actual_time:.2f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}""
 )
 plt.ylabel("Density [g/cc]")
 plt.xlabel("X [cm]")

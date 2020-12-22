@@ -42,16 +42,17 @@ integration_tests:
     - make -j
     - cd tests/integrated
     - ./run_integration_tests.sh gnu
+    - ls test_results
   artifacts:
     paths:
-      - /builds/smil/cato/tests/integrated/sod_1d/sod_1d_results.png
-      - /builds/smil/cato/tests/integrated/shu_osher_shocktube/shu_osher_1d_results.png
-      - /builds/smil/cato/tests/integrated/kelvin_helmholtz/kh_2d_results.png
-      - /builds/smil/cato/tests/integrated/sedov/sedov_2d_results.png
-      - /builds/smil/cato/tests/integrated/shock_noise/shock_domain_noise_results.png
-      - /builds/smil/cato/tests/integrated/implosion/implosion_2d_results.png
-      - /builds/smil/cato/tests/integrated/riemann_2d_prob_1/riemann_1_2d_results.png
-      - /builds/smil/cato/tests/integrated/riemann_2d_prob_2/riemann_2_2d_results.png
+      - /builds/smil/cato/tests/integrated/test_results/sod_1d_results.png
+      - /builds/smil/cato/tests/integrated/test_results/shu_osher_1d_results.png
+      - /builds/smil/cato/tests/integrated/test_results/kh_2d_results.png
+      - /builds/smil/cato/tests/integrated/test_results/sedov_2d_results.png
+      - /builds/smil/cato/tests/integrated/test_results/shock_domain_noise_results.png
+      - /builds/smil/cato/tests/integrated/test_results/implosion_2d_results.png
+      - /builds/smil/cato/tests/integrated/test_results/riemann_1_2d_results.png
+      - /builds/smil/cato/tests/integrated/test_results/riemann_2_2d_results.png
 
 single_debug_run:
   stage: test

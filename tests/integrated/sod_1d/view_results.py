@@ -54,10 +54,10 @@ from dask.diagnostics import ProgressBar
 with ProgressBar():
     ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 
-# try:
-scheme = f"{ds.attrs['scheme_flux_solver']}({ds.attrs['scheme_spatial_reconstruction']} {ds.attrs['scheme_limiter']})"
-# except Exception:
-#     scheme = None
+try:
+    scheme = f"{ds.attrs['scheme_flux_solver']}({ds.attrs['scheme_spatial_reconstruction']} {ds.attrs['scheme_limiter']})"
+except Exception:
+    scheme = None
 
 t = 0.2
 actual_time = ds.density.sel(time=t, method="nearest").time.data
