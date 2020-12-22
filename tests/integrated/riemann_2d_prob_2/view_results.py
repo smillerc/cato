@@ -94,7 +94,7 @@ contour_ax.axis("equal")
 # contour_ax.set_xlim(-r, r)
 # contour_ax.set_ylim(-r, r)
 plt.tight_layout()
-plt.savefig("riemann_2d_results.png")
+plt.savefig("riemann_2_2d_results.png")
 
 try:
     plt.show()

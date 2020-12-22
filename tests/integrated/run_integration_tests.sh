@@ -26,16 +26,18 @@ for test in sod_1d shu_osher_shocktube
 do
     echo "Test: " ${test}
     cd ${test} && \
+    python generate_ic.py && \
     ${cato_exe} input.ini && \
     python view_results.py && \
     cd ..
 done
 
 # 2D Tests (use coarrays)
-for test in shock_noise sedov implosion
+for test in shock_noise sedov implosion kelvin_helmholtz riemann_prob_1 riemann_prob_2
 do
     echo "Test: " ${test}
     cd ${test} && \
+    python generate_ic.py && \
     ${run} ${cato_exe} input.ini && \
     python view_results.py && \
     cd ..
