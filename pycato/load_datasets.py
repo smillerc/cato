@@ -11,6 +11,7 @@ import dask
 import dask.array as da
 from glob import glob
 from pathlib import Path
+from dask.diagnostics import ProgressBar
 
 
 from .unit_registry import ureg
@@ -78,6 +79,69 @@ def read_ini(filename):
         if isinstance(v, str):
             flattened_dict[k] = v.replace("'", "").replace('"', "")
     return flattened_dict
+
+
+def load_solution(folder):
+    """Load a simulation case into a dataset"""
+
+    with ProgressBar():
+        ds = load_multiple_steps(f"{folder}/results/step*.h5")
+    ini_dict = read_ini(f"{folder}/input.ini")
+    ini_dict["directory"] = os.path.abspath(folder)
+    ds.attrs.update(ini_dict)
+    ds = load_bc_file_to_dataset(ds)
+    return ds
+
+
+def load_bc_file_to_dataset(ds):
+    """Load the boundary pressure and density file into the dataset"""
+
+    try:
+        bc_file = Path(
+            ds.directory + "/" + ds.boundary_conditions_bc_pressure_input_file
+        )
+    except AttributeError:
+        return
+
+    try:
+        bc = np.loadtxt(bc_file, skiprows=1, delimiter=",")
+    except ValueError:
+        bc = np.loadtxt(bc_file, skiprows=1)
+
+    bc_t = bc[:, 0] * ureg("s")
+    bc_p = bc[:, 1] * ureg("barye")
+    bc_rho = bc[:, 2] * ureg("g/cc")
+
+    bc_pressure = np.interp(
+        fp=bc_p.to(ds.pressure.units).m, x=ds.time.data, xp=bc_t.to("ns").m
+    )
+    bc_density = np.interp(
+        fp=bc_rho.to(ds.density.units).m, x=ds.time.data, xp=bc_t.to("ns").m
+    )
+
+    ds["boundary_pressure"] = xr.Variable(
+        ("time"),
+        bc_pressure.astype(np.float32),
+        attrs={
+            "units": ds.pressure.units,
+            "description": "Pressure Specified at the Boundary",
+            "long_name": "Boundary Pressure",
+            "standard_name": "Pressure",
+        },
+    )
+
+    ds["boundary_density"] = xr.Variable(
+        ("time"),
+        bc_density.astype(np.float32),
+        attrs={
+            "units": ds.density.units,
+            "description": "Density Specified at the Boundary",
+            "long_name": "Boundary Density",
+            "standard_name": "Density",
+        },
+    )
+
+    return ds
 
 
 class _MultiFileCloser:
@@ -271,10 +335,10 @@ def load_multiple_steps(paths, use_dask=True, **kwargs):
     if use_dask:
         combined._file_obj = _MultiFileCloser(file_objs)
 
-    # Get rid of duplicate times (if any)     
-    _, index = np.unique(combined['time'], return_index=True)  
+    # Get rid of duplicate times (if any)
+    _, index = np.unique(combined["time"], return_index=True)
     combined = combined.isel(time=index)
-    
+
     # If one of the dims is only 1, then reduce/remove it via squeeze
     if 1 in dict(combined.dims).values():
         return combined.squeeze()
