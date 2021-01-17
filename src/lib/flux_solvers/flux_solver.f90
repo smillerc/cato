@@ -197,18 +197,22 @@ contains
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     integer(ik) :: ilo_halo, ihi_halo, jlo_halo, jhi_halo
     real(rk), dimension(4) :: delta_l !< edge length
-    real(rk) :: inv_volume !< 1 / cell volume
+    ! real(rk) :: inv_volume !< 1 / cell volume
     real(rk), parameter :: FLUX_EPS = 5e-13_rk
     real(rk), parameter :: REL_THRESHOLD = 1e-5_rk !< relative error threshold
 
-    real(rk), dimension(4) :: rho_edge_fluxes
-    real(rk), dimension(4) :: rhou_edge_fluxes
-    real(rk), dimension(4) :: rhov_edge_fluxes
-    real(rk), dimension(4) :: rhoE_edge_fluxes
-    real(rk) :: ave_rho_edge_flux, rho_flux, rho_flux_threshold
-    real(rk) :: ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold
-    real(rk) :: ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold
-    real(rk) :: ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold
+    real(rk) :: rho_i, rho_j
+    real(rk) :: rhou_i, rhou_j
+    real(rk) :: rhov_i, rhov_j
+    real(rk) :: rhoE_i, rhoE_j
+    ! real(rk), dimension(4) :: rho_edge_fluxes
+    ! real(rk), dimension(4) :: rhou_edge_fluxes
+    ! real(rk), dimension(4) :: rhov_edge_fluxes
+    ! real(rk), dimension(4) :: rhoE_edge_fluxes
+    real(rk) :: rho_flux 
+    real(rk) :: rhou_flux
+    real(rk) :: rhov_flux
+    real(rk) :: rhoE_flux
 
     call debug_print('Running flux_solver_t%flux_split_edges()', __FILE__, __LINE__)
 
@@ -228,15 +232,6 @@ contains
     allocate(d_rho_v_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
     allocate(d_rho_E_dt(ilo_halo:ihi_halo, jlo_halo:jhi_halo))
 
-    ! d_rho_dt = field_2d(name='d_rho_dt  ', long_name='d/dt(rho)', descrip='', units='', &
-    !                     global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
-    ! d_rho_u_dt = field_2d(name='d_rho_u_dt', long_name='d/dt(rho u)', descrip='', units='', &
-    !                       global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
-    ! d_rho_v_dt = field_2d(name='d_rho_v_dt', long_name='d/dt(rho v)', descrip='', units='', &
-    !                       global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
-    ! d_rho_E_dt = field_2d(name='d_rho_E_dt', long_name='d/dt(rho E)', descrip='', units='', &
-    !                       global_dims=grid%global_dims, n_halo_cells=grid%n_halo_cells)
-
     !                                   /\
     !                  jflux(i,j)  'R'  |
     !                o--------------------o
@@ -251,81 +246,101 @@ contains
     !
     ! This is the numbering convention that this module uses
 
-    !$omp parallel default(none), &
-    !$omp firstprivate(ilo, ihi, jlo, jhi), &
-    !$omp shared(self, grid, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt), &
-    !$omp private(i, j, delta_l, volume) &
-    !$omp private(ave_rho_edge_flux, rho_flux, rho_flux_threshold) &
-    !$omp private(ave_rhou_edge_flux, rhou_flux, rhou_flux_threshold) &
-    !$omp private(ave_rhov_edge_flux, rhov_flux, rhov_flux_threshold) &
-    !$omp private(ave_rhoE_edge_flux, rhoE_flux, rhoE_flux_threshold) &
-    !$omp private(rho_edge_fluxes, rhou_edge_fluxes, rhov_edge_fluxes, rhoE_edge_fluxes)
-    !$omp do
+    ! ------------------------------------
+    ! rho
+    ! ------------------------------------
     do j = jlo, jhi
       do i = ilo, ihi
-
         delta_l = grid%edge_lengths(:, i, j)
-        inv_volume = 1.0_rk / grid%volume(i, j)
-
-        ! rho
-        rho_edge_fluxes = [self%iflux(1, i, j) * delta_l(2), -self%iflux(1, i - 1, j) * delta_l(4), &
-                           self%jflux(1, i, j) * delta_l(3), -self%jflux(1, i, j - 1) * delta_l(1)]
-        ave_rho_edge_flux = 0.25_rk * sum(abs(rho_edge_fluxes))
-
-        rho_flux = -neumaier_sum_4(rho_edge_fluxes)
-        ! rho_flux = -sum(rho_edge_fluxes)
-
-        rho_flux_threshold = abs(ave_rho_edge_flux) * REL_THRESHOLD
-        if(abs(rho_flux) < rho_flux_threshold .or. abs(rho_flux) < epsilon(1.0_rk)) then
-          rho_flux = 0.0_rk
-        endif
-        d_rho_dt(i, j) = rho_flux * inv_volume
-
-        ! rho u
-        rhou_edge_fluxes = [self%iflux(2, i, j) * delta_l(2), -self%iflux(2, i - 1, j) * delta_l(4), &
-                            self%jflux(2, i, j) * delta_l(3), -self%jflux(2, i, j - 1) * delta_l(1)]
-        ave_rhou_edge_flux = 0.25_rk * sum(abs(rhou_edge_fluxes))
-
-        rhou_flux = -neumaier_sum_4(rhou_edge_fluxes)
-        ! rhou_flux = -sum(rhou_edge_fluxes)
-
-        rhou_flux_threshold = abs(ave_rhou_edge_flux) * REL_THRESHOLD
-        if(abs(rhou_flux) < rhou_flux_threshold .or. abs(rhou_flux) < epsilon(1.0_rk)) then
-          rhou_flux = 0.0_rk
-        endif
-        d_rho_u_dt(i, j) = rhou_flux * inv_volume
-
-        ! rho v
-        rhov_edge_fluxes = [self%iflux(3, i, j) * delta_l(2), -self%iflux(3, i - 1, j) * delta_l(4), &
-                            self%jflux(3, i, j) * delta_l(3), -self%jflux(3, i, j - 1) * delta_l(1)]
-        ave_rhov_edge_flux = 0.25_rk * sum(abs(rhov_edge_fluxes))
-
-        rhov_flux = -neumaier_sum_4(rhov_edge_fluxes)
-        ! rhov_flux = -sum(rhov_edge_fluxes)
-
-        rhov_flux_threshold = abs(ave_rhov_edge_flux) * REL_THRESHOLD
-        if(abs(rhov_flux) < rhov_flux_threshold .or. abs(rhov_flux) < epsilon(1.0_rk)) then
-          rhov_flux = 0.0_rk
-        endif
-        d_rho_v_dt(i, j) = rhov_flux * inv_volume
-
-        ! rho E
-        rhoE_edge_fluxes = [self%iflux(4, i, j) * delta_l(2), -self%iflux(4, i - 1, j) * delta_l(4), &
-                            self%jflux(4, i, j) * delta_l(3), -self%jflux(4, i, j - 1) * delta_l(1)]
-        ave_rhoE_edge_flux = 0.25_rk * sum(abs(rhoE_edge_fluxes))
-
-        rhoE_flux = -neumaier_sum_4(rhoE_edge_fluxes)
-        ! rhoE_flux = -sum(rhoE_edge_fluxes)
-
-        rhoE_flux_threshold = abs(ave_rhoE_edge_flux) * REL_THRESHOLD
-        if(abs(rhoE_flux) < rhoE_flux_threshold .or. abs(rhoE_flux) < epsilon(1.0_rk)) then
-          rhoE_flux = 0.0_rk
-        endif
-        d_rho_E_dt(i, j) = rhoE_flux * inv_volume
+        rho_i = (self%iflux(1, i, j) * delta_l(2)) + (-self%iflux(1, i - 1, j) * delta_l(4))
+        rho_j = (self%jflux(1, i, j) * delta_l(3)) + (-self%jflux(1, i, j - 1) * delta_l(1))
+        if(abs(rho_i) < epsilon(1.0_rk)) rho_i = 0.0_rk
+        if(abs(rho_j) < epsilon(1.0_rk)) rho_j = 0.0_rk
+        rho_flux = rho_i + rho_j
+        if(abs(rho_flux) < epsilon(1.0_rk)) rho_flux = 0.0_rk
+        d_rho_dt(i, j) = -rho_flux
       enddo
     enddo
-    !$omp end do
-    !$omp end parallel
+
+    ! ------------------------------------
+    ! rho u
+    ! ------------------------------------
+    do j = jlo, jhi
+      do i = ilo, ihi
+        delta_l = grid%edge_lengths(:, i, j)
+        rhou_i = (self%iflux(2, i, j) * delta_l(2)) + (-self%iflux(2, i - 1, j) * delta_l(4))
+        rhou_j = (self%jflux(2, i, j) * delta_l(3)) + (-self%jflux(2, i, j - 1) * delta_l(1))
+        if(abs(rhou_i) < epsilon(1.0_rk)) rhou_i = 0.0_rk
+        if(abs(rhou_j) < epsilon(1.0_rk)) rhou_j = 0.0_rk
+        rhou_flux = rhou_i + rhou_j
+        if(abs(rhou_flux) < epsilon(1.0_rk)) rhou_flux = 0.0_rk
+        d_rho_u_dt(i, j) = -rhou_flux
+      enddo
+    enddo
+
+    ! ------------------------------------
+    ! rho v
+    ! ------------------------------------
+    do j = jlo, jhi
+      do i = ilo, ihi
+        delta_l = grid%edge_lengths(:, i, j)
+        rhov_i = (self%iflux(3, i, j) * delta_l(2)) + (-self%iflux(3, i - 1, j) * delta_l(4))
+        rhov_j = (self%jflux(3, i, j) * delta_l(3)) + (-self%jflux(3, i, j - 1) * delta_l(1))
+        if(abs(rhov_i) < epsilon(1.0_rk)) rhov_i = 0.0_rk
+        if(abs(rhov_j) < epsilon(1.0_rk)) rhov_j = 0.0_rk
+        rhov_flux = rhov_i + rhov_j
+        if(abs(rhov_flux) < epsilon(1.0_rk)) rhov_flux = 0.0_rk
+        d_rho_v_dt(i, j) = -rhov_flux
+      enddo
+    enddo
+
+    ! ------------------------------------
+    ! rho E
+    ! ------------------------------------
+    do j = jlo, jhi
+      do i = ilo, ihi
+        delta_l = grid%edge_lengths(:, i, j)
+        rhoE_i = (self%iflux(4, i, j) * delta_l(2)) + (-self%iflux(4, i - 1, j) * delta_l(4))
+        rhoE_j = (self%jflux(4, i, j) * delta_l(3)) + (-self%jflux(4, i, j - 1) * delta_l(1))
+        if(abs(rhoE_i) < epsilon(1.0_rk)) rhoE_i = 0.0_rk
+        if(abs(rhoE_j) < epsilon(1.0_rk)) rhoE_j = 0.0_rk
+        rhoE_flux = rhoE_i + rhoE_j
+        if(abs(rhoE_flux) < epsilon(1.0_rk)) rhoE_flux = 0.0_rk
+        d_rho_E_dt(i, j) = -rhoE_flux
+      enddo
+    enddo
+      
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        d_rho_dt(i, j) = d_rho_dt(i, j) / grid%volume(i, j)
+      enddo
+    enddo
+    !$omp end simd
+
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        d_rho_u_dt(i, j) = d_rho_u_dt(i, j) / grid%volume(i, j)
+      enddo
+    enddo
+    !$omp end simd
+
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        d_rho_v_dt(i, j) = d_rho_v_dt(i, j) / grid%volume(i, j)
+      enddo
+    enddo
+    !$omp end simd
+    
+    !$omp simd
+    do j = jlo, jhi
+      do i = ilo, ihi
+        d_rho_E_dt(i, j) = d_rho_E_dt(i, j) / grid%volume(i, j)
+      enddo
+    enddo
+    !$omp end simd
 
     ! Zero out the halo layers
     ! call d_rho_dt%zero_out_halo()
