@@ -96,6 +96,7 @@ contains
       !$omp simd
       do i = lhs%ilo, lhs%ihi
         res%data(i, j) = lhs%data(i, j) + f%data(i, j)
+        if(abs(res%data(i, j)) < epsilon(1.0_rk)) res%data(i, j) = 0.0_rk
       enddo
       !$omp end simd
     enddo
@@ -118,6 +119,7 @@ contains
       !$omp simd
       do i = lhs%ilo, lhs%ihi
         res%data(i, j) = lhs%data(i, j) - f%data(i, j)
+        if(abs(res%data(i, j)) < epsilon(1.0_rk)) res%data(i, j) = 0.0_rk
       enddo
       !$omp end simd
     enddo
@@ -188,6 +190,7 @@ contains
       !$omp simd
       do i = lhs%ilo, lhs%ihi
         res%data(i, j) = lhs%data(i, j) + x
+        if(abs(res%data(i, j)) < epsilon(1.0_rk)) res%data(i, j) = 0.0_rk
       enddo
       !$omp end simd
     enddo
@@ -210,6 +213,7 @@ contains
       !$omp simd
       do i = lhs%ilo, lhs%ihi
         res%data(i, j) = lhs%data(i, j) + x(i, j)
+        if(abs(res%data(i, j)) < epsilon(1.0_rk)) res%data(i, j) = 0.0_rk
       enddo
       !$omp end simd
     enddo
@@ -233,6 +237,7 @@ contains
       !$omp simd
       do i = lhs%ilo, lhs%ihi
         res%data(i, j) = lhs%data(i, j) - x
+        if(abs(res%data(i, j)) < epsilon(1.0_rk)) res%data(i, j) = 0.0_rk
       enddo
       !$omp end simd
     enddo
@@ -256,6 +261,7 @@ contains
       !$omp simd
       do i = lhs%ilo, lhs%ihi
         res%data(i, j) = lhs%data(i, j) - x(i, j)
+        if(abs(res%data(i, j)) < epsilon(1.0_rk)) res%data(i, j) = 0.0_rk
       enddo
       !$omp end simd
     enddo
@@ -288,6 +294,7 @@ contains
       !$omp simd
       do i = rhs%ilo, rhs%ihi
         res%data(i, j) = rhs%data(i, j) - x(i, j)
+        if(abs(res%data(i, j)) < epsilon(1.0_rk)) res%data(i, j) = 0.0_rk
       enddo
       !$omp end simd
     enddo
