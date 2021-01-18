@@ -33,46 +33,21 @@ release:
     - make -j
     - ctest --output-on-failure
 
-sod_1d:
+integration_tests:
   stage: test
   script:
-    - cd tests/integrated/sod_1d/
-    - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_COARRAY=ON -DENABLE_TESTING=ON -DUSE_OPENMP_SIMD=ON
+    - mkdir -p build
+    - cd build
+    - cmake .. -DCMAKE_BUILD_TYPE="Release" -DENABLE_COARRAY=ON -DENABLE_TESTING=OFF -DUSE_OPENMP_SIMD=ON
     - make -j
-    - python3 generate_ic.py
-    - ./bin/cato.x input.ini
-    - python3 view_results.py
+    - cd ../tests/integrated
+    - ./run_integration_tests.sh gnu
+    - ls test_results
   artifacts:
     paths:
-      - /builds/smil/cato/tests/integrated/sod_1d/sod_1d_results.png
+      - /builds/smil/cato/tests/integrated/test_results
 
-kelvin_helmholtz_2d:
-  stage: test
-  script:
-    - cd tests/integrated/kelvin_helmholtz/
-    - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_COARRAY=ON -DENABLE_TESTING=ON -DUSE_OPENMP_SIMD=ON
-    - make -j
-    - python3 generate_ic.py
-    - cafrun -np 4 ./bin/cato.x input.ini
-    - python3 view_results.py
-  artifacts:
-    paths:
-      - /builds/smil/cato/tests/integrated/kelvin_helmholtz/kh_2d_results.png
-
-sedov_2d:
-  stage: test
-  script:
-    - cd tests/integrated/sedov/
-    - cmake ../../.. -DCMAKE_BUILD_TYPE="Release" -DENABLE_COARRAY=ON -DENABLE_TESTING=ON -DUSE_OPENMP_SIMD=ON
-    - make -j
-    - python3 generate_ic.py
-    - cafrun -np 4 ./bin/cato.x input.ini
-    - python3 view_results.py
-  artifacts:
-    paths:
-      - /builds/smil/cato/tests/integrated/sedov/sedov_2d_results.png
-
-sedov_2d_debug:
+single_debug_run:
   stage: test
   script:
     - cd tests/integrated/sedov/
