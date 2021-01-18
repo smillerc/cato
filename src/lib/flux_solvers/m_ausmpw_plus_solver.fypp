@@ -373,6 +373,7 @@ contains
       real(rk) :: cs_L, cs_R
       real(rk) :: M_LHS, M_RHS, f_M, min_term, numer_w2, denom_w2
       logical :: apply_low_mach_fix
+      real(rk), parameter :: EPS = epsilon(1.0_rk) * 1e3_rk !< machine epsilon (smallest difference) for flux calculations
 
       integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
       integer(ik), parameter ::  RIGHT_IDX = 2 !< edge index for the right edge of the current cell
@@ -680,7 +681,6 @@ contains
           if(M_L_plus + M_R_minus < 0.0_rk) then ! Eq. 2b in Ref [1]
             M_bar_L_plus = M_L_plus * w * (1.0_rk + f_L)
             M_bar_R_minus = M_R_minus + M_L_plus * ((1.0_rk - w) * (1.0_rk + f_L) - f_R)
-
           else ! Eq. 2a in Ref [1]
             M_bar_L_plus = M_L_plus + M_R_minus * ((1.0_rk - w) * (1.0_rk + f_R) - f_L)
             M_bar_R_minus = M_R_minus * w * (1.0_rk + f_R)
@@ -705,12 +705,41 @@ contains
 
           mass_flux_L = M_bar_L_plus * c_half * rho_L_half
           mass_flux_R = M_bar_R_minus * c_half * rho_R_half
-          edge_flux(1, i, j) = (mass_flux_L) + (mass_flux_R)
-          edge_flux(2, i, j) = (mass_flux_L * u_L_half) + (mass_flux_R * u_R_half) + &
-                               ((P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R))
-          edge_flux(3, i, j) = (mass_flux_L * v_L_half) + (mass_flux_R * v_R_half) + &
-                               ((P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R))
+          
+          if (abs(mass_flux_L + mass_flux_R) < EPS) then
+            mass_flux_L = 0.0_rk
+            mass_flux_R = 0.0_rk
+          endif
+
+          edge_flux(1, i, j) = mass_flux_L + mass_flux_R
+
+          if (abs((mass_flux_L * u_L_half) + (mass_flux_R * u_R_half)) < EPS) then
+            edge_flux(2, i, j) = (P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R)
+          else
+            edge_flux(2, i, j) = (mass_flux_L * u_L_half) + (mass_flux_R * u_R_half) + ((P_L_plus * n_x * p_L) + (P_R_minus * n_x * p_R))
+          endif
+
+          if (abs((mass_flux_L * v_L_half) + (mass_flux_R * v_R_half)) < EPS) then
+            edge_flux(3, i, j) = (P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R)
+          else
+            edge_flux(3, i, j) = (mass_flux_L * v_L_half) + (mass_flux_R * v_R_half) + ((P_L_plus * n_y * p_L) + (P_R_minus * n_y * p_R))
+          endif
+
           edge_flux(4, i, j) = (mass_flux_L * H_L_half) + (mass_flux_R * H_R_half)
+          if (abs(edge_flux(4, i, j)) < EPS) edge_flux(4, i, j) = 0.0_rk
+
+          ! if(any(abs(edge_flux(:, i, j)) < EPS .and. abs(edge_flux(:, i, j)) > 0.0_rk)) then
+          !   print*, 'edge_flux', i, j
+          !   write(*,'(10(es16.6))') edge_flux(:, i, j)
+          !   print*, 'parts'
+          !   write(*,'(10(es16.6))') abs(rho_L_half - rho_R_half), abs(rho_L - rho_R)
+          !   write(*,'(10(es16.6))') mass_flux_L + mass_flux_R, mass_flux_L, mass_flux_R, c_half, rho_L_half, rho_R_half, M_bar_L_plus, M_bar_R_minus
+          !   write(*,'(10(es16.6))') mass_flux_L, mass_flux_R, u_L_half, u_R_half, (mass_flux_L * u_L_half) , (mass_flux_R * u_R_half), abs((mass_flux_L * u_L_half) + (mass_flux_R * u_R_half)) , (P_L_plus * n_x * p_L) ,(P_R_minus * n_x * p_R)
+          !   write(*,'(10(es16.6))') mass_flux_L, mass_flux_R, v_L_half, v_R_half, (mass_flux_L * v_L_half) , (mass_flux_R * v_R_half), abs((mass_flux_L * v_L_half) + (mass_flux_R * v_R_half)) , (P_L_plus * n_y * p_L) ,(P_R_minus * n_y * p_R)
+          !   write(*,'(10(es16.6))') (mass_flux_L * H_L_half) , (mass_flux_R * H_R_half), H_L_half, H_R_half, H_L_half + H_R_half
+          !   print*
+          !   error stop
+          ! endif
 
         enddo
       enddo
