@@ -68,8 +68,3 @@ plt.legend()
 plt.ylim(0, 6)
 plt.tight_layout()
 plt.savefig("shu_osher_1d_results.png")
-
-try:
-    plt.show()
-except Exception:
-    pass

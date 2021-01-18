@@ -76,8 +76,3 @@ plt.title(
 plt.axis("equal")
 plt.tight_layout()
 plt.savefig("shock_domain_noise_results.png")
-
-try:
-    plt.show()
-except Exception:
-    pass

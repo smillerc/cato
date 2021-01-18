@@ -67,9 +67,4 @@ plt.xlabel("X [cm]")
 plt.legend()
 plt.ylim(0, 6)
 plt.tight_layout()
-plt.savefig("shu_osher_1d_results.png")
-
-try:
-    plt.show()
-except Exception:
-    pass
+plt.savefig("woodward_collela_blastwave_1d_results.png")

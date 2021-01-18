@@ -92,8 +92,3 @@ contour_ax.set_title(
 contour_ax.axis("equal")
 plt.tight_layout()
 plt.savefig("kh_2d_results.png")
-
-try:
-    plt.show()
-except Exception:
-    pass

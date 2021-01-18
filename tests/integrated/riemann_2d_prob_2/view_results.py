@@ -95,8 +95,3 @@ contour_ax.axis("equal")
 # contour_ax.set_ylim(-r, r)
 plt.tight_layout()
 plt.savefig("riemann_2d_results.png")
-
-try:
-    plt.show()
-except Exception:
-    pass

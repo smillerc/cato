@@ -15,6 +15,14 @@ vendor=$1
 cato_dir=../../../build
 cato_exe=${cato_dir}/bin/cato.x
 
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
+    results_dir=`readlink -f ./test_results`
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    results_dir=`greadlink -f ./test_results`
+fi
+
+rm -rf ${results_dir} && mkdir -p ${results_dir}
+
 if [ $vendor == "intel" ]; then
     run=''
 else
@@ -28,6 +36,7 @@ do
     cd ${test} && \
     ${cato_exe} input.ini && \
     python view_results.py && \
+    cp -v *.png ${results_dir} && \
     cd ..
 done
 
@@ -38,5 +47,6 @@ do
     cd ${test} && \
     ${run} ${cato_exe} input.ini && \
     python view_results.py && \
+    cp -v *.png ${results_dir} && \
     cd ..
 done

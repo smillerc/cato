@@ -9,7 +9,7 @@
         2.0
     ],
     "x_spacing": "40 cell/um",
-    "y_spacing": "80 cell/wavelength",
+    "y_spacing": "40 cell/wavelength",
     "pressure": [
         1.0e9,
         1.0e9,

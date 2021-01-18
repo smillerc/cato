@@ -54,16 +54,28 @@ from dask.diagnostics import ProgressBar
 with ProgressBar():
     ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
 
+try:
+    scheme = f"{ds.attrs['scheme_flux_solver']}({ds.attrs['scheme_spatial_reconstruction']} {ds.attrs['scheme_limiter']})"
+except Exception:
+    scheme = None
 
 df = pd.read_csv("residual_hist.csv", index_col=False)
 
 fig, (contour_ax, resid_ax) = plt.subplots(ncols=2, nrows=1, figsize=(24, 12))
 ds.density[-1].plot.pcolormesh(
-    x="x", y="y", ec="k", lw=0.1, antialiased=True, cmap="viridis", ax=contour_ax,
+    x="x",
+    y="y",
+    ec="k",
+    lw=0.1,
+    antialiased=True,
+    cmap="viridis",
+    # vmin=0.0,
+    # vmax=2.4e-3,
+    ax=contour_ax,
 )
 
 ds.density[-1].plot.contour(
-    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=36, ax=contour_ax
+    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=12, ax=contour_ax
 )
 
 # Plot the residual history
@@ -82,9 +94,9 @@ resid_ax.set_ylim(1e-16, 0.1)
 
 t = ds.time[-1].data
 contour_ax.set_title(
-    f"Oblique CD Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash}"
+    f"Implosion Test @ {now} \nsimulation t={t:.4f} s \nwalltime={walltime_sec} s\nbranch: {branch} \ncommit: {short_hash} \nscheme: {scheme}"
 )
 
 contour_ax.axis("equal")
 plt.tight_layout()
-plt.savefig("oblique_cd_results.png")
+plt.savefig("implosion_2d_results.png")

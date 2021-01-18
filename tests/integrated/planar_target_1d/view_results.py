@@ -85,8 +85,3 @@ time = ds.time[-1].time.data * ureg(ds.time_units)
 plt.title(f"time={time.to('ps'):.2f~}")
 plt.tight_layout()
 plt.savefig("layered_target_1d_results.png")
-
-try:
-    plt.show()
-except Exception:
-    pass

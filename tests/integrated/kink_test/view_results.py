@@ -92,8 +92,3 @@ plt.title(
 
 plt.tight_layout()
 plt.savefig("kink_test.png")
-
-try:
-    plt.show()
-except Exception:
-    pass

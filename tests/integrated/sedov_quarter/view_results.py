@@ -82,9 +82,4 @@ r = 0.2
 plt.xlim(0, r)
 plt.ylim(0, r)
 plt.tight_layout()
-plt.savefig("sedov_2d_results.png")
-
-try:
-    plt.show()
-except Exception:
-    pass
+plt.savefig("sedov_quarter_2d_results.png")
