@@ -119,6 +119,7 @@ contains
         class(field_2d_t), intent(in) :: q !< (i,j); primitive variable to reconstruct at the edge
         real(rk), dimension(:, :, :), allocatable, intent(out) :: edge_values !<((L,R), i, j); L/R state for each edge
 
+        real(rk), parameter :: SMALL_NUM = 1e-30_rk
         integer(ik) :: i, j, m, n
         integer(ik) :: ilo, ihi, jlo, jhi
 
@@ -216,14 +217,14 @@ contains
               if(abs(delta_ij_plus_five_half) < epsilon(1.0_rk)) delta_ij_plus_five_half = 0.0_rk
             #:endif
 
-            r_R_ij_p1 = delta_ij_plus_half / (delta_ij_plus_three_half + 1e-16_rk)
-            r_L_ij = delta_ij_plus_half / (delta_ij_minus_half + 1e-16_rk)
+            r_R_ij_p1 = delta_ij_plus_half / (delta_ij_plus_three_half + SMALL_NUM)
+            r_L_ij = delta_ij_plus_half / (delta_ij_minus_half + SMALL_NUM)
 
             #:if ORDER == 5
-              r_L_ij_m1 = delta_ij_minus_half / (delta_ij_minus_three_half + 1e-16_rk)
-              r_L_ij_p1 = delta_ij_plus_three_half / (delta_ij_plus_half + 1e-16_rk)
-              r_R_ij_p2 = delta_ij_plus_three_half / (delta_ij_plus_five_half + 1e-16_rk)
-              r_R_ij = delta_ij_minus_half / (delta_ij_plus_half + 1e-16_rk)
+              r_L_ij_m1 = delta_ij_minus_half / (delta_ij_minus_three_half + SMALL_NUM)
+              r_L_ij_p1 = delta_ij_plus_three_half / (delta_ij_plus_half + SMALL_NUM)
+              r_R_ij_p2 = delta_ij_plus_three_half / (delta_ij_plus_five_half + SMALL_NUM)
+              r_R_ij = delta_ij_minus_half / (delta_ij_plus_half + SMALL_NUM)
             #:endif
 
             #:if ORDER == 3
@@ -232,30 +233,30 @@ contains
               beta_R = (1.0_rk + 2.0_rk * r_R_ij_p1) / 3.0_rk
             #:elif ORDER == 5
               ! 5th order interpolation. Eq 65 in Ref [1]
-              beta_L = ((-2.0_rk / (r_L_ij_m1 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
-              beta_R = ((-2.0_rk / (r_R_ij_p2 + 1e-16_rk)) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
+              beta_L = ((-2.0_rk / (r_L_ij_m1 + SMALL_NUM)) + 11.0_rk + 24.0_rk * r_L_ij - 3.0_rk * r_L_ij * r_L_ij_p1) / 30.0_rk
+              beta_R = ((-2.0_rk / (r_R_ij_p2 + SMALL_NUM)) + 11.0_rk + 24.0_rk * r_R_ij_p1 - 3.0_rk * r_R_ij_p1 * r_R_ij) / 30.0_rk
             #:endif
 
             ! Inner term of alpha in Eq. 64a in Ref [1]
             #:if DIR == 'i'
               ! Xi variant, Eq 18a. Xi is used for the i-direction
-              tan_theta_ij = abs(q%data(i, j + 1) - q%data(i, j - 1)) / (abs(q%data(i + 1, j) - q%data(i - 1, j)) + 1e-16_rk)
-              tan_theta_ij_p1 = abs(q%data(i + 1, j + 1) - q%data(i + 1, j - 1)) / (abs(q%data(i + 2, j) - q%data(i, j)) + 1e-16_rk)
+              tan_theta_ij = abs(q%data(i, j + 1) - q%data(i, j - 1)) / (abs(q%data(i + 1, j) - q%data(i - 1, j)) + SMALL_NUM)
+              tan_theta_ij_p1 = abs(q%data(i + 1, j + 1) - q%data(i + 1, j - 1)) / (abs(q%data(i + 2, j) - q%data(i, j)) + SMALL_NUM)
             #:elif DIR == 'j'
               ! Eta variant, Eq 18b. Xi is used for the j-direction
-              tan_theta_ij = abs(q%data(i + 1, j) - q%data(i - 1, j)) / (abs(q%data(i, j + 1) - q%data(i, j - 1)) + 1e-16_rk)
-              tan_theta_ij_p1 = abs(q%data(i + 1, j + 1) - q%data(i - 1, j + 1)) / (abs(q%data(i, j + 2) - q%data(i, j)) + 1e-16_rk)
+              tan_theta_ij = abs(q%data(i + 1, j) - q%data(i - 1, j)) / (abs(q%data(i, j + 1) - q%data(i, j - 1)) + SMALL_NUM)
+              tan_theta_ij_p1 = abs(q%data(i + 1, j + 1) - q%data(i - 1, j + 1)) / (abs(q%data(i, j + 2) - q%data(i, j)) + SMALL_NUM)
             #:endif
 
             ! Term inside the alpha [..] in Eq 64
             ! There is no Xi vs Eta split, b/c/ the r_(R,L)_ij and tan_theta_ij terms are handled
             ! accordingly by the checks above for direction
             alpha_L_term = (2.0_rk * max(1.0_rk, r_L_ij) * &
-                            (1.0_rk + max(0.0_rk,(tan_theta_ij_p1 / (r_R_ij_p1 + 1e-16_rk))))) / &
+                            (1.0_rk + max(0.0_rk,(tan_theta_ij_p1 / (r_R_ij_p1 + SMALL_NUM))))) / &
                            (1.0_rk + tan_theta_ij)
 
             alpha_R_term = (2.0_rk * max(1.0_rk, r_R_ij_p1) * &
-                            (1.0_rk + max(0.0_rk,(tan_theta_ij / (r_L_ij + 1e-16_rk))))) / &
+                            (1.0_rk + max(0.0_rk,(tan_theta_ij / (r_L_ij + SMALL_NUM))))) / &
                            (1.0_rk + tan_theta_ij_p1)
 
             ! This is the g(x) = max(1, min(2, alpha)) function

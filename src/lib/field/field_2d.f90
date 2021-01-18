@@ -809,7 +809,7 @@ contains
     integer(ik) :: i, j
     character(len=128) :: err_message = ''
 
-    if(enable_debug_print) call debug_print('Running "'// trim(self%name) //'" field_2d_t%has_nans() ', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running "'//trim(self%name)//'" field_2d_t%has_nans() ', __FILE__, __LINE__)
 
     do j = self%lbounds(2), self%ubounds(2)
       do i = self%lbounds(1), self%ubounds(1)
@@ -817,9 +817,9 @@ contains
           write(err_message, '(a, i0, ", ", i0, a)') "NaN "//self%name//" found at (", i, j, ")"
           call error_msg(module_name='mod_field', class_name='field_2d_t', procedure_name='check_for_nans', &
                          message=trim(err_message), file_name=__FILE__, line_number=__LINE__, error_stop=.true.)
-        end if
-      end do
-    end do
+        endif
+      enddo
+    enddo
   endsubroutine check_for_nans
 
   subroutine check_for_negatives(self)
@@ -831,18 +831,18 @@ contains
     character(len=128) :: err_message = ''
 
     if(enable_debug_print) then
-      call debug_print('Running "'// trim(self%name) //'" field_2d_t%check_for_negatives() ', __FILE__, __LINE__)
+      call debug_print('Running "'//trim(self%name)//'" field_2d_t%check_for_negatives() ', __FILE__, __LINE__)
     endif
 
     do j = self%lbounds(2), self%ubounds(2)
       do i = self%lbounds(1), self%ubounds(1)
         if(self%data(i, j) < 0.0_rk) then
-          write(err_message, '(a, i0, ", ", i0, a, es16.6)') "Negative "//self%name//" found at (", i, j, ")", self%data(i,j)
+          write(err_message, '(a, i0, ", ", i0, a, es16.6)') "Negative "//self%name//" found at (", i, j, ")", self%data(i, j)
           call error_msg(module_name='mod_field', class_name='field_2d_t', procedure_name='check_for_negatives', &
                          message=trim(err_message), file_name=__FILE__, line_number=__LINE__, error_stop=.true.)
-        end if
-      end do
-    end do
+        endif
+      enddo
+    enddo
   endsubroutine check_for_negatives
 
   ! --------------------------------------------------------------------
@@ -852,7 +852,7 @@ contains
     !< Cleanup the field_2d_t object
     type(field_2d_t), intent(inout) :: self
 
-    if(enable_debug_print) call debug_print('Running "'// trim(self%name) //'" field_2d_t%finalize()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running "'//trim(self%name)//'" field_2d_t%finalize()', __FILE__, __LINE__)
 
     if(allocated(self%data)) deallocate(self%data)
     if(allocated(self%units)) deallocate(self%units)
@@ -912,7 +912,7 @@ contains
     class(field_2d_t), intent(in) :: f
 
     if(enable_debug_print) then
-      call debug_print('Running "'// trim(lhs%name) //'" field_2d_t%assign_field() ', __FILE__, __LINE__)
+      call debug_print('Running "'//trim(lhs%name)//'" field_2d_t%assign_field() ', __FILE__, __LINE__)
     endif
 
     call from_field(lhs, f)
