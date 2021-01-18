@@ -33,20 +33,16 @@ fi
 for test in sod_1d shu_osher_shocktube
 do
     echo "Test: " ${test}
-    cd ${test} && \
+    cd ${test} && rm -rf results \
     ${cato_exe} input.ini && \
-    python view_results.py && \
-    cp -v *.png ${results_dir} && \
-    cd ..
+    python view_results.py && cp -v *.png ${results_dir} && cd ..
 done
 
 # 2D Tests (use coarrays)
-for test in shock_noise sedov implosion
+for test in shock_noise sedov kelvin_helmholtz implosion
 do
     echo "Test: " ${test}
-    cd ${test} && \
+    cd ${test} && rm -rf results \
     ${run} ${cato_exe} input.ini && \
-    python view_results.py && \
-    cp -v *.png ${results_dir} && \
-    cd ..
+    python view_results.py && cp -v *.png ${results_dir} && cd ..
 done
