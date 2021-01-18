@@ -406,6 +406,7 @@ contains
     if(enable_debug_print) call debug_print('Running fluid_t%integerate()', __FILE__, __LINE__)
     self%time = self%time + dt
     self%dt = dt
+    self%iteration = self%iteration + 1
 
     select case(trim(self%time_integration_scheme))
     case('ssp_rk2')
@@ -840,10 +841,12 @@ contains
     rho_E_diff = maxval(abs(last_stage%rho_E%data(ilo:ihi, jlo:jhi) - first_stage%rho_E%data(ilo:ihi, jlo:jhi)))
     rho_E_diff = max_to_all(rho_E_diff)
 
-    open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
-    write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &
-      rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
-    close(io)
+    if (this_image() == 1) then
+      open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
+      write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &
+        rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
+      close(io)
+    endif
 
   endsubroutine write_residual_history
 endmodule mod_fluid

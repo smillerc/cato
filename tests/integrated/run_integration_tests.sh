@@ -37,6 +37,7 @@ for test in sod_1d shu_osher_shocktube
 do
     cd ${test} && rm -rf results && \
     echo "Test: " ${test} `pwd` && ls && \
+    python generate_ic.py && \
     ${cato_exe} input.ini && \
     echo "Post-processing" && \
     python view_results.py && cp -v *.png ${results_dir} && cd ..
@@ -47,6 +48,7 @@ for test in shock_noise sedov kelvin_helmholtz implosion
 do
     cd ${test} && rm -rf results && \
     echo "Test: " ${test} `pwd` && ls && \
+    python generate_ic.py && \
     ${run} ${cato_exe} input.ini && \
     echo "Post-processing" && \
     python view_results.py && cp -v *.png ${results_dir} && cd ..
