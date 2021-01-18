@@ -285,7 +285,7 @@ contains
 
     u = rho_u / rho
     u%name = 'u'
-    
+
     v = rho_v / rho
     v%name = 'v'
 

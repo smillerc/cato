@@ -253,7 +253,7 @@ contains
     real(rk), dimension(4) :: boundary_prim_vars, domain_prim_vars
     real(rk), dimension(2) :: boundary_norm
 
-    if(enable_debug_print) then 
+    if(enable_debug_print) then
       call debug_print('Running pressure_input_bc_t%apply_pressure_input_primitive_var_bc() ', __FILE__, __LINE__)
     endif
 
@@ -278,7 +278,7 @@ contains
               ! bottom => self%jlo, &
               ! top => self%jhi, &
               bottom => minval(self%jlo_ghost), &
-              top => maxval(self%jhi_ghost), &        
+              top => maxval(self%jhi_ghost), &
               left_ghost => minval(self%ilo_ghost), &
               right_ghost => maxval(self%ihi_ghost), &
               bottom_ghost => minval(self%jlo_ghost), &
@@ -289,7 +289,7 @@ contains
       ! print*, self%ilo, self%ihi, self%jlo, self%jhi
       ! print*, self%ilo_ghost, self%ihi_ghost, self%jlo_ghost, self%jhi_ghost
       ! print*
-      
+
       select case(self%location)
       case('+x', '-x')
         if(rho%on_ihi_bc .or. rho%on_ilo_bc) then
