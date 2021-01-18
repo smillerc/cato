@@ -16,7 +16,7 @@ from pycato import *
 # Make the empty grid
 domain = make_uniform_grid(
     input_file="input.ini",
-    n_cells=(201, 201),
+    n_cells=(401, 401),
     xrange=(0.0, 0.3),
     yrange=(0.0, 0.3),
 )
