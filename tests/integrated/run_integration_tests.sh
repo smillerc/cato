@@ -12,15 +12,18 @@ set -e
 
 # Set the vendor to gnu or intel
 vendor=$1
-cato_dir=../../../build
-cato_exe=${cato_dir}/bin/cato.x
+ls ../..
 
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
     results_dir=`readlink -f ./test_results`
+    cato_dir=`readlink -f ../../build`
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     results_dir=`greadlink -f ./test_results`
+    cato_dir=`greadlink -f ../../build`
 fi
 
+cato_exe=${cato_dir}/bin/cato.x
+echo "CATO exe: ${cato_exe}"
 rm -rf ${results_dir} && mkdir -p ${results_dir}
 
 if [ $vendor == "intel" ]; then
@@ -32,17 +35,19 @@ fi
 # 1D Tests (serial mode)
 for test in sod_1d shu_osher_shocktube
 do
-    echo "Test: " ${test}
-    cd ${test} && rm -rf results \
+    cd ${test} && rm -rf results && \
+    echo "Test: " ${test} `pwd` && ls && \
     ${cato_exe} input.ini && \
+    echo "Post-processing" && \
     python view_results.py && cp -v *.png ${results_dir} && cd ..
 done
 
 # 2D Tests (use coarrays)
 for test in shock_noise sedov kelvin_helmholtz implosion
 do
-    echo "Test: " ${test}
-    cd ${test} && rm -rf results \
+    cd ${test} && rm -rf results && \
+    echo "Test: " ${test} `pwd` && ls && \
     ${run} ${cato_exe} input.ini && \
+    echo "Post-processing" && \
     python view_results.py && cp -v *.png ${results_dir} && cd ..
 done
