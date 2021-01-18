@@ -92,7 +92,6 @@ module mod_fluid
     integer(ik) :: iteration = 0 !< current iteration number
 
     logical, public :: prim_vars_updated = .false.
-    logical :: smooth_residuals = .false.
 
     ! Residual history
     character(len=32) :: residual_hist_file = 'residual_hist.csv'
@@ -103,7 +102,6 @@ module mod_fluid
     private
     procedure :: initialize_from_hdf5
     procedure :: calculate_derived_quantities
-    procedure :: residual_smoother
     procedure :: sanity_check
     procedure :: ssp_rk_2_2
     procedure :: ssp_rk_3_3
@@ -208,8 +206,6 @@ contains
     self%mach_v = field_2d(name='mach_v', long_name='Mach Y', descrip='Cell Mach number in y-direction', &
                            units='dimensionless', &
                            global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
-
-    self%smooth_residuals = input%smooth_residuals
 
     self%time_integration_scheme = trim(input%time_integration_strategy)
     self%flux_solver_type = trim(input%flux_solver)
@@ -430,7 +426,7 @@ contains
     call self%u%sync_edges()
     call self%v%sync_edges()
     call self%p%sync_edges()
-  endsubroutine
+  endsubroutine sync_fields
 
   function time_derivative(self, grid, source_term) result(d_dt)
     !< Implementation of the time derivative
@@ -540,44 +536,20 @@ contains
 
     self%mach_u = self%u / self%cs
     self%mach_v = self%v / self%cs
+
+    ! Filter out the super small Mach numbers
+    where(abs(self%mach_v%data) < 1e-13_rk)
+      self%v%data = 0.0_rk
+      self%mach_v%data = 0.0_rk
+    endwhere
+
+    where(abs(self%mach_u%data) < 1e-13_rk)
+      self%u%data = 0.0_rk
+      self%mach_u%data = 0.0_rk
+    endwhere
+
     self%prim_vars_updated = .true.
   endsubroutine calculate_derived_quantities
-
-  subroutine residual_smoother(self)
-    class(fluid_t), intent(inout) :: self
-
-    integer(ik) :: ilo, ihi, jlo, jhi
-    integer(ik) :: i, j
-    real(rk), parameter :: EPS = 5e-14_rk
-
-    call debug_print('Running fluid_t%residual_smoother()', __FILE__, __LINE__)
-
-    if(self%smooth_residuals) then
-      ilo = self%rho%lbounds(1) - (self%rho%n_halo_cells - 1)
-      ihi = self%rho%ubounds(1) + (self%rho%n_halo_cells - 1)
-      jlo = self%rho%lbounds(2) - (self%rho%n_halo_cells - 1)
-      jhi = self%rho%ubounds(2) + (self%rho%n_halo_cells - 1)
-
-      do j = jlo, jhi
-        do i = ilo, ihi
-          if(abs(self%rho%data(i, j) - self%rho%data(i - 1, j)) < EPS) self%rho%data(i, j) = self%rho%data(i - 1, j)
-          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i - 1, j)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i - 1, j)
-          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i - 1, j)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i - 1, j)
-          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i - 1, j)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i - 1, j)
-        enddo
-      enddo
-
-      do j = jlo, jhi
-        do i = ilo, ihi
-          if(abs(self%rho%data(i, j) - self%rho%data(i, j - 1)) < EPS) self%rho%data(i, j) = self%rho%data(i, j - 1)
-          if(abs(self%rho_u%data(i, j) - self%rho_u%data(i, j - 1)) < EPS) self%rho_u%data(i, j) = self%rho_u%data(i, j - 1)
-          if(abs(self%rho_v%data(i, j) - self%rho_v%data(i, j - 1)) < EPS) self%rho_v%data(i, j) = self%rho_v%data(i, j - 1)
-          if(abs(self%rho_E%data(i, j) - self%rho_E%data(i, j - 1)) < EPS) self%rho_E%data(i, j) = self%rho_E%data(i, j - 1)
-        enddo
-      enddo
-    endif
-
-  endsubroutine residual_smoother
 
   function subtract_fluid(lhs, rhs) result(difference)
     !< Implementation of the (-) operator for the fluid type
@@ -697,7 +669,6 @@ contains
     lhs%dt = rhs%dt
     lhs%iteration = rhs%iteration
     lhs%prim_vars_updated = rhs%prim_vars_updated
-    lhs%smooth_residuals = rhs%smooth_residuals
     lhs%residual_hist_file = rhs%residual_hist_file
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
 
@@ -705,11 +676,8 @@ contains
     call lhs%u%check_for_nans()
     call lhs%v%check_for_nans()
     call lhs%p%check_for_nans()
-    
+
     call lhs%calculate_derived_quantities()
-
-    if(lhs%smooth_residuals) call lhs%residual_smoother()
-
   endsubroutine assign_fluid
 
   subroutine sanity_check(self, error_code)
