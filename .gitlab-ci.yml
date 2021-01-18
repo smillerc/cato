@@ -56,6 +56,7 @@ single_debug_run:
     - python3 generate_ic.py
     - ./bin/cato.x input.ini
     - python3 view_results.py
+    - cp sedov_2d_results.png sedov_2d_debug_results.png
   artifacts:
     paths:
       - /builds/smil/cato/tests/integrated/sedov/sedov_2d_debug_results.png
