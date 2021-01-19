@@ -62,7 +62,7 @@ except Exception:
 df = pd.read_csv("residual_hist.csv", index_col=False)
 
 fig, (contour_ax, resid_ax) = plt.subplots(ncols=2, nrows=1, figsize=(24, 12))
-ds.density[-1].plot.pcolormesh(
+ds.sel(time=.55, method='nearest').density.plot.pcolormesh(
     x="x",
     y="y",
     ec="k",
@@ -74,8 +74,8 @@ ds.density[-1].plot.pcolormesh(
     ax=contour_ax,
 )
 
-ds.density[-1].plot.contour(
-    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=12, ax=contour_ax
+ds.sel(time=.55, method='nearest').density.plot.contour(
+    x="x", y="y", colors="k", linewidths=0.5, antialiased=True, levels=80, ax=contour_ax
 )
 
 # Plot the residual history
@@ -90,7 +90,7 @@ df.plot(
 )
 resid_ax.set_ylabel("residual")
 resid_ax.set_xlabel("time")
-resid_ax.set_ylim(1e-16, 0.1)
+resid_ax.set_ylim(1e-10, 0.1)
 
 t = ds.time[-1].data
 contour_ax.set_title(
@@ -98,5 +98,7 @@ contour_ax.set_title(
 )
 
 contour_ax.axis("equal")
+contour_ax.set_xlim(0,)
+contour_ax.set_ylim(0,)
 plt.tight_layout()
 plt.savefig("implosion_2d_results.png")
