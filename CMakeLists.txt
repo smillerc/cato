@@ -20,7 +20,7 @@ cmake_minimum_required(VERSION 3.8)
 
 project(
   CATO
-  VERSION 2.0.1
+  VERSION 2.0.2
   DESCRIPTION "A modern Fortran code for solving the Euler equations with various flux schemes"
   HOMEPAGE_URL "https://github.com/smillerc/cato"
   LANGUAGES Fortran C)
