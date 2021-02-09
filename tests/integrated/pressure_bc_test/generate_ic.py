@@ -6,9 +6,8 @@ import numpy as np
 import pint
 from pathlib import Path
 
-cato_dir = Path.home() / "cato"
-sys.path.append(str(cato_dir))
-from pycato import ureg, make_2d_layered_grid, write_initial_hdf5
+sys.path.append(os.path.abspath("../../.."))
+from pycato import *
 
 two_pi = (2 * np.pi) * ureg("radian")
 
