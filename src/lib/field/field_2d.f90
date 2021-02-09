@@ -81,6 +81,7 @@ module mod_field
 
     ! Parallel neighbor information
     integer(ik), dimension(8) :: neighbors = 0
+    integer(ik), allocatable, dimension(:) :: unique_neighbors
     !< (ilo_jlo, jlo, ihi_jlo, ilo, ihi, ilo_jhi, jhi, ihi_jhi); parallel neighbor image indices
 
     integer(ik) :: host_image_id = 0 !< what image owns this field instance?
@@ -483,6 +484,7 @@ contains
 
     self%data = 0.0_rk
     self%neighbors = tile_neighbors_2d(is_periodic=.true.)
+    self%unique_neighbors = set(self%neighbors)
   endfunction new_field
 
   function gather(self, image)
@@ -589,7 +591,8 @@ contains
     ! These were originally inside of an associate block, but testing shows that associate blocks
     ! and coarray syntax don't always give the right behabior at runtime
 
-    sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
+    ! sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
+    sync images(self%unique_neighbors, stat=sync_stat, errmsg=sync_err_msg)
     if(sync_stat /= 0) then
       write(std_err, '(a, i0, a)') "Error: unable to sync images in "//__FILE__//":", &
         __LINE__, " sync_err_msg: '"//trim(sync_err_msg)//"'"
@@ -612,7 +615,8 @@ contains
     ihi_jhi_corner(:, :)[self%neighbors(ilo_jlo_neighbor)] = self%data(ilo:ilo + nh - 1, jlo:jlo + nh - 1)
     ihi_jlo_corner(:, :)[self%neighbors(ilo_jhi_neighbor)] = self%data(ilo:ilo + nh - 1, jhi - nh + 1:jhi)
 
-    sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
+    ! sync images(set(self%neighbors), stat=sync_stat, errmsg=sync_err_msg)
+    sync images(self%unique_neighbors, stat=sync_stat, errmsg=sync_err_msg)
     if(sync_stat /= 0) then
       write(std_err, '(a, i0, a)') "Error: unable to sync images in "//__FILE__//":", &
         __LINE__, " sync_err_msg: '"//trim(sync_err_msg)//"'"
@@ -855,6 +859,7 @@ contains
     if(enable_debug_print) call debug_print('Running "'//trim(self%name)//'" field_2d_t%finalize()', __FILE__, __LINE__)
 
     if(allocated(self%data)) deallocate(self%data)
+    if(allocated(self%unique_neighbors)) deallocate(self%unique_neighbors)
     if(allocated(self%units)) deallocate(self%units)
     if(allocated(self%name)) deallocate(self%name)
     if(allocated(self%long_name)) deallocate(self%long_name)
@@ -900,6 +905,7 @@ contains
     new%on_jlo_bc = old%on_jlo_bc
     new%on_jhi_bc = old%on_jhi_bc
     new%neighbors = old%neighbors
+    new%unique_neighbors = old%unique_neighbors
     new%host_image_id = old%host_image_id
   endsubroutine from_field
 
