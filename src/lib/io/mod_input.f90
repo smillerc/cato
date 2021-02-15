@@ -250,7 +250,7 @@ contains
     ! Restart files
     call cfg%get("restart", "restart_from_file", self%restart_from_file, .false.)
 
-    if(this_image() == 1) write(*, '(a, l2)') 'Reading from restart?', self%restart_from_file
+    if(this_image() == 1) write(*, '(a, l2)') 'Reading from restart?', self%restart_from_file 
 
     if(self%restart_from_file) then
       call cfg%get("restart", "restart_file", char_buffer)
@@ -262,7 +262,9 @@ contains
                        message='Restart file not found: "'//trim(self%restart_file)//'"', &
                        file_name=__FILE__, line_number=__LINE__)
       endif
+      if(this_image() == 1) write(*, '(a, a, a)') 'Restart file: "', self%restart_file, '"'
     endif
+
 
     ! Initial Conditions
     if(.not. self%restart_from_file) then
@@ -351,6 +353,17 @@ contains
 
       call cfg%get("boundary_conditions", "bc_pressure_scale_factor", self%bc_pressure_scale_factor, 1.0_rk)
     endif
+
+
+    if(self%plus_x_bc ==  'outflow' .or. &
+       self%minus_x_bc == 'outflow' .or. &
+       self%plus_y_bc ==  'outflow' .or. &
+       self%minus_y_bc == 'outflow') then
+
+    call cfg%get("boundary_conditions", "outflow_ambient_pressure", self%constant_bc_pressure_value)
+
+  endif
+
 
     ! Source terms
     call cfg%get('source_terms', 'enable_source_terms', self%enable_source_terms, .false.)

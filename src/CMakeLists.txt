@@ -79,6 +79,7 @@ add_library(
   lib/boundary_conditions/inlet_outlet.f90
   lib/boundary_conditions/pressure_input_bc.f90
   lib/boundary_conditions/symmetry_bc.f90
+  lib/boundary_conditions/outlet_bc.f90
   lib/boundary_conditions/bc_factory.f90
   lib/source_terms/source_factory.f90
   lib/source_terms/mod_source.f90

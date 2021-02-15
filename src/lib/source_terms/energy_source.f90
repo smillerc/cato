@@ -24,6 +24,7 @@ module mod_energy_source
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64
 
   use mod_globals, only: debug_print
+  use mod_field, only: field_2d_t, field_2d
   use mod_units
   use math_constants, only: universal_gas_const
   use mod_source, only: source_t
@@ -76,9 +77,10 @@ contains
 
   endsubroutine finalize
 
-  subroutine integrate(self, dt)
+  subroutine integrate(self, dt, density)
     !< Inject energy into the conserved variables
     class(energy_source_t), intent(inout) :: self
+    class(field_2d_t), intent(in) :: density
     real(rk), intent(in) :: dt
 
   endsubroutine integrate

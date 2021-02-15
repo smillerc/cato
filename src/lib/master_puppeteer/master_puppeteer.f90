@@ -186,7 +186,9 @@ contains
 
     self%time = self%time + self%dt
 
-    if(self%do_source_terms) call self%source_term%integrate(dt=dt)
+    if(self%do_source_terms) then
+       call self%source_term%integrate(dt=self%dt, density=self%fluid%rho)
+    endif
 
     select type(grid => self%grid)
     class is(grid_block_2d_t)

@@ -468,7 +468,7 @@ contains
       if(allocated(source_term)) then
         if(self%time <= source_term%max_time) then
           if(source_term%source_type == 'energy') then
-            d_dt%rho_E = source_term%data + d_dt%rho_E
+            d_dt%rho_E%data(:,:) = source_term%data(:,:) + d_dt%rho_E%data(:,:)
           endif
         endif
       endif
