@@ -79,11 +79,16 @@ module mod_source
     character(len=:), allocatable :: input_filename
 
     ! Field data
-    real(rk), allocatable, dimension(:, :) :: data !< (i,j); actual source data to apply
+    ! real(rk), allocatable, dimension(:, :) :: data !< (i,j); actual source data to apply
+    type(field_2d_t) :: source    !< (i, j); Conserved quantities
+
     real(rk), pointer, dimension(:, :) :: centroid_x => null() !< (i,j); cell x centroid used to apply positional source data
     real(rk), pointer, dimension(:, :) :: centroid_y => null() !< (i,j); cell y centroid used to apply positional source data
     real(rk), pointer, dimension(:, :) :: volume => null()
-    integer(ik) :: i_dep = 0, j_dep = 0
+    integer(ik) :: i_dep_center = 0
+    integer(ik) :: j_dep_center = 0
+    integer(ik), dimension(2) :: i_dep_range = 0 !< (imin, imax); i-index range for energy deposition
+    integer(ik), dimension(2) :: j_dep_range = 0 !< (jmin, jmax); j-index range for energy deposition
   contains
     private
     procedure, public :: integrate
@@ -159,8 +164,9 @@ contains
         endif
       endselect
 
-      allocate(new_source%data, mold=grid%centroid_x)
-      new_source%data = 0.0_rk
+      new_source%source = field_2d(name='source_term', long_name='Source Term', &
+                             descrip='Source Term', units='', &
+                             global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
     endselect
   endfunction new_source
 
@@ -224,24 +230,25 @@ contains
 
     ! Initialize the linear interpolated data object so we can query the pressure at any time
     call self%temporal_source_input%initialize(time, source_data, interp_status)
-    if(interp_status /= 0) error stop "Error initializing pressure_source_t%temporal_source_input"
+    if(interp_status /= 0) error stop "Error initializing source_t%temporal_source_input"
 
     deallocate(time)
     deallocate(source_data)
   endsubroutine read_input_file
 
-  real(rk) function get_desired_source_input(self) result(source_value)
+  real(rk) function get_desired_source_input(self, t) result(source_value)
     !< Get the desired source term amount. This can vary with time, so this can
     !< use linear interpolation.
 
     class(source_t), intent(inout) :: self
+    real(rk), intent(in) :: t !< time
     integer(ik) :: interp_stat
 
     if(self%constant_source) then
       source_value = self%constant_source_value
     else
-      if(self%time <= self%max_time) then
-        call self%temporal_source_input%evaluate(x=self%time, &
+      if(t <= self%max_time) then
+        call self%temporal_source_input%evaluate(x=t, &
                                                  f=source_value, &
                                                  istat=interp_stat)
 
@@ -269,22 +276,32 @@ contains
     self%time = self%time + dt
 
     call self%find_deposition_location(density)
-    if (self%this_image_deposits) call self%get_source_field()
+    call self%get_source_field(density)
+
+    ! self%source%data = self%source%data / self%volume
+
   endsubroutine integrate
 
   subroutine find_deposition_location(self, density)
     class(source_t), intent(inout) :: self
     class(field_2d_t), intent(in) :: density
     integer(ik) :: i, ilo, ihi, j, jlo, jhi, i_dep
-
+    integer(ik) :: imax, imin
+    integer(ik), parameter :: I_WINDOW = 100 !< index window in which we look to deposit energy
     real(rk) :: x_center
     real(rk), parameter :: DENS_THRESHOLD = 0.1_rk
+
+    self%this_image_deposits = .false.
+    imax=0
+    imin=0
 
     ihi = density%ihi
     ilo = density%ilo
     jhi = density%jhi
     jlo = density%jlo
 
+    ! Scan in from the right; this is only for a "laser" from the +x boundary
+    ! Each image does this, but not all actually deposit any energy
     do i = ihi, ilo, -1
       if (any(density%data(i, jlo:jhi) > DENS_THRESHOLD)) then
         x_center = maxval(self%centroid_x(i,:))
@@ -294,62 +311,73 @@ contains
     enddo
 
     self%x_center = max_to_all(x_center)
-    self%i_dep = max_to_all(i_dep)
+    i_dep = max_to_all(i_dep) ! broadcast the true i deposit index everywhere
+    self%i_dep_range = [ilo, ihi] ! default to the entire range
 
-    ! Find the image id which contains the location of deposition
-    if (i_dep == self%i_dep) then
+    ! Check to see if the index window is in the current image's domain
+    imin = max(i_dep - I_WINDOW, ilo)
+    imax = min(i_dep + I_WINDOW, ihi)
+    
+    if (imin > ihi .or. imax < ilo) then
+      self%this_image_deposits = .false.
+    else
       self%this_image_deposits = .true.
-    endif 
-
+      self%i_dep_range = [imin, imax]
+    endif
   end subroutine
 
-  subroutine get_source_field(self)
+  subroutine get_source_field(self, density)
     !< For the given time find the source strength and distribution based on the geometry type
     class(source_t), intent(inout) :: self
-    real(rk) :: source_value
+    class(field_2d_t), intent(in) :: density
+    ! real(rk) :: source_value
     real(rk) :: gauss_amplitude, c
-    integer(ik) :: i_window, imax, imin
+    real(rk) :: p1, p2
+    real(rk) :: e_input !< input energy
     real(rk), parameter :: fwhm_to_c = 1.0_rk / (2.0_rk * sqrt(2.0_rk * log(2.0_rk)))
 
+    ! The source term in the Euler equations is Q = [0, rho f_x, rho f_y, q_dot_h]
+    ! q_dot_h is the heat transfer per unit mass, or energy per mass. In cgs this
+    ! has units of erg/g. We are given a power from the input, which is erg/s
+    e_input = self%get_desired_source_input(t=self%time) * self%multiplier
+    ! p1 = self%get_desired_source_input(t=self%time) * self%multiplier
+    ! p2 = self%get_desired_source_input(t=self%time + self%dt) * self%multiplier
+    ! e_input = ((p1 + p2)* 0.5_rk) * self%dt
+    self%source%data = 0.0_rk
 
-    i_window = 100
-    imax=0
-    imin=0
-
-    source_value = self%get_desired_source_input() * self%multiplier
-    self%data = 0.0_rk
-
-    if(source_value > 0.0_rk) then
-      if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of: ', source_value * self%nondim_scale_factor, " at ", self%x_center * l_0
+    if(e_input > 0.0_rk) then
+      if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of: ', e_input * self%nondim_scale_factor, " at", self%x_center * l_0
     endif
     
-    if(abs(source_value) > 0.0_rk) then
+    if(abs(e_input) > 0.0_rk .and. self%this_image_deposits) then
       select case(self%source_geometry)
       case('uniform')
-        self%data = source_value
+        self%source%data = e_input
       case('constant_xy')
         where(self%centroid_x < self%xhi .and. self%centroid_x > self%xlo .and. &
               self%centroid_y < self%yhi .and. self%centroid_x > self%ylo)
-          self%data = 1.0_rk
+          self%source%data = 1.0_rk
         endwhere
       case('1d_gaussian')
         if(self%constant_in_y) then
 
-          imin = max(self%i_dep - i_window, lbound(self%centroid_x, dim=1))
-          imax = min(self%i_dep + i_window, ubound(self%centroid_x, dim=1))
-
-          associate(x => self%centroid_x(imin:imax,:), x0 => self%x_center, &
+          associate(imin => self%i_dep_range(1), imax => self%i_dep_range(2), &
+                    x => self%centroid_x(self%i_dep_range(1):self%i_dep_range(2),:), x0 => self%x_center, &
                     fwhm => self%fwhm_x, order => self%gaussian_order)
 
             c = fwhm * fwhm_to_c
-            gauss_amplitude = source_value / (sqrt(2.0_rk * pi) * abs(c))
-            self%data(imin:imax,:) = gauss_amplitude * exp(-((((x - x0)**2) / ((2.0_rk * c)**2))))
+            gauss_amplitude = e_input / (sqrt(2.0_rk * pi) * abs(c))
+            self%source%data(imin:imax,:) = gauss_amplitude * exp(-((((x - x0)**2) / ((2.0_rk * c)**2))))
+
+            ! The source term is per unit mass, e.g. erg/gram -> erg * cm^3 / g / cm^3
+            ! self%source%data(imin:imax,:) = self%source%data(imin:imax,:) * &
+            !                                 (self%volume(imin:imax,:) / density%data(imin:imax,:))
           endassociate
         else
           error stop "not done yet"
           associate(y => self%centroid_y, y0 => self%y_center, &
                     fwhm => self%fwhm_y, order => self%gaussian_order)
-            self%data = exp(-((((y - y0)**2) / fwhm**2)**order))
+            self%source%data = exp(-((((y - y0)**2) / fwhm**2)**order))
           endassociate
         endif
       case('2d_gaussian')
@@ -357,31 +385,20 @@ contains
         associate(x => self%centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &
                   y => self%centroid_y, y0 => self%y_center, fwhm_y => self%fwhm_y, &
                   order => self%gaussian_order)
-          self%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
+          self%source%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
                              (((y - y0)**2) / fwhm_y**2))**order))
         endassociate
       endselect
 
       ! Remove tiny numbers
-      where(abs(self%data) < tiny(1.0_rk)) self%data = 0.0_rk
-
-      ! self%data = self%data / maxval(self%data)
-
-      ! write(*,'(a, 10(es16.6))') "min/max: ", minval(self%data), maxval(self%data)
-      ! write(*,'(a, es16.6)') "source_value", source_value
-      ! write(*,'(a, es16.6)') "sum(self%data)", sum(self%data)
-      ! write(*,'(a, es16.6)') "sum(self%volume, mask=abs(self%data) > 0.0_rk)", sum(self%volume, mask=abs(self%data) > 0.0_rk)
-      ! self%data = self%data / sum(self%volume, mask=abs(self%data) > 0.0_rk)
-      ! write(*,'(a, es16.6)') "self%data", sum(self%data)
+      where(abs(self%source%data) < tiny(1.0_rk)) self%source%data = 0.0_rk
     endif
-    ! error stop
   endsubroutine get_source_field
 
   subroutine finalize(self)
     type(source_t), intent(inout) :: self
     logical :: is_open = .false.
 
-    if(allocated(self%data)) deallocate(self%data)
     if(allocated(self%source_type)) deallocate(self%source_type)
     if(allocated(self%source_geometry)) deallocate(self%source_geometry)
     if(allocated(self%input_filename)) deallocate(self%input_filename)

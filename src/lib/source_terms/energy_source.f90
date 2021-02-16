@@ -67,7 +67,7 @@ contains
     type(energy_source_t), intent(inout) :: self
     logical :: is_open = .false.
 
-    if(allocated(self%data)) deallocate(self%data)
+    ! if(allocated(self%data)) deallocate(self%data)
     if(allocated(self%source_type)) deallocate(self%source_type)
     if(allocated(self%source_geometry)) deallocate(self%source_geometry)
     if(allocated(self%input_filename)) deallocate(self%input_filename)
