@@ -40,6 +40,7 @@ module mod_test_bc
   integer(ik), parameter :: left_edge = 4   !< cell left edge index
 
     !   Domain used for BC testing (read in from simple.h5)
+    !   This is after periodic BCs have been applied on all sides & corners
     !    |---|---||---|---|---|---||---|---|
     ! 6  | 9 | 6 || 8 | 9 | 9 | 6 || 8 | 9 | <- j=6; aka top_ghost (grid%ubounds_halo(2))
     !    |---|---||---|---|---|---||---|---|
@@ -166,8 +167,8 @@ contains
     !< Test the periodic boundary condition
     class(boundary_condition_t), pointer :: bc_plus_y => null()
     class(boundary_condition_t), pointer :: bc_minus_y => null()
-    
-    
+    integer :: j
+    real(rk), dimension(ilo_c:ihi_c) :: j1_row, j2_row, j3_row, j4_row
 
     sync all
     if(this_image() == 1) print*, new_line('') // "Running test_y_periodic" // new_line('')
@@ -187,15 +188,22 @@ contains
     call v%zero_out_halo()
     call p%zero_out_halo()
 
-    call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
-    call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
-    sync all
-
+    
     ! Now test the results
     associate(left => grid%lbounds(1), right => grid%ubounds(1), &
               bottom => grid%lbounds(2), top => grid%ubounds(2), &
               left_ghost => grid%lbounds_halo(1), right_ghost => grid%ubounds_halo(1), &
               bottom_ghost => grid%lbounds_halo(2), top_ghost => grid%ubounds_halo(2))
+      
+       print *, "Before BC's applied"
+      do j = top_ghost, bottom_ghost, -1
+        write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
+      end do
+      print *
+  
+      call bc_minus_y%apply(rho=rho, u=u, v=v, p=p)
+      call bc_plus_y%apply(rho=rho, u=u, v=v, p=p)
+      sync all
 
       select case(num_images())
       case(4)
@@ -214,12 +222,23 @@ contains
           call assert_equal([5.0_rk, 2.0_rk], rho%data(left:right, top_ghost - 1), file=__FILE__, line=__LINE__)
         end select
       case(1)
-        ! top ghost layer
-        top_row = [0.0_rk, 0.0_rk, 8.0_rk, 9.0_rk, 9.0_rk, 6.0_rk, 0.0_rk, 0.0_rk]
-        call assert_equal(top_row, rho%data(:, top_ghost), file=__FILE__, line=__LINE__)
-  
-        top_row = [0.0_rk, 0.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 0.0_rk, 0.0_rk]
-        call assert_equal(top_row, rho%data(:, top_ghost - 1), file=__FILE__, line=__LINE__)
+
+        print *, "After BC's applied"
+        do j = top_ghost, bottom_ghost, -1
+          write(*, '(i3, a, 10(f6.0))') j, " : ", rho%data(:, j)
+        end do
+        print *
+        
+        ! top ghost layer, e.g. j = 6
+        j4_row = [0.0_rk, 0.0_rk, 4.0_rk, 7.0_rk, 7.0_rk, 3.0_rk, 0.0_rk, 0.0_rk]
+        j3_row = [0.0_rk, 0.0_rk, 8.0_rk, 9.0_rk, 9.0_rk, 6.0_rk, 0.0_rk, 0.0_rk]
+        j2_row = [0.0_rk, 0.0_rk, 8.0_rk, 9.0_rk, 9.0_rk, 6.0_rk, 0.0_rk, 0.0_rk]
+        j1_row = [0.0_rk, 0.0_rk, 1.0_rk, 5.0_rk, 5.0_rk, 2.0_rk, 0.0_rk, 0.0_rk]
+
+        call assert_equal(j2_row, rho%data(:, top_ghost), file=__FILE__, line=__LINE__)
+        call assert_equal(j1_row, rho%data(:, top_ghost - 1), file=__FILE__, line=__LINE__)
+        call assert_equal(j3_row, rho%data(:, bottom_ghost), file=__FILE__, line=__LINE__)
+        call assert_equal(j4_row, rho%data(:, bottom_ghost + 1), file=__FILE__, line=__LINE__)
       case default
         error stop "Test failed. This is only configured to test for 1 or 4 images"
       end select
@@ -534,11 +553,11 @@ contains
       case(1)
 
         ! Print out in all it's glory
-        print *, "After BC's applied"
-        do j = top_ghost, bottom_ghost, -1
-          write(*, '(i3, a, 10(f6.0))') j, " : ", u%data(:, j)
-        end do
-        print *
+        ! print *, "After BC's applied"
+        ! do j = top_ghost, bottom_ghost, -1
+        !   write(*, '(i3, a, 10(f6.0))') j, " : ", u%data(:, j)
+        ! end do
+        ! print *
 
 
         ! -- Bottom --

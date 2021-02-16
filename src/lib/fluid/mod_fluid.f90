@@ -350,17 +350,17 @@ contains
 
     if(this_image() == 1) then
       write(*, '(a)') 'Initial fluid stats'
-      write(*, '(a)') '==================================================='
-      write(*, '(a, f0.4)') 'EOS Gamma:                     ', eos%get_gamma()
+      write(*, '(a)') '==============================================================='
+      write(*, '(a, f0.4)') 'EOS Gamma                   :     ', eos%get_gamma()
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]:     ', minval(density) * rho_0, maxval(density) * rho_0
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]:     ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]:     ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]:     ', minval(pressure) * p_0, maxval(pressure) * p_0
-      write(*, '(a)') '==================================================='
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]    : ', minval(density) * rho_0, maxval(density) * rho_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]    : ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]    : ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]    : ', minval(pressure) * p_0, maxval(pressure) * p_0
+      write(*, '(a)') '==============================================================='
       write(*, *)
     endif
 
@@ -468,7 +468,7 @@ contains
       if(allocated(source_term)) then
         if(self%time <= source_term%max_time) then
           if(source_term%source_type == 'energy') then
-            d_dt%rho_E%data(:,:) = source_term%data(:,:) + d_dt%rho_E%data(:,:)
+            d_dt%rho_E = source_term%source + d_dt%rho_E
           endif
         endif
       endif

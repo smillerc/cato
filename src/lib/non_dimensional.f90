@@ -38,22 +38,42 @@ module mod_nondimensionalization
   real(rk), protected :: p_0 = 1.0_rk   !< scale factor for pressure
   real(rk), protected :: e_0 = 1.0_rk   !< scale factor for energy (same as pressure)
 
+  logical, protected :: apply_nondimensionalization = .true.
   logical, parameter :: auto_scale_by_grid = .true.
   logical, protected :: length_scale_set = .false.
   logical, protected :: scale_factors_set = .false.
 
 contains
 
+  subroutine set_nondim_flag(apply_dim)
+    logical, intent(in) :: apply_dim
+    apply_nondimensionalization = apply_dim
+  end subroutine
+
   subroutine set_length_scale(length_scale)
     real(rk), intent(in) :: length_scale
 
-    if(length_scale < 0.0_rk) then
-      error stop "Error in mod_nondimensionalization::set_length_scale(), length_scale < 0"
-    endif
+    if(apply_nondimensionalization) then
+      if(length_scale < 0.0_rk) then
+        error stop "Error in mod_nondimensionalization::set_length_scale(), length_scale < 0"
+      endif
 
-    l_0 = length_scale
+      l_0 = length_scale
+    endif
     length_scale_set = .true.
+
   endsubroutine
+
+
+  subroutine set_nondim_factors(ref_length, ref_velocity, ref_density)
+    real(rk), intent(in) :: ref_length   !< reference
+    real(rk), intent(in) :: ref_velocity !< reference
+    real(rk), intent(in) :: ref_density  !< reference
+
+
+    
+  end subroutine
+
 
   subroutine set_scale_factors(density_scale, pressure_scale)
     !< Set the non-dimensional scale factors based on the provided scales. This
@@ -62,21 +82,23 @@ contains
     real(rk), intent(in) :: density_scale
     real(rk), intent(in) :: pressure_scale
 
-    if(.not. length_scale_set) then
-      error stop "Error in mod_nondimensionalization::set_scale_factors(), "// &
-        "the length scale needs to be set first (via the grid)"
-    endif
+    if(apply_nondimensionalization) then
+      if(.not. length_scale_set) then
+        error stop "Error in mod_nondimensionalization::set_scale_factors(), "// &
+          "the length scale needs to be set first (via the grid)"
+      endif
 
-    if(density_scale < 0.0_rk) then
-      error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
-    endif
+      if(density_scale < 0.0_rk) then
+        error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
+      endif
 
-    if(pressure_scale < 0.0_rk) then
-      error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
-    endif
+      if(pressure_scale < 0.0_rk) then
+        error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
+      endif
 
-    rho_0 = density_scale
-    p_0 = pressure_scale
+      rho_0 = density_scale
+      p_0 = pressure_scale
+    endif
     v_0 = sqrt(p_0 / rho_0)
     e_0 = p_0
     t_0 = l_0 / v_0
@@ -96,6 +118,7 @@ contains
     endif
 
     scale_factors_set = .true.
+  
 
   endsubroutine set_scale_factors
 

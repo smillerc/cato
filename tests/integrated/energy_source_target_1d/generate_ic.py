@@ -10,21 +10,18 @@ sys.path.append(os.path.abspath("../../.."))
 from pycato import *
 
 # Physics
-gamma = 1.6666666667
+gamma = 5.0/3.0
 init_pressure = 1e9 * ureg("barye")
 ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
-
-vacuum_pressure = 1e9 * ureg("barye")
-vacuum_density = 0.001 * ureg("g/cc")
-
-v_shell = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s").m
+vacuum_density = 1e-3 * ureg("g/cc")
 
 # Mesh
-interface_loc = 70.0
+interface_loc = 40.0
 layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [20, 20, 20] * ureg("1/um")
+res = 10
+layer_resolution = [res, res, res] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
@@ -33,7 +30,7 @@ layer_n_cells = np.round(
 layer_density = [ice_density, shell_density, vacuum_density]
 layer_u = [0, 0, 0] * ureg("cm/s")
 layer_v = [0, 0, 0] * ureg("cm/s")
-layer_pressure = [init_pressure, init_pressure, vacuum_pressure]
+layer_pressure = [init_pressure, init_pressure, init_pressure]
 
 domain = make_2d_layered_grid(
     layer_thicknesses,

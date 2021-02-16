@@ -36,6 +36,7 @@ module mod_units
   real(rk), protected :: io_volume_units = 1.0_rk
   real(rk), protected :: io_temperature_units = 1.0_rk
   real(rk), protected :: io_energy_units = 1.0_rk
+  real(rk), protected :: io_energy_density_units = 1.0_rk
   real(rk), protected :: io_force_units = 1.0_rk
   real(rk), protected :: io_power_units = 1.0_rk
 
@@ -48,6 +49,7 @@ module mod_units
   character(len=10), protected :: io_volume_label = 'cc'
   character(len=10), protected :: io_temperature_label = 'K'
   character(len=10), protected :: io_energy_label = 'erg'
+  character(len=10), protected :: io_energy_density_label = 'erg/cc'
   character(len=10), protected :: io_force_label = 'dyne'
   character(len=10), protected :: io_power_label = 'dyne/s'
 
@@ -94,7 +96,7 @@ contains
 
     select case(trim(system))
     case("cgs")
-      if(this_image() == 1) write(*, '(a)') "Setting I/O unit system to CGS conventions (g/cc, cm, K, barye)"
+      if(this_image() == 1) write(*, '(a)') "Setting I/O unit system to CGS conventions (g/cc, cm, K, barye, erg)"
       unit_system = "cgs"
       io_velocity_units = 1.0_rk
       io_velocity_label = 'cm/s'
@@ -112,9 +114,11 @@ contains
       io_temperature_label = 'K'
       io_volume_units = 1.0_rk
       io_volume_label = 'cc'
-
+      io_energy_density_units = 1.0_rk
+      io_energy_density_label = 'erg/cc'
+      
     case("icf")
-      if(this_image() == 1) write(*, '(a)') "Setting I/O unit system to ICF conventions (g/cc, microns, eV, Mbar)"
+      if(this_image() == 1) write(*, '(a)') "Setting I/O unit system to ICF conventions (g/cc, microns, eV, Mbar, erg)"
       unit_system = "icf"
       io_velocity_units = km_per_sec
       io_velocity_label = 'km/s'
@@ -132,6 +136,8 @@ contains
       io_temperature_label = 'eV'
       io_volume_units = 1.0_rk
       io_volume_label = 'cc'
+      io_energy_density_units = 1.0_rk
+      io_energy_density_label = 'erg/cc'
 
     endselect
   endsubroutine set_output_unit_system

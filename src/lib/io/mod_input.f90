@@ -24,6 +24,7 @@ module mod_input
   use mod_globals, only: debug_print
   use mod_error, only: error_msg
   use cfgio_mod, only: cfg_t, parse_cfg
+  use mod_nondimensionalization, only: set_nondim_flag
 
   implicit none
 
@@ -212,6 +213,7 @@ contains
 
     ! Reference state
     call cfg%get("reference_state", "non_dimensionalize", self%non_dimensionalize, .true.)
+    call set_nondim_flag(self%non_dimensionalize)
 
     if(self%non_dimensionalize) then
       call cfg%get("reference_state", "reference_pressure", self%reference_pressure)
@@ -265,24 +267,21 @@ contains
       if(this_image() == 1) write(*, '(a, a, a)') 'Restart file: "', self%restart_file, '"'
     endif
 
-
     ! Initial Conditions
-    if(.not. self%restart_from_file) then
-      call cfg%get("initial_conditions", "read_from_file", self%read_init_cond_from_file, .true.)
+    call cfg%get("initial_conditions", "read_from_file", self%read_init_cond_from_file, .true.)
+    if(self%read_init_cond_from_file) then
+      call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
+      self%initial_condition_file = trim(char_buffer)
 
-      if(self%read_init_cond_from_file) then
-        call cfg%get("initial_conditions", "initial_condition_file", char_buffer)
-        self%initial_condition_file = trim(char_buffer)
-
-        inquire(file=self%initial_condition_file, exist=file_exists)
-        if(.not. file_exists) then
-          call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
-                         message='Initial conditions file not found: "'//trim(self%initial_condition_file)//'"', &
-                         file_name=__FILE__, line_number=__LINE__)
-        endif
-
+      inquire(file=self%initial_condition_file, exist=file_exists)
+      if(.not. file_exists) then
+        call error_msg(module_name='mod_input', class_name="input_t", procedure_name='read_from_ini', &
+                       message='Initial conditions file not found: "'//trim(self%initial_condition_file)//'"', &
+                       file_name=__FILE__, line_number=__LINE__)
       endif
+    endif
 
+    if(.not. self%restart_from_file) then
       call cfg%get("initial_conditions", "init_density", self%init_density, 0.0_rk)
       call cfg%get("initial_conditions", "init_x_velocity", self%init_x_velocity, 0.0_rk)
       call cfg%get("initial_conditions", "init_y_velocity", self%init_y_velocity, 0.0_rk)

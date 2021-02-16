@@ -322,27 +322,39 @@ contains
     ! Primitive Variables
     dataset_name = '/density'
     io_data_buffer = master%fluid%rho%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * rho_0 * io_density_units, name='/density', &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * rho_0 * io_density_units, name=dataset_name, &
                                                        description='Cell Density', units=trim(io_density_label))
 
     dataset_name = '/x_velocity'
     io_data_buffer = master%fluid%u%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/x_velocity', &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name=dataset_name, &
                                                        description='Cell X Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
     io_data_buffer = master%fluid%v%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/y_velocity', &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name=dataset_name, &
                                                        description='Cell Y Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/pressure'
     io_data_buffer = master%fluid%p%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * p_0 * io_pressure_units, name='/pressure', &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * p_0 * io_pressure_units, name=dataset_name, &
                                                        description='Cell Pressure', units=trim(io_pressure_label))
+
+    dataset_name = '/total_energy'
+    io_data_buffer = master%fluid%rho_E%gather(image=1) / master%fluid%rho%gather(image=1)
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * e_0 * io_energy_units, name=dataset_name, &
+                                                      description='Cell Total Energy', units=trim(io_pressure_label))
+                                                      
+    if (master%do_source_terms) then
+      dataset_name = '/deposited_energy'
+      io_data_buffer = master%source_term%source%gather(image=1)
+      if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * (e_0/rho_0) * io_energy_density_units, name=dataset_name, &
+                                                        description='Cell Deposited Energy', units=trim(io_energy_density_label))
+    endif
 
     dataset_name = '/sound_speed'
     io_data_buffer = master%fluid%cs%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name='/sound_speed', &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name=dataset_name, &
                                                        description='Cell Sound Speed', units=trim(io_velocity_label))
     ! Volume
     dataset_name = '/volume'
@@ -412,11 +424,19 @@ contains
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/pressure</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    ! unit_label = "["//trim(io_energy_label)//"]"
-    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Total Energy '//trim(unit_label)//'">'
-    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-    !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
-    ! write(xdmf_unit, '(a)') '      </Attribute>'
+    unit_label = "["//trim(io_energy_label)//"]"
+    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Total Energy '//trim(unit_label)//'">'
+    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
+    write(xdmf_unit, '(a)') '      </Attribute>'
+
+    if (master%do_source_terms) then
+      unit_label = "["//trim(io_energy_label)//"]"
+      write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Deposited Energy '//trim(unit_label)//'">'
+      write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+        '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/deposited_energy</DataItem>'
+      write(xdmf_unit, '(a)') '      </Attribute>'
+    endif
 
     ! Velocity
     unit_label = "["//trim(io_velocity_label)//"]"

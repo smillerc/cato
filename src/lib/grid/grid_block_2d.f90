@@ -8,7 +8,7 @@ module mod_grid_block_2d
   use h5fortran, only: hdf5_file, hsize_t
   use mod_quad_cell, only: quad_cell_t
   use mod_error, only: error_msg
-  use mod_nondimensionalization, only: set_length_scale, l_0
+  use mod_nondimensionalization, only: set_length_scale, l_0, apply_nondimensionalization
   use mod_units, only: um_to_cm
   use collectives, only: max_to_all, min_to_all
 
@@ -38,6 +38,7 @@ module mod_grid_block_2d
     procedure, public :: gather
     procedure, public :: read_from_h5
     procedure, public :: write_to_h5
+    procedure, public :: print_grid_stats
 
     ! Finalize
     final :: finalize_2d_block
@@ -62,7 +63,19 @@ contains
     integer(ik), dimension(2) :: lbounds = 0
     integer(ik), dimension(2) :: ubounds = 0
     integer(ik) :: indices(4)
+    logical :: file_exists
     integer(ik) :: alloc_status
+
+    call debug_print('Running grid_block_2d_t%init_2d_block()', __FILE__, __LINE__)
+
+    file_exists = .false.
+    inquire(file=trim(input%initial_condition_file), exist=file_exists)
+    if (.not. file_exists) then
+      call error_msg(module_name='mod_grid_block_2d', class_name='grid_block_2d_t', &
+                    procedure_name='init_2d_block', &
+                    message='File not found: "'//trim(input%initial_condition_file)//'"', &
+                    file_name=__FILE__, line_number=__LINE__)
+    endif
 
     call h5%initialize(trim(input%initial_condition_file), status='old', action='r')
     call h5%shape('/density', cell_shape)
@@ -135,24 +148,30 @@ contains
     call self%read_from_h5(input)
     call self%populate_element_specifications()
     call self%scale_and_nondimensionalize()
+    call self%print_grid_stats()
   endsubroutine init_2d_block
 
   subroutine print_grid_stats(self)
     class(grid_block_2d_t), intent(in) :: self
     integer :: ni, nj
     if(this_image() == 1) then
+      print*
       write(*, '(a)') "Grid stats:"
-      write(*, '(a)') "========================="
-      write(*, '(a)') "Blocks"
-      write(*, '(a)') "-------------"
+      write(*, '(a)') "=================================================="
+      print*
+      write(*, '(a)') "Blocks / subdomains"
+      write(*, '(a)') "-------------------"
       write(*, '(a, i0)') "Number of blocks          : ", num_images()
       write(*, '(2(a,i0))') "Average block size (cells): ", self%block_dims(1), " x ", self%block_dims(2)
-      write(*, '(a, i6)') "Number of halo cells      : ", self%n_halo_cells
+      write(*, '(a, i0)') "Number of halo cells      : ", self%n_halo_cells
+      print*
       write(*, '(a)') "Global"
-      write(*, '(a)') "-------------"
+      write(*, '(a)') "------"
       write(*, '(a, i0)') "Number of i cells: ", self%global_dims(1)
       write(*, '(a, i0)') "Number of j cells: ", self%global_dims(2)
-      write(*, '(a, i0)') "Total cells      : ", size(self%global_dims)
+      write(*, '(a, i0)') "Total cells      : ", self%global_dims(1)*self%global_dims(2)
+      write(*, '(a)') "=================================================="
+      print*
     endif
   endsubroutine print_grid_stats
 
@@ -191,15 +210,17 @@ contains
 
     integer(hsize_t), allocatable :: dims(:)
 
-    if(input%restart_from_file) then
-      filename = trim(input%restart_file)
-    else
-      filename = trim(input%initial_condition_file)
-    endif
+    call debug_print('Running grid_block_2d_t%read_from_h5()', __FILE__, __LINE__)
+
+    ! if(input%restart_from_file) then
+    !   filename = trim(input%restart_file)
+    ! else
+    filename = trim(input%initial_condition_file)
+    ! endif
 
     file_exists = .false.
     inquire(file=filename, exist=file_exists)
-
+    
     if(.not. file_exists) then
       call error_msg(module_name='mod_grid_block_2d', class_name='grid_block_2d_t', &
                      procedure_name='read_from_h5', &
@@ -235,18 +256,18 @@ contains
       self%node_y(ilo:ihi + 1, jlo:jhi + 1) = x(ilo + nh:ihi + 1 + nh, jlo + nh:jhi + 1 + nh)
     endassociate
 
-    if(input%restart_from_file) then
-      call h5%readattr('/x', 'units', str_buff)
-      select case(trim(str_buff))
-      case('um')
-        self%node_x = self%node_x * um_to_cm
-        self%node_y = self%node_y * um_to_cm
-      case('cm')
-        ! Do nothing, since cm is what the code works in
-      case default
-        error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
-      endselect
-    endif
+    ! if(input%restart_from_file) then
+    !   call h5%readattr('/x', 'units', str_buff)
+    !   select case(trim(str_buff))
+    !   case('um')
+    !     self%node_x = self%node_x * um_to_cm
+    !     self%node_y = self%node_y * um_to_cm
+    !   case('cm')
+    !     ! Do nothing, since cm is what the code works in
+    !   case default
+    !     error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
+    !   endselect
+    ! endif
 
     call h5%finalize()
   endsubroutine read_from_h5
@@ -390,6 +411,7 @@ contains
     class(grid_block_2d_t), intent(inout) :: self
 
     real(rk) :: diff
+    real(rk) :: minvol, maxvol, vol_diff
     real(rk), save :: min_edge_length![*]
     real(rk), save :: max_edge_length![*]
 
@@ -409,53 +431,47 @@ contains
     if(diff < 2.0_rk * epsilon(1.0_rk)) then
       self%is_uniform = .true.
     endif
+    
+    if (apply_nondimensionalization) then
+      ! Set l_0 for the entire code
+      call set_length_scale(length_scale=min_edge_length)
 
-    ! Set l_0 for the entire code
-    call set_length_scale(length_scale=min_edge_length)
+      ! Scale so that the minimum edge length is 1
+      self%node_x = self%node_x / min_edge_length
+      self%node_y = self%node_y / min_edge_length
+      self%edge_lengths = self%edge_lengths / min_edge_length
+      self%centroid_x = self%centroid_x / min_edge_length
+      self%centroid_y = self%centroid_y / min_edge_length
+      self%dx = self%dx / min_edge_length
+      self%dy = self%dy / min_edge_length
 
-    ! Scale so that the minimum edge length is 1
-    self%node_x = self%node_x / min_edge_length
-    self%node_y = self%node_y / min_edge_length
-    self%edge_lengths = self%edge_lengths / min_edge_length
-    self%centroid_x = self%centroid_x / min_edge_length
-    self%centroid_y = self%centroid_y / min_edge_length
-    self%dx = self%dx / min_edge_length
-    self%dy = self%dy / min_edge_length
-
-    ! If the grid is uniform, then we can make it all difinitively 1
-    if(self%is_uniform) then
-      if(this_image() == 1) then
-        write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
+      ! If the grid is uniform, then we can make it all difinitively 1
+      if(self%is_uniform) then
+        if(this_image() == 1) then
+          write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
+        endif
+        self%volume = 1.0_rk
+        self%edge_lengths = 1.0_rk
+        self%dx = 1.0_rk
+        self%dy = 1.0_rk
+      else
+        self%volume = self%volume / min_edge_length**2
       endif
-      self%volume = 1.0_rk
-      self%edge_lengths = 1.0_rk
-      self%dx = 1.0_rk
-      self%dy = 1.0_rk
-      ! self%min_dx = 1.0_rk
-      ! self%max_dx = 1.0_rk
-    else
-      self%volume = self%volume / min_edge_length**2
-      ! self%min_dx = minval(self%node_x(lbound(self%node_x, 1) + 1:ubound(self%node_x, 1), :) - &
-      !                     self%node_x(lbound(self%node_x, 1):ubound(self%node_x, 1) - 1, :))
-      ! self%max_dx = maxval(self%node_x(lbound(self%node_x, 1) + 1:ubound(self%node_x, 1), :) - &
-      !                     self%node_x(lbound(self%node_x, 1):ubound(self%node_x, 1) - 1, :))
-
-      ! self%min_dy = minval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
-      !                     self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
-      ! self%max_dy = maxval(self%node_y(:, lbound(self%node_y, 2) + 1:ubound(self%node_y, 2)) - &
-      !                     self%node_y(:, lbound(self%node_y, 2):ubound(self%node_y, 2) - 1))
     endif
 
-    ! self%xmin = minval(self%node_x)
-    ! self%xmax = maxval(self%node_x)
-    ! self%ymin = minval(self%node_y)
-    ! self%ymax = maxval(self%node_y)
+    maxvol = maxval(self%volume)
+    minvol = minval(self%volume)
+    vol_diff = abs(maxvol - minvol)
 
-    ! self%x_length = abs(self%xmax - self%xmin)
-    ! if(self%x_length <= 0) error stop "grid%x_length <= 0"
-
-    ! self%y_length = abs(self%ymax - self%ymin)
-    ! if(self%y_length <= 0) error stop "grid%x_length <= 0"
+    ! If the volume is all slightly different, but under the machine epsilong, 
+    ! just make it all uniform
+    if (vol_diff < epsilon(1.0_rk)) then
+      self%volume = maxvol
+      if(this_image() == 1) then
+        write(*, '(a, es16.6)') "The difference in max/min of the grid volumes are all under "//&
+                                "machine epsilon, setting to a constant value of:", maxvol
+      endif
+    endif
 
   endsubroutine scale_and_nondimensionalize
 endmodule

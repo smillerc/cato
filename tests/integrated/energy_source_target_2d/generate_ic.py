@@ -18,34 +18,28 @@ gamma = 5.0 / 3.0
 init_pressure = 1e9 * ureg("barye")
 ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
-
-vacuum_pressure = 1e9 * ureg("barye")
-vacuum_density = 0.01 * ureg("g/cc")
-vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s")
+vacuum_density = 1e-3 * ureg("g/cc")
 
 # Mesh
-vacuum_feathering = 1.1
-wavelength = 0.5 * ureg("um")
-two_pi = (2 * np.pi) * ureg("radian")
-k = two_pi / wavelength
-print(f"k: {k}")
-y_thickness = (two_pi / k) / 2.0
+y_thickness = 10 * ureg("um")
 print(f"y_thickness: {y_thickness.to('um')}")
 dy = None  # will use smallest dx if None
 
-interface_loc = 5.0
-layer_thicknesses = [interface_loc, 10, 10] * ureg("um")
+# Mesh
+interface_loc = 10.0
+layer_thicknesses = [interface_loc, 10, 2] * ureg("um")
 layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [40, 40, 40] * ureg("1/um")
+res = 10
+layer_resolution = [res, res, res] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
 ).m.astype(int)
 
 layer_density = [ice_density, shell_density, vacuum_density]
-layer_u = [0, 0, -vacuum_u.m] * ureg("cm/s")
+layer_u = [0, 0, 0] * ureg("cm/s")
 layer_v = [0, 0, 0] * ureg("cm/s")
-layer_pressure = [init_pressure, init_pressure, vacuum_pressure]
+layer_pressure = [init_pressure, init_pressure, init_pressure]
 
 domain = make_2d_layered_grid(
     layer_thicknesses,
@@ -57,7 +51,7 @@ domain = make_2d_layered_grid(
     y_thickness,
     dy=dy,
     layer_spacing=layer_spacing,
-    spacing_scale_factor=vacuum_feathering,
+    spacing_scale_factor=None,
     input_file="input.ini",
 )
 
@@ -87,7 +81,7 @@ if do_pert:
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
 # Plot the results
-plot = True
+plot = False
 if plot:
     fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
 
@@ -104,4 +98,5 @@ if plot:
     ax1.set_xlabel("X")
     ax1.set_ylabel("Y")
     ax1.axis("equal")
+
     plt.show()
