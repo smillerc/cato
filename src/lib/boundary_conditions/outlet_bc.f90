@@ -111,17 +111,17 @@ contains
                 v%data  (i,j) =   v%data(ihi, j)
                 p%data  (i,j) =   p%data(ihi, j)
 
-              else if (mach >= 0.0_rk .and. mach < 1.0_rk) then
+              else !if (mach >= 0.0_rk .and. mach < 1.0_rk) then
                 ! Subsonic extrapolation
                 rho%data(i,j) = rho%data(ihi, j) + (p_b - p_d) / cs**2
                 u%data  (i,j) =   u%data(ihi, j) + nx * (p_d - p_b)/(rho_0 * cs)
                 v%data  (i,j) =   v%data(ihi, j) + ny * (p_d - p_b)/(rho_0 * cs)
                 p%data  (i,j) =   self%outlet_pressure
-              else
-                call error_msg(module_name='mod_outlet_bc', class_name='outlet_bc_t', &
-                                    procedure_name='apply_outlet_primitive_var_bc', &
-                                    message="Inflow at the +x outflow BC!", &
-                                    file_name=__FILE__, line_number=__LINE__)
+              ! else
+              !   call error_msg(module_name='mod_outlet_bc', class_name='outlet_bc_t', &
+              !                       procedure_name='apply_outlet_primitive_var_bc', &
+              !                       message="Inflow at the +x outflow BC!", &
+              !                       file_name=__FILE__, line_number=__LINE__)
               end if
             end associate
           end do
