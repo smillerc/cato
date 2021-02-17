@@ -31,16 +31,45 @@ module mod_nondimensionalization
   implicit none
 
   !TODO: Scale so that the cell size is always 1!
-  real(rk), protected :: t_0 = 1.0_rk   !< scale factor for time
-  real(rk), protected :: rho_0 = 1.0_rk !< scale factor for density
-  real(rk), protected :: l_0 = 1.0_rk   !< scale factor for length
-  real(rk), protected :: v_0 = 1.0_rk   !< scale factor for velocity
-  real(rk), protected :: p_0 = 1.0_rk   !< scale factor for pressure
-  real(rk), protected :: e_0 = 1.0_rk   !< scale factor for energy (same as pressure)
+  real(rk), protected :: t_ref = 1.0_rk        !< reference time in sec
+  real(rk), protected :: t_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
+  real(rk), protected :: t_to_dim = 1.0_rk     !< scale factor for time
+  
+  real(rk), protected :: density_ref = 1.0_rk        !< reference time in sec
+  real(rk), protected :: density_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
+  real(rk), protected :: density_to_dim = 1.0_rk     !< scale factor for time
+
+  real(rk), protected :: vel_ref = 1.0_rk        !< reference time in sec
+  real(rk), protected :: vel_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
+  real(rk), protected :: vel_to_dim = 1.0_rk     !< scale factor for time
+
+  real(rk), protected :: len_ref = 1.0_rk        !< reference time in sec
+  real(rk), protected :: len_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
+  real(rk), protected :: len_to_dim = 1.0_rk     !< scale factor for time
+
+  real(rk), protected :: press_ref = 1.0_rk        !< reference time in sec
+  real(rk), protected :: press_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
+  real(rk), protected :: press_to_dim = 1.0_rk     !< scale factor for time
+
+  real(rk), protected :: energy_ref = 1.0_rk        !< reference time in sec
+  real(rk), protected :: energy_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
+  real(rk), protected :: energy_to_dim = 1.0_rk     !< scale factor for time
+
+  real(rk), protected :: pow_ref = 1.0_rk        !< reference time in sec
+  real(rk), protected :: pow_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
+  real(rk), protected :: pow_to_dim = 1.0_rk     !< scale factor for time
+
+
+  ! real(rk), protected :: t_0 = 1.0_rk   !< scale factor for length
+  ! real(rk), protected :: rho_0 = 1.0_rk   !< scale factor for length
+  ! real(rk), protected :: l_0 = 1.0_rk   !< scale factor for length
+  ! real(rk), protected :: v_0 = 1.0_rk   !< scale factor for velocity
+  ! real(rk), protected :: p_0 = 1.0_rk   !< scale factor for pressure
+  ! real(rk), protected :: e_0 = 1.0_rk   !< scale factor for energy (same as pressure)
 
   logical, protected :: apply_nondimensionalization = .true.
-  logical, parameter :: auto_scale_by_grid = .true.
-  logical, protected :: length_scale_set = .false.
+  ! logical, parameter :: auto_scale_by_grid = .true.
+  ! logical, protected :: length_scale_set = .false.
   logical, protected :: scale_factors_set = .false.
 
 contains
@@ -50,77 +79,92 @@ contains
     apply_nondimensionalization = apply_dim
   end subroutine
 
-  subroutine set_length_scale(length_scale)
-    real(rk), intent(in) :: length_scale
+  ! subroutine set_length_scale(length_scale)
+  !   real(rk), intent(in) :: length_scale
 
-    if(apply_nondimensionalization) then
-      if(length_scale < 0.0_rk) then
-        error stop "Error in mod_nondimensionalization::set_length_scale(), length_scale < 0"
-      endif
+  !   if(apply_nondimensionalization) then
+  !     if(length_scale < 0.0_rk) then
+  !       error stop "Error in mod_nondimensionalization::set_length_scale(), length_scale < 0"
+  !     endif
 
-      l_0 = length_scale
-    endif
-    length_scale_set = .true.
+  !     l_0 = length_scale
+  !   endif
+  !   length_scale_set = .true.
 
-  endsubroutine
+  ! endsubroutine
 
 
-  subroutine set_nondim_factors(ref_length, ref_velocity, ref_density)
+  subroutine set_refrence_quantities(ref_length, ref_velocity, ref_density)
     real(rk), intent(in) :: ref_length   !< reference
     real(rk), intent(in) :: ref_velocity !< reference
     real(rk), intent(in) :: ref_density  !< reference
 
+    t_ref = ref_length / ref_velocity
+    len_ref = ref_length
+    density_ref = ref_density
+    vel_ref = ref_velocity
+    press_ref = density_ref * vel_ref**2
+    energy_ref = density_ref * vel_ref**2
+    pow_ref = density_ref * vel_ref**2 * t_ref
 
+    ! Factors used to convert from dim to non-dim and vice versa
+    ! e.g. t (that the code uses) can be converted to real units by => t * t_to_dim
+    !      and to convert from units to non-dim vesion => t * t_to_nondim
+    len_to_nondim = 1.0_rk / len_ref
+    len_to_dim = len_ref
+
+    t_to_nondim = 1.0_rk / t_ref
+    t_to_dim = t_ref
+
+    density_to_nondim = 1.0_rk / density_ref
+    density_to_dim = density_ref
     
-  end subroutine
+    vel_to_nondim = 1.0_rk / vel_ref
+    vel_to_dim = vel_ref
+    
+    press_to_nondim = 1.0_rk / press_ref
+    press_to_dim = press_ref
+    
+    energy_to_nondim = 1.0_rk / energy_ref
+    energy_to_dim = energy_ref
 
+    pow_to_nondim = 1.0_rk / pow_ref
+    pow_to_dim = pow_ref
 
-  subroutine set_scale_factors(density_scale, pressure_scale)
-    !< Set the non-dimensional scale factors based on the provided scales. This
-    !< allows the user to set these protected factors outside of the module.
-
-    real(rk), intent(in) :: density_scale
-    real(rk), intent(in) :: pressure_scale
-
-    if(apply_nondimensionalization) then
-      if(.not. length_scale_set) then
-        error stop "Error in mod_nondimensionalization::set_scale_factors(), "// &
-          "the length scale needs to be set first (via the grid)"
-      endif
-
-      if(density_scale < 0.0_rk) then
-        error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
-      endif
-
-      if(pressure_scale < 0.0_rk) then
-        error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
-      endif
-
-      rho_0 = density_scale
-      p_0 = pressure_scale
+    if(density_to_nondim < 0.0_rk) then
+      error stop "Error in mod_nondimensionalization::set_scale_factors(), density_scale < 0"
     endif
-    v_0 = sqrt(p_0 / rho_0)
-    e_0 = p_0
-    t_0 = l_0 / v_0
+
+    if(press_to_nondim < 0.0_rk) then
+      error stop "Error in mod_nondimensionalization::set_scale_factors(), pressure_scale < 0"
+    endif
 
     if(this_image() == 1) then
       print *
       write(*, '(a)') "Scale factors (CATO is non-dimensional)"
-      write(*, '(a)') "========================================"
-      write(*, '(a, es10.3)') "Time scale factor (t_0):      ", t_0
-      write(*, '(a, es10.3)') "Density scale factor (rho_0): ", rho_0
-      write(*, '(a, es10.3)') "Length scale factor (l_0):    ", l_0
-      write(*, '(a, es10.3)') "Pressure scale factor (p_0):  ", p_0
-      write(*, '(a, es10.3)') "Velocity scale factor (v_0):  ", v_0
-      write(*, '(a, es10.3)') "Energy scale factor (e_0):    ", e_0
-      write(*, '(a)') "========================================"
+      write(*, '(a)') "============================================"
+
+      write(*, '(a, es10.3)') "Reference length        (input): ", len_ref
+      write(*, '(a, es10.3)') "Reference density       (input): ", density_ref
+      write(*, '(a, es10.3)') "Reference velocity      (input): ", vel_ref
+      write(*, '(a, es10.3)') "Reference time     (calculated): ", t_ref
+      write(*, '(a, es10.3)') "Reference energy   (calculated): ", energy_ref
+      write(*, '(a, es10.3)') "Reference pressure (calculated): ", press_ref
+      print*
+      
+      write(*, '(a, es10.3)') "Time scale factor (t_tilde)      : ", t_to_nondim
+      write(*, '(a, es10.3)') "Density scale factor (rho_tilde) : ", density_to_nondim
+      write(*, '(a, es10.3)') "Length scale factor (l_tilde)    : ", len_to_nondim
+      write(*, '(a, es10.3)') "Pressure scale factor (p_tilde)  : ", press_to_nondim
+      write(*, '(a, es10.3)') "Velocity scale factor (v_tilde)  : ", vel_to_nondim
+      write(*, '(a, es10.3)') "Energy scale factor (e_tilde)    : ", energy_to_nondim
+      write(*, '(a)') "============================================"
       print *
     endif
 
     scale_factors_set = .true.
   
-
-  endsubroutine set_scale_factors
+  endsubroutine 
 
   ! subroutine set_scale_factors(time_scale, length_scale, density_scale)
   !   !< Set the non-dimensional scale factors based on the provided scales. This

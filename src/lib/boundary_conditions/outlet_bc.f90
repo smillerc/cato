@@ -27,7 +27,7 @@ module mod_outlet_bc
   use mod_boundary_conditions, only: boundary_condition_t
   use mod_input, only: input_t
   use mod_eos, only: eos
-  use mod_nondimensionalization, only: p_0, rho_0, t_0
+  use mod_nondimensionalization
 
   implicit none
 
@@ -52,7 +52,7 @@ contains
     bc%name = 'outlet'
     bc%location = location
     bc%priority = 0
-    bc%outlet_pressure = input%constant_bc_pressure_value / p_0 ! non-dimensionalize
+    bc%outlet_pressure = input%constant_bc_pressure_value * press_to_nondim
 
     if (bc%outlet_pressure <= 0.0_rk) then
       call error_msg(module_name='mod_outlet_bc', class_name='outlet_bc_t', &

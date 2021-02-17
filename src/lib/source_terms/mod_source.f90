@@ -32,7 +32,7 @@ module mod_source
   use mod_grid_block, only: grid_block_t
   use mod_grid_block_2d, only: grid_block_2d_t
   use mod_error, only: error_msg
-  use mod_nondimensionalization, only: t_0, rho_0, l_0, v_0, p_0, e_0
+  use mod_nondimensionalization
 
   implicit none
 
@@ -111,7 +111,7 @@ contains
     new_source%source_type = 'energy'
     new_source%time = time
     new_source%multiplier = input%source_scale_factor
-    new_source%nondim_scale_factor = e_0 ! / t_0
+    new_source%nondim_scale_factor = energy_to_nondim
     new_source%source_geometry = trim(input%source_geometry)
     new_source%constant_source = input%apply_constant_source
 
@@ -141,15 +141,15 @@ contains
       ! Determine the extents of the source term (if any)
       select case(new_source%source_geometry)
       case('constant_xy')
-        new_source%xlo = input%source_xlo / l_0
-        new_source%xhi = input%source_xhi / l_0
-        new_source%ylo = input%source_ylo / l_0
-        new_source%yhi = input%source_yhi / l_0
+        new_source%xlo = input%source_xlo * len_to_nondim
+        new_source%xhi = input%source_xhi * len_to_nondim
+        new_source%ylo = input%source_ylo * len_to_nondim
+        new_source%yhi = input%source_yhi * len_to_nondim
       case('1d_gaussian', '2d_gaussian')
-        new_source%x_center = input%source_center_x / l_0
-        new_source%y_center = input%source_center_y / l_0
-        new_source%fwhm_x = input%source_gaussian_fwhm_x / l_0
-        new_source%fwhm_y = input%source_gaussian_fwhm_y / l_0
+        new_source%x_center = input%source_center_x  * len_to_nondim
+        new_source%y_center = input%source_center_y  * len_to_nondim
+        new_source%fwhm_x = input%source_gaussian_fwhm_x  * len_to_nondim
+        new_source%fwhm_y = input%source_gaussian_fwhm_y  * len_to_nondim
         new_source%gaussian_order = input%source_gaussian_order
 
         if(new_source%gaussian_order < 1) then
@@ -223,10 +223,10 @@ contains
     enddo
     close(input_unit)
 
-    time = time / t_0
+    time = time * t_to_nondim
     self%max_time = maxval(time)
 
-    source_data = source_data / self%nondim_scale_factor
+    source_data = source_data * self%nondim_scale_factor
 
     ! Initialize the linear interpolated data object so we can query the pressure at any time
     call self%temporal_source_input%initialize(time, source_data, interp_status)
@@ -289,11 +289,14 @@ contains
     integer(ik) :: imax, imin
     integer(ik), parameter :: I_WINDOW = 100 !< index window in which we look to deposit energy
     real(rk) :: x_center
-    real(rk), parameter :: DENS_THRESHOLD = 0.1_rk
+    real(rk) :: critical_density !< where do we deposit the energy TODO: make this a user input
+
+    critical_density = 0.1_rk * density_to_nondim ! 0.10 g/cc to nondimensionalize
 
     self%this_image_deposits = .false.
-    imax=0
-    imin=0
+    imax = 0
+    imin = 0
+    x_center = 0.0_rk
 
     ihi = density%ihi
     ilo = density%ilo
@@ -303,7 +306,7 @@ contains
     ! Scan in from the right; this is only for a "laser" from the +x boundary
     ! Each image does this, but not all actually deposit any energy
     do i = ihi, ilo, -1
-      if (any(density%data(i, jlo:jhi) > DENS_THRESHOLD)) then
+      if (any(density%data(i, jlo:jhi) > critical_density)) then
         x_center = maxval(self%centroid_x(i,:))
         i_dep = i
         exit
@@ -335,6 +338,13 @@ contains
     real(rk) :: p1, p2
     real(rk) :: e_input !< input energy
     real(rk), parameter :: fwhm_to_c = 1.0_rk / (2.0_rk * sqrt(2.0_rk * log(2.0_rk)))
+    integer(ik) :: ilo, ihi, jlo, jhi
+
+    ihi = density%ihi
+    ilo = density%ilo
+    jhi = density%jhi
+    jlo = density%jlo
+
 
     ! The source term in the Euler equations is Q = [0, rho f_x, rho f_y, q_dot_h]
     ! q_dot_h is the heat transfer per unit mass, or energy per mass. In cgs this
@@ -346,7 +356,8 @@ contains
     self%source%data = 0.0_rk
 
     if(e_input > 0.0_rk) then
-      if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of: ', e_input * self%nondim_scale_factor, " at", self%x_center * l_0
+      if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of [dim version]: ', &
+      e_input / self%nondim_scale_factor, " at", self%x_center * len_to_dim
     endif
     
     if(abs(e_input) > 0.0_rk .and. self%this_image_deposits) then
@@ -365,13 +376,17 @@ contains
                     x => self%centroid_x(self%i_dep_range(1):self%i_dep_range(2),:), x0 => self%x_center, &
                     fwhm => self%fwhm_x, order => self%gaussian_order)
 
-            c = fwhm * fwhm_to_c
-            gauss_amplitude = e_input / (sqrt(2.0_rk * pi) * abs(c))
-            self%source%data(imin:imax,:) = gauss_amplitude * exp(-((((x - x0)**2) / ((2.0_rk * c)**2))))
+            ! Make a gaussian
+            self%source%data(imin:imax,:) = exp((-4.0_rk * log(2.0_rk) * (x - x0)**2) / fwhm**2)
+            
+            ! Filter out the small values at the fringes
+            where(abs(self%source%data) < 1e-6_rk) self%source%data = 0.0_rk
 
+            self%source%data(imin:imax,:) = self%source%data(imin:imax,:) * e_input
+
+            !  / density%data(imin:imax,:) / self%volume(imin:imax,:)
             ! The source term is per unit mass, e.g. erg/gram -> erg * cm^3 / g / cm^3
-            ! self%source%data(imin:imax,:) = self%source%data(imin:imax,:) * &
-            !                                 (self%volume(imin:imax,:) / density%data(imin:imax,:))
+            
           endassociate
         else
           error stop "not done yet"
@@ -389,9 +404,6 @@ contains
                              (((y - y0)**2) / fwhm_y**2))**order))
         endassociate
       endselect
-
-      ! Remove tiny numbers
-      where(abs(self%source%data) < tiny(1.0_rk)) self%source%data = 0.0_rk
     endif
   endsubroutine get_source_field
 

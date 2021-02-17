@@ -28,7 +28,7 @@ module mod_contour_writer
   use mod_grid_block_2d, only: grid_block_2d_t
   use mod_error, only: error_msg
   use mod_units
-  use mod_nondimensionalization, only: rho_0, v_0, p_0, t_0, l_0, e_0
+  use mod_nondimensionalization
   use mod_eos, only: eos
   use hdf5_interface, only: hdf5_file
   use mod_input, only: input_t
@@ -201,8 +201,8 @@ contains
 
     real(rk), allocatable :: int_gather_coarray(:, :)[:]
 
-    time_w_dims = time * io_time_units * t_0
-    delta_t_w_dims = master%dt * t_0
+    time_w_dims = time * io_time_units * t_to_dim
+    delta_t_w_dims = master%dt * t_to_dim
 
     if(this_image() == 1) then
       call self%hdf5_file%initialize(filename=self%results_folder//'/'//self%hdf5_filename, &
@@ -243,14 +243,14 @@ contains
     dataset_name = '/x'
     io_data_buffer = master%grid%gather(var='x', image=1)
     if(this_image() == 1) then
-      io_data_buffer = io_data_buffer * l_0 * io_length_units
+      io_data_buffer = io_data_buffer * len_to_dim * io_length_units
       call self%write_2d_real_data(data=io_data_buffer, name='/x', description='X Coordinate', units=trim(io_length_label))
     endif
 
     dataset_name = '/y'
     io_data_buffer = master%grid%gather(var='y', image=1)
     if(this_image() == 1) then
-      io_data_buffer = io_data_buffer * l_0 * io_length_units
+      io_data_buffer = io_data_buffer * len_to_dim * io_length_units
       call self%write_2d_real_data(data=io_data_buffer, name='/y', description='Y Coordinate', units=trim(io_length_label))
     endif
 
@@ -322,45 +322,45 @@ contains
     ! Primitive Variables
     dataset_name = '/density'
     io_data_buffer = master%fluid%rho%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * rho_0 * io_density_units, name=dataset_name, &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * density_to_dim * io_density_units, name=dataset_name, &
                                                        description='Cell Density', units=trim(io_density_label))
 
     dataset_name = '/x_velocity'
     io_data_buffer = master%fluid%u%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name=dataset_name, &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * vel_to_dim * io_velocity_units, name=dataset_name, &
                                                        description='Cell X Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
     io_data_buffer = master%fluid%v%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name=dataset_name, &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * vel_to_dim * io_velocity_units, name=dataset_name, &
                                                        description='Cell Y Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/pressure'
     io_data_buffer = master%fluid%p%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * p_0 * io_pressure_units, name=dataset_name, &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * press_to_dim * io_pressure_units, name=dataset_name, &
                                                        description='Cell Pressure', units=trim(io_pressure_label))
 
-    dataset_name = '/total_energy'
-    io_data_buffer = master%fluid%rho_E%gather(image=1) / master%fluid%rho%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * e_0 * io_energy_units, name=dataset_name, &
-                                                      description='Cell Total Energy', units=trim(io_pressure_label))
+    ! dataset_name = '/total_energy'
+    ! io_data_buffer = master%fluid%rho_E%gather(image=1) / master%fluid%rho%gather(image=1)
+    ! if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * e_0 * io_energy_units, name=dataset_name, &
+    !                                                   description='Cell Total Energy', units=trim(io_pressure_label))
                                                       
     if (master%do_source_terms) then
       dataset_name = '/deposited_energy'
       io_data_buffer = master%source_term%source%gather(image=1)
-      if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * (e_0/rho_0) * io_energy_density_units, name=dataset_name, &
+      if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * energy_to_dim * io_energy_density_units, name=dataset_name, &
                                                         description='Cell Deposited Energy', units=trim(io_energy_density_label))
     endif
 
     dataset_name = '/sound_speed'
     io_data_buffer = master%fluid%cs%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * v_0 * io_velocity_units, name=dataset_name, &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * vel_to_dim * io_velocity_units, name=dataset_name, &
                                                        description='Cell Sound Speed', units=trim(io_velocity_label))
     ! Volume
     dataset_name = '/volume'
     io_data_buffer = master%grid%gather(var='volume', image=1)
 
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * (l_0 * l_0) * io_volume_units, name='/volume', &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * (len_to_dim**2) * io_volume_units, name='/volume', &
                                                        description='Cell Volume', units=trim(io_volume_label))
 
     if(allocated(int_data_buffer)) deallocate(int_data_buffer)
@@ -390,7 +390,7 @@ contains
     write(xdmf_unit, '(a)') '<Xdmf version="2.2">'
     write(xdmf_unit, '(a)') '  <Domain>'
     write(xdmf_unit, '(a)') '    <Grid GridType="Uniform" Name="grid">'
-    write(xdmf_unit, '(a,g0.3,a)') '      <Time Value="', time * io_time_units * t_0, ' '//trim(io_time_label)//'"/>'
+    write(xdmf_unit, '(a,g0.3,a)') '      <Time Value="', time * io_time_units * t_to_dim, ' '//trim(io_time_label)//'"/>'
     write(xdmf_unit, '(a)') '      <Topology NumberOfElements="'//node_shape//'" TopologyType="2DSMesh"/>'
 
     write(xdmf_unit, '(a)') '      <Geometry GeometryType="X_Y">'
@@ -424,11 +424,11 @@ contains
       '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/pressure</DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    unit_label = "["//trim(io_energy_label)//"]"
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Total Energy '//trim(unit_label)//'">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
+    ! unit_label = "["//trim(io_energy_label)//"]"
+    ! write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Total Energy '//trim(unit_label)//'">'
+    ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+    !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
+    ! write(xdmf_unit, '(a)') '      </Attribute>'
 
     if (master%do_source_terms) then
       unit_label = "["//trim(io_energy_label)//"]"

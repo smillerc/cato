@@ -797,8 +797,8 @@ contains
         call debug_print('Running field_2d_t%make_non_dimensional() for "'//self%name//'"', __FILE__, __LINE__)
       endif
 
-      self%to_nondim = 1.0_rk / non_dim_factor
-      self%to_dim = non_dim_factor
+      self%to_nondim = non_dim_factor
+      self%to_dim = 1.0_rk / non_dim_factor
       self%data = self%data * self%to_nondim
       self%is_nondim = .true.
       self%is_dim = .false.

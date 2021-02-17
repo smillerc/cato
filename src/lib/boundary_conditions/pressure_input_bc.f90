@@ -25,7 +25,7 @@ module mod_pressure_input_bc
   use mod_field, only: field_2d_t
   use mod_grid_block_2d, only: grid_block_2d_t
   use mod_boundary_conditions, only: boundary_condition_t
-  use mod_nondimensionalization, only: p_0, rho_0, t_0
+  use mod_nondimensionalization
   use mod_input, only: input_t
   use mod_inlet_outlet, only: subsonic_inlet, subsonic_outlet, supersonic_inlet, supersonic_outlet
   use linear_interpolation_module, only: linear_interp_1d
@@ -78,14 +78,14 @@ contains
     call bc%set_indices(grid)
 
     bc%time = time
-    bc%density_input = input%bc_density / rho_0
+    bc%density_input = input%bc_density * density_to_dim
     bc%constant_pressure = input%apply_constant_bc_pressure
     bc%scale_factor = input%bc_pressure_scale_factor
     if(.not. bc%constant_pressure) then
       bc%input_filename = trim(input%bc_pressure_input_file)
       call bc%read_pressure_input()
     else
-      bc%pressure_input = input%constant_bc_pressure_value / p_0 ! non-dimensionalize
+      bc%pressure_input = input%constant_bc_pressure_value * press_to_nondim
     endif
 
   endfunction pressure_input_bc_constructor
@@ -153,9 +153,9 @@ contains
     close(input_unit)
 
     ! Apply scaling and non-dimensionalization
-    time_sec = time_sec / t_0
-    pressure_barye = (pressure_barye / p_0) * self%scale_factor
-    density_gcc = (density_gcc / rho_0) * self%scale_factor
+    time_sec = time_sec * t_to_nondim
+    pressure_barye = (pressure_barye * press_to_nondim) * self%scale_factor
+    density_gcc = (density_gcc * density_to_nondim) * self%scale_factor
 
     self%max_time = maxval(time_sec)
 

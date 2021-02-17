@@ -29,7 +29,7 @@ program cato
   use mod_globals, only: print_version_stats, open_debug_files
   use mod_units, only: set_output_unit_system, io_time_label, io_time_units
   use mod_input, only: input_t
-  use mod_nondimensionalization, only: set_scale_factors, t_0
+  use mod_nondimensionalization
   use mod_timing, only: timer_t
   use mod_master_puppeteer, only: master_puppeteer_t, make_master
   use mod_eos, only: set_equation_of_state
@@ -93,8 +93,8 @@ program cato
   contour_writer = contour_writer_t(input)
 
   ! Non-dimensionalize
-  contour_interval_dt = input%contour_interval_dt / t_0
-  max_time = input%max_time / t_0
+  contour_interval_dt = input%contour_interval_dt * t_to_nondim
+  max_time = input%max_time * t_to_nondim
 
   if(input%restart_from_file) then
     time = master%time
@@ -115,10 +115,10 @@ program cato
 
   call timer%start()
   if(input%use_constant_delta_t) then
-    delta_t = input%initial_delta_t / t_0
+    delta_t = input%initial_delta_t * t_to_nondim
   else
     if(input%initial_delta_t > 0.0_rk) then
-      delta_t = input%initial_delta_t / t_0
+      delta_t = input%initial_delta_t * t_to_nondim
       write(std_out, '(a, es10.3)') "Starting timestep (given via input, not calculated):", delta_t
     else
       delta_t = 0.1_rk * master%get_timestep()
@@ -128,18 +128,18 @@ program cato
   call master%set_time(time, iteration)
 
   if(this_image() == 1) then
-    write(std_out, '(a, es10.3)') "Starting time:", time
-    write(std_out, '(a, es10.3)') "Starting timestep:", delta_t
+    write(std_out, '(a, es10.3)') "Starting time:", time * t_to_dim
+    write(std_out, '(a, es10.3)') "Starting timestep:", delta_t * t_to_dim
   endif
 
   do while(time < max_time .and. iteration < input%max_iterations)
 
-    if(this_image() == 1) write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_0, &
-      ' '//trim(io_time_label)//', Delta t =', delta_t * t_0, ' s, Iteration: ', iteration
+    if(this_image() == 1) write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_to_dim, &
+      ' '//trim(io_time_label)//', Delta t =', delta_t * t_to_dim, ' s, Iteration: ', iteration
 
     ! Integrate in time
     if(input%use_constant_delta_t) then
-      call master%integrate(error_code=error_code, dt=input%initial_delta_t / t_0)
+      call master%integrate(error_code=error_code, dt=input%initial_delta_t * t_to_nondim)
     else
       call master%integrate(error_code=error_code)
     endif
@@ -159,7 +159,7 @@ program cato
       next_output_time = next_output_time + contour_interval_dt
       if(this_image() == 1) then
         write(std_out, '(a, es10.3, a)') 'Saving Contour, Next Output Time: ', &
-          next_output_time * t_0 * io_time_units, ' '//trim(io_time_label)
+          next_output_time * t_to_dim * io_time_units, ' '//trim(io_time_label)
       endif
       call contour_writer%write_contour(master, iteration)
       last_io_iteration = iteration

@@ -223,16 +223,16 @@ contains
         if(${F}$%on_jlo_bc) ${F}$%data(ilo:ihi, jlo_halo:jlo - 1) = jlo_edge
         if(${F}$%on_jhi_bc) ${F}$%data(ilo:ihi, jhi + 1:jhi_halo) = jhi_edge
 
-        do j = 1, nh
-          if (any(abs(jlo_edge(:,j) - jhi_edge(:,j)) > 0.0_rk)) then
-            print*, "${F}$"
-            ! write(*, *) 'image', this_image(), 'j', j, 'lo   :', jlo_edge(:,j)
-            ! write(*, *) 'image', this_image(), 'j', j, 'hi   :', jhi_edge(:,j)
-            write(*, *) 'image', this_image(), 'j', j, "diff :", abs(jlo_edge(:,j) - jhi_edge(:,j))
-            print*
-            edge_error = .true.
-          endif
-        end do
+        ! do j = 1, nh
+        !   if (any(abs(jlo_edge(:,j) - jhi_edge(:,j)) > 0.0_rk)) then
+        !     print*, "${F}$"
+        !     ! write(*, *) 'image', this_image(), 'j', j, 'lo   :', jlo_edge(:,j)
+        !     ! write(*, *) 'image', this_image(), 'j', j, 'hi   :', jhi_edge(:,j)
+        !     write(*, *) 'image', this_image(), 'j', j, "diff :", abs(jlo_edge(:,j) - jhi_edge(:,j))
+        !     print*
+        !     edge_error = .true.
+        !   endif
+        ! end do
         ! endif ! on jlo or jhi bc
       endselect
 
@@ -277,7 +277,7 @@ contains
         ! endif
       endif ! do_corners
 
-      if (edge_error) error stop
+      ! if (edge_error) error stop
     #:endfor
     deallocate(unique_x_neighbors, unique_y_neighbors, unique_corner_neighbors)
   endsubroutine apply_periodic_primitive_var_bc

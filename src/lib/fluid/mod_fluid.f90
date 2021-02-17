@@ -35,7 +35,7 @@ module mod_fluid
   use mod_field, only: field_2d_t, field_2d
   use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND, error_msg
   use mod_globals, only: enable_debug_print, debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
-  use mod_nondimensionalization, only: scale_factors_set, rho_0, v_0, p_0, e_0, t_0
+  use mod_nondimensionalization
   use mod_floating_point_utils, only: near_zero, nearly_equal, neumaier_sum, neumaier_sum_2, neumaier_sum_3, neumaier_sum_4
   use mod_functional, only: operator(.sort.)
   use mod_units
@@ -330,10 +330,10 @@ contains
       self%p%data(ilo:ihi, jlo:jhi) = pressure(ilo + nh:ihi + nh, jlo + nh:jhi + nh)
     endassociate
 
-    call self%rho%make_non_dimensional(non_dim_factor=rho_0)
-    call self%u%make_non_dimensional(non_dim_factor=v_0)
-    call self%v%make_non_dimensional(non_dim_factor=v_0)
-    call self%p%make_non_dimensional(non_dim_factor=p_0)
+    call self%rho%make_non_dimensional(non_dim_factor=density_to_nondim)
+    call self%u%make_non_dimensional(non_dim_factor=vel_to_nondim)
+    call self%v%make_non_dimensional(non_dim_factor=vel_to_nondim)
+    call self%p%make_non_dimensional(non_dim_factor=press_to_nondim)
 
     if(minval(pressure) < tiny(1.0_rk)) then
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize_from_hdf5', &
@@ -352,14 +352,14 @@ contains
       write(*, '(a)') 'Initial fluid stats'
       write(*, '(a)') '==============================================================='
       write(*, '(a, f0.4)') 'EOS Gamma                   :     ', eos%get_gamma()
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density), maxval(density)
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity), maxval(x_velocity)
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity), maxval(y_velocity)
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure), maxval(pressure)
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]    : ', minval(density) * rho_0, maxval(density) * rho_0
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]    : ', minval(x_velocity) * v_0, maxval(x_velocity) * v_0
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]    : ', minval(y_velocity) * v_0, maxval(y_velocity) * v_0
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]    : ', minval(pressure) * p_0, maxval(pressure) * p_0
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [non-dim]: ', minval(density)    * density_to_nondim, maxval(density)    * density_to_nondim
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity) * vel_to_nondim    , maxval(x_velocity) * vel_to_nondim    
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity) * vel_to_nondim    , maxval(y_velocity) * vel_to_nondim    
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure)   * press_to_nondim  , maxval(pressure)   * press_to_nondim  
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]    : ', minval(density)   , maxval(density)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]    : ', minval(x_velocity), maxval(x_velocity)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]    : ', minval(y_velocity), maxval(y_velocity)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]    : ', minval(pressure)  , maxval(pressure)
       write(*, '(a)') '==============================================================='
       write(*, *)
     endif
@@ -436,10 +436,18 @@ contains
     type(fluid_t), allocatable :: d_dt          !< dU/dt
     class(source_t), allocatable, intent(in) :: source_term
 
+    integer(ik) :: ilo, ihi, jlo, jhi
+
     real(rk), dimension(:, :), allocatable ::   d_rho_dt  !< d/dt of the density field
     real(rk), dimension(:, :), allocatable :: d_rho_u_dt  !< d/dt of the rhou field
     real(rk), dimension(:, :), allocatable :: d_rho_v_dt  !< d/dt of the rhov field
     real(rk), dimension(:, :), allocatable :: d_rho_E_dt  !< d/dt of the rhoE field
+
+
+    ihi = grid%ubounds(1)
+    ilo = grid%lbounds(1)
+    jhi = grid%ubounds(2)
+    jlo = grid%lbounds(2)
 
     if(enable_debug_print) call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
@@ -468,7 +476,8 @@ contains
       if(allocated(source_term)) then
         if(self%time <= source_term%max_time) then
           if(source_term%source_type == 'energy') then
-            d_dt%rho_E = source_term%source + d_dt%rho_E
+            ! d_dt%rho_E = source_term%source + d_dt%rho_E
+            d_dt%rho_E%data(ilo:ihi, jlo:jhi) = source_term%source%data(ilo:ihi, jlo:jhi) / grid%volume(ilo:ihi, jlo:jhi) + d_dt%rho_E%data(ilo:ihi, jlo:jhi)
           endif
         endif
       endif
@@ -843,7 +852,7 @@ contains
 
     if (this_image() == 1) then
       open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
-      write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_0, &
+      write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_to_dim, &
         rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
       close(io)
     endif

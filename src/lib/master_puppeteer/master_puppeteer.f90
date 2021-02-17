@@ -36,7 +36,7 @@ module mod_master_puppeteer
   ! use mod_grid_block_3d, only: grid_block_3d_t
   use mod_grid_factory, only: grid_factory
   use hdf5_interface, only: hdf5_file
-  use mod_nondimensionalization, only: set_scale_factors, t_0
+  use mod_nondimensionalization
   use mod_fluid, only: fluid_t, new_fluid
   use mod_source, only: source_t, new_source
 
@@ -126,13 +126,7 @@ contains
     if(alloc_status /= 0) error stop "Unable to allocate master_puppeteer_t%grid"
     deallocate(grid)
 
-    ! Now that the grid is set, we can finish setting up the scale factors
-    ! for non-dimensionalization. The grid sets the length scale automatically
-    ! so that the smallest cell edge length is 1.
-    call set_scale_factors(pressure_scale=input%reference_pressure, &
-                           density_scale=input%reference_density)
-
-    self%time = self%time / t_0
+    self%time = self%time * t_to_nondim
 
     fluid => new_fluid(input, self%grid, time=self%time)
     allocate(self%fluid, source=fluid, stat=alloc_status)

@@ -24,7 +24,7 @@ module mod_input
   use mod_globals, only: debug_print
   use mod_error, only: error_msg
   use cfgio_mod, only: cfg_t, parse_cfg
-  use mod_nondimensionalization, only: set_nondim_flag
+  use mod_nondimensionalization, only: set_nondim_flag, set_refrence_quantities
 
   implicit none
 
@@ -38,9 +38,9 @@ module mod_input
 
     ! reference state
     logical :: non_dimensionalize = .true.
-    real(rk) :: reference_pressure = 1.0_rk
+    real(rk) :: reference_length = 1.0_rk
     real(rk) :: reference_density = 1.0_rk
-    real(rk) :: reference_mach = 1.0_rk
+    real(rk) :: reference_velocity = 1.0_rk
 
     ! grid
     character(len=32) :: grid_type = 'XY'  !< Structure/layout of the grid, e.g. '2d_regular'
@@ -216,10 +216,16 @@ contains
     call set_nondim_flag(self%non_dimensionalize)
 
     if(self%non_dimensionalize) then
-      call cfg%get("reference_state", "reference_pressure", self%reference_pressure)
+      call cfg%get("reference_state", "reference_length", self%reference_length)
       call cfg%get("reference_state", "reference_density", self%reference_density)
-      call cfg%get("reference_state", "reference_mach", self%reference_mach, 1.0_rk)
+      call cfg%get("reference_state", "reference_velocity", self%reference_velocity)
+
+      call set_refrence_quantities(ref_length=self%reference_length, &
+                                  ref_velocity=self%reference_velocity, & 
+                                  ref_density=self%reference_density)
+
     endif
+
     ! Time
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "initial_delta_t", self%initial_delta_t, 0.0_rk)
@@ -444,7 +450,8 @@ contains
 
       write(*, *)
       write(*, '(a)') "[reference_state]"
-      write(*, '(a, es10.3)') "reference_pressure = ", self%reference_pressure
+      write(*, '(a, es10.3)') "reference_length = ", self%reference_length
+      write(*, '(a, es10.3)') "reference_velocity = ", self%reference_velocity
       write(*, '(a, es10.3)') "reference_density = ", self%reference_density
 
       write(*, *)

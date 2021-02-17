@@ -8,7 +8,7 @@ module mod_grid_block_2d
   use h5fortran, only: hdf5_file, hsize_t
   use mod_quad_cell, only: quad_cell_t
   use mod_error, only: error_msg
-  use mod_nondimensionalization, only: set_length_scale, l_0, apply_nondimensionalization
+  use mod_nondimensionalization
   use mod_units, only: um_to_cm
   use collectives, only: max_to_all, min_to_all
 
@@ -31,7 +31,6 @@ module mod_grid_block_2d
     ! Private methods
     private
     procedure :: populate_element_specifications
-    procedure :: scale_and_nondimensionalize
 
     ! Public methods
     procedure, public :: initialize => init_2d_block
@@ -147,7 +146,7 @@ contains
 
     call self%read_from_h5(input)
     call self%populate_element_specifications()
-    call self%scale_and_nondimensionalize()
+    ! call self%scale_and_nondimensionalize()
     call self%print_grid_stats()
   endsubroutine init_2d_block
 
@@ -232,8 +231,10 @@ contains
 
     call h5%read('/n_ghost_layers', self%n_halo_cells)
     if(self%n_halo_cells /= input%n_ghost_layers) then
-      write(msg, '(2(a,i0),a)') "The number of ghost layers in the .hdf5 file (", self%n_halo_cells, ") does not match the"// &
-        " input requirement set by the edge interpolation scheme (", input%n_ghost_layers, ")"
+      write(msg, '(2(a,i0),a)') "The number of ghost layers in the .hdf5 file (", &
+                                self%n_halo_cells, ") does not match the"// &
+                                " input requirement set by the edge interpolation scheme (", &
+                                input%n_ghost_layers, ")"
 
       call error_msg(module_name='mod_grid_block_2d', class_name='grid_block_2d_t', &
                      procedure_name='read_from_h5', &
@@ -256,18 +257,9 @@ contains
       self%node_y(ilo:ihi + 1, jlo:jhi + 1) = x(ilo + nh:ihi + 1 + nh, jlo + nh:jhi + 1 + nh)
     endassociate
 
-    ! if(input%restart_from_file) then
-    !   call h5%readattr('/x', 'units', str_buff)
-    !   select case(trim(str_buff))
-    !   case('um')
-    !     self%node_x = self%node_x * um_to_cm
-    !     self%node_y = self%node_y * um_to_cm
-    !   case('cm')
-    !     ! Do nothing, since cm is what the code works in
-    !   case default
-    !     error stop "Unknown x,y units in grid from .h5 file. Acceptable units are 'um' or 'cm'."
-    !   endselect
-    ! endif
+    ! Nondimensionalize
+    self%node_x = self%node_x * len_to_nondim
+    self%node_y = self%node_y * len_to_nondim
 
     call h5%finalize()
   endsubroutine read_from_h5
@@ -390,10 +382,6 @@ contains
         self%centroid_y(i, j) = quad%centroid(2)
         self%edge_lengths(:, i, j) = quad%edge_lengths
 
-        ! call quad%get_cell_point_coords(p_x, p_y)
-        ! self%node_x(:, i, j) = p_x
-        ! self%node_y(:, i, j) = p_y
-
         self%edge_norm_vectors(:, :, i, j) = quad%edge_norm_vectors
         self%dx(i, j) = quad%min_dx
         self%dy(i, j) = quad%min_dy
@@ -402,76 +390,71 @@ contains
 
   endsubroutine populate_element_specifications
 
-  subroutine scale_and_nondimensionalize(self)
-    !< Scale the grid so that the cells are of size close to 1. If the grid is uniform,
-    !< then everything (edge length and volume) are all 1. If not uniform, then the smallest
-    !< edge legnth is 1. The scaling is done via the smallest edge length. This also sets
-    !< the length scale for the non-dimensionalization module
+  ! subroutine scale_and_nondimensionalize(self)
+  !   !< Scale the grid so that the cells are of size close to 1. If the grid is uniform,
+  !   !< then everything (edge length and volume) are all 1. If not uniform, then the smallest
+  !   !< edge legnth is 1. The scaling is done via the smallest edge length. This also sets
+  !   !< the length scale for the non-dimensionalization module
 
-    class(grid_block_2d_t), intent(inout) :: self
+  !   class(grid_block_2d_t), intent(inout) :: self
 
-    real(rk) :: diff
-    real(rk) :: minvol, maxvol, vol_diff
-    real(rk), save :: min_edge_length![*]
-    real(rk), save :: max_edge_length![*]
+  !   real(rk) :: diff
+  !   real(rk) :: minvol, maxvol, vol_diff
+  !   real(rk), save :: min_edge_length![*]
+  !   real(rk), save :: max_edge_length![*]
 
-    min_edge_length = minval(self%edge_lengths)
-    max_edge_length = maxval(self%edge_lengths)
+  !   min_edge_length = minval(self%edge_lengths)
+  !   max_edge_length = maxval(self%edge_lengths)
 
-    ! Now broadcast the global max/min to all the images
+  !   ! Now broadcast the global max/min to all the images
 
-    ! call co_max(max_edge_length)
-    ! call co_min(min_edge_length)
-    min_edge_length = min_to_all(min_edge_length)
-    max_edge_length = max_to_all(max_edge_length)
+  !   ! call co_max(max_edge_length)
+  !   ! call co_min(min_edge_length)
+  !   min_edge_length = min_to_all(min_edge_length)
+  !   max_edge_length = max_to_all(max_edge_length)
 
-    if(min_edge_length < tiny(1.0_rk)) error stop "Error in grid initialization, the cell min_edge_length = 0"
+  !   if(min_edge_length < tiny(1.0_rk)) error stop "Error in grid initialization, the cell min_edge_length = 0"
 
-    diff = max_edge_length - min_edge_length
-    if(diff < 2.0_rk * epsilon(1.0_rk)) then
-      self%is_uniform = .true.
-    endif
+  !   diff = max_edge_length - min_edge_length
+  !   if(diff < 2.0_rk * epsilon(1.0_rk)) then
+  !     self%is_uniform = .true.
+  !   endif
     
-    if (apply_nondimensionalization) then
-      ! Set l_0 for the entire code
-      call set_length_scale(length_scale=min_edge_length)
+  !     ! Scale so that the minimum edge length is 1
+  !     self%node_x = self%node_x * len_to_nondim
+  !     self%node_y = self%node_y * len_to_nondim
+  !     self%edge_lengths = self%edge_lengths * len_to_nondim
+  !     self%centroid_x = self%centroid_x  * len_to_nondim
+  !     self%centroid_y = self%centroid_y * len_to_nondim
+  !     self%dx = self%dx * len_to_nondim
+  !     self%dy = self%dy * len_to_nondim
 
-      ! Scale so that the minimum edge length is 1
-      self%node_x = self%node_x / min_edge_length
-      self%node_y = self%node_y / min_edge_length
-      self%edge_lengths = self%edge_lengths / min_edge_length
-      self%centroid_x = self%centroid_x / min_edge_length
-      self%centroid_y = self%centroid_y / min_edge_length
-      self%dx = self%dx / min_edge_length
-      self%dy = self%dy / min_edge_length
+  !   ! If the grid is uniform, then we can make it all difinitively 1
+  !   if(self%is_uniform) then
+  !     if(this_image() == 1) then
+  !       write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
+  !     endif
+  !     self%volume = 1.0_rk
+  !     self%edge_lengths = 1.0_rk
+  !     self%dx = 1.0_rk
+  !     self%dy = 1.0_rk
+  !   else
+  !     self%volume = self%volume / len_to_nondim**2
+  !   endif
 
-      ! If the grid is uniform, then we can make it all difinitively 1
-      if(self%is_uniform) then
-        if(this_image() == 1) then
-          write(*, '(a)') "The grid is uniform, setting volume and edge lengths to 1, now that everything is scaled"
-        endif
-        self%volume = 1.0_rk
-        self%edge_lengths = 1.0_rk
-        self%dx = 1.0_rk
-        self%dy = 1.0_rk
-      else
-        self%volume = self%volume / min_edge_length**2
-      endif
-    endif
+  !   maxvol = maxval(self%volume)
+  !   minvol = minval(self%volume)
+  !   vol_diff = abs(maxvol - minvol)
 
-    maxvol = maxval(self%volume)
-    minvol = minval(self%volume)
-    vol_diff = abs(maxvol - minvol)
+  !   ! If the volume is all slightly different, but under the machine epsilong, 
+  !   ! just make it all uniform
+  !   if (vol_diff < epsilon(1.0_rk)) then
+  !     self%volume = maxvol
+  !     if(this_image() == 1) then
+  !       write(*, '(a, es16.6)') "The difference in max/min of the grid volumes are all under "//&
+  !                               "machine epsilon, setting to a constant value of:", maxvol
+  !     endif
+  !   endif
 
-    ! If the volume is all slightly different, but under the machine epsilong, 
-    ! just make it all uniform
-    if (vol_diff < epsilon(1.0_rk)) then
-      self%volume = maxvol
-      if(this_image() == 1) then
-        write(*, '(a, es16.6)') "The difference in max/min of the grid volumes are all under "//&
-                                "machine epsilon, setting to a constant value of:", maxvol
-      endif
-    endif
-
-  endsubroutine scale_and_nondimensionalize
+  ! endsubroutine scale_and_nondimensionalize
 endmodule
