@@ -22,6 +22,8 @@ var_dict = {
     "x_velocity": {"long_name": "X-Velocity", "standard_name": "u"},
     "y_velocity": {"long_name": "Y-Velocity", "standard_name": "v"},
     "sound_speed": {"long_name": "Sound Speed", "standard_name": "cs"},
+    "deposited_energy": {"long_name": "Energy Deposition", "standard_name": "e_dep"},
+    "deposited_power": {"long_name": "Power Deposition", "standard_name": "p_dep"},
 }
 
 
@@ -180,6 +182,8 @@ def load_single(file, drop_ghost=True, use_dask=True, var_list="all", ini_file=N
             "x_velocity",
             "y_velocity",
             "ghost_cell",
+            "deposited_energy",
+            "deposited_power",
         ]
 
     data_vars = {}

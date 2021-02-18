@@ -350,11 +350,11 @@ contains
     !                                                   description='Cell Total Energy', units=trim(io_pressure_label))
                                                       
     if (master%do_source_terms) then
-      dataset_name = '/deposited_energy'
+      dataset_name = '/deposited_power'
       io_data_buffer = master%source_term%q_dot_h%gather(image=1, dimensionalize=.true., &
-                                                         unit_conversion_factor=io_energy_density_units)
+                                                         unit_conversion_factor=io_power_units)
       if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer, name=dataset_name, &
-                                                         description='Cell Deposited Energy', units=trim(io_energy_density_label))
+                                                         description='Cell Deposited Power', units=trim(io_power_label))
     endif
 
     dataset_name = '/sound_speed'
@@ -437,10 +437,10 @@ contains
     ! write(xdmf_unit, '(a)') '      </Attribute>'
 
     if (master%do_source_terms) then
-      unit_label = "["//trim(io_energy_label)//"]"
-      write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Deposited Energy '//trim(unit_label)//'">'
+      unit_label = "["//trim(io_power_label)//"]"
+      write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Deposited Power '//trim(unit_label)//'">'
       write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-        '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/deposited_energy</DataItem>'
+        '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/deposited_power</DataItem>'
       write(xdmf_unit, '(a)') '      </Attribute>'
     endif
 

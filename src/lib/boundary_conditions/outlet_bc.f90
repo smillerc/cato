@@ -94,9 +94,11 @@ contains
           do j = rho%jlo_halo, rho%jhi_halo
 
             associate(p_d => p%data(ihi, j), p_b => self%outlet_pressure, rho_0 => rho%data(ihi, j))
-              cs = sqrt(gamma * p_d / rho_0)
+
+              ! Sometimes at startup there are zero rho/p for some reason, but it doesnt break the code
+              if (p_b > tiny(1.0_rk) .and. rho_0 > tiny(1.0_rk)) then
+              cs = sqrt(gamma * abs(p_d / rho_0))
               vel = sqrt(u%data(ihi,j)**2 + v%data(ihi,j)**2)
-              ! print*, i, j, 'cs', cs, 'vel', vel, 'p_d', p_d, 'p_b', p_b, 'rho_0', rho_0
               mach = vel / cs
 
               nx = u%data(ihi, j) / (vel + 1e-30_rk)
@@ -123,6 +125,7 @@ contains
               !                       message="Inflow at the +x outflow BC!", &
               !                       file_name=__FILE__, line_number=__LINE__)
               end if
+            endif
             end associate
           end do
 

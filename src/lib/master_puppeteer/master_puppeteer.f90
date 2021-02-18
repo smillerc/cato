@@ -58,7 +58,7 @@ module mod_master_puppeteer
     logical :: is_2d = .false.
     logical :: is_3d = .false.
     class(source_t), allocatable :: source_term !< source_term, i.e. gravity, laser, etc..
-
+    
     logical :: do_source_terms = .false.
 
   contains
@@ -160,38 +160,50 @@ contains
 
     class(field_2d_t), allocatable, save :: d_dt_source
 
-    real(rk) :: min_dt
+    
+    real(rk) :: min_dt, s_input
 
     if(present(dt)) then
       self%dt = dt
     else
-      self%dt = 0.0_rk
+      self%dt = self%get_timestep()
     endif
-
+    
     self%iteration = self%iteration + 1
-    min_dt = self%get_timestep()
+    ! min_dt = self%get_timestep()
 
-    if(self%dt > min_dt) then
-      if(this_image() == 1) then
-        write(*, '(a,i0,a,2(es16.6,a))') "Warning, the input dt (", self%dt, &
-          ") is larger than the max allowable dt (", min_dt, &
-          ") based on the CFL condition"
-      endif
-    else
-      self%dt = min_dt
-    endif
+    ! if(self%dt > min_dt) then
+    !   if(this_image() == 1) then
+    !     write(*, '(a,i0,a,2(es16.6,a))') "Warning, the input dt (", self%dt, &
+    !       ") is larger than the max allowable dt (", min_dt, &
+    !       ") based on the CFL condition"
+    !   endif
+    ! else
+    !   self%dt = min_dt
+    ! endif
 
     self%time = self%time + self%dt
-
-    if(self%do_source_terms) then
-      d_dt_source = self%source_term%integrate(dt=self%dt, density=self%fluid%rho)
-    endif
-
+    
     select type(grid => self%grid)
     class is(grid_block_2d_t)
+    
+      if(self%do_source_terms) then
+        if (.not. allocated(d_dt_source)) allocate(d_dt_source)
 
-      call self%fluid%integrate(dt=self%dt, source_term=d_dt_source, &
-                                grid=self%grid, error_code=error_code)
+        if(this_image() == 1.and. self%time <= self%source_term%max_time) then
+          s_input = self%source_term%get_desired_source_input(self%time)
+          if(s_input > 0.0_rk) then
+            if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of: ', s_input / self%source_term%nondim_scale_factor
+          endif
+
+        endif
+
+        call self%fluid%integrate(dt=self%dt, source_term=self%source_term, &
+                                  grid=self%grid, error_code=error_code)
+      else
+        call self%fluid%integrate(dt=self%dt, grid=self%grid, error_code=error_code)
+      endif
+
     endselect
 
   endsubroutine integrate

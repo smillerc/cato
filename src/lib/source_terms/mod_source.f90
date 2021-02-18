@@ -24,7 +24,7 @@ module mod_source
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_out => output_unit
   use mod_units
-  use collectives, only: min_to_all, max_to_all
+  use collectives, only: min_to_all, max_to_all, sum_to_all
   use mod_field, only: field_2d_t, field_2d
   use math_constants, only: pi
   use linear_interpolation_module, only: linear_interp_1d
@@ -261,25 +261,37 @@ contains
         source_value = 0.0_rk
       endif
     endif
-
-
+    source_value = source_value * self%multiplier
   endfunction get_desired_source_input
 
-  type(field_2d_t) function integrate(self, dt, density) result(d_dt)
+  type(field_2d_t) function integrate(self, time, dt, density) result(d_dt)
     !< Create the source field to be passed to the fluid class or others
     class(source_t), intent(inout) :: self
     class(field_2d_t), intent(in) :: density
-    real(rk), intent(in) :: dt
+    integer(ik) :: ilo, ihi, jlo, jhi
+    real(rk), intent(in) :: dt, time
+
+    real(rk) :: max_ddt
+    ihi = density%ihi
+    ilo = density%ilo
+    jhi = density%jhi
+    jlo = density%jlo
 
     self%dt = dt
-    self%time = self%time + dt
+    self%time = time
 
     call self%find_deposition_location(density)
 
-    call self%get_source_field() ! sets what q_dot_h is
+    call self%get_source_field(density) ! sets what q_dot_h is
 
-    ! d/dt rho E = - 1 / V [rhoE + q_dot_h]. The rhoE term is handled by the riemann solver
-    d_dt = self%q_dot_h / self%volume
+    ! d/dt rho E = - 1 / V [rhoE + rho * q_dot_h]. The rhoE term is handled by the riemann solver
+    d_dt = self%q_dot_h
+    ! d_dt%data = d_dt%data / self%volume
+
+    ! max_ddt = maxval(d_dt%data)
+    ! max_ddt = max_to_all(max_ddt)
+
+    ! if (this_image() == 1) write(*, '(a, es16.6)') "maxval(d_dt%data)", max_ddt
 
   end function integrate
 
@@ -315,28 +327,30 @@ contains
     enddo
 
     self%x_center = max_to_all(x_center)
-    i_dep = max_to_all(i_dep) ! broadcast the true i deposit index everywhere
-    self%i_dep_range = [ilo, ihi] ! default to the entire range
+    ! i_dep = max_to_all(i_dep) ! broadcast the true i deposit index everywhere
+    ! self%i_dep_range = [ilo, ihi] ! default to the entire range
 
-    ! Check to see if the index window is in the current image's domain
-    imin = max(i_dep - I_WINDOW, ilo)
-    imax = min(i_dep + I_WINDOW, ihi)
+    ! ! Check to see if the index window is in the current image's domain
+    ! imin = max(i_dep - I_WINDOW, ilo)
+    ! imax = min(i_dep + I_WINDOW, ihi)
     
-    if (imin > ihi .or. imax < ilo) then
-      self%this_image_deposits = .false.
-    else
-      self%this_image_deposits = .true.
-      self%i_dep_range = [imin, imax]
-    endif
+    ! if (imin > ihi .or. imax < ilo) then
+    !   self%this_image_deposits = .false.
+    ! else
+    !   self%this_image_deposits = .true.
+    !   self%i_dep_range = [imin, imax]
+    ! endif
   end subroutine find_deposition_location
 
-  subroutine get_source_field(self)
+  subroutine get_source_field(self, density)
     !< For the given time find the source strength and distribution based on the geometry type
     class(source_t), intent(inout) :: self
+    class(field_2d_t), intent(in) :: density
     real(rk) :: gauss_amplitude, c
     real(rk) :: p_input !< input energy
     real(rk), parameter :: fwhm_to_c = 1.0_rk / (2.0_rk * sqrt(2.0_rk * log(2.0_rk)))
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
+    real(rk) :: mass, maxqdot
 
     ihi = self%q_dot_h%ihi
     ilo = self%q_dot_h%ilo
@@ -346,15 +360,15 @@ contains
     ! The term q_dot_h is the volumetric heat transfer to each cell. In cgs this
     ! has units of erg/s. We are given a power from the input, which is erg/s
 
-    p_input = self%get_desired_source_input(t=self%time) * self%multiplier
+    p_input = self%get_desired_source_input(t=self%time)
     self%q_dot_h%data = 0.0_rk
 
-    if(p_input > 0.0_rk) then
-      if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of [dim version]: ', &
-      p_input / self%nondim_scale_factor, " at", self%x_center * len_to_dim
-    endif
+    ! if(p_input > 0.0_rk) then
+    !   if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of [dim version]: ', &
+    !   p_input / self%nondim_scale_factor, " at", self%x_center * len_to_dim
+    ! endif
     
-    if(abs(p_input) > 0.0_rk .and. self%this_image_deposits) then
+    if(abs(p_input) > 0.0_rk) then
       select case(self%source_geometry)
       case('uniform')
         self%q_dot_h%data = p_input
@@ -366,22 +380,23 @@ contains
       case('1d_gaussian')
         if(self%constant_in_y) then
 
-          associate(imin => self%i_dep_range(1), imax => self%i_dep_range(2), &
-                    x => self%centroid_x(self%i_dep_range(1):self%i_dep_range(2),:), x0 => self%x_center, &
-                    fwhm => self%fwhm_x, order => self%gaussian_order)
-
-            ! Make a gaussian with amplitude of 1, centered at x0 with a given FWHM
-            self%q_dot_h%data(imin:imax,:) = exp((-4.0_rk * log(2.0_rk) * (x - x0)**2) / fwhm**2)
-
-            ! Filter out the small values at the fringes
-            where(abs(self%q_dot_h%data) < 1e-6_rk) self%q_dot_h%data = 0.0_rk
-
-            ! The heating is volumetric, so divide by the volume of each cell
-            self%q_dot_h%data(imin:imax,:) = self%q_dot_h%data(imin:imax,:) * p_input / self%volume(imin:imax,:)
-            
+          associate(x => self%centroid_x, x0 => self%x_center, fwhm => self%fwhm_x)
+            do j = jlo, jhi
+              do i = ilo, ihi
+                if (abs(x(i,j)-x0) < fwhm * 5) then
+                  ! Make a gaussian, centered at x0 with a given FWHM
+                  ! The heating per unit mass of the cell
+                  mass = self%volume(i,j) * density%data(i,j)
+                  ! self%q_dot_h%data(i,j) = (exp((-4.0_rk * log(2.0_rk) * (x(i,j) - x0)**2) / fwhm**2) * p_input) / mass
+                  self%q_dot_h%data(i,j) = (exp((-4.0_rk * log(2.0_rk) * (x(i,j) - x0)**2) / fwhm**2) * p_input) 
+                endif
+              enddo
+            enddo
           endassociate
         else
           error stop "Applying a 1d_gaussian source term only works for constant y for now"
+          
+
           ! associate(y => self%centroid_y, y0 => self%y_center, &
           !           fwhm => self%fwhm_y, order => self%gaussian_order)
           !   self%q_dot_h%data = exp(-((((y - y0)**2) / fwhm**2)**order))
@@ -397,6 +412,9 @@ contains
         endassociate
       endselect
     endif
+    ! maxqdot = maxval(self%q_dot_h%data)
+    ! maxqdot = max_to_all(maxqdot)
+    ! if (this_image() == 1) write(*, '(a, es16.6)') 'maxval(self%q_dot_h%data)', maxqdot
   endsubroutine get_source_field
 
   subroutine finalize(self)

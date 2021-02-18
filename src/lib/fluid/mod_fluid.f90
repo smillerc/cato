@@ -399,7 +399,7 @@ contains
     class(fluid_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< time step
     class(grid_block_t), intent(in) :: grid !< grid class - the solver needs grid topology
-    class(field_2d_t), allocatable, intent(in), optional :: source_term
+    class(source_t), allocatable, intent(inout), optional :: source_term
 
     integer(ik), intent(out) :: error_code
 
@@ -702,22 +702,26 @@ contains
     !< Strong-stability preserving Runge-Kutta 3-step, 3rd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
     class(grid_block_t), intent(in) :: grid
-   class(field_2d_t), allocatable, intent(in), optional :: source_term
+    class(source_t), allocatable, intent(inout), optional :: source_term
+    class(field_2d_t), allocatable, save :: d_dt_source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
     integer(ik), intent(out) :: error_code
-    real(rk) :: dt
+    real(rk) :: dt, time
 
     call debug_print('Running fluid_t%ssp_rk_3_3()', __FILE__, __LINE__)
 
     dt = U%dt
+    time = U%time
 
     ! 1st stage
+    if (present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
     allocate(U_1, source=U)
     if (present(source_term)) then
-      U_1 = U + U%t(grid, source_term) * dt
+      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
+      U_1 = U + U%t(grid, d_dt_source_term) * dt
     else
       U_1 = U + U%t(grid) * dt
     endif
@@ -725,9 +729,10 @@ contains
     ! 2nd stage
     allocate(U_2, source=U)
     if (present(source_term)) then
+      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_1%rho)
       U_2 = U * (3.0_rk / 4.0_rk) &
             + U_1 * (1.0_rk / 4.0_rk) &
-            + U_1%t(grid, source_term) * ((1.0_rk / 4.0_rk) * dt)
+            + U_1%t(grid, d_dt_source_term) * ((1.0_rk / 4.0_rk) * dt)
     else
       U_2 = U * (3.0_rk / 4.0_rk) &
             + U_1 * (1.0_rk / 4.0_rk) &
@@ -736,9 +741,10 @@ contains
 
     ! Final stage
     if (present(source_term)) then
+      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_2%rho)
       U = U * (1.0_rk / 3.0_rk) &
           + U_2 * (2.0_rk / 3.0_rk) &
-          + U_2%t(grid, source_term) * ((2.0_rk / 3.0_rk) * dt)
+          + U_2%t(grid, d_dt_source_term) * ((2.0_rk / 3.0_rk) * dt)
     else
       U = U * (1.0_rk / 3.0_rk) &
           + U_2 * (2.0_rk / 3.0_rk) &
@@ -762,13 +768,14 @@ contains
 
     class(fluid_t), intent(inout) :: U
     class(grid_block_t), intent(in) :: grid
-    class(field_2d_t), allocatable, intent(in), optional :: source_term
+    class(source_t), allocatable, intent(inout), optional :: source_term
+    class(field_2d_t), allocatable, save :: d_dt_source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
     type(fluid_t), allocatable :: U_3 !< third stage
     integer(ik), intent(out) :: error_code
-    real(rk) :: dt
+    real(rk) :: dt, time
     real(rk), parameter :: one_third = 1.0_rk / 3.0_rk
     real(rk), parameter :: one_sixth = 1.0_rk / 6.0_rk
     real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
@@ -776,11 +783,15 @@ contains
     call debug_print('Running fluid_t%ssp_rk_4_3()', __FILE__, __LINE__)
 
     dt = U%dt
+    time = U%time
+
+    ! 1st stage
+    if (present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
     ! 1st stage
     allocate(U_1, source=U)
     if (present(source_term)) then
-      U_1 = U + U%t(grid, source_term) * 0.5_rk * dt
+      U_1 = U + U%t(grid, d_dt_source_term) * 0.5_rk * dt
     else
       U_1 = U + U%t(grid) * 0.5_rk * dt
     endif
@@ -788,7 +799,8 @@ contains
     ! 2nd stage
     allocate(U_2, source=U)
     if (present(source_term)) then
-      U_2 = U_1 + U_1%t(grid, source_term) * 0.5_rk * dt
+      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_1%rho)
+      U_2 = U_1 + U_1%t(grid, d_dt_source_term) * 0.5_rk * dt
     else
       U_2 = U_1 + U_1%t(grid) * 0.5_rk * dt
     endif
@@ -796,14 +808,16 @@ contains
     ! 3rd stage
     allocate(U_3, source=U)
     if (present(source_term)) then
-      U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid, source_term) * one_sixth * dt)
+      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_2%rho)
+      U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid, d_dt_source_term) * one_sixth * dt)
     else
       U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid) * one_sixth * dt)
     endif
     
     ! Final stage
     if (present(source_term)) then
-      U = U_3 + (U_3%t(grid, source_term) * 0.5_rk * dt)
+      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_3%rho)
+      U = U_3 + (U_3%t(grid, d_dt_source_term) * 0.5_rk * dt)
     else
       U = U_3 + (U_3%t(grid) * 0.5_rk * dt)
     endif
@@ -824,27 +838,34 @@ contains
     !< Strong-stability preserving Runge-Kutta 2-stage, 2nd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
     class(grid_block_t), intent(in) :: grid
-    class(field_2d_t), allocatable, intent(in), optional :: source_term
+    class(source_t), allocatable, intent(inout), optional :: source_term
+    class(field_2d_t), allocatable, save :: d_dt_source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     integer(ik), intent(out) :: error_code
-    real(rk) :: dt
+    real(rk) :: dt, time
 
     if(enable_debug_print) call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
 
     dt = U%dt
+    time = U%time
+
     allocate(U_1, source=U)
 
     ! 1st stage
+    if (present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
+
     if (present(source_term)) then
-      U_1 = U + U%t(grid, source_term) * dt
+      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
+      U_1 = U + U%t(grid, d_dt_source_term) * dt
     else
       U_1 = U + U%t(grid) * dt
     endif
 
     ! Final stage
     if (present(source_term)) then
-      U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, source_term) * (0.5_rk * dt)
+      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_1%rho)
+      U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, d_dt_source_term) * (0.5_rk * dt)
     else
       U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid) * (0.5_rk * dt)
     endif

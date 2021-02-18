@@ -77,11 +77,11 @@ contains
 
   endsubroutine finalize
 
-  type(field_2d_t) function integrate(self, dt, density) result(d_dt)
+  type(field_2d_t) function integrate(self, time, dt, density) result(d_dt)
     !< Create the source field to be passed to the fluid class or others
     class(energy_source_t), intent(inout) :: self
     class(field_2d_t), intent(in) :: density
-    real(rk), intent(in) :: dt
+    real(rk), intent(in) :: dt, time
   end function integrate
 
 
