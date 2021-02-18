@@ -399,7 +399,7 @@ contains
     class(fluid_t), intent(inout) :: self
     real(rk), intent(in) :: dt !< time step
     class(grid_block_t), intent(in) :: grid !< grid class - the solver needs grid topology
-    class(source_t), allocatable, intent(in) :: source_term
+    class(field_2d_t), allocatable, intent(in), optional :: source_term
 
     integer(ik), intent(out) :: error_code
 
@@ -429,12 +429,12 @@ contains
     call self%p%sync_edges()
   endsubroutine sync_fields
 
-  function time_derivative(self, grid, source_term) result(d_dt)
+  function time_derivative(self, grid, source_term_d_dt) result(d_dt)
     !< Implementation of the time derivative
     class(fluid_t), intent(inout) :: self
     class(grid_block_t), intent(in) :: grid  !< grid class - the solver needs grid topology
     type(fluid_t), allocatable :: d_dt          !< dU/dt
-    class(source_t), allocatable, intent(in) :: source_term
+    class(field_2d_t), intent(in), optional :: source_term_d_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
 
@@ -473,13 +473,8 @@ contains
       deallocate(d_rho_v_dt)
       deallocate(d_rho_E_dt)
 
-      if(allocated(source_term)) then
-        if(self%time <= source_term%max_time) then
-          if(source_term%source_type == 'energy') then
-            ! d_dt%rho_E = source_term%source + d_dt%rho_E
-            d_dt%rho_E%data(ilo:ihi, jlo:jhi) = source_term%source%data(ilo:ihi, jlo:jhi) / grid%volume(ilo:ihi, jlo:jhi) + d_dt%rho_E%data(ilo:ihi, jlo:jhi)
-          endif
-        endif
+      if(present(source_term_d_dt)) then
+        d_dt%rho_E = source_term_d_dt + d_dt%rho_E
       endif
     endselect
   endfunction time_derivative
@@ -707,7 +702,7 @@ contains
     !< Strong-stability preserving Runge-Kutta 3-step, 3rd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
     class(grid_block_t), intent(in) :: grid
-    class(source_t), allocatable, intent(in) :: source_term
+   class(field_2d_t), allocatable, intent(in), optional :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
@@ -719,19 +714,37 @@ contains
     dt = U%dt
 
     ! 1st stage
+
     allocate(U_1, source=U)
-    U_1 = U + U%t(grid=grid, source_term=source_term) * dt
+    if (present(source_term)) then
+      U_1 = U + U%t(grid, source_term) * dt
+    else
+      U_1 = U + U%t(grid) * dt
+    endif
 
     ! 2nd stage
     allocate(U_2, source=U)
-    U_2 = U * (3.0_rk / 4.0_rk) &
-          + U_1 * (1.0_rk / 4.0_rk) &
-          + U_1%t(grid=grid, source_term=source_term) * ((1.0_rk / 4.0_rk) * dt)
+    if (present(source_term)) then
+      U_2 = U * (3.0_rk / 4.0_rk) &
+            + U_1 * (1.0_rk / 4.0_rk) &
+            + U_1%t(grid, source_term) * ((1.0_rk / 4.0_rk) * dt)
+    else
+      U_2 = U * (3.0_rk / 4.0_rk) &
+            + U_1 * (1.0_rk / 4.0_rk) &
+            + U_1%t(grid) * ((1.0_rk / 4.0_rk) * dt)
+    endif
 
     ! Final stage
-    U = U * (1.0_rk / 3.0_rk) &
-        + U_2 * (2.0_rk / 3.0_rk) &
-        + U_2%t(grid=grid, source_term=source_term) * ((2.0_rk / 3.0_rk) * dt)
+    if (present(source_term)) then
+      U = U * (1.0_rk / 3.0_rk) &
+          + U_2 * (2.0_rk / 3.0_rk) &
+          + U_2%t(grid, source_term) * ((2.0_rk / 3.0_rk) * dt)
+    else
+      U = U * (1.0_rk / 3.0_rk) &
+          + U_2 * (2.0_rk / 3.0_rk) &
+          + U_2%t(grid) * ((2.0_rk / 3.0_rk) * dt)
+    endif
+
     call U%sanity_check(error_code)
     call U%calculate_derived_quantities()
 
@@ -749,7 +762,7 @@ contains
 
     class(fluid_t), intent(inout) :: U
     class(grid_block_t), intent(in) :: grid
-    class(source_t), allocatable, intent(in) :: source_term
+    class(field_2d_t), allocatable, intent(in), optional :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     type(fluid_t), allocatable :: U_2 !< second stage
@@ -766,18 +779,35 @@ contains
 
     ! 1st stage
     allocate(U_1, source=U)
-    U_1 = U + U%t(grid=grid, source_term=source_term) * 0.5_rk * dt
-
+    if (present(source_term)) then
+      U_1 = U + U%t(grid, source_term) * 0.5_rk * dt
+    else
+      U_1 = U + U%t(grid) * 0.5_rk * dt
+    endif
+    
     ! 2nd stage
     allocate(U_2, source=U)
-    U_2 = U_1 + U_1%t(grid=grid, source_term=source_term) * 0.5_rk * dt
+    if (present(source_term)) then
+      U_2 = U_1 + U_1%t(grid, source_term) * 0.5_rk * dt
+    else
+      U_2 = U_1 + U_1%t(grid) * 0.5_rk * dt
+    endif
 
     ! 3rd stage
     allocate(U_3, source=U)
-    U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid=grid, source_term=source_term) * one_sixth * dt)
-
+    if (present(source_term)) then
+      U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid, source_term) * one_sixth * dt)
+    else
+      U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid) * one_sixth * dt)
+    endif
+    
     ! Final stage
-    U = U_3 + (U_3%t(grid=grid, source_term=source_term) * 0.5_rk * dt)
+    if (present(source_term)) then
+      U = U_3 + (U_3%t(grid, source_term) * 0.5_rk * dt)
+    else
+      U = U_3 + (U_3%t(grid) * 0.5_rk * dt)
+    endif
+
     call U%sanity_check(error_code)
     call U%calculate_derived_quantities()
 
@@ -794,7 +824,7 @@ contains
     !< Strong-stability preserving Runge-Kutta 2-stage, 2nd order time integration. See Ref [3]
     class(fluid_t), intent(inout) :: U
     class(grid_block_t), intent(in) :: grid
-    class(source_t), allocatable, intent(in) :: source_term
+    class(field_2d_t), allocatable, intent(in), optional :: source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
     integer(ik), intent(out) :: error_code
@@ -806,11 +836,20 @@ contains
     allocate(U_1, source=U)
 
     ! 1st stage
-    U_1 = U + U%t(grid=grid, source_term=source_term) * dt
+    if (present(source_term)) then
+      U_1 = U + U%t(grid, source_term) * dt
+    else
+      U_1 = U + U%t(grid) * dt
+    endif
 
     ! Final stage
-    U = U * 0.5_rk + U_1 * 0.5_rk + &
-        U_1%t(grid=grid, source_term=source_term) * (0.5_rk * dt)
+    if (present(source_term)) then
+      U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, source_term) * (0.5_rk * dt)
+    else
+      U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid) * (0.5_rk * dt)
+    endif
+
+    
     call U%sanity_check(error_code)
     call U%calculate_derived_quantities()
 

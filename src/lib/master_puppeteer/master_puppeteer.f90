@@ -35,6 +35,7 @@ module mod_master_puppeteer
   use mod_grid_block_2d, only: grid_block_2d_t
   ! use mod_grid_block_3d, only: grid_block_3d_t
   use mod_grid_factory, only: grid_factory
+  use mod_field, only: field_2d_t
   use hdf5_interface, only: hdf5_file
   use mod_nondimensionalization
   use mod_fluid, only: fluid_t, new_fluid
@@ -157,6 +158,8 @@ contains
     integer(ik), intent(out) :: error_code
     real(rk), optional, intent(in) :: dt
 
+    class(field_2d_t), allocatable, save :: d_dt_source
+
     real(rk) :: min_dt
 
     if(present(dt)) then
@@ -181,13 +184,13 @@ contains
     self%time = self%time + self%dt
 
     if(self%do_source_terms) then
-       call self%source_term%integrate(dt=self%dt, density=self%fluid%rho)
+      d_dt_source = self%source_term%integrate(dt=self%dt, density=self%fluid%rho)
     endif
 
     select type(grid => self%grid)
     class is(grid_block_2d_t)
 
-      call self%fluid%integrate(dt=self%dt, source_term=self%source_term, &
+      call self%fluid%integrate(dt=self%dt, source_term=d_dt_source, &
                                 grid=self%grid, error_code=error_code)
     endselect
 

@@ -77,12 +77,12 @@ contains
 
   endsubroutine finalize
 
-  subroutine integrate(self, dt, density)
-    !< Inject energy into the conserved variables
+  type(field_2d_t) function integrate(self, dt, density) result(d_dt)
+    !< Create the source field to be passed to the fluid class or others
     class(energy_source_t), intent(inout) :: self
     class(field_2d_t), intent(in) :: density
     real(rk), intent(in) :: dt
+  end function integrate
 
-  endsubroutine integrate
 
 endmodule mod_energy_source

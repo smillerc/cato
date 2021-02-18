@@ -79,8 +79,7 @@ module mod_source
     character(len=:), allocatable :: input_filename
 
     ! Field data
-    ! real(rk), allocatable, dimension(:, :) :: data !< (i,j); actual source data to apply
-    type(field_2d_t) :: source    !< (i, j); Conserved quantities
+    type(field_2d_t) :: q_dot_h    !< (i, j); the volumetric heating source
 
     real(rk), pointer, dimension(:, :) :: centroid_x => null() !< (i,j); cell x centroid used to apply positional source data
     real(rk), pointer, dimension(:, :) :: centroid_y => null() !< (i,j); cell y centroid used to apply positional source data
@@ -164,9 +163,9 @@ contains
         endif
       endselect
 
-      new_source%source = field_2d(name='source_term', long_name='Source Term', &
-                             descrip='Source Term', units='', &
-                             global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+      new_source%q_dot_h = field_2d(name='q_dot_h', long_name='Volumetric heating', &
+                                    descrip='Volumetric heating', units='erg/s', &
+                                    global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
     endselect
   endfunction new_source
 
@@ -266,7 +265,7 @@ contains
 
   endfunction get_desired_source_input
 
-  subroutine integrate(self, dt, density)
+  type(field_2d_t) function integrate(self, dt, density) result(d_dt)
     !< Create the source field to be passed to the fluid class or others
     class(source_t), intent(inout) :: self
     class(field_2d_t), intent(in) :: density
@@ -276,11 +275,13 @@ contains
     self%time = self%time + dt
 
     call self%find_deposition_location(density)
-    call self%get_source_field(density)
 
-    ! self%source%data = self%source%data / self%volume
+    call self%get_source_field() ! sets what q_dot_h is
 
-  endsubroutine integrate
+    ! d/dt rho E = - 1 / V [rhoE + q_dot_h]. The rhoE term is handled by the riemann solver
+    d_dt = self%q_dot_h / self%volume
+
+  end function integrate
 
   subroutine find_deposition_location(self, density)
     class(source_t), intent(inout) :: self
@@ -327,47 +328,40 @@ contains
       self%this_image_deposits = .true.
       self%i_dep_range = [imin, imax]
     endif
-  end subroutine
+  end subroutine find_deposition_location
 
-  subroutine get_source_field(self, density)
+  subroutine get_source_field(self)
     !< For the given time find the source strength and distribution based on the geometry type
     class(source_t), intent(inout) :: self
-    class(field_2d_t), intent(in) :: density
-    ! real(rk) :: source_value
     real(rk) :: gauss_amplitude, c
-    real(rk) :: p1, p2
-    real(rk) :: e_input !< input energy
+    real(rk) :: p_input !< input energy
     real(rk), parameter :: fwhm_to_c = 1.0_rk / (2.0_rk * sqrt(2.0_rk * log(2.0_rk)))
     integer(ik) :: ilo, ihi, jlo, jhi
 
-    ihi = density%ihi
-    ilo = density%ilo
-    jhi = density%jhi
-    jlo = density%jlo
+    ihi = self%q_dot_h%ihi
+    ilo = self%q_dot_h%ilo
+    jhi = self%q_dot_h%jhi
+    jlo = self%q_dot_h%jlo
 
+    ! The term q_dot_h is the volumetric heat transfer to each cell. In cgs this
+    ! has units of erg/s. We are given a power from the input, which is erg/s
 
-    ! The source term in the Euler equations is Q = [0, rho f_x, rho f_y, q_dot_h]
-    ! q_dot_h is the heat transfer per unit mass, or energy per mass. In cgs this
-    ! has units of erg/g. We are given a power from the input, which is erg/s
-    e_input = self%get_desired_source_input(t=self%time) * self%multiplier
-    ! p1 = self%get_desired_source_input(t=self%time) * self%multiplier
-    ! p2 = self%get_desired_source_input(t=self%time + self%dt) * self%multiplier
-    ! e_input = ((p1 + p2)* 0.5_rk) * self%dt
-    self%source%data = 0.0_rk
+    p_input = self%get_desired_source_input(t=self%time) * self%multiplier
+    self%q_dot_h%data = 0.0_rk
 
-    if(e_input > 0.0_rk) then
+    if(p_input > 0.0_rk) then
       if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of [dim version]: ', &
-      e_input / self%nondim_scale_factor, " at", self%x_center * len_to_dim
+      p_input / self%nondim_scale_factor, " at", self%x_center * len_to_dim
     endif
     
-    if(abs(e_input) > 0.0_rk .and. self%this_image_deposits) then
+    if(abs(p_input) > 0.0_rk .and. self%this_image_deposits) then
       select case(self%source_geometry)
       case('uniform')
-        self%source%data = e_input
+        self%q_dot_h%data = p_input
       case('constant_xy')
         where(self%centroid_x < self%xhi .and. self%centroid_x > self%xlo .and. &
               self%centroid_y < self%yhi .and. self%centroid_x > self%ylo)
-          self%source%data = 1.0_rk
+          self%q_dot_h%data = p_input
         endwhere
       case('1d_gaussian')
         if(self%constant_in_y) then
@@ -376,31 +370,29 @@ contains
                     x => self%centroid_x(self%i_dep_range(1):self%i_dep_range(2),:), x0 => self%x_center, &
                     fwhm => self%fwhm_x, order => self%gaussian_order)
 
-            ! Make a gaussian
-            self%source%data(imin:imax,:) = exp((-4.0_rk * log(2.0_rk) * (x - x0)**2) / fwhm**2)
-            
+            ! Make a gaussian with amplitude of 1, centered at x0 with a given FWHM
+            self%q_dot_h%data(imin:imax,:) = exp((-4.0_rk * log(2.0_rk) * (x - x0)**2) / fwhm**2)
+
             ! Filter out the small values at the fringes
-            where(abs(self%source%data) < 1e-6_rk) self%source%data = 0.0_rk
+            where(abs(self%q_dot_h%data) < 1e-6_rk) self%q_dot_h%data = 0.0_rk
 
-            self%source%data(imin:imax,:) = self%source%data(imin:imax,:) * e_input
-
-            !  / density%data(imin:imax,:) / self%volume(imin:imax,:)
-            ! The source term is per unit mass, e.g. erg/gram -> erg * cm^3 / g / cm^3
+            ! The heating is volumetric, so divide by the volume of each cell
+            self%q_dot_h%data(imin:imax,:) = self%q_dot_h%data(imin:imax,:) * p_input / self%volume(imin:imax,:)
             
           endassociate
         else
-          error stop "not done yet"
-          associate(y => self%centroid_y, y0 => self%y_center, &
-                    fwhm => self%fwhm_y, order => self%gaussian_order)
-            self%source%data = exp(-((((y - y0)**2) / fwhm**2)**order))
-          endassociate
+          error stop "Applying a 1d_gaussian source term only works for constant y for now"
+          ! associate(y => self%centroid_y, y0 => self%y_center, &
+          !           fwhm => self%fwhm_y, order => self%gaussian_order)
+          !   self%q_dot_h%data = exp(-((((y - y0)**2) / fwhm**2)**order))
+          ! endassociate
         endif
       case('2d_gaussian')
 
         associate(x => self%centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &
                   y => self%centroid_y, y0 => self%y_center, fwhm_y => self%fwhm_y, &
                   order => self%gaussian_order)
-          self%source%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
+          self%q_dot_h%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
                              (((y - y0)**2) / fwhm_y**2))**order))
         endassociate
       endselect
