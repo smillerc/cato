@@ -321,39 +321,45 @@ contains
 
     ! Primitive Variables
     dataset_name = '/density'
-    io_data_buffer = master%fluid%rho%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * density_to_dim * io_density_units, name=dataset_name, &
+    io_data_buffer = master%fluid%rho%gather(image=1, dimensionalize=.true., &
+                                             unit_conversion_factor=io_density_units)
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer, name=dataset_name, &
                                                        description='Cell Density', units=trim(io_density_label))
 
     dataset_name = '/x_velocity'
-    io_data_buffer = master%fluid%u%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * vel_to_dim * io_velocity_units, name=dataset_name, &
+    io_data_buffer = master%fluid%u%gather(image=1, dimensionalize=.true., &
+                                           unit_conversion_factor=io_velocity_units)
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer, name=dataset_name, &
                                                        description='Cell X Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/y_velocity'
-    io_data_buffer = master%fluid%v%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * vel_to_dim * io_velocity_units, name=dataset_name, &
+    io_data_buffer = master%fluid%v%gather(image=1, dimensionalize=.true., &
+                                           unit_conversion_factor=io_velocity_units)
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer, name=dataset_name, &
                                                        description='Cell Y Velocity', units=trim(io_velocity_label))
 
     dataset_name = '/pressure'
-    io_data_buffer = master%fluid%p%gather(image=1)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * press_to_dim * io_pressure_units, name=dataset_name, &
+    io_data_buffer = master%fluid%p%gather(image=1, dimensionalize=.true., &
+                                           unit_conversion_factor=io_pressure_units)
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer, name=dataset_name, &
                                                        description='Cell Pressure', units=trim(io_pressure_label))
 
     ! dataset_name = '/total_energy'
-    ! io_data_buffer = master%fluid%rho_E%gather(image=1) / master%fluid%rho%gather(image=1)
+    ! io_data_buffer = master%fluid%rho_E%gather(image=1, dimensionalize=.true., unit_conversion_factor=) / master%fluid%rho%gather(image=1, dimensionalize=.true., unit_conversion_factor=)
     ! if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * e_0 * io_energy_units, name=dataset_name, &
     !                                                   description='Cell Total Energy', units=trim(io_pressure_label))
                                                       
     if (master%do_source_terms) then
       dataset_name = '/deposited_energy'
-      io_data_buffer = master%source_term%source%gather(image=1)
-      if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * energy_to_dim * io_energy_density_units, name=dataset_name, &
-                                                        description='Cell Deposited Energy', units=trim(io_energy_density_label))
+      io_data_buffer = master%source_term%q_dot_h%gather(image=1, dimensionalize=.true., &
+                                                         unit_conversion_factor=io_energy_density_units)
+      if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer, name=dataset_name, &
+                                                         description='Cell Deposited Energy', units=trim(io_energy_density_label))
     endif
 
     dataset_name = '/sound_speed'
-    io_data_buffer = master%fluid%cs%gather(image=1)
+    io_data_buffer = master%fluid%cs%gather(image=1, dimensionalize=.true., &
+                                            unit_conversion_factor=io_velocity_units)
     if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * vel_to_dim * io_velocity_units, name=dataset_name, &
                                                        description='Cell Sound Speed', units=trim(io_velocity_label))
     ! Volume

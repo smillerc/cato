@@ -487,12 +487,16 @@ contains
     self%unique_neighbors = set(self%neighbors)
   endfunction new_field
 
-  function gather(self, image)
+  function gather(self, image, dimensionalize, unit_conversion_factor)
     !< Performs a gather of field data to image.
     class(field_2d_t), intent(in) :: self
-    integer(ik), intent(in) :: image
+    integer(ik), intent(in) :: image                         !< Which image to gather to, e.g. 1 ?
+    logical, intent(in), optional :: dimensionalize          !< Apply dimensionalization before gathering?
+    real(rk), intent(in), optional :: unit_conversion_factor ! < Apply unit conversion?
+
     integer(ik) :: ilo, ihi, jlo, jhi
-    real(rk) :: gather(self%global_dims(1), self%global_dims(2))
+    real(rk), dimension(self%global_dims(1), self%global_dims(2)) :: gather
+    real(rk), dimension(self%lbounds(1):self%ubounds(1), self%lbounds(2):self%ubounds(2)) :: dimensional_data
     real(rk), allocatable :: gather_coarray(:, :)[:]
 
     if(.not. allocated(gather_coarray)) allocate(gather_coarray(self%global_dims(1), self%global_dims(2))[*])
@@ -501,7 +505,20 @@ contains
     ihi = self%ubounds(1)
     jlo = self%lbounds(2)
     jhi = self%ubounds(2)
-    gather_coarray(ilo:ihi, jlo:jhi)[image] = self%data(ilo:ihi, jlo:jhi)
+
+    if (present(dimensionalize)) then
+      if (dimensionalize) then
+        dimensional_data = self%data(ilo:ihi, jlo:jhi) * self%to_dim
+      else
+        dimensional_data = self%data(ilo:ihi, jlo:jhi)
+      endif
+    else
+      dimensional_data = self%data(ilo:ihi, jlo:jhi)
+    endif
+    
+    if (present(unit_conversion_factor)) dimensional_data = dimensional_data * unit_conversion_factor
+
+    gather_coarray(ilo:ihi, jlo:jhi)[image] = dimensional_data(ilo:ihi, jlo:jhi)
 
     sync all
 
