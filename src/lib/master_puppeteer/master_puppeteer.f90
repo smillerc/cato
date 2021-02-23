@@ -181,7 +181,7 @@ contains
     ! else
     !   self%dt = min_dt
     ! endif
-
+    
     self%time = self%time + self%dt
     
     select type(grid => self%grid)

@@ -138,7 +138,7 @@ program cato
       ' '//trim(io_time_label)//', Delta t =', delta_t * t_to_dim, ' s, Iteration: ', iteration
 
     ! Integrate in time
-    if(input%use_constant_delta_t) then
+    if(input%use_constant_delta_t .or. (iteration == 0 .and. input%initial_delta_t > 0.0_rk)) then
       call master%integrate(error_code=error_code, dt=input%initial_delta_t * t_to_nondim)
     else
       call master%integrate(error_code=error_code)

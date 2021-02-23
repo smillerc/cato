@@ -91,8 +91,52 @@ def load_solution(folder):
     ini_dict = read_ini(f"{folder}/input.ini")
     ini_dict["directory"] = os.path.abspath(folder)
     ds.attrs.update(ini_dict)
-    ds = load_bc_file_to_dataset(ds)
+    for k, v in ds.attrs.items():
+        if v == 'true':
+            ds.attrs[k] = True
+        if v == 'false':
+            ds.attrs[k] = False
+
+    source_term = "source_terms_enable_source_terms"
+    if source_term in ds.attrs.keys() and ds.attrs[source_term] is True:
+        ds = load_source_file_to_dataset(ds)
+    
     return ds
+
+
+def load_source_file_to_dataset(ds):
+    """Load the boundary pressure and density file into the dataset"""
+
+    try:
+        f = Path(
+            ds.directory + "/" + ds.attrs['source_terms_source_file'])
+    except Exception:
+        return ds
+
+    try:
+        p_pulse = np.loadtxt(f, skiprows=1, delimiter=",")
+    except ValueError:
+        p_pulse = np.loadtxt(f, skiprows=1)
+
+    t = p_pulse[:, 0] * ureg("s")
+    power = p_pulse[:, 1] * ureg("erg/s")
+
+    source_input = np.interp(fp=power.m, x=ds.time.data, xp=t.to("ns").m)
+
+    ds["power_input"] = xr.Variable(
+        ("time"),
+        source_input.astype(np.float32),
+        attrs={
+            "units": "erg/s",
+            "description": "Power Input",
+            "long_name": "Power Input",
+            "standard_name": "Power Input",
+        },
+    )
+
+    return ds
+
+
 
 
 def load_bc_file_to_dataset(ds):
