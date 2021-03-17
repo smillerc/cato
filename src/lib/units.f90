@@ -51,7 +51,7 @@ module mod_units
   character(len=10), protected :: io_energy_label = 'erg'
   character(len=10), protected :: io_energy_density_label = 'erg/cc'
   character(len=10), protected :: io_force_label = 'dyne'
-  character(len=10), protected :: io_power_label = 'dyne/s'
+  character(len=10), protected :: io_power_label = 'erg/s'
 
   ! Time conversion
   real(rk), parameter :: pico_seconds = 1e12_rk !< sec to ps conversion
