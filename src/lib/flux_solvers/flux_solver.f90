@@ -248,10 +248,16 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         delta_l = grid%edge_lengths(:, i, j)
-        max_rho_flux = max(self%iflux(1, i, j), self%iflux(1, i - 1, j), self%jflux(1, i, j),  self%jflux(1, i, j - 1), 1.0_rk)
+        max_rho_flux = max(abs(self%iflux(1, i, j)), &
+                           abs(self%iflux(1, i - 1, j)), &
+                           abs(self%jflux(1, i, j)), &
+                           abs(self%jflux(1, i, j - 1)), &
+                           1.0_rk)
 
-        rho_i = ((self%iflux(1, i, j)/max_rho_flux * delta_l(2)) + (-self%iflux(1, i - 1, j)/max_rho_flux * delta_l(4))) * max_rho_flux
-        rho_j = ((self%jflux(1, i, j)/max_rho_flux * delta_l(3)) + (-self%jflux(1, i, j - 1)/max_rho_flux * delta_l(1))) * max_rho_flux
+        rho_i = ((self%iflux(1, i, j) / max_rho_flux * delta_l(2)) + &
+                 (-self%iflux(1, i - 1, j) / max_rho_flux * delta_l(4))) * max_rho_flux
+        rho_j = ((self%jflux(1, i, j) / max_rho_flux * delta_l(3)) + &
+                 (-self%jflux(1, i, j - 1) / max_rho_flux * delta_l(1))) * max_rho_flux
 
         ! Relative error check... if the diff is 10 orders of mag from the max, make it 0
         if(abs(rho_i) < max_rho_flux * 1e-10_rk) rho_i = 0.0_rk
@@ -269,9 +275,16 @@ contains
       do i = ilo, ihi
         delta_l = grid%edge_lengths(:, i, j)
 
-        max_rhou_flux = max(self%iflux(2, i, j), self%iflux(2, i - 1, j), self%jflux(2, i, j), self%jflux(2, i, j - 1), 1.0_rk)
-        rhou_i = ((self%iflux(2, i, j) * delta_l(2))/max_rhou_flux + (-self%iflux(2, i - 1, j)/max_rhou_flux * delta_l(4))) * max_rhou_flux
-        rhou_j = ((self%jflux(2, i, j) * delta_l(3))/max_rhou_flux + (-self%jflux(2, i, j - 1)/max_rhou_flux * delta_l(1))) * max_rhou_flux
+        max_rhou_flux = max(abs(self%iflux(2, i, j)), &
+                            abs(self%iflux(2, i - 1, j)), &
+                            abs(self%jflux(2, i, j)), &
+                            abs(self%jflux(2, i, j - 1)), &
+                            1.0_rk)
+
+        rhou_i = ((self%iflux(2, i, j) * delta_l(2)) / max_rhou_flux + &
+                  (-self%iflux(2, i - 1, j) / max_rhou_flux * delta_l(4))) * max_rhou_flux
+        rhou_j = ((self%jflux(2, i, j) * delta_l(3)) / max_rhou_flux + &
+                  (-self%jflux(2, i, j - 1) / max_rhou_flux * delta_l(1))) * max_rhou_flux
 
         ! Relative error check... if the diff is 10 orders of mag from the max, make it 0
         if(abs(rhou_i) < max_rhou_flux * 1e-10_rk) rhou_i = 0.0_rk
@@ -288,9 +301,16 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         delta_l = grid%edge_lengths(:, i, j)
-        max_rhov_flux = max(self%iflux(3, i, j), self%iflux(3, i - 1, j), self%jflux(3, i, j), self%jflux(3, i, j - 1), 1.0_rk)
-        rhov_i = ((self%iflux(3, i, j)/max_rhov_flux * delta_l(2)) + (-self%iflux(3, i - 1, j)/max_rhov_flux * delta_l(4))) * max_rhov_flux
-        rhov_j = ((self%jflux(3, i, j)/max_rhov_flux * delta_l(3)) + (-self%jflux(3, i, j - 1)/max_rhov_flux * delta_l(1))) * max_rhov_flux
+        max_rhov_flux = max(abs(self%iflux(3, i, j)), &
+                            abs(self%iflux(3, i - 1, j)), &
+                            abs(self%jflux(3, i, j)), &
+                            abs(self%jflux(3, i, j - 1)), &
+                            1.0_rk)
+
+        rhov_i = ((self%iflux(3, i, j) / max_rhov_flux * delta_l(2)) + &
+                  (-self%iflux(3, i - 1, j) / max_rhov_flux * delta_l(4))) * max_rhov_flux
+        rhov_j = ((self%jflux(3, i, j) / max_rhov_flux * delta_l(3)) + &
+                  (-self%jflux(3, i, j - 1) / max_rhov_flux * delta_l(1))) * max_rhov_flux
 
         ! Relative error check... if the diff is 10 orders of mag from the max, make it 0
         if(abs(rhov_i) < max_rhov_flux * 1e-10_rk) rhov_i = 0.0_rk
@@ -308,9 +328,15 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         delta_l = grid%edge_lengths(:, i, j)
-        max_rhoE_flux = max(self%iflux(4, i, j), self%iflux(4, i - 1, j), self%jflux(4, i, j),  self%jflux(4, i, j - 1), 1.0_rk)
-        rhoE_i = ((self%iflux(4, i, j)/max_rhoE_flux * delta_l(2)) + (-self%iflux(4, i - 1, j)/max_rhoE_flux * delta_l(4))) * max_rhoE_flux
-        rhoE_j = ((self%jflux(4, i, j)/max_rhoE_flux * delta_l(3)) + (-self%jflux(4, i, j - 1)/max_rhoE_flux * delta_l(1))) * max_rhoE_flux
+        max_rhoE_flux = max(abs(self%iflux(4, i, j)), &
+                            abs(self%iflux(4, i - 1, j)), &
+                            abs(self%jflux(4, i, j)), &
+                            abs(self%jflux(4, i, j - 1)), &
+                            1.0_rk)
+        rhoE_i = ((self%iflux(4, i, j) / max_rhoE_flux * delta_l(2)) + &
+                  (-self%iflux(4, i - 1, j) / max_rhoE_flux * delta_l(4))) * max_rhoE_flux
+        rhoE_j = ((self%jflux(4, i, j) / max_rhoE_flux * delta_l(3)) + &
+                  (-self%jflux(4, i, j - 1) / max_rhoE_flux * delta_l(1))) * max_rhoE_flux
 
         ! Relative error check... if the diff is 10 orders of mag from the max, make it 0
         if(abs(rhoE_i) < max_rhoE_flux * 1e-10_rk) rhoE_i = 0.0_rk
@@ -321,7 +347,7 @@ contains
         d_rho_E_dt(i, j) = -rhoE_flux
       enddo
     enddo
-      
+
     !$omp simd
     do j = jlo, jhi
       do i = ilo, ihi
@@ -345,7 +371,7 @@ contains
       enddo
     enddo
     !$omp end simd
-    
+
     !$omp simd
     do j = jlo, jhi
       do i = ilo, ihi
