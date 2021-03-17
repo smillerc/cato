@@ -119,7 +119,7 @@ program cato
   else
     if(input%initial_delta_t > 0.0_rk) then
       delta_t = input%initial_delta_t * t_to_nondim
-      write(std_out, '(a, es10.3)') "Starting timestep (given via input, not calculated):", delta_t
+      if(this_image() == 1) write(std_out, '(a, es10.3)') "Starting timestep (given via input, not calculated):", delta_t
     else
       delta_t = 0.1_rk * master%get_timestep()
     endif
