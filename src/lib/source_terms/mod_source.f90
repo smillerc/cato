@@ -88,6 +88,7 @@ module mod_source
     integer(ik) :: j_dep_center = 0
     integer(ik), dimension(2) :: i_dep_range = 0 !< (imin, imax); i-index range for energy deposition
     integer(ik), dimension(2) :: j_dep_range = 0 !< (jmin, jmax); j-index range for energy deposition
+    real(rk) :: energy_deposition_critical_density = 0.0_rk
   contains
     private
     procedure, public :: integrate
@@ -113,6 +114,8 @@ contains
     new_source%nondim_scale_factor = energy_to_nondim
     new_source%source_geometry = trim(input%source_geometry)
     new_source%constant_source = input%apply_constant_source
+
+    new_source%energy_deposition_critical_density = input%energy_deposition_critical_density
 
     select type(grid)
     class is(grid_block_2d_t)
@@ -304,7 +307,7 @@ contains
     real(rk) :: x_center
     real(rk) :: critical_density !< where do we deposit the energy TODO: make this a user input
 
-    critical_density = 0.1_rk * density_to_nondim ! 0.10 g/cc to nondimensionalize
+    critical_density = self%energy_deposition_critical_density * density_to_nondim ! 0.10 g/cc to nondimensionalize
 
     self%this_image_deposits = .false.
     imax = 0

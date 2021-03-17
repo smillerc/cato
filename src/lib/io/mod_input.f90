@@ -92,6 +92,8 @@ module mod_input
     real(rk) :: source_center_y = 0.0_rk
     real(rk) :: source_gaussian_fwhm_x = 0.0_rk
     real(rk) :: source_gaussian_fwhm_y = 0.0_rk
+    real(rk) :: energy_deposition_critical_density = 0.1_rk
+
     integer(ik) :: source_gaussian_order = 1
 
     character(:), allocatable :: source_geometry
@@ -387,6 +389,8 @@ contains
 
       call cfg%get('source_terms', 'constant_source_value', self%constant_source_value, 0.0_rk)
       call cfg%get('source_terms', 'source_scale_factor', self%source_scale_factor, 1.0_rk)
+
+      call cfg%get('source_terms', 'energy_deposition_critical_density', self%energy_deposition_critical_density, 0.1_rk)
 
       select case(self%source_geometry)
       case('constant_xy')
