@@ -58,7 +58,7 @@ module mod_master_puppeteer
     logical :: is_2d = .false.
     logical :: is_3d = .false.
     class(source_t), allocatable :: source_term !< source_term, i.e. gravity, laser, etc..
-    
+
     logical :: do_source_terms = .false.
 
   contains
@@ -160,7 +160,6 @@ contains
 
     class(field_2d_t), allocatable, save :: d_dt_source
 
-    
     real(rk) :: min_dt, s_input
 
     if(present(dt)) then
@@ -168,7 +167,7 @@ contains
     else
       self%dt = self%get_timestep()
     endif
-    
+
     self%iteration = self%iteration + 1
     ! min_dt = self%get_timestep()
 
@@ -181,19 +180,19 @@ contains
     ! else
     !   self%dt = min_dt
     ! endif
-    
+
     self%time = self%time + self%dt
-    
+
     select type(grid => self%grid)
     class is(grid_block_2d_t)
-    
-      if(self%do_source_terms) then
-        if (.not. allocated(d_dt_source)) allocate(d_dt_source)
 
-        if(this_image() == 1.and. self%time <= self%source_term%max_time) then
+      if(self%do_source_terms) then
+        if(.not. allocated(d_dt_source)) allocate(d_dt_source)
+
+        if(this_image() == 1 .and. self%time <= self%source_term%max_time) then
           s_input = self%source_term%get_desired_source_input(self%time)
           if(s_input > 0.0_rk) then
-            if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of: ', s_input / self%source_term%nondim_scale_factor
+        if(this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of: ', s_input / self%source_term%nondim_scale_factor
           endif
 
         endif

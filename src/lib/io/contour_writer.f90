@@ -348,8 +348,8 @@ contains
     ! io_data_buffer = master%fluid%rho_E%gather(image=1, dimensionalize=.true., unit_conversion_factor=) / master%fluid%rho%gather(image=1, dimensionalize=.true., unit_conversion_factor=)
     ! if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * e_0 * io_energy_units, name=dataset_name, &
     !                                                   description='Cell Total Energy', units=trim(io_pressure_label))
-                                                      
-    if (master%do_source_terms) then
+
+    if(master%do_source_terms) then
       dataset_name = '/deposited_power'
       io_data_buffer = master%source_term%q_dot_h%gather(image=1, dimensionalize=.true., &
                                                          unit_conversion_factor=io_power_units)
@@ -436,7 +436,7 @@ contains
     !   '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/total_energy</DataItem>'
     ! write(xdmf_unit, '(a)') '      </Attribute>'
 
-    if (master%do_source_terms) then
+    if(master%do_source_terms) then
       unit_label = "["//trim(io_power_label)//"]"
       write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Deposited Power '//trim(unit_label)//'">'
       write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &

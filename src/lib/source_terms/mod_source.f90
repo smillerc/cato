@@ -148,10 +148,10 @@ contains
         new_source%ylo = input%source_ylo * len_to_nondim
         new_source%yhi = input%source_yhi * len_to_nondim
       case('1d_gaussian', '2d_gaussian')
-        new_source%x_center = input%source_center_x  * len_to_nondim
-        new_source%y_center = input%source_center_y  * len_to_nondim
-        new_source%fwhm_x = input%source_gaussian_fwhm_x  * len_to_nondim
-        new_source%fwhm_y = input%source_gaussian_fwhm_y  * len_to_nondim
+        new_source%x_center = input%source_center_x * len_to_nondim
+        new_source%y_center = input%source_center_y * len_to_nondim
+        new_source%fwhm_x = input%source_gaussian_fwhm_x * len_to_nondim
+        new_source%fwhm_y = input%source_gaussian_fwhm_y * len_to_nondim
         new_source%gaussian_order = input%source_gaussian_order
 
         if(new_source%gaussian_order < 1) then
@@ -322,8 +322,8 @@ contains
     ! Scan in from the right; this is only for a "laser" from the +x boundary
     ! Each image does this, but not all actually deposit any energy
     do i = ihi, ilo, -1
-      if (any(density%data(i, jlo:jhi) > critical_density)) then
-        x_center = maxval(self%centroid_x(i,:))
+      if(any(density%data(i, jlo:jhi) > critical_density)) then
+        x_center = maxval(self%centroid_x(i, :))
         i_dep = i
         exit
       endif
@@ -336,7 +336,7 @@ contains
     ! ! Check to see if the index window is in the current image's domain
     ! imin = max(i_dep - I_WINDOW, ilo)
     ! imax = min(i_dep + I_WINDOW, ihi)
-    
+
     ! if (imin > ihi .or. imax < ilo) then
     !   self%this_image_deposits = .false.
     ! else
@@ -370,7 +370,7 @@ contains
     !   if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of [dim version]: ', &
     !   p_input / self%nondim_scale_factor, " at", self%x_center * len_to_dim
     ! endif
-    
+
     if(abs(p_input) > 0.0_rk) then
       select case(self%source_geometry)
       case('uniform')
@@ -378,7 +378,7 @@ contains
       case('constant_xy')
         where(self%centroid_x < self%xhi .and. self%centroid_x > self%xlo .and. &
               self%centroid_y < self%yhi .and. self%centroid_x > self%ylo)
-          self%q_dot_h%data = p_input
+        self%q_dot_h%data = p_input
         endwhere
       case('1d_gaussian')
         if(self%constant_in_y) then
@@ -386,19 +386,18 @@ contains
           associate(x => self%centroid_x, x0 => self%x_center, fwhm => self%fwhm_x)
             do j = jlo, jhi
               do i = ilo, ihi
-                if (abs(x(i,j)-x0) < fwhm * 5) then
+                if(abs(x(i, j) - x0) < fwhm * 5) then
                   ! Make a gaussian, centered at x0 with a given FWHM
                   ! The heating per unit mass of the cell
-                  mass = self%volume(i,j) * density%data(i,j)
+                  mass = self%volume(i, j) * density%data(i, j)
                   ! self%q_dot_h%data(i,j) = (exp((-4.0_rk * log(2.0_rk) * (x(i,j) - x0)**2) / fwhm**2) * p_input) / mass
-                  self%q_dot_h%data(i,j) = (exp((-4.0_rk * log(2.0_rk) * (x(i,j) - x0)**2) / fwhm**2) * p_input) 
+                  self%q_dot_h%data(i, j) = (exp((-4.0_rk * log(2.0_rk) * (x(i, j) - x0)**2) / fwhm**2) * p_input)
                 endif
               enddo
             enddo
           endassociate
         else
           error stop "Applying a 1d_gaussian source term only works for constant y for now"
-          
 
           ! associate(y => self%centroid_y, y0 => self%y_center, &
           !           fwhm => self%fwhm_y, order => self%gaussian_order)
@@ -411,7 +410,7 @@ contains
                   y => self%centroid_y, y0 => self%y_center, fwhm_y => self%fwhm_y, &
                   order => self%gaussian_order)
           self%q_dot_h%data = exp(-(((((x - x0)**2) / fwhm_x**2) + &
-                             (((y - y0)**2) / fwhm_y**2))**order))
+                                     (((y - y0)**2) / fwhm_y**2))**order))
         endassociate
       endselect
     endif

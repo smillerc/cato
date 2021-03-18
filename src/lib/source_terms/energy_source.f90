@@ -84,5 +84,4 @@ contains
     real(rk), intent(in) :: dt, time
   end function integrate
 
-
 endmodule mod_energy_source

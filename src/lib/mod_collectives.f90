@@ -181,7 +181,7 @@ contains
     img_idx = 1
     do while(img_idx < num_images())
       is_valid_image = this_image() + img_idx <= num_images() .and. &
-                      mod(this_image() - 1, 2 * img_idx) == 0
+                       mod(this_image() - 1, 2 * img_idx) == 0
 
       ! Sum up the values if we're in a valid image index
       if(is_valid_image) then
@@ -218,7 +218,7 @@ contains
     img_idx = 1
     do while(img_idx < num_images())
       is_valid_image = this_image() + img_idx <= num_images() .and. &
-                      mod(this_image() - 1, 2 * img_idx) == 0
+                       mod(this_image() - 1, 2 * img_idx) == 0
 
       ! Sum up the values if we're in a valid image index
       if(is_valid_image) then
@@ -262,7 +262,7 @@ contains
 
     do while(img_idx > 0)
       is_valid_image = this_image() + img_idx <= num_images() .and. &
-                      mod(this_image() - 1, 2 * img_idx) == 0
+                       mod(this_image() - 1, 2 * img_idx) == 0
 
       if(is_valid_image) y[this_image() + img_idx] = y
       img_idx = img_idx / 2

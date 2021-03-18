@@ -34,7 +34,7 @@ module mod_nondimensionalization
   real(rk), protected :: t_ref = 1.0_rk        !< reference time in sec
   real(rk), protected :: t_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
   real(rk), protected :: t_to_dim = 1.0_rk     !< scale factor for time
-  
+
   real(rk), protected :: density_ref = 1.0_rk        !< reference time in sec
   real(rk), protected :: density_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
   real(rk), protected :: density_to_dim = 1.0_rk     !< scale factor for time
@@ -58,7 +58,6 @@ module mod_nondimensionalization
   real(rk), protected :: pow_ref = 1.0_rk        !< reference time in sec
   real(rk), protected :: pow_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
   real(rk), protected :: pow_to_dim = 1.0_rk     !< scale factor for time
-
 
   ! real(rk), protected :: t_0 = 1.0_rk   !< scale factor for length
   ! real(rk), protected :: rho_0 = 1.0_rk   !< scale factor for length
@@ -93,7 +92,6 @@ contains
 
   ! endsubroutine
 
-
   subroutine set_refrence_quantities(ref_length, ref_velocity, ref_density)
     real(rk), intent(in) :: ref_length   !< reference
     real(rk), intent(in) :: ref_velocity !< reference
@@ -118,13 +116,13 @@ contains
 
     density_to_nondim = 1.0_rk / density_ref
     density_to_dim = density_ref
-    
+
     vel_to_nondim = 1.0_rk / vel_ref
     vel_to_dim = vel_ref
-    
+
     press_to_nondim = 1.0_rk / press_ref
     press_to_dim = press_ref
-    
+
     energy_to_nondim = 1.0_rk / energy_ref
     energy_to_dim = energy_ref
 
@@ -150,8 +148,8 @@ contains
       write(*, '(a, es10.3)') "Reference time     (calculated): ", t_ref
       write(*, '(a, es10.3)') "Reference energy   (calculated): ", energy_ref
       write(*, '(a, es10.3)') "Reference pressure (calculated): ", press_ref
-      print*
-      
+      print *
+
       write(*, '(a, es10.3)') "Time scale factor (t_tilde)      : ", t_to_nondim
       write(*, '(a, es10.3)') "Density scale factor (rho_tilde) : ", density_to_nondim
       write(*, '(a, es10.3)') "Length scale factor (l_tilde)    : ", len_to_nondim
@@ -163,8 +161,8 @@ contains
     endif
 
     scale_factors_set = .true.
-  
-  endsubroutine 
+
+  endsubroutine
 
   ! subroutine set_scale_factors(time_scale, length_scale, density_scale)
   !   !< Set the non-dimensional scale factors based on the provided scales. This

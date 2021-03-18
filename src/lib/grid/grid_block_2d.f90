@@ -69,11 +69,11 @@ contains
 
     file_exists = .false.
     inquire(file=trim(input%initial_condition_file), exist=file_exists)
-    if (.not. file_exists) then
+    if(.not. file_exists) then
       call error_msg(module_name='mod_grid_block_2d', class_name='grid_block_2d_t', &
-                    procedure_name='init_2d_block', &
-                    message='File not found: "'//trim(input%initial_condition_file)//'"', &
-                    file_name=__FILE__, line_number=__LINE__)
+                     procedure_name='init_2d_block', &
+                     message='File not found: "'//trim(input%initial_condition_file)//'"', &
+                     file_name=__FILE__, line_number=__LINE__)
     endif
 
     call h5%initialize(trim(input%initial_condition_file), status='old', action='r')
@@ -154,23 +154,23 @@ contains
     class(grid_block_2d_t), intent(in) :: self
     integer :: ni, nj
     if(this_image() == 1) then
-      print*
+      print *
       write(*, '(a)') "Grid stats:"
       write(*, '(a)') "=================================================="
-      print*
+      print *
       write(*, '(a)') "Blocks / subdomains"
       write(*, '(a)') "-------------------"
       write(*, '(a, i0)') "Number of blocks          : ", num_images()
       write(*, '(2(a,i0))') "Average block size (cells): ", self%block_dims(1), " x ", self%block_dims(2)
       write(*, '(a, i0)') "Number of halo cells      : ", self%n_halo_cells
-      print*
+      print *
       write(*, '(a)') "Global"
       write(*, '(a)') "------"
       write(*, '(a, i0)') "Number of i cells: ", self%global_dims(1)
       write(*, '(a, i0)') "Number of j cells: ", self%global_dims(2)
-      write(*, '(a, i0)') "Total cells      : ", self%global_dims(1)*self%global_dims(2)
+      write(*, '(a, i0)') "Total cells      : ", self%global_dims(1) * self%global_dims(2)
       write(*, '(a)') "=================================================="
-      print*
+      print *
     endif
   endsubroutine print_grid_stats
 
@@ -219,7 +219,7 @@ contains
 
     file_exists = .false.
     inquire(file=filename, exist=file_exists)
-    
+
     if(.not. file_exists) then
       call error_msg(module_name='mod_grid_block_2d', class_name='grid_block_2d_t', &
                      procedure_name='read_from_h5', &
@@ -232,9 +232,9 @@ contains
     call h5%read('/n_ghost_layers', self%n_halo_cells)
     if(self%n_halo_cells /= input%n_ghost_layers) then
       write(msg, '(2(a,i0),a)') "The number of ghost layers in the .hdf5 file (", &
-                                self%n_halo_cells, ") does not match the"// &
-                                " input requirement set by the edge interpolation scheme (", &
-                                input%n_ghost_layers, ")"
+        self%n_halo_cells, ") does not match the"// &
+        " input requirement set by the edge interpolation scheme (", &
+        input%n_ghost_layers, ")"
 
       call error_msg(module_name='mod_grid_block_2d', class_name='grid_block_2d_t', &
                      procedure_name='read_from_h5', &
@@ -419,7 +419,7 @@ contains
   !   if(diff < 2.0_rk * epsilon(1.0_rk)) then
   !     self%is_uniform = .true.
   !   endif
-    
+
   !     ! Scale so that the minimum edge length is 1
   !     self%node_x = self%node_x * len_to_nondim
   !     self%node_y = self%node_y * len_to_nondim
@@ -446,7 +446,7 @@ contains
   !   minvol = minval(self%volume)
   !   vol_diff = abs(maxvol - minvol)
 
-  !   ! If the volume is all slightly different, but under the machine epsilong, 
+  !   ! If the volume is all slightly different, but under the machine epsilong,
   !   ! just make it all uniform
   !   if (vol_diff < epsilon(1.0_rk)) then
   !     self%volume = maxvol

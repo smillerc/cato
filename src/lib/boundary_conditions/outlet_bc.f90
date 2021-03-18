@@ -54,14 +54,14 @@ contains
     bc%priority = 0
     bc%outlet_pressure = input%constant_bc_pressure_value * press_to_nondim
 
-    if (bc%outlet_pressure <= 0.0_rk) then
+    if(bc%outlet_pressure <= 0.0_rk) then
       call error_msg(module_name='mod_outlet_bc', class_name='outlet_bc_t', &
-                    procedure_name='outlet_bc_constructor', &
-                    message="Outlet ambient pressure is <= 0!", &
-                    file_name=__FILE__, line_number=__LINE__)
+                     procedure_name='outlet_bc_constructor', &
+                     message="Outlet ambient pressure is <= 0!", &
+                     file_name=__FILE__, line_number=__LINE__)
     endif
 
-    call bc%set_indices(grid) 
+    call bc%set_indices(grid)
   endfunction outlet_bc_constructor
 
   subroutine apply_outlet_primitive_var_bc(self, rho, u, v, p)
@@ -86,50 +86,49 @@ contains
           call debug_print('Running outlet_bc_t%apply_outlet_primitive_var_bc() +x', &
                            __FILE__, __LINE__)
         endif
-      
-        ihi = rho%ihi 
+
+        ihi = rho%ihi
         ihi_halo = rho%ihi_halo
 
-        do i = ihi+1, ihi_halo
+        do i = ihi + 1, ihi_halo
           do j = rho%jlo_halo, rho%jhi_halo
 
             associate(p_d => p%data(ihi, j), p_b => self%outlet_pressure, rho_0 => rho%data(ihi, j))
 
               ! Sometimes at startup there are zero rho/p for some reason, but it doesnt break the code
-              if (p_b > tiny(1.0_rk) .and. rho_0 > tiny(1.0_rk)) then
-              cs = sqrt(gamma * abs(p_d / rho_0))
-              vel = sqrt(u%data(ihi,j)**2 + v%data(ihi,j)**2)
-              mach = vel / cs
+              if(p_b > tiny(1.0_rk) .and. rho_0 > tiny(1.0_rk)) then
+                cs = sqrt(gamma * abs(p_d / rho_0))
+                vel = sqrt(u%data(ihi, j)**2 + v%data(ihi, j)**2)
+                mach = vel / cs
 
-              nx = u%data(ihi, j) / (vel + 1e-30_rk)
-              ny = v%data(ihi, j) / (vel + 1e-30_rk)
+                nx = u%data(ihi, j) / (vel + 1e-30_rk)
+                ny = v%data(ihi, j) / (vel + 1e-30_rk)
 
-              ! print*, 'nx, ny', nx, ny, 'outlet mach', mach
+                ! print*, 'nx, ny', nx, ny, 'outlet mach', mach
 
-              if (mach > 1.0_rk) then
-                ! Supersonic extrapolation
-                rho%data(i,j) = rho%data(ihi, j)
-                u%data  (i,j) =   u%data(ihi, j)
-                v%data  (i,j) =   v%data(ihi, j)
-                p%data  (i,j) =   p%data(ihi, j)
+                if(mach > 1.0_rk) then
+                  ! Supersonic extrapolation
+                  rho%data(i, j) = rho%data(ihi, j)
+                  u%data(i, j) = u%data(ihi, j)
+                  v%data(i, j) = v%data(ihi, j)
+                  p%data(i, j) = p%data(ihi, j)
 
-              else !if (mach >= 0.0_rk .and. mach < 1.0_rk) then
-                ! Subsonic extrapolation
-                rho%data(i,j) = rho%data(ihi, j) + (p_b - p_d) / cs**2
-                u%data  (i,j) =   u%data(ihi, j) + nx * (p_d - p_b)/(rho_0 * cs)
-                v%data  (i,j) =   v%data(ihi, j) + ny * (p_d - p_b)/(rho_0 * cs)
-                p%data  (i,j) =   self%outlet_pressure
-              ! else
-              !   call error_msg(module_name='mod_outlet_bc', class_name='outlet_bc_t', &
-              !                       procedure_name='apply_outlet_primitive_var_bc', &
-              !                       message="Inflow at the +x outflow BC!", &
-              !                       file_name=__FILE__, line_number=__LINE__)
-              end if
-            endif
+                else !if (mach >= 0.0_rk .and. mach < 1.0_rk) then
+                  ! Subsonic extrapolation
+                  rho%data(i, j) = rho%data(ihi, j) + (p_b - p_d) / cs**2
+                  u%data(i, j) = u%data(ihi, j) + nx * (p_d - p_b) / (rho_0 * cs)
+                  v%data(i, j) = v%data(ihi, j) + ny * (p_d - p_b) / (rho_0 * cs)
+                  p%data(i, j) = self%outlet_pressure
+                  ! else
+                  !   call error_msg(module_name='mod_outlet_bc', class_name='outlet_bc_t', &
+                  !                       procedure_name='apply_outlet_primitive_var_bc', &
+                  !                       message="Inflow at the +x outflow BC!", &
+                  !                       file_name=__FILE__, line_number=__LINE__)
+                end if
+              endif
             end associate
           end do
 
-          
         enddo
       endif
     case('-x')

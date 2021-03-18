@@ -116,7 +116,7 @@ contains
       io_volume_label = 'cc'
       io_energy_density_units = 1.0_rk
       io_energy_density_label = 'erg/cc'
-      
+
     case("icf")
       if(this_image() == 1) write(*, '(a)') "Setting I/O unit system to ICF conventions (g/cc, microns, eV, Mbar, erg)"
       unit_system = "icf"

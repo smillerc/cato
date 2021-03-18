@@ -506,8 +506,8 @@ contains
     jlo = self%lbounds(2)
     jhi = self%ubounds(2)
 
-    if (present(dimensionalize)) then
-      if (dimensionalize) then
+    if(present(dimensionalize)) then
+      if(dimensionalize) then
         dimensional_data = self%data(ilo:ihi, jlo:jhi) * self%to_dim
       else
         dimensional_data = self%data(ilo:ihi, jlo:jhi)
@@ -515,8 +515,8 @@ contains
     else
       dimensional_data = self%data(ilo:ihi, jlo:jhi)
     endif
-    
-    if (present(unit_conversion_factor)) dimensional_data = dimensional_data * unit_conversion_factor
+
+    if(present(unit_conversion_factor)) dimensional_data = dimensional_data * unit_conversion_factor
 
     gather_coarray(ilo:ihi, jlo:jhi)[image] = dimensional_data(ilo:ihi, jlo:jhi)
 

@@ -356,10 +356,10 @@ contains
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [non-dim]: ', minval(x_velocity) * vel_to_nondim    , maxval(x_velocity) * vel_to_nondim    
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [non-dim]: ', minval(x_velocity) * vel_to_nondim    , maxval(y_velocity) * vel_to_nondim    
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [non-dim]: ', minval(pressure)   * press_to_nondim  , maxval(pressure)   * press_to_nondim  
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]    : ', minval(density)   , maxval(density)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max density    [dim]    : ', minval(density), maxval(density)
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max x-velocity [dim]    : ', minval(x_velocity), maxval(x_velocity)
       write(*, '(a, 2(es16.6, 1x))') 'Min/Max y-velocity [dim]    : ', minval(y_velocity), maxval(y_velocity)
-      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]    : ', minval(pressure)  , maxval(pressure)
+      write(*, '(a, 2(es16.6, 1x))') 'Min/Max pressure   [dim]    : ', minval(pressure), maxval(pressure)
       write(*, '(a)') '==============================================================='
       write(*, *)
     endif
@@ -442,7 +442,6 @@ contains
     real(rk), dimension(:, :), allocatable :: d_rho_u_dt  !< d/dt of the rhou field
     real(rk), dimension(:, :), allocatable :: d_rho_v_dt  !< d/dt of the rhov field
     real(rk), dimension(:, :), allocatable :: d_rho_E_dt  !< d/dt of the rhoE field
-
 
     ihi = grid%ubounds(1)
     ilo = grid%lbounds(1)
@@ -544,13 +543,13 @@ contains
 
     ! Filter out the super small Mach numbers
     where(abs(self%mach_v%data) < 1e-13_rk)
-      self%v%data = 0.0_rk
-      self%mach_v%data = 0.0_rk
+    self%v%data = 0.0_rk
+    self%mach_v%data = 0.0_rk
     endwhere
 
     where(abs(self%mach_u%data) < 1e-13_rk)
-      self%u%data = 0.0_rk
-      self%mach_u%data = 0.0_rk
+    self%u%data = 0.0_rk
+    self%mach_u%data = 0.0_rk
     endwhere
 
     self%prim_vars_updated = .true.
@@ -716,10 +715,10 @@ contains
     time = U%time
 
     ! 1st stage
-    if (present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
+    if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
     allocate(U_1, source=U)
-    if (present(source_term)) then
+    if(present(source_term)) then
       d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
       U_1 = U + U%t(grid, d_dt_source_term) * dt
     else
@@ -728,7 +727,7 @@ contains
 
     ! 2nd stage
     allocate(U_2, source=U)
-    if (present(source_term)) then
+    if(present(source_term)) then
       d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_1%rho)
       U_2 = U * (3.0_rk / 4.0_rk) &
             + U_1 * (1.0_rk / 4.0_rk) &
@@ -740,7 +739,7 @@ contains
     endif
 
     ! Final stage
-    if (present(source_term)) then
+    if(present(source_term)) then
       d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_2%rho)
       U = U * (1.0_rk / 3.0_rk) &
           + U_2 * (2.0_rk / 3.0_rk) &
@@ -786,19 +785,19 @@ contains
     time = U%time
 
     ! 1st stage
-    if (present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
+    if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
     ! 1st stage
     allocate(U_1, source=U)
-    if (present(source_term)) then
+    if(present(source_term)) then
       U_1 = U + U%t(grid, d_dt_source_term) * 0.5_rk * dt
     else
       U_1 = U + U%t(grid) * 0.5_rk * dt
     endif
-    
+
     ! 2nd stage
     allocate(U_2, source=U)
-    if (present(source_term)) then
+    if(present(source_term)) then
       d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_1%rho)
       U_2 = U_1 + U_1%t(grid, d_dt_source_term) * 0.5_rk * dt
     else
@@ -807,15 +806,15 @@ contains
 
     ! 3rd stage
     allocate(U_3, source=U)
-    if (present(source_term)) then
+    if(present(source_term)) then
       d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_2%rho)
       U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid, d_dt_source_term) * one_sixth * dt)
     else
       U_3 = (U * two_thirds) + (U_2 * one_third) + (U_2%t(grid) * one_sixth * dt)
     endif
-    
+
     ! Final stage
-    if (present(source_term)) then
+    if(present(source_term)) then
       d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_3%rho)
       U = U_3 + (U_3%t(grid, d_dt_source_term) * 0.5_rk * dt)
     else
@@ -853,9 +852,9 @@ contains
     allocate(U_1, source=U)
 
     ! 1st stage
-    if (present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
+    if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
-    if (present(source_term)) then
+    if(present(source_term)) then
       d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
       U_1 = U + U%t(grid, d_dt_source_term) * dt
     else
@@ -863,14 +862,13 @@ contains
     endif
 
     ! Final stage
-    if (present(source_term)) then
+    if(present(source_term)) then
       d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_1%rho)
       U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, d_dt_source_term) * (0.5_rk * dt)
     else
       U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid) * (0.5_rk * dt)
     endif
 
-    
     call U%sanity_check(error_code)
     call U%calculate_derived_quantities()
 
@@ -910,7 +908,7 @@ contains
     rho_E_diff = maxval(abs(last_stage%rho_E%data(ilo:ihi, jlo:jhi) - first_stage%rho_E%data(ilo:ihi, jlo:jhi)))
     rho_E_diff = max_to_all(rho_E_diff)
 
-    if (this_image() == 1) then
+    if(this_image() == 1) then
       open(newunit=io, file=trim(first_stage%residual_hist_file), status='old', position="append")
       write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_to_dim, &
         rho_diff, rho_u_diff, rho_v_diff, rho_E_diff
