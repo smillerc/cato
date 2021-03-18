@@ -1,4 +1,4 @@
-image: smillerc/gfortran-dev:latest
+image: docker.io/smillerc/gfortran-dev:latest
 
 # Set the thread count for OpenMP runs
 variables:
