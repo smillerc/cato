@@ -5,9 +5,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import os
+import argparse
+from pathlib import Path
 
-sys.path.append(os.path.abspath("../../.."))
+cato_dir = Path.home() / "cato"
+sys.path.append(str(cato_dir))
 from pycato import *
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "perturbed",
+    type=str,
+    help="Write out the perturbed initial conditions",
+    default="symmetric",
+)
+args = parser.parse_args()
+apply_perturbations = False
+if args.perturbed == "perturbed":
+    apply_perturbations = True
 
 # Physics
 gamma = 5.0/3.0
@@ -18,11 +33,19 @@ shell_density = 1.0 * ureg("g/cc")
 vacuum_density = 1e-3 * ureg("g/cc")
 
 # Mesh
-interface_loc = 70.0
-layer_thicknesses = [16, 40, 10, 2] * ureg("um")
+layer_thicknesses = [100, 30, 10, 2] * ureg("um")
+interface_loc = np.cumsum(layer_thicknesses)[1]
+gas_ice_interface_loc = layer_thicknesses[0]
 layer_spacing = ["constant", "constant", "constant", "constant"]
-res = 10
-layer_resolution = [res, res, res, res] * ureg("1/um")
+cells_per_micron_x = 10
+dy = None # 1D
+
+layer_resolution = [
+    cells_per_micron_x,
+    cells_per_micron_x,
+    cells_per_micron_x,
+    cells_per_micron_x,
+] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
@@ -44,29 +67,37 @@ domain = make_2d_layered_grid(
     layer_spacing=layer_spacing,
 )
 
-apply_perturbations = False
 if apply_perturbations:
     print("Applying perturbations to the initial conditions")
-    x = domain["xc"].to("cm").m
-    y = domain["yc"].to("cm").m
+    x = domain["xc"].to("um")
 
     # Perturbation
-    x0 = (68 * ureg("um")).to("cm").m
-    fwhm = (0.5 * ureg("um")).to("cm").m
-    gaussian_order = 1
-    perturbation_frac = -0.01
+    wavelength = 100 * ureg("um")
+    two_pi = (2 * np.pi) * ureg("radian")
+    k = two_pi / wavelength
 
-    # 1D
-    perturbation = (-perturbation_frac) * np.exp(
-        -((((x - x0) ** 2) / fwhm ** 2) ** gaussian_order)
-    )
+    # perturbation location
+    # x0 = interface_loc - 2 * ureg('um')
+    x0 = gas_ice_interface_loc + 2 * ureg('um')
+
+    pert_x = np.exp(-k.m * ((x - x0).m) ** 2)
+    pert_x[pert_x < 1e-6] = 0.0
+    perturbation_loc = pert_x
+    perturbation_frac = 0.1
+
+    perturbation = np.abs(perturbation_loc * perturbation_frac)
+    perturbation[perturbation < 1e-6] = 0.0
+
+    rho = domain["rho"]
+
+    # Only apply the perturbation in the ice
+    mask = np.where(rho.m <= 0.25)
 
     # Cutoff the perturbation below 1e-6 otherwise there
     # will be weird noise issues
-    perturbation[perturbation < 1e-6] = 0.0
+    rho[mask] = rho[mask] * (1.0 - perturbation[mask])
 
-    perturbation = 1.0 - perturbation
-    domain["rho"] = perturbation * domain["rho"]
+    domain["rho"] = rho
 
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
