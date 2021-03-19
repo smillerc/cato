@@ -76,7 +76,7 @@ contains
   subroutine set_nondim_flag(apply_dim)
     logical, intent(in) :: apply_dim
     apply_nondimensionalization = apply_dim
-  end subroutine
+  endsubroutine
 
   ! subroutine set_length_scale(length_scale)
   !   real(rk), intent(in) :: length_scale
@@ -103,7 +103,7 @@ contains
     vel_ref = ref_velocity
     press_ref = density_ref * vel_ref**2
     energy_ref = density_ref * vel_ref**2
-    pow_ref = density_ref * vel_ref**2 * t_ref
+    pow_ref = density_ref * vel_ref**2 / t_ref
 
     ! Factors used to convert from dim to non-dim and vice versa
     ! e.g. t (that the code uses) can be converted to real units by => t * t_to_dim

@@ -124,10 +124,10 @@ contains
                   !                       procedure_name='apply_outlet_primitive_var_bc', &
                   !                       message="Inflow at the +x outflow BC!", &
                   !                       file_name=__FILE__, line_number=__LINE__)
-                end if
+                endif
               endif
-            end associate
-          end do
+            endassociate
+          enddo
 
         enddo
       endif

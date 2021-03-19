@@ -82,6 +82,6 @@ contains
     class(energy_source_t), intent(inout) :: self
     class(field_2d_t), intent(in) :: density
     real(rk), intent(in) :: dt, time
-  end function integrate
+  endfunction integrate
 
 endmodule mod_energy_source
