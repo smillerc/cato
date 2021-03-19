@@ -111,7 +111,7 @@ contains
     new_source%source_type = 'energy'
     new_source%time = time
     new_source%multiplier = input%source_scale_factor
-    new_source%nondim_scale_factor = energy_to_nondim
+    new_source%nondim_scale_factor = pow_to_nondim
     new_source%source_geometry = trim(input%source_geometry)
     new_source%constant_source = input%apply_constant_source
 
@@ -169,6 +169,7 @@ contains
       new_source%q_dot_h = field_2d(name='q_dot_h', long_name='Volumetric heating', &
                                     descrip='Volumetric heating', units='erg/s', &
                                     global_dims=grid%global_dims, n_halo_cells=input%n_ghost_layers)
+      call new_source%q_dot_h%make_non_dimensional(non_dim_factor=new_source%nondim_scale_factor)
     endselect
   endfunction new_source
 
@@ -296,7 +297,7 @@ contains
 
     ! if (this_image() == 1) write(*, '(a, es16.6)') "maxval(d_dt%data)", max_ddt
 
-  end function integrate
+  endfunction integrate
 
   subroutine find_deposition_location(self, density)
     class(source_t), intent(inout) :: self
@@ -343,7 +344,7 @@ contains
     !   self%this_image_deposits = .true.
     !   self%i_dep_range = [imin, imax]
     ! endif
-  end subroutine find_deposition_location
+  endsubroutine find_deposition_location
 
   subroutine get_source_field(self, density)
     !< For the given time find the source strength and distribution based on the geometry type
@@ -378,7 +379,7 @@ contains
       case('constant_xy')
         where(self%centroid_x < self%xhi .and. self%centroid_x > self%xlo .and. &
               self%centroid_y < self%yhi .and. self%centroid_x > self%ylo)
-        self%q_dot_h%data = p_input
+          self%q_dot_h%data = p_input
         endwhere
       case('1d_gaussian')
         if(self%constant_in_y) then
