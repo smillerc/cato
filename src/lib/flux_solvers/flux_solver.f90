@@ -197,17 +197,21 @@ contains
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
     integer(ik) :: ilo_halo, ihi_halo, jlo_halo, jhi_halo
     real(rk), dimension(4) :: delta_l !< edge length
-    real(rk), parameter :: EPS = 1e-13_rk
     real(rk), parameter :: FLUX_EPS = 1e-13_rk
+    
+    logical, parameter :: SCALE = .true.
+    
+    logical, parameter :: CHECK_TOLERANCE = .true.
+    real(rk), parameter :: REL_TOL = 1e-14_rk
 
     real(rk) :: rho_i, rho_j
-    real(rk) :: rhou_i, rhou_j
-    real(rk) :: rhov_i, rhov_j
-    real(rk) :: rhoE_i, rhoE_j
-    real(rk) :: rho_flux,   max_rho_iflux,  max_rho_jflux
-    real(rk) :: rhou_flux, max_rhou_iflux, max_rhou_jflux
-    real(rk) :: rhov_flux, max_rhov_iflux, max_rhov_jflux
-    real(rk) :: rhoE_flux, max_rhoE_iflux, max_rhoE_jflux
+    real(rk) :: rhou_i_flux, rhou_j_flux
+    real(rk) :: rhov_i_flux, rhov_j_flux
+    real(rk) :: rhoE_i_flux, rhoE_j_flux
+    real(rk) :: rho_flux, max_iflux, max_jflux
+    real(rk) :: rhou_flux
+    real(rk) :: rhov_flux
+    real(rk) :: rhoE_flux
     real(rk) :: orig_diff, scaled_diff
 
     call debug_print('Running flux_solver_t%flux_split_edges()', __FILE__, __LINE__)
@@ -248,22 +252,28 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         delta_l = grid%edge_lengths(:, i, j)
-        max_rho_iflux = max(abs(self%iflux(1, i, j)), &
-                            abs(self%iflux(1, i - 1, j)), 1.0_rk)
-        max_rho_jflux = max(abs(self%jflux(1, i, j)), &
-                            abs(self%jflux(1, i, j - 1)), 1.0_rk)
+
+        if(SCALE) then
+          max_iflux = max(abs(self%iflux(1, i, j)), &
+                          abs(self%iflux(1, i - 1, j)), 1.0_rk)
+          max_jflux = max(abs(self%jflux(1, i, j)), &
+                          abs(self%jflux(1, i, j - 1)), 1.0_rk)
+        else
+          max_iflux = 1.0_rk
+          max_jflux = 1.0_rk
+        endif
 
         ! normalize by the max to avoid catastrophic cancellation if possible
-        rho_i = ((self%iflux(1, i, j)     / max_rho_iflux * delta_l(2)) + &
-                (-self%iflux(1, i - 1, j) / max_rho_iflux * delta_l(4))) * max_rho_iflux
-        rho_j = ((self%jflux(1, i, j)     / max_rho_jflux * delta_l(3)) + &
-                (-self%jflux(1, i, j - 1) / max_rho_jflux * delta_l(1))) * max_rho_jflux
+        rho_i = ((self%iflux(1, i, j) / max_iflux * delta_l(2)) + &
+                (-self%iflux(1, i - 1, j) / max_iflux * delta_l(4))) * max_iflux
+        rho_j = ((self%jflux(1, i, j) / max_jflux * delta_l(3)) + &
+                (-self%jflux(1, i, j - 1) / max_jflux * delta_l(1))) * max_jflux
 
         ! Relative error check... if the diff is 10 orders of mag from the max, make it 0
-        if(abs(rho_i) < max_rho_iflux * 1e-10_rk) rho_i = 0.0_rk
-        if(abs(rho_j) < max_rho_jflux * 1e-10_rk) rho_j = 0.0_rk
+        if(CHECK_TOLERANCE .and. abs(rho_i) < max_iflux * REL_TOL) rho_i = 0.0_rk
+        if(CHECK_TOLERANCE .and. abs(rho_j) < max_jflux * REL_TOL) rho_j = 0.0_rk
         rho_flux = rho_i + rho_j
-        if(abs(rho_flux) < FLUX_EPS) rho_flux = 0.0_rk
+        if(near_zero(rho_flux)) rho_flux = 0.0_rk
         d_rho_dt(i, j) = -rho_flux
       enddo
     enddo
@@ -275,22 +285,29 @@ contains
       do i = ilo, ihi
         delta_l = grid%edge_lengths(:, i, j)
 
-        max_rhou_iflux = max(abs(self%iflux(2, i, j)), &
-                             abs(self%iflux(2, i - 1, j)), 1.0_rk)
-        max_rhou_jflux = max(abs(self%jflux(2, i, j)), &
-                             abs(self%jflux(2, i, j - 1)), 1.0_rk)
+        if(SCALE) then
+          max_iflux = max(abs(self%iflux(2, i, j)), &
+                          abs(self%iflux(2, i - 1, j)), 1.0_rk)
+          max_jflux = max(abs(self%jflux(2, i, j)), &
+                          abs(self%jflux(2, i, j - 1)), 1.0_rk)
+        else
+          max_iflux = 1.0_rk
+          max_jflux = 1.0_rk
+        endif
 
         ! normalize by the max to avoid catastrophic cancellation if possible
-        rhou_i = ((self%iflux(2, i, j)     / max_rhou_iflux * delta_l(2)) + &
-                 (-self%iflux(2, i - 1, j) / max_rhou_iflux * delta_l(4))) * max_rhou_iflux
-        rhou_j = ((self%jflux(2, i, j)     / max_rhou_jflux * delta_l(3)) + &
-                 (-self%jflux(2, i, j - 1) / max_rhou_jflux * delta_l(1))) * max_rhou_jflux
+        rhou_i_flux = ((self%iflux(2, i, j) / max_iflux * delta_l(2)) + &
+                       (-self%iflux(2, i - 1, j) / max_iflux * delta_l(4))) * max_iflux
+        rhou_j_flux = ((self%jflux(2, i, j) / max_jflux * delta_l(3)) + &
+                       (-self%jflux(2, i, j - 1) / max_jflux * delta_l(1))) * max_jflux
 
         ! Relative error check... if the diff is 10 orders of mag from the max, make it 0
-        if(abs(rhou_i) < max_rhou_iflux * 1e-10_rk) rhou_i = 0.0_rk
-        if(abs(rhou_j) < max_rhou_jflux * 1e-10_rk) rhou_j = 0.0_rk
-        rhou_flux = rhou_i + rhou_j
-        if(abs(rhou_flux) < FLUX_EPS) rhou_flux = 0.0_rk
+
+        ! print*, max_iflux, abs(rhou_i_flux), abs(rhou_i_flux) < max_iflux * REL_TOL, max_jflux, abs(rhou_j_flux), abs(rhou_j_flux) < max_jflux * REL_TOL
+        if(CHECK_TOLERANCE .and. abs(rhou_i_flux) < max_iflux * REL_TOL) rhou_i_flux = 0.0_rk
+        if(CHECK_TOLERANCE .and. abs(rhou_j_flux) < max_jflux * REL_TOL) rhou_j_flux = 0.0_rk
+        rhou_flux = rhou_i_flux + rhou_j_flux
+        if(near_zero(rhou_flux)) rhou_flux = 0.0_rk
         d_rho_u_dt(i, j) = -rhou_flux
       enddo
     enddo
@@ -301,24 +318,44 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         delta_l = grid%edge_lengths(:, i, j)
-        max_rhov_iflux = max(abs(self%iflux(3, i, j)), &
-                             abs(self%iflux(3, i - 1, j)), 1.0_rk)
-        max_rhov_jflux = max(abs(self%jflux(3, i, j)), &
-                             abs(self%jflux(3, i, j - 1)), 1.0_rk)
+
+        if(SCALE) then
+          max_iflux = max(abs(self%iflux(3, i, j)), &
+                          abs(self%iflux(3, i - 1, j)), 1.0_rk)
+          max_jflux = max(abs(self%jflux(3, i, j)), &
+                          abs(self%jflux(3, i, j - 1)), 1.0_rk)
+        else
+          max_iflux = 1.0_rk
+          max_jflux = 1.0_rk
+        endif
 
         ! normalize by the max to avoid catastrophic cancellation if possible
-        rhov_i = ((self%iflux(3, i, j)     / max_rhov_iflux * delta_l(2)) + &
-                 (-self%iflux(3, i - 1, j) / max_rhov_iflux * delta_l(4))) * max_rhov_iflux
-        rhov_j = ((self%jflux(3, i, j)     / max_rhov_jflux * delta_l(3)) + &
-                 (-self%jflux(3, i, j - 1) / max_rhov_jflux * delta_l(1))) * max_rhov_jflux
+        rhov_i_flux = ((self%iflux(3, i, j) / max_iflux * delta_l(2)) + &
+                       (-self%iflux(3, i - 1, j) / max_iflux * delta_l(4))) * max_iflux
+        rhov_j_flux = ((self%jflux(3, i, j) / max_jflux * delta_l(3)) + &
+                       (-self%jflux(3, i, j - 1) / max_jflux * delta_l(1))) * max_jflux
+
+
+        if(CHECK_TOLERANCE .and. abs(rhov_i_flux) < max_iflux * REL_TOL) rhov_i_flux = 0.0_rk
+        if(CHECK_TOLERANCE .and. abs(rhov_j_flux) < max_jflux * REL_TOL) rhov_j_flux = 0.0_rk
+        rhov_flux = rhov_i_flux + rhov_j_flux
+
+        if(near_zero(rhov_flux)) rhov_flux = 0.0_rk
+        d_rho_v_dt(i, j) = -rhov_flux
+
+
 
         ! Relative error check... if the diff is 10 orders of mag from the max, make it 0
-        if(abs(rhov_i) < max_rhov_iflux * 1e-10_rk) rhov_i = 0.0_rk
-        if(abs(rhov_j) < max_rhov_jflux * 1e-10_rk) rhov_j = 0.0_rk
-        rhov_flux = rhov_i + rhov_j
+        ! if(i == 555 .and. j == 20) then
 
-        if(abs(rhov_flux) < FLUX_EPS) rhov_flux = 0.0_rk
-        d_rho_v_dt(i, j) = -rhov_flux
+        !   print*, rhov_flux, rhov_i_flux, rhov_j_flux
+        !   ! print*, self%iflux(3, i, j), self%iflux(3, i - 1, j)
+        !   ! print*, max_iflux, abs(rhov_i_flux), max_iflux * REL_TOL, abs(rhov_i_flux) < max_iflux * REL_TOL
+        !   ! print*
+        !   ! print*, self%jflux(3, i, j), self%jflux(3, i, j - 1)
+        !   ! print*, max_jflux, abs(rhov_j_flux), max_jflux * REL_TOL, abs(rhov_j_flux) < max_jflux * REL_TOL
+
+        ! endif
       enddo
     enddo
 
@@ -328,23 +365,29 @@ contains
     do j = jlo, jhi
       do i = ilo, ihi
         delta_l = grid%edge_lengths(:, i, j)
-        max_rhoE_iflux = max(abs(self%iflux(4, i, j)), &
-                             abs(self%iflux(4, i - 1, j)), 1.0_rk)
-        max_rhoE_jflux = max(abs(self%jflux(4, i, j)), &
-                             abs(self%jflux(4, i, j - 1)), 1.0_rk)
+
+        if(SCALE) then
+          max_iflux = max(abs(self%iflux(4, i, j)), &
+                          abs(self%iflux(4, i - 1, j)), 1.0_rk)
+          max_jflux = max(abs(self%jflux(4, i, j)), &
+                          abs(self%jflux(4, i, j - 1)), 1.0_rk)
+        else
+          max_iflux = 1.0_rk
+          max_jflux = 1.0_rk
+        endif
 
         ! normalize by the max to avoid catastrophic cancellation if possible
-        rhoE_i = ((self%iflux(4, i, j)     / max_rhoE_iflux * delta_l(2)) + &
-                 (-self%iflux(4, i - 1, j) / max_rhoE_iflux * delta_l(4))) * max_rhoE_iflux
-        rhoE_j = ((self%jflux(4, i, j)     / max_rhoE_jflux * delta_l(3)) + &
-                 (-self%jflux(4, i, j - 1) / max_rhoE_jflux * delta_l(1))) * max_rhoE_jflux
+        rhoE_i_flux = ((self%iflux(4, i, j) / max_iflux * delta_l(2)) + &
+                       (-self%iflux(4, i - 1, j) / max_iflux * delta_l(4))) * max_iflux
+        rhoE_j_flux = ((self%jflux(4, i, j) / max_jflux * delta_l(3)) + &
+                       (-self%jflux(4, i, j - 1) / max_jflux * delta_l(1))) * max_jflux
 
         ! Relative error check... if the diff is 10 orders of mag from the max, make it 0
-        if(abs(rhoE_i) < max_rhoE_iflux * 1e-10_rk) rhoE_i = 0.0_rk
-        if(abs(rhoE_j) < max_rhoE_jflux * 1e-10_rk) rhoE_j = 0.0_rk
+        if(CHECK_TOLERANCE .and. abs(rhoE_i_flux) < max_iflux * REL_TOL) rhoE_i_flux = 0.0_rk
+        if(CHECK_TOLERANCE .and. abs(rhoE_j_flux) < max_jflux * REL_TOL) rhoE_j_flux = 0.0_rk
 
-        rhoE_flux = rhoE_i + rhoE_j
-        if(abs(rhoE_flux) < FLUX_EPS) rhoE_flux = 0.0_rk
+        rhoE_flux = rhoE_i_flux + rhoE_j_flux
+        if(near_zero(rhoE_flux)) rhoE_flux = 0.0_rk
         d_rho_E_dt(i, j) = -rhoE_flux
       enddo
     enddo
@@ -414,5 +457,20 @@ contains
     endassociate
 
   endsubroutine flux_split_edges
+
+  logical elemental function near_zero(test_number, epsilon)
+    real(rk), intent (in) :: test_number
+    real(rk), intent (in), optional :: epsilon 
+    real(rk), parameter :: TINY_NUM = tiny(1.0_rk), TINY_FACTOR = 5.0
+    real(kind(epsilon)) :: local_epsilon
+
+    local_epsilon = TINY_FACTOR * TINY_NUM 
+    if (present(epsilon)) then
+      if (abs(epsilon) >= TINY_NUM) local_epsilon = abs(epsilon)
+    end if
+
+    near_zero = abs(test_number) < local_epsilon
+
+  end function near_zero
 
 endmodule mod_flux_solver
