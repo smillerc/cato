@@ -661,8 +661,12 @@ contains
           ! AUSMPW+ version
           ! ------------------------------------------------------------------------------------------
           p_s = p_L * P_L_plus + p_R * P_R_minus
+
+          
           min_term = min(p_L / p_R, p_R / p_L)
           w = 1.0_rk - (min_term * min_term * min_term)
+          ! if (abs(w) < 1e-14_rk) w = 0.0_rk
+          
 
           #:if DIR == 'i'
             call get_f(p_L=p_L, p_R=p_R, p_s=p_s, &
@@ -675,6 +679,9 @@ contains
                        p2_L=p_bar%data(i - 1, j), p2_R=p_bar%data(i - 1, j + 1), &
                        f_L=f_L, f_R=f_R)
           #:endif
+
+          ! if (abs(f_L) > 0.0_rk .or. abs(f_R) > 0.0_rk)&
+          !       write(*, '(10(es16.6))') p_L, P_L_plus,p_R , P_R_minus, min_term, w, f_L, f_R
           ! ------------------------------------------------------------------------------------------
 
           ! Determine the Mach number interpolation functions
@@ -813,7 +820,7 @@ contains
     endif
   endfunction phi_R_half
 
-  pure subroutine get_f(p_L, p_R, p_s, p1_L, p1_R, p2_L, p2_R, f_L, f_R)
+  subroutine get_f(p_L, p_R, p_s, p1_L, p1_R, p2_L, p2_R, f_L, f_R)
     !< Implementation of the f function (Eq. 26 in Ref [1]). This is used to help determine
     !< where shock discontinuities are
     real(rk), intent(in) :: p_L    !< L pressure
@@ -827,15 +834,30 @@ contains
     real(rk), intent(out) :: f_L !< L "f" function
     real(rk), intent(out) :: f_R !< R "f" function
 
-    real(rk) :: min_term
+    real(rk) :: EPS = 1e-10_rk
+    real(rk) :: min_term, f_L_inner_term, f_R_inner_term
 
     if(abs(p_s) < tiny(1.0_rk)) then ! p_s == 0
       f_L = 0.0_rk
       f_R = 0.0_rk
     else
+
+      ! This term is between 0 and 1, and is a sort of pressure discontinuity sensor
       min_term = min(1.0_rk, min(p1_L, p1_R, p2_L, p2_R) / min(p_L, p_R))**2
-      f_L = ((p_L / p_s) - 1.0_rk) * min_term
-      f_R = ((p_R / p_s) - 1.0_rk) * min_term
+      if (abs(1.0_rk - min_term) < EPS) min_term = 1.0_rk
+
+      f_L_inner_term = (p_L / p_s) - 1.0_rk
+      if (abs(f_L_inner_term) < EPS) f_L_inner_term = 0.0_rk
+      f_L = f_L_inner_term * min_term
+      
+      f_R_inner_term = (p_R / p_s) - 1.0_rk
+      if (abs(f_R_inner_term) < EPS) f_R_inner_term = 0.0_rk
+      f_R = f_R_inner_term * min_term
+
+      ! if (f_L > 0.0 .or. f_R > 0.0) then
+      !   print*, abs(1.0_rk - min_term), f_L_inner_term, f_R_inner_term, min_term, f_L, f_R
+      ! endif
+
     endif
   endsubroutine get_f
 
@@ -850,5 +872,20 @@ contains
     min_term = min((p_L / p_R),(p_R / p_L))
     w = 1.0_rk - min_term * min_term * min_term
   endfunction get_w
+
+  logical elemental function near_zero(test_number, epsilon)
+    real(rk), intent (in) :: test_number
+    real(rk), intent (in), optional :: epsilon 
+    real(rk), parameter :: TINY_NUM = tiny(1.0_rk), TINY_FACTOR = 5.0
+    real(kind(epsilon)) :: local_epsilon
+
+    local_epsilon = TINY_FACTOR * TINY_NUM 
+    if (present(epsilon)) then
+      if (abs(epsilon) >= TINY_NUM) local_epsilon = abs(epsilon)
+    end if
+
+    near_zero = abs(test_number) < local_epsilon
+
+  end function near_zero
 
 endmodule mod_m_ausmpw_plus_solver
