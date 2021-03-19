@@ -106,6 +106,10 @@ module mod_input
     logical :: plot_evolved_states = .false.
     logical :: plot_64bit = .true.
     logical :: plot_ghost_cells = .true.
+    logical :: plot_coarray_ids = .true. ! write out the coarray image index for each cell
+    logical :: plot_volume = .true.
+    logical :: plot_grid_indices = .true. ! write out the i, j indices for each cell
+    logical :: use_standalone_grid_file = .false. ! write the grid to a separate file (not used yet)
 
     ! timing
     real(rk) :: max_time = 1.0_rk

@@ -46,6 +46,7 @@ module mod_contour_writer
     !< Type that manages writing out data to hdf5
     private
     type(hdf5_file) :: hdf5_file
+    type(input_t) :: input
     character(len=:), allocatable :: format !< xdmf or just plain hdf5
     character(len=:), allocatable :: hdf5_filename
     character(len=:), allocatable :: xdmf_filename
@@ -89,6 +90,8 @@ contains
     cmsg = ''
     cstat = 0
     estat = 0
+
+    writer%input = input
 
     call date_and_time(values=dt)
 
@@ -276,41 +279,45 @@ contains
     ! ! end if
 
     ! Indexing
-    dataset_name = '/image_id'
-    allocate(int_gather_coarray(master%fluid%rho%global_dims(1), master%fluid%rho%global_dims(2))[*])
-    associate(ilo => master%fluid%rho%lbounds(1), ihi => master%fluid%rho%ubounds(1), &
-              jlo => master%fluid%rho%lbounds(2), jhi => master%fluid%rho%ubounds(2))
+    if(self%input%plot_coarray_ids) then
+      dataset_name = '/image_id'
+      allocate(int_gather_coarray(master%fluid%rho%global_dims(1), master%fluid%rho%global_dims(2))[*])
+      associate(ilo => master%fluid%rho%lbounds(1), ihi => master%fluid%rho%ubounds(1), &
+                jlo => master%fluid%rho%lbounds(2), jhi => master%fluid%rho%ubounds(2))
 
-      int_gather_coarray(ilo:ihi, jlo:jhi)[1] = master%fluid%rho%host_image_id
-      sync all
-    endassociate
+        int_gather_coarray(ilo:ihi, jlo:jhi)[1] = master%fluid%rho%host_image_id
+        sync all
+      endassociate
 
-    if(this_image() == 1) then
-      int_data_buffer = int_gather_coarray
-      call self%write_2d_integer_data(data=int_data_buffer, name='/image_id', &
-                                      description='Coarray Image Index', units='dimensionless')
-    endif
-    deallocate(int_gather_coarray)
-
-    if(this_image() == 1) then
-      dataset_name = '/i'
-      int_data_buffer = 0
-      do i = ilo, ihi
-        int_data_buffer(i, :) = i
-      enddo
-
-      call self%write_2d_integer_data(data=int_data_buffer, name='/i', &
-                                      description='Cell i Index', units='dimensionless')
+      if(this_image() == 1) then
+        int_data_buffer = int_gather_coarray
+        call self%write_2d_integer_data(data=int_data_buffer, name='/image_id', &
+                                        description='Coarray Image Index', units='dimensionless')
+      endif
+      deallocate(int_gather_coarray)
     endif
 
-    if(this_image() == 1) then
-      dataset_name = '/j'
-      int_data_buffer = 0
-      do j = jlo, jhi
-        int_data_buffer(:, j) = j
-      enddo
-      call self%write_2d_integer_data(data=int_data_buffer, name='/j', &
-                                      description='Cell j Index', units='dimensionless')
+    if(self%input%plot_grid_indices) then
+      if(this_image() == 1) then
+        dataset_name = '/i'
+        int_data_buffer = 0
+        do i = ilo, ihi
+          int_data_buffer(i, :) = i
+        enddo
+
+        call self%write_2d_integer_data(data=int_data_buffer, name='/i', &
+                                        description='Cell i Index', units='dimensionless')
+      endif
+
+      if(this_image() == 1) then
+        dataset_name = '/j'
+        int_data_buffer = 0
+        do j = jlo, jhi
+          int_data_buffer(:, j) = j
+        enddo
+        call self%write_2d_integer_data(data=int_data_buffer, name='/j', &
+                                        description='Cell j Index', units='dimensionless')
+      endif
     endif
 
     if(allocated(int_data_buffer)) deallocate(int_data_buffer)
@@ -360,14 +367,16 @@ contains
     dataset_name = '/sound_speed'
     io_data_buffer = master%fluid%cs%gather(image=1, dimensionalize=.true., &
                                             unit_conversion_factor=io_velocity_units)
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * vel_to_dim * io_velocity_units, name=dataset_name, &
+    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer, name=dataset_name, &
                                                        description='Cell Sound Speed', units=trim(io_velocity_label))
     ! Volume
-    dataset_name = '/volume'
-    io_data_buffer = master%grid%gather(var='volume', image=1)
+    if (self%input%plot_volume) then
+      dataset_name = '/volume'
+      io_data_buffer = master%grid%gather(var='volume', image=1)
 
-    if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * (len_to_dim**2) * io_volume_units, name='/volume', &
-                                                       description='Cell Volume', units=trim(io_volume_label))
+      if(this_image() == 1) call self%write_2d_real_data(data=io_data_buffer * (len_to_dim**2) * io_volume_units, name='/volume', &
+                                                        description='Cell Volume', units=trim(io_volume_label))
+    endif
 
     if(allocated(int_data_buffer)) deallocate(int_data_buffer)
     if(allocated(io_data_buffer)) deallocate(io_data_buffer)
@@ -470,11 +479,13 @@ contains
     write(xdmf_unit, '(a)') '        </DataItem>'
     write(xdmf_unit, '(a)') '      </Attribute>'
 
-    unit_label = "["//trim(io_volume_label)//"]"
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Volume '//trim(unit_label)//'">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/volume</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
+    if (self%input%plot_volume) then
+      unit_label = "["//trim(io_volume_label)//"]"
+      write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Volume '//trim(unit_label)//'">'
+      write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+        '" Format="HDF" NumberType="Float" Precision="4">'//self%hdf5_filename//':/volume</DataItem>'
+      write(xdmf_unit, '(a)') '      </Attribute>'
+    endif
 
     ! if(self%plot_ghost_cells) then
     !   write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="Ghost Cell">'
@@ -487,20 +498,25 @@ contains
     ! write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
     !   '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/continuity_sensor</DataItem>'
     ! write(xdmf_unit, '(a)') '      </Attribute>'
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="image_id">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/image_id</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
 
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/i</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
+    if (self%input%plot_coarray_ids) then
+      write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="image_id">'
+      write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+        '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/image_id</DataItem>'
+      write(xdmf_unit, '(a)') '      </Attribute>'
+    endif
 
-    write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="j">'
-    write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
-      '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/j</DataItem>'
-    write(xdmf_unit, '(a)') '      </Attribute>'
+    if (self%input%plot_grid_indices) then
+      write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="i">'
+      write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+        '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/i</DataItem>'
+      write(xdmf_unit, '(a)') '      </Attribute>'
+
+      write(xdmf_unit, '(a)') '      <Attribute AttributeType="Scalar" Center="Cell" Name="j">'
+      write(xdmf_unit, '(a)') '        <DataItem Dimensions="'//cell_shape// &
+        '" Format="HDF" NumberType="Int" Precision="2">'//self%hdf5_filename//':/j</DataItem>'
+      write(xdmf_unit, '(a)') '      </Attribute>'
+    endif
 
     write(xdmf_unit, '(a)') '    </Grid>'
     write(xdmf_unit, '(a)') '  </Domain>'
