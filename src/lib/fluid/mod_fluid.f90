@@ -543,13 +543,13 @@ contains
 
     ! Filter out the super small Mach numbers
     where(abs(self%mach_v%data) < 1e-13_rk)
-    self%v%data = 0.0_rk
-    self%mach_v%data = 0.0_rk
+      self%v%data = 0.0_rk
+      self%mach_v%data = 0.0_rk
     endwhere
 
     where(abs(self%mach_u%data) < 1e-13_rk)
-    self%u%data = 0.0_rk
-    self%mach_u%data = 0.0_rk
+      self%u%data = 0.0_rk
+      self%mach_u%data = 0.0_rk
     endwhere
 
     self%prim_vars_updated = .true.
