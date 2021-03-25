@@ -15,9 +15,9 @@ if [ -f "std.err" ]; then rm std.err; fi
 rm -rf step*
 
 cd ${cato_dir} && make -j && \
-    cd ${run_dir} && \
-    cp ${cato_dir}/bin/cato.x . &&\
-    cafrun -np ${FOR_COARRAY_NUM_IMAGES} ./cato.x input.ini
+cd ${run_dir} && \
+cp ${cato_dir}/bin/cato.x . &&\
+cafrun -np ${FOR_COARRAY_NUM_IMAGES} ./cato.x input.ini
 
 if [ -f "std.err" ]; then
     echo

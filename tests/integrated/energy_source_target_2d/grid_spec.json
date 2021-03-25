@@ -1,0 +1,45 @@
+{
+    "length_units": "um",
+    "pressure_units": "barye",
+    "density_units": "g/cc",
+    "velocity_units": "km/s",
+    "layer_thicknesses": [
+      40.0,
+      22.0,
+      10.0,
+      2.0
+    ],
+    "x_spacing": "15 cell/um",
+    "y_spacing": "30 cell/wavelength",
+    "pressure": [
+      1.0e9,
+      1.0e9,
+      1.0e9,
+      1.0e9
+    ],
+    "density": [
+      0.001,
+      0.25,
+      1.0,
+      0.001
+    ],
+    "x_velocity": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "y_velocity": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "gamma": 1.6666666667,
+    "init_vacuum_velocity": false,
+    "perturbation_fraction": -0.05,
+    "perturbation_x0": 50,
+    "perturbation_y0": null,
+    "perturbation_wavelength_um": 10.0,
+    "full_wavelength": false
+  }
