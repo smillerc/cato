@@ -729,21 +729,18 @@ contains
     type(fluid_t), allocatable :: U_2 !< second stage
     type(fluid_t), allocatable :: U_3 !< final stage
     integer(ik), intent(out) :: error_code
-    integer(ik) :: sub_cycle
     real(rk), dimension(4) :: convergence_L2norm
     real(rk) :: dt, time, new_dt
     real(rk) :: total_source_energy !< how much total qdot is added to the system
     real(rk) :: total_stage_energy  !< difference in qdot between the first and last stages
     real(rk) :: energy_conservation
     real(rk) :: stage_1_energy, stage_n_energy, added_energy
-    real(rk), parameter :: err_tol = 1e-3_rk
     logical :: do_subcycle
 
     call debug_print('Running fluid_t%ssp_rk_3_3()', __FILE__, __LINE__)
 
     dt = U%dt
     time = U%time
-    sub_cycle = 0
     convergence_L2norm = 0.0_rk
 
     ! 1st stage
@@ -827,7 +824,6 @@ contains
     U%dt = U_3%dt
     U%time = U_3%time + U_3%dt
 
-    ! call move_alloc(U_3, U)
     call U%sanity_check(error_code)
     call U%calculate_derived_quantities()
 
@@ -875,7 +871,6 @@ contains
       endif
     endif
   end subroutine
-
 
   subroutine rk_multistage(U, nstages, temporal_order, source_term, grid, error_code)
     class(fluid_t), intent(inout) :: U
@@ -1077,41 +1072,76 @@ contains
     class(field_2d_t), allocatable, save :: d_dt_source_term
 
     type(fluid_t), allocatable :: U_1 !< first stage
+    type(fluid_t), allocatable :: U_2 !< second stage
     integer(ik), intent(out) :: error_code
-    real(rk) :: dt, time
+    real(rk), dimension(4) :: convergence_L2norm
+    real(rk) :: dt, time, new_dt
+    real(rk) :: total_source_energy !< how much total qdot is added to the system
+    real(rk) :: total_stage_energy  !< difference in qdot between the first and last stages
+    real(rk) :: energy_conservation
+    real(rk) :: stage_1_energy, stage_n_energy, added_energy
+    logical :: do_subcycle
 
-    ! if(enable_debug_print) call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
+    if(enable_debug_print) call debug_print('Running fluid_t%rk2()', __FILE__, __LINE__)
 
-    ! dt = U%dt
-    ! time = U%time
+    dt = U%dt
+    time = U%time
 
-    ! allocate(U_1, source=U)
+    allocate(U_1, source=U)
 
-    ! ! 1st stage
-    ! if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
+    ! 1st stage
+    if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
-    ! if(present(source_term)) then
-    !   d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
-    !   U_1 = U + U%t(grid, d_dt_source_term) * dt
-    ! else
-    !   U_1 = U + U%t(grid) * dt
-    ! endif
+    do
+      U%dt = dt
+      if(present(source_term)) then
+        d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
+      endif
 
-    ! ! Final stage
-    ! if(present(source_term)) then
-    !   d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U_1%rho)
-    !   U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, d_dt_source_term) * (0.5_rk * dt)
-    ! else
-    !   U = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid) * (0.5_rk * dt)
-    ! endif
+      if(present(source_term)) then
+        d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
+        U_1 = U + U%t(grid, d_dt_source_term) * dt
+      else
+        U_1 = U + U%t(grid) * dt
+      endif
 
-    ! call U%sanity_check(error_code)
-    ! call U%calculate_derived_quantities()
+      ! 2nd stage
+      if (.not. allocated(U_2)) allocate(U_2, source=U)
 
-    ! ! ! Convergence history
-    ! call write_residual_history(first_stage=U_1, last_stage=U)
+      if(present(source_term)) then
+        U_2 = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, d_dt_source_term) * (0.5_rk * dt)
+      else
+        U_2 = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid) * (0.5_rk * dt)
+      endif
 
-    ! deallocate(U_1)
+      ! Convergence history
+      call calculate_convergence(U_1, U_2, convergence_L2norm)
+
+      call subcycle_check(U=U, CFL_dt=dt, residual_L2_norms=convergence_L2norm, &
+                          new_dt=new_dt, do_subcycle=do_subcycle)
+
+      if (do_subcycle) then
+        dt = new_dt
+      else
+        exit
+      endif
+    end do
+
+    U%rho  %data = U_2%rho  %data
+    U%rho_u%data = U_2%rho_u%data
+    U%rho_v%data = U_2%rho_v%data
+    U%rho_E%data = U_2%rho_E%data
+    U%dt = U_2%dt
+    U%time = U_2%time + U_2%dt
+
+    call U%sanity_check(error_code)
+    call U%calculate_derived_quantities()
+
+    ! ! Convergence history
+    call write_residual_history(U, convergence_L2norm)
+
+    deallocate(U_1)
+    deallocate(U_2)
 
   endsubroutine ssp_rk_2_2
 
