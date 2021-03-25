@@ -51,8 +51,7 @@ except Exception:
 # Load cato results
 from dask.diagnostics import ProgressBar
 
-with ProgressBar():
-    ds = load_multiple_steps("results/step*.h5", ini_file="input.ini")
+ds = load_solution(".")
 
 try:
     scheme = f"{ds.attrs['scheme_flux_solver']}({ds.attrs['scheme_spatial_reconstruction']} {ds.attrs['scheme_limiter']})"
@@ -90,7 +89,7 @@ df.plot(
 )
 resid_ax.set_ylabel("residual")
 resid_ax.set_xlabel("time")
-resid_ax.set_ylim(1e-16, 0.1)
+resid_ax.set_ylim(1e-6, 1e1)
 
 t = ds.time[-1].data
 contour_ax.set_title(
