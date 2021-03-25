@@ -120,7 +120,8 @@ module mod_input
     integer(ik) :: max_iterations = huge(1)
     character(:), allocatable :: time_integration_strategy !< How is time integration handled? e.g. 'rk2', 'rk4', etc.
     logical :: smooth_residuals = .true.
-
+    logical :: allow_subcycle = .false.
+    real(rk) :: subcycle_error_tolerance = 1e-3_rk
     ! physics
     real(rk) :: polytropic_index = 5.0_rk / 3.0_rk !< e.g. gamma for the simulated gas
 
@@ -239,6 +240,10 @@ contains
     call cfg%get("time", "cfl", self%cfl, 0.1_rk)
     call cfg%get("time", "integration_strategy", char_buffer)
     call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
+
+    call cfg%get("time", "allow_subcycle", self%allow_subcycle, .false.)
+    call cfg%get("time", "subcycle_error_tolerance", self%subcycle_error_tolerance, 1e-3_rk)
+
     self%time_integration_strategy = trim(char_buffer)
 
     ! Physics

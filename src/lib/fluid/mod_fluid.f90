@@ -94,6 +94,8 @@ module mod_fluid
     logical, public :: prim_vars_updated = .false.
 
     ! Time integration
+    logical :: allow_subcycle = .false. !< allow temporal subcycling to control the error
+    real(rk) :: subcycle_tolerance = 1e-3_rk !< error tolerance in the residual L2Norm history to turn on subcycling 
     integer(ik) :: nstages = 3
     integer(ik) :: temporal_order = 2
 
@@ -165,6 +167,8 @@ contains
     self%input = input
     self%time = time
     self%cfl = input%cfl
+    self%allow_subcycle = input%allow_subcycle
+    if(self%allow_subcycle) self%subcycle_tolerance = input%subcycle_error_tolerance
 
     alloc_status = 0
     if(enable_debug_print) call debug_print('Calling fluid_t%initialize()', __FILE__, __LINE__)
@@ -233,7 +237,7 @@ contains
     deallocate(solver)
 
     open(newunit=io, file=trim(self%residual_hist_file), status='replace')
-    write(io, '(a)') 'iteration,time,rho,rho_u,rho_v,rho_E'
+    write(io, '(a)') 'iteration,time,dt,rho,rho_u,rho_v,rho_E'
     close(io)
 
     call self%initialize_from_hdf5(input)
@@ -726,25 +730,26 @@ contains
     type(fluid_t), allocatable :: U_3 !< final stage
     integer(ik), intent(out) :: error_code
     integer(ik) :: sub_cycle
-    real(rk), dimension(4) :: covergence_hist
-    real(rk) :: dt, time
+    real(rk), dimension(4) :: convergence_L2norm
+    real(rk) :: dt, time, new_dt
     real(rk) :: total_source_energy !< how much total qdot is added to the system
     real(rk) :: total_stage_energy  !< difference in qdot between the first and last stages
     real(rk) :: energy_conservation
     real(rk) :: stage_1_energy, stage_n_energy, added_energy
-    real(rk), parameter :: err_tol = 1e-2_rk
+    real(rk), parameter :: err_tol = 1e-3_rk
+    logical :: do_subcycle
 
     call debug_print('Running fluid_t%ssp_rk_3_3()', __FILE__, __LINE__)
 
     dt = U%dt
     time = U%time
     sub_cycle = 0
-    covergence_hist = 0.0_rk
+    convergence_L2norm = 0.0_rk
 
     ! 1st stage
     if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
-    ! do
+    do
       U%dt = dt
       if(present(source_term)) then
         d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
@@ -782,27 +787,38 @@ contains
       endif
 
       ! Convergence history
-      call calculate_convergence(U_1, U_3, covergence_hist)
+      call calculate_convergence(U_1, U_3, convergence_L2norm)
 
 
       if(present(source_term)) then
-        stage_1_energy = sum_to_all(sum(U%rho_E%data/U%rho%data))
-        stage_n_energy = sum_to_all(sum(U_3%rho_E%data/U_3%rho%data))
+        stage_1_energy = sum_to_all(sum(U%rho_E%data))
+        stage_n_energy = sum_to_all(sum(U_3%rho_E%data))
         added_energy = sum_to_all(source_term%q_dot_h%sum()) * dt
 
         ! write(*, '(a, 3(es16.6))') 'energy cons', abs(stage_n_energy - (stage_1_energy + added_energy))
       endif
 
+      call subcycle_check(U=U, CFL_dt=dt, residual_L2_norms=convergence_L2norm, &
+                          new_dt=new_dt, do_subcycle=do_subcycle)
 
-    !   if (abs(maxval(covergence_hist(1:3))) < err_tol) then
-    !     exit
-    !   else
-    !     dt = dt / 10
-    !     sub_cycle = sub_cycle + 1
-    !     if(this_image() == 1) print*, "Subcycle", sub_cycle, "dt", dt, covergence_hist
-    !   endif
+      if (do_subcycle) then
+        dt = new_dt
+      else
+        exit
+      endif
 
-    ! end do
+      ! if (.not. U%allow_subcycle .or. abs(maxval(convergence_L2norm)) < err_tol) then
+      !   exit
+      ! else
+      !   dt = dt / 10
+      !   sub_cycle = sub_cycle + 1
+      !   if (this_image() == 1) then
+      !     write(*, '(a, es16.6, a, 4(es16.6), a)') "    Subcycling to reach error tolerance in the L2-Norm convergence history, new dt:", &
+      !                                               dt, ", current L2-Norm: [", convergence_L2norm, "]"
+      !   endif
+      ! endif
+
+    end do
 
     U%rho  %data = U_3%rho  %data
     U%rho_u%data = U_3%rho_u%data
@@ -816,12 +832,50 @@ contains
     call U%calculate_derived_quantities()
 
     
-    call write_residual_history(U, covergence_hist)
+    call write_residual_history(U, convergence_L2norm)
     if (allocated(U_1)) deallocate(U_1)
     if (allocated(U_2)) deallocate(U_2)
     if (allocated(U_3)) deallocate(U_3)
 
   endsubroutine ssp_rk_3_3
+
+  subroutine subcycle_check(U, CFL_dt, residual_L2_norms, new_dt, do_subcycle)
+    !< Check to see if we need to subcycle to control the error tolerances
+    class(fluid_t), intent(in) :: U
+    real(rk), intent(in), dimension(4) :: residual_L2_norms !< L2 norm of the solution convergence
+    real(rk), intent(in) :: CFL_dt !< dt set by the CFL number
+    real(rk), intent(out) :: new_dt
+    logical, intent(out) :: do_subcycle
+
+    real(rk) :: eps, err_factor
+    real(rk), save :: previous_dt !< chances are the previous dt is good
+
+    eps = U%subcycle_tolerance
+
+    if (.not. U%allow_subcycle) then
+      do_subcycle = .false.
+      new_dt = CFL_dt
+      previous_dt = new_dt
+    else
+
+      if (all(residual_L2_norms < eps)) then
+        do_subcycle = .false.
+      else
+        do_subcycle = .true.
+      endif
+
+      if (do_subcycle) then
+        err_factor = maxval(residual_L2_norms) / eps
+        new_dt = CFL_dt / err_factor
+        previous_dt = new_dt
+
+        if (this_image() == 1) then
+          write(*, '(a, es16.6)') "    Subcycling to reach error tolerance in the L2-Norm convergence history, new dt:", new_dt
+        endif
+      endif
+    endif
+  end subroutine
+
 
   subroutine rk_multistage(U, nstages, temporal_order, source_term, grid, error_code)
     class(fluid_t), intent(inout) :: U
@@ -837,7 +891,7 @@ contains
     integer(ik) :: sub_cycle
 
     integer(ik) :: m
-    real(rk), dimension(4) :: covergence_hist
+    real(rk), dimension(4) :: convergence_L2norm
 
     real(rk), allocatable, dimension(:) :: alpha
 
@@ -853,7 +907,7 @@ contains
     dt = U%dt
     time = U%time
     sub_cycle = 0
-    covergence_hist = 0.0_rk
+    convergence_L2norm = 0.0_rk
 
     if (.not. allocated(alpha)) then
       allocate(alpha(nstages))
@@ -904,7 +958,7 @@ contains
 
 
     !   ! Convergence history
-    call calculate_convergence(U_0, U_curr, covergence_hist)
+    call calculate_convergence(U_0, U_curr, convergence_L2norm)
 
     !   if(present(source_term)) then
     !     stage_1_energy = sum_to_all(sum(U%rho_E%data/U%rho%data))
@@ -915,12 +969,12 @@ contains
     !   endif
 
 
-    !   if (abs(maxval(covergence_hist(1:3))) < err_tol) then
+    !   if (abs(maxval(convergence_L2norm(1:3))) < err_tol) then
     !     exit
     !   else
     !     dt = dt / 10
     !     sub_cycle = sub_cycle + 1
-    !     if(this_image() == 1) print*, "Subcycle", sub_cycle, "dt", dt, covergence_hist
+    !     if(this_image() == 1) print*, "Subcycle", sub_cycle, "dt", dt, convergence_L2norm
     !   endif
 
 
@@ -936,7 +990,7 @@ contains
     call U%calculate_derived_quantities()
 
     
-    call write_residual_history(U, covergence_hist)
+    call write_residual_history(U, convergence_L2norm)
     if (allocated(U_0))    deallocate(U_0)
     if (allocated(U_prev)) deallocate(U_prev)
     if (allocated(U_curr)) deallocate(U_curr)
@@ -1064,7 +1118,7 @@ contains
   subroutine calculate_convergence(first_stage, last_stage, convergence)
     !< Find the L2-norm of the change from the first to the last stage in the iterative solve to determine how
     !< converged the solution is.
-    
+
     class(fluid_t), intent(in) :: first_stage
     class(fluid_t), intent(in) :: last_stage
 
@@ -1103,22 +1157,22 @@ contains
     end associate
 
     convergence = [rho_diff, rho_u_diff, rho_v_diff, rho_E_diff]
-    if (this_image() == 1) print*, convergence
+    if (this_image() == 1)write(*, '(a, 4(es16.6))') "    L2-Norm Convergence [rho, rhou, rhov, rhoE]:", convergence
   end subroutine
 
-  subroutine write_residual_history(first_stage, covergence_hist)
+  subroutine write_residual_history(first_stage, convergence_L2norm)
     !< This writes out the change in residual to a file for convergence history monitoring.
 
     class(fluid_t), intent(in) :: first_stage
-    real(rk), dimension(4), intent(out) :: covergence_hist
+    real(rk), dimension(4), intent(out) :: convergence_L2norm
     integer(ik) :: io
     if(enable_debug_print) call debug_print('Running fluid_t%write_residual_history()', __FILE__, __LINE__)
 
     if(this_image() == 1) then
       open(newunit=io, file='residual_hist.csv', status='old', position="append")
-      write(io, '(i0, ",", 5(es16.6, ","))') first_stage%iteration, first_stage%time * t_to_dim, &
-                                             covergence_hist(1), covergence_hist(2), &
-                                             covergence_hist(3), covergence_hist(4)
+      write(io, '(i0, ",", 6(es16.6, ","))') first_stage%iteration, first_stage%time * t_to_dim, first_stage%dt * t_to_dim, &
+                                             convergence_L2norm(1), convergence_L2norm(2), &
+                                             convergence_L2norm(3), convergence_L2norm(4)
       close(io)
     endif
 
