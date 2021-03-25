@@ -33,6 +33,7 @@ module mod_source
   use mod_grid_block_2d, only: grid_block_2d_t
   use mod_error, only: error_msg
   use mod_nondimensionalization
+  use collectives, only: min_to_all, max_to_all, sum_to_all
 
   implicit none
 
@@ -75,7 +76,8 @@ module mod_source
 
     logical :: this_image_deposits = .false.
     ! Temporal inputs
-    type(linear_interp_1d) :: temporal_source_input
+    type(linear_interp_1d) :: temporal_source_input     !< how much source to inject?
+    type(linear_interp_1d) :: critical_density_location !< where to deposit the source?
     character(len=:), allocatable :: input_filename
 
     ! Field data
@@ -180,6 +182,7 @@ contains
 
     real(rk), dimension(:), allocatable :: time ! time in seconds
     real(rk), dimension(:), allocatable :: source_data ! source data in cgs units
+    real(rk), dimension(:), allocatable :: critical_density_value ! critical density data in g/cc
     character(len=300) :: line_buffer
     logical :: has_header_line
     logical :: file_exists
@@ -217,11 +220,13 @@ contains
 
     allocate(time(nlines))
     allocate(source_data(nlines))
+    allocate(critical_density_value(nlines))
     time = 0.0_rk
     source_data = 0.0_rk
+    critical_density_value = 0.0_rk
 
     do line = 1, nlines
-      read(input_unit, *, iostat=io_status) time(line), source_data(line)
+      read(input_unit, *, iostat=io_status) time(line), source_data(line), critical_density_value(line)
       if(io_status /= 0) exit
     enddo
     close(input_unit)
@@ -229,13 +234,19 @@ contains
     time = time * t_to_nondim
     self%max_time = maxval(time)
 
+    critical_density_value = critical_density_value * density_to_nondim
     source_data = source_data * self%nondim_scale_factor
+
+    ! Initialize the linear interpolated data object so we can query the pressure at any time
+    call self%critical_density_location%initialize(time, critical_density_value, interp_status)
+    if(interp_status /= 0) error stop "Error initializing source_t%critical_density_location"
 
     ! Initialize the linear interpolated data object so we can query the pressure at any time
     call self%temporal_source_input%initialize(time, source_data, interp_status)
     if(interp_status /= 0) error stop "Error initializing source_t%temporal_source_input"
 
     deallocate(time)
+    deallocate(critical_density_value)
     deallocate(source_data)
   endsubroutine read_input_file
 
@@ -290,12 +301,6 @@ contains
 
     ! d/dt rho E = - 1 / V [rhoE + rho * q_dot_h]. The rhoE term is handled by the riemann solver
     d_dt = self%q_dot_h
-    ! d_dt%data = d_dt%data / self%volume
-
-    ! max_ddt = maxval(d_dt%data)
-    ! max_ddt = max_to_all(max_ddt)
-
-    ! if (this_image() == 1) write(*, '(a, es16.6)') "maxval(d_dt%data)", max_ddt
 
   endfunction integrate
 
@@ -306,9 +311,14 @@ contains
     integer(ik) :: imax, imin
     integer(ik), parameter :: I_WINDOW = 100 !< index window in which we look to deposit energy
     real(rk) :: x_center
-    real(rk) :: critical_density !< where do we deposit the energy TODO: make this a user input
+    integer(ik) :: interp_stat
+    real(rk) :: critical_density
 
-    critical_density = self%energy_deposition_critical_density * density_to_nondim ! 0.10 g/cc to nondimensionalize
+    ! critical_density = self%energy_deposition_critical_density * density_to_nondim ! 0.10 g/cc to nondimensionalize
+    ! critical_density = self%critical_density_location
+    call self%critical_density_location%evaluate(x=self%time, &
+                                                 f=critical_density, &
+                                                 istat=interp_stat)
 
     self%this_image_deposits = .false.
     imax = 0
@@ -331,19 +341,7 @@ contains
     enddo
 
     self%x_center = max_to_all(x_center)
-    ! i_dep = max_to_all(i_dep) ! broadcast the true i deposit index everywhere
-    ! self%i_dep_range = [ilo, ihi] ! default to the entire range
 
-    ! ! Check to see if the index window is in the current image's domain
-    ! imin = max(i_dep - I_WINDOW, ilo)
-    ! imax = min(i_dep + I_WINDOW, ihi)
-
-    ! if (imin > ihi .or. imax < ilo) then
-    !   self%this_image_deposits = .false.
-    ! else
-    !   self%this_image_deposits = .true.
-    !   self%i_dep_range = [imin, imax]
-    ! endif
   endsubroutine find_deposition_location
 
   subroutine get_source_field(self, density)
@@ -354,7 +352,7 @@ contains
     real(rk) :: p_input !< input energy
     real(rk), parameter :: fwhm_to_c = 1.0_rk / (2.0_rk * sqrt(2.0_rk * log(2.0_rk)))
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
-    real(rk) :: mass, maxqdot
+    real(rk) :: mass, maxqdot, total_q
 
     ihi = self%q_dot_h%ihi
     ilo = self%q_dot_h%ilo
@@ -366,11 +364,6 @@ contains
 
     p_input = self%get_desired_source_input(t=self%time)
     self%q_dot_h%data = 0.0_rk
-
-    ! if(p_input > 0.0_rk) then
-    !   if (this_image() == 1) write(*, '(2(a, es10.3))') 'Applying source term of [dim version]: ', &
-    !   p_input / self%nondim_scale_factor, " at", self%x_center * len_to_dim
-    ! endif
 
     if(abs(p_input) > 0.0_rk) then
       select case(self%source_geometry)
@@ -391,7 +384,6 @@ contains
                   ! Make a gaussian, centered at x0 with a given FWHM
                   ! The heating per unit mass of the cell
                   mass = self%volume(i, j) * density%data(i, j)
-                  ! self%q_dot_h%data(i,j) = (exp((-4.0_rk * log(2.0_rk) * (x(i,j) - x0)**2) / fwhm**2) * p_input) / mass
                   self%q_dot_h%data(i, j) = (exp((-4.0_rk * log(2.0_rk) * (x(i, j) - x0)**2) / fwhm**2) * p_input)
                 endif
               enddo
@@ -399,11 +391,6 @@ contains
           endassociate
         else
           error stop "Applying a 1d_gaussian source term only works for constant y for now"
-
-          ! associate(y => self%centroid_y, y0 => self%y_center, &
-          !           fwhm => self%fwhm_y, order => self%gaussian_order)
-          !   self%q_dot_h%data = exp(-((((y - y0)**2) / fwhm**2)**order))
-          ! endassociate
         endif
       case('2d_gaussian')
 
@@ -415,9 +402,12 @@ contains
         endassociate
       endselect
     endif
-    ! maxqdot = maxval(self%q_dot_h%data)
-    ! maxqdot = max_to_all(maxqdot)
-    ! if (this_image() == 1) write(*, '(a, es16.6)') 'maxval(self%q_dot_h%data)', maxqdot
+
+    ! total_q = sum_to_all(sum(self%q_dot_h%data))
+    ! if (total_q > 0.0_rk) then
+    !   self%q_dot_h%data = (self%q_dot_h%data / total_q ) * p_input
+    !   total_q = sum_to_all(sum(self%q_dot_h%data))
+    ! endif
   endsubroutine get_source_field
 
   subroutine finalize(self)

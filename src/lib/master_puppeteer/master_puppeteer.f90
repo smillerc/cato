@@ -181,8 +181,6 @@ contains
     !   self%dt = min_dt
     ! endif
 
-    self%time = self%time + self%dt
-
     select type(grid => self%grid)
     class is(grid_block_2d_t)
 
@@ -204,6 +202,8 @@ contains
       endif
 
     endselect
+    
+    self%time = self%time + self%dt
 
   endsubroutine integrate
 

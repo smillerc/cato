@@ -413,12 +413,16 @@ contains
     call cfg%get("io", "format", char_buffer, 'xdmf')
     self%contour_io_format = trim(char_buffer)
 
+    call cfg%get("io", "plot_volume", self%plot_volume, .true.)
+    call cfg%get("io", "plot_coarray_indices", self%plot_coarray_ids, .true.)
+    call cfg%get("io", "plot_grid_indicies", self%plot_grid_indices, .true.)
+
     call cfg%get("io", "contour_interval_dt", self%contour_interval_dt, 0.1_rk)
-    call cfg%get("io", "append_date_to_result_folder", self%append_date_to_result_folder, .false.)
-    call cfg%get("io", "plot_reconstruction_states", self%plot_reconstruction_states, .false.)
-    call cfg%get("io", "plot_reference_states", self%plot_reference_states, .false.)
-    call cfg%get("io", "plot_evolved_states", self%plot_evolved_states, .false.)
-    call cfg%get("io", "plot_ghost_cells", self%plot_ghost_cells, .true.)
+    ! call cfg%get("io", "append_date_to_result_folder", self%append_date_to_result_folder, .false.)
+    ! call cfg%get("io", "plot_reconstruction_states", self%plot_reconstruction_states, .false.)
+    ! call cfg%get("io", "plot_reference_states", self%plot_reference_states, .false.)
+    ! call cfg%get("io", "plot_evolved_states", self%plot_evolved_states, .false.)
+    ! call cfg%get("io", "plot_ghost_cells", self%plot_ghost_cells, .true.)
     call cfg%get("io", "plot_64bit", self%plot_64bit, .true.)
 
   endsubroutine read_from_ini
