@@ -420,7 +420,7 @@ contains
 
     call cfg%get("io", "plot_volume", self%plot_volume, .true.)
     call cfg%get("io", "plot_coarray_indices", self%plot_coarray_ids, .true.)
-    call cfg%get("io", "plot_grid_indicies", self%plot_grid_indices, .true.)
+    call cfg%get("io", "plot_grid_indices", self%plot_grid_indices, .true.)
 
     call cfg%get("io", "contour_interval_dt", self%contour_interval_dt, 0.1_rk)
     
