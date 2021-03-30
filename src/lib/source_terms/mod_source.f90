@@ -130,13 +130,11 @@ contains
         new_source%constant_source_value = input%constant_source_value
       endif
 
+      new_source%centroid_x => grid%centroid_x
+      new_source%centroid_y => grid%centroid_y
+
       select case(new_source%source_geometry)
-      case('uniform')
-        ! case('constant_xy', '1d_gaussian', '2d_gaussian')
-      case('constant_xy', '1d_gaussian')
-        ! Get the cell centroid data since the source is position dependant
-        new_source%centroid_x => grid%centroid_x
-        new_source%centroid_y => grid%centroid_y
+      case('uniform','decay','constant_xy', '1d_gaussian')
       case default
         call error_msg(message="Unsupported geometry type, must be one of ['uniform', 'constant_xy', '1d_gaussian']", &
              module_name='mod_source', class_name='source_t', procedure_name='new_source', file_name=__FILE__, line_number=__LINE__)
@@ -341,6 +339,7 @@ contains
     enddo
 
     self%x_center = max_to_all(x_center)
+    self%x_center = self%x_center + 5e-4_rk
 
   endsubroutine find_deposition_location
 
@@ -352,7 +351,7 @@ contains
     real(rk) :: p_input !< input energy
     real(rk), parameter :: fwhm_to_c = 1.0_rk / (2.0_rk * sqrt(2.0_rk * log(2.0_rk)))
     integer(ik) :: i, j, ilo, ihi, jlo, jhi
-    real(rk) :: mass, maxqdot, total_q
+    real(rk) :: mass, maxqdot, total_q, max_q
 
     ihi = self%q_dot_h%ihi
     ilo = self%q_dot_h%ilo
@@ -364,7 +363,6 @@ contains
 
     p_input = self%get_desired_source_input(t=self%time)
     self%q_dot_h%data = 0.0_rk
-
     if(abs(p_input) > 0.0_rk) then
       select case(self%source_geometry)
       case('uniform')
@@ -377,14 +375,15 @@ contains
       case('1d_gaussian')
         if(self%constant_in_y) then
 
-          associate(x => self%centroid_x, x0 => self%x_center, fwhm => self%fwhm_x)
+          associate(x => self%centroid_x, x0 => self%x_center, fwhm => self%fwhm_x, order => self%gaussian_order)
             do j = jlo, jhi
               do i = ilo, ihi
                 if(abs(x(i, j) - x0) < fwhm * 5) then
                   ! Make a gaussian, centered at x0 with a given FWHM
                   ! The heating per unit mass of the cell
                   mass = self%volume(i, j) * density%data(i, j)
-                  self%q_dot_h%data(i, j) = (exp((-4.0_rk * log(2.0_rk) * (x(i, j) - x0)**2) / fwhm**2) * p_input)
+                  ! self%q_dot_h%data(i, j) = p_input * exp((-4.0_rk * log(2.0_rk) * (x(i, j) - x0)**2) / fwhm**2) ** order
+                  self%q_dot_h%data(i, j) = p_input * exp(-(((x(i, j) - x0)**2)/(2*fwhm**2)) ** order)
                 endif
               enddo
             enddo
@@ -392,6 +391,24 @@ contains
         else
           error stop "Applying a 1d_gaussian source term only works for constant y for now"
         endif
+      case('decay')
+        associate(x => self%centroid_x, x0 => self%x_center)
+          do j = jlo, jhi
+            do i = ilo, ihi
+              if(x(i, j) > x0) then               
+                self%q_dot_h%data(i, j) = p_input * exp(-(x(i, j)/x0) ** 1.5_rk) / exp(-1.0_rk)
+              else
+                self%q_dot_h%data(i, j) = p_input * exp(-1000 * ((x(i, j) - x0)/x0) ** 2)
+              endif
+            enddo
+          enddo
+
+          ! max_q = maxval(self%q_dot_h%data)
+          ! max_q = max_to_all(max_q)
+          ! if (max_q > 0.0_rk) then
+          !   self%q_dot_h%data = (self%q_dot_h%data / max_q) * p_input
+          ! endif
+        endassociate
       case('2d_gaussian')
 
         associate(x => self%centroid_x, x0 => self%x_center, fwhm_x => self%fwhm_x, &

@@ -92,15 +92,26 @@ def load_solution(folder):
     ini_dict["directory"] = os.path.abspath(folder)
     ds.attrs.update(ini_dict)
     for k, v in ds.attrs.items():
-        if v == 'true':
+        if v == "true":
             ds.attrs[k] = True
-        if v == 'false':
+        if v == "false":
             ds.attrs[k] = False
 
     source_term = "source_terms_enable_source_terms"
     if source_term in ds.attrs.keys() and ds.attrs[source_term] is True:
         ds = load_source_file_to_dataset(ds)
-    
+
+    pressure_bc = [
+        "boundary_conditions_plus_x",
+        "boundary_conditions_plus_y",
+        "boundary_conditions_minus_x",
+        "boundary_conditions_minus_y",
+    ]
+    for bc in pressure_bc:
+        if bc in ds.attrs.keys() and ds.attrs[bc] == "pressure_input":
+            ds = load_bc_file_to_dataset(ds)
+            continue
+
     return ds
 
 
@@ -108,8 +119,7 @@ def load_source_file_to_dataset(ds):
     """Load the boundary pressure and density file into the dataset"""
 
     try:
-        f = Path(
-            ds.directory + "/" + ds.attrs['source_terms_source_file'])
+        f = Path(ds.directory + "/" + ds.attrs["source_terms_source_file"])
     except Exception:
         return ds
 
@@ -135,8 +145,6 @@ def load_source_file_to_dataset(ds):
     )
 
     return ds
-
-
 
 
 def load_bc_file_to_dataset(ds):

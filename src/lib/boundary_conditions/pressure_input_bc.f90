@@ -375,12 +375,11 @@ contains
                 endif
               endif
             endassociate
+            
             self%edge_rho(j) = boundary_prim_vars(1)
             self%edge_u(j) = boundary_prim_vars(2)
             self%edge_v(j) = 0.0_rk
             self%edge_p(j) = boundary_prim_vars(4)
-
-            ! write(*, '(4(es10.3), a, 4(es10.3))') domain_prim_vars, ":", boundary_prim_vars
           enddo
 
           do i = 1, self%n_ghost_layers
@@ -389,16 +388,6 @@ contains
             v%data(self%ihi_ghost(i), bottom:top) = self%edge_v(bottom:top)
             p%data(self%ihi_ghost(i), bottom:top) = self%edge_p(bottom:top)
           enddo
-
-!           write(*, '(a, 50(es12.3))') 'rho', rho%data(:,1)
-!           write(*, '(a, 50(es12.3))') 'u  ', u%data(:,1)
-!           write(*, '(a, 50(es12.3))') 'v  ', v%data(:,1)
-!           write(*, '(a, 50(es12.3))') 'p  ', p%data(:,1)
-! print*
-!           write(*, '(a, 50(es12.3))') 'rho', rho%data(22,:)
-!           write(*, '(a, 50(es12.3))') 'u  ',   u%data(22,:)
-!           write(*, '(a, 50(es12.3))') 'v  ',   v%data(22,:)
-!           write(*, '(a, 50(es12.3))') 'p  ',   p%data(22,:)
         endif ! on_ihi_bc
       case default
         call error_msg(module_name='mod_pressure_bc', class_name='pressure_input_bc_t', &

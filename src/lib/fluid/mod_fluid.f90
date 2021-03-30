@@ -847,22 +847,18 @@ contains
     real(rk), save :: previous_dt !< chances are the previous dt is good
 
     eps = U%subcycle_tolerance
-
+    do_subcycle = .false.
     if (.not. U%allow_subcycle) then
       do_subcycle = .false.
       new_dt = CFL_dt
       previous_dt = new_dt
     else
 
-      if (all(residual_L2_norms < eps)) then
-        do_subcycle = .false.
-      else
-        do_subcycle = .true.
-      endif
+      if (any(residual_L2_norms > eps)) do_subcycle = .true.
 
       if (do_subcycle) then
         err_factor = maxval(residual_L2_norms) / eps
-        new_dt = CFL_dt / err_factor
+        new_dt = CFL_dt / 10.0_rk
         previous_dt = new_dt
 
         if (this_image() == 1) then
@@ -1187,7 +1183,7 @@ contains
     end associate
 
     convergence = [rho_diff, rho_u_diff, rho_v_diff, rho_E_diff]
-    if (this_image() == 1)write(*, '(a, 4(es16.6))') "    L2-Norm Convergence [rho, rhou, rhov, rhoE]:", convergence
+    if (this_image() == 1)write(*, '(a, 4(es8.1))') "    L2-Norm Convergence [rho, rhou, rhov, rhoE]:", convergence
   end subroutine
 
   subroutine write_residual_history(first_stage, convergence_L2norm)
