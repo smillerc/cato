@@ -14,7 +14,8 @@ set(fyppFiles
     lib/limiters/e_mlp_distinguisher.fypp
     lib/flux_solvers/m_ausmpw_plus_solver.fypp
     lib/flux_solvers/ausmpw_plus_solver.fypp
-    # lib/flux_solvers/slau_solver.fypp
+    lib/flux_solvers/roe_solver.fypp
+    lib/flux_solvers/slau_solver.fypp
 )
 
 # Pre-process

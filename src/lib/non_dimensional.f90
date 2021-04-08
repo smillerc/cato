@@ -59,6 +59,10 @@ module mod_nondimensionalization
   real(rk), protected :: pow_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
   real(rk), protected :: pow_to_dim = 1.0_rk     !< scale factor for time
 
+  real(rk), protected :: force_ref = 1.0_rk        !< reference time in sec
+  real(rk), protected :: force_to_nondim = 1.0_rk  !< factor to convert time from dimensional to non-dimensional
+  real(rk), protected :: force_to_dim = 1.0_rk     !< scale factor for time
+
   ! real(rk), protected :: t_0 = 1.0_rk   !< scale factor for length
   ! real(rk), protected :: rho_0 = 1.0_rk   !< scale factor for length
   ! real(rk), protected :: l_0 = 1.0_rk   !< scale factor for length

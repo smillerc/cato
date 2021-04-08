@@ -53,7 +53,8 @@ module mod_fluid
   ! use mod_fvleg_solver, only: fvleg_solver_t
   use mod_m_ausmpw_plus_solver, only: m_ausmpw_plus_solver_t
   use mod_ausmpw_plus_solver, only: ausmpw_plus_solver_t
-  ! use mod_slau_solver, only: slau_solver_t
+  use mod_roe_solver, only: roe_solver_t
+  use mod_slau_solver, only: slau_solver_t
 
   use mod_source, only: source_t
 
@@ -220,6 +221,10 @@ contains
     self%flux_solver_type = trim(input%flux_solver)
 
     select case(trim(input%flux_solver))
+    case('Roe', 'S-Roe', 'SP-Roe')
+      allocate(roe_solver_t :: solver)
+    case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
+      allocate(slau_solver_t :: solver)
     case('M-AUSMPW+')
       allocate(m_ausmpw_plus_solver_t :: solver)
     case('AUSMPW+')
@@ -227,7 +232,7 @@ contains
     case default
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='initialize', &
                      message="Invalid flux solver. It must be one of the following: "// &
-                     "['AUSMPW+', 'M-AUSMPW+'], "// &
+                     "['AUSMPW+', 'M-AUSMPW+', 'Roe', 'SLAU'], "// &
                      "the input was: '"//trim(input%flux_solver)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     endselect
@@ -490,15 +495,24 @@ contains
       d_dt%rho_v%data = d_rho_v_dt
       d_dt%rho_E%data = d_rho_E_dt
 
-      deallocate(d_rho_dt)
-      deallocate(d_rho_u_dt)
-      deallocate(d_rho_v_dt)
-      deallocate(d_rho_E_dt)
+
 
       if(present(source_term_d_dt)) then
-        d_dt%rho_E%data(:,:) = source_term_d_dt%data(:,:) + d_dt%rho_E%data(:,:)
+        ! select case (trim(source_term_d_dt%source_term_type))
+        ! case ('energy')
+          d_dt%rho_E%data(:,:) = d_dt%rho_E%data(:,:) + source_term_d_dt%data(:,:)
+        ! case ('force')
+          ! d_dt%rho_u%data(:,:) = d_dt%rho_u%data(:,:) - (self%rho%data(:,:) * source_term_d_dt%data(:,:))
+          ! d_dt%rho_E%data(:,:) = d_dt%rho_E%data(:,:) - (self%rho_u%data(:,:) * source_term_d_dt%data(:,:))
+
+        ! endselect
       endif
     endselect
+
+    deallocate(d_rho_dt)
+    deallocate(d_rho_u_dt)
+    deallocate(d_rho_v_dt)
+    deallocate(d_rho_E_dt)
   endfunction time_derivative
 
   real(rk) function get_timestep(self, grid) result(delta_t)
@@ -672,6 +686,10 @@ contains
     lhs%rho_E = rhs%rho_E
 
     select case(trim(rhs%flux_solver_type))
+    case('Roe', 'S-Roe', 'SP-Roe')
+      allocate(roe_solver_t :: solver)
+    case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
+      allocate(slau_solver_t :: solver)
     case('M-AUSMPW+')
       allocate(m_ausmpw_plus_solver_t :: solver)
     case('AUSMPW+')
@@ -679,7 +697,7 @@ contains
     case default
       call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
                      message="Invalid flux solver. It must be one of the following: "// &
-                     "['AUSMPW+', 'M-AUSMPW+'], "// &
+                     "['AUSMPW+', 'M-AUSMPW+', 'Roe', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
                      "the input was: '"//trim(rhs%flux_solver_type)//"'", &
                      file_name=__FILE__, line_number=__LINE__)
     endselect

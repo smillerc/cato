@@ -44,6 +44,7 @@ module mod_slau_solver
 
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
   use mod_globals, only: debug_print
+  use mod_field, only: field_2d_t
   use mod_error, only: error_msg
   use mod_floating_point_utils, only: neumaier_sum_4
   use mod_boundary_conditions, only: boundary_condition_t
@@ -119,21 +120,20 @@ contains
     lhs%gamma = rhs%gamma
   endsubroutine copy_slau
 
-  subroutine solve_slau(self, dt, grid, lbounds, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+  subroutine solve_slau(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
     !< Solve and flux the edges
     class(slau_solver_t), intent(inout) :: self
+    real(rk), intent(in) :: dt !< timestep delta t
     class(grid_block_2d_t), intent(in) :: grid
-    integer(ik), dimension(2), intent(in) :: lbounds
-    real(rk), intent(in) :: dt !< timestep (not really used in this solver, but needed for others)
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: rho !< density
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: u   !< x-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: v   !< y-velocity
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(inout) :: p   !< pressure
+    class(field_2d_t), intent(inout) :: rho !< density
+    class(field_2d_t), intent(inout) :: u   !< x-velocity
+    class(field_2d_t), intent(inout) :: v   !< y-velocity
+    class(field_2d_t), intent(inout) :: p   !< pressure
 
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) ::   d_rho_dt    !< d/dt of the density field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_u_dt    !< d/dt of the rhou field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_v_dt    !< d/dt of the rhov field
-    real(rk), dimension(lbounds(1):, lbounds(2):), contiguous, intent(out) :: d_rho_E_dt    !< d/dt of the rhoE field
+    real(rk), dimension(:, :), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
 
     class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x
@@ -178,12 +178,12 @@ contains
     edge_interpolator => muscl_interpolator_factory(self%input)
 
     ! This is useful if e-MLP is used
-    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
+    ! call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p, lbounds=lbounds)
 
-    call edge_interpolator%interpolate_edge_values(q=rho, lbounds=lbounds, i_edges=rho_i_edges, j_edges=rho_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=u, lbounds=lbounds, i_edges=u_i_edges, j_edges=u_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=v, lbounds=lbounds, i_edges=v_i_edges, j_edges=v_j_edges)
-    call edge_interpolator%interpolate_edge_values(q=p, lbounds=lbounds, i_edges=p_i_edges, j_edges=p_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=rho, i_edges=rho_i_edges, j_edges=rho_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p, i_edges=p_i_edges, j_edges=p_j_edges)
 
     !
     !                    jflux(i,j)  'R'
@@ -198,10 +198,10 @@ contains
     !
     ! This is the numbering convention that this module uses
 
-    ilo = grid%lbounds(1)
-    ihi = grid%ubounds(1)
-    jlo = grid%lbounds(2)
-    jhi = grid%ubounds(2)
+    ilo = rho%lbounds(1)
+    ihi = rho%ubounds(1)
+    jlo = rho%lbounds(2)
+    jhi = rho%ubounds(2)
 
     if(allocated(self%iflux)) deallocate(self%iflux)
     if(allocated(self%jflux)) deallocate(self%jflux)
@@ -209,20 +209,14 @@ contains
     allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
     allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
 
-    ilo_bc = grid%lbounds_halo(1)
-    ihi_bc = grid%ubounds_halo(1)
-    jlo_bc = grid%jlo_bc_cell
-    jhi_bc = grid%jhi_bc_cell
-
     select case(trim(self%variant))
       #:for VARIANT in VARIANTS
         case("${VARIANT}$")
         #:for DIR in DIRECTIONS
-          call self%get_${VARIANT.replace('-', '_')}$_${DIR}$flux(grid=grid, lbounds=lbound(rho_${DIR}$_edges), &
-                                                                  eflux_lbounds=lbound(self%${DIR}$flux), &
+          call self%get_${VARIANT.replace('-', '_')}$_${DIR}$flux(grid=grid, lbounds=lbound(rho_${DIR}$_edges), eflux_lbounds=lbound(self%${DIR}$flux), &
                                                                   rho_ave=rho, u_ave=u, v_ave=v, p_ave=p, &
                                                                   rho_edge=rho_${DIR}$_edges, u_edge=u_${DIR}$_edges, &
-                                                         v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
+                                                                  v_edge=v_${DIR}$_edges, p_edge=p_${DIR}$_edges, edge_flux=self%${DIR}$flux)
         #:endfor
       #:endfor
     case default
@@ -234,7 +228,7 @@ contains
     endselect
 
     ! Now flux the edges to get the next solution
-    call self%flux_split_edges(grid, lbounds, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    call self%flux_split_edges(grid=grid, d_rho_dt=d_rho_dt, d_rho_u_dt=d_rho_u_dt, d_rho_v_dt=d_rho_v_dt, d_rho_E_dt=d_rho_E_dt)
 
     deallocate(rho_i_edges)
     deallocate(rho_j_edges)
@@ -262,10 +256,10 @@ contains
         class(slau_solver_t), intent(inout) :: self
         class(grid_block_2d_t), intent(in) :: grid
         integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
-        real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_ave    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
-        real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
-        real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
-        real(rk), dimension(lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
+        class(field_2d_t), intent(in) :: rho_ave  !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
+        class(field_2d_t), intent(in) :: u_ave    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
+        class(field_2d_t), intent(in) :: v_ave    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
+        class(field_2d_t), intent(in) :: p_ave    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
         real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
         real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
         real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
@@ -322,32 +316,19 @@ contains
         jlo = lbound(edge_flux, dim=3)
         jhi = ubound(edge_flux, dim=3)
 
-        !
-        !                    jflux(i,j)  'R'
-        !               o--------------------o
-        !               |                'L' |
-        !               |                    |
-        ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
-        !               |                    |
-        !               |                'L' | 'R'
-        !               o--------------------o
-        !                  jflux(i,j-1)
-        !
-        ! This is the numbering convention that this module uses
-
-        !$omp parallel default(none), &
-        !$omp firstprivate(gamma, ilo, ihi, jlo, jhi) &
-        !$omp private(i, j) &
-        !$omp private(rho_L, rho_R, u_L, u_R, v_L, v_R, p_L, p_R, H_L, H_R) &
-        !$omp private(Chi,c_plus,c_minus,c_bar, V_n_plus, V_n_minus) &
-        !$omp private(M_plus, M_minus, Beta_plus, Beta_minus, M_hat) &
-        !$omp private(p_tilde, V_n_bar, g) &
-        !$omp private(V_n_bar_plus,V_n_bar_minus) &
-        !$omp private(delta_p, delta_Beta, p_L_minus_R, mass_flux, mass_flux_L, mass_flux_R, n_x, n_y) &
-        !$omp private(delta_p1, delta_p2, delta_p3, delta_p4, delta_p5, delta_p6, delta_p_max, theta, M_bar, p_bar, rho_bar, delta_rho) &
-        !$omp shared(rho_ave, u_ave, v_ave, p_ave) &
-        !$omp shared(grid, rho_edge, u_edge, v_edge, p_edge, edge_flux)
-        !$omp do
+    !                                   /\
+    !                  jflux(i,j)  'R'  |
+    !                o--------------------o
+    !                |                'L' |
+    !            <---|                    |--->
+    ! -iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !                |                    |
+    !                |                'L' | 'R'
+    !                o--------------------o
+    !                   jflux(i,j-1)   |
+    !                                 \/
+    !
+    ! This is the numbering convention that this module uses
         do j = jlo, jhi
           !$omp simd __INTERP_ALIGN__
           !dir$ vector aligned
@@ -429,22 +410,22 @@ contains
               #:if DIR == 'i'
                 ! 'R' - 'L', or p(-) - p(+). See Figure 2 in Ref [2]. The absolute value
                 ! is take from these, so order is not important
-                delta_p1 = abs(p_ave(i, j + 1) - p_ave(i, j))
-                delta_p2 = abs(p_ave(i - 1, j) - p_ave(i, j))
-                delta_p3 = abs(p_ave(i, j - 1) - p_ave(i, j))
-                delta_p4 = abs(p_ave(i + 1, j - 1) - p_ave(i + 1, j))
-                delta_p5 = abs(p_ave(i + 2, j) - p_ave(i + 1, j))
-                delta_p6 = abs(p_ave(i + 1, j + 1) - p_ave(i + 1, j))
+                delta_p1 = abs(p_ave%data(i, j + 1) - p_ave%data(i, j))
+                delta_p2 = abs(p_ave%data(i - 1, j) - p_ave%data(i, j))
+                delta_p3 = abs(p_ave%data(i, j - 1) - p_ave%data(i, j))
+                delta_p4 = abs(p_ave%data(i + 1, j - 1) - p_ave%data(i + 1, j))
+                delta_p5 = abs(p_ave%data(i + 2, j) - p_ave%data(i + 1, j))
+                delta_p6 = abs(p_ave%data(i + 1, j + 1) - p_ave%data(i + 1, j))
 
               #:elif DIR == 'j'
                 ! 'R' - 'L', or p(-) - p(+). See Figure 2 in Ref [2]. The absolute value
                 ! is take from these, so order is not important
-                delta_p1 = abs(p_ave(i - 1, j) - p_ave(i, j))
-                delta_p2 = abs(p_ave(i, j - 1) - p_ave(i, j))
-                delta_p3 = abs(p_ave(i + 1, j) - p_ave(i, j))
-                delta_p4 = abs(p_ave(i + 1, j + 1) - p_ave(i, j + 1))
-                delta_p5 = abs(p_ave(i, j + 2) - p_ave(i, j + 1))
-                delta_p6 = abs(p_ave(i - 1, j + 1) - p_ave(i, j + 1))
+                delta_p1 = abs(p_ave%data(i - 1, j) - p_ave%data(i, j))
+                delta_p2 = abs(p_ave%data(i, j - 1) - p_ave%data(i, j))
+                delta_p3 = abs(p_ave%data(i + 1, j) - p_ave%data(i, j))
+                delta_p4 = abs(p_ave%data(i + 1, j + 1) - p_ave%data(i, j + 1))
+                delta_p5 = abs(p_ave%data(i, j + 2) - p_ave%data(i, j + 1))
+                delta_p6 = abs(p_ave%data(i - 1, j + 1) - p_ave%data(i, j + 1))
               #:endif
 
               if(delta_p1 < epsilon(1.0_rk) .or. delta_p1 < THRESHOLD * p_bar) delta_p1 = 0.0_rk
@@ -510,8 +491,6 @@ contains
 
           enddo
         enddo
-        !$omp end do
-        !$omp end parallel
       end subroutine get_${VARIANT.replace('-', '_')}$_${DIR}$flux
 
     #:endfor

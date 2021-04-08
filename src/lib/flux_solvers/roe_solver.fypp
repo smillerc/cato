@@ -1,0 +1,546 @@
+! MIT License
+! Copyright (c) 2021 Sam Miller
+! Permission is hereby granted, free of charge, to an_y person obtaining a copy
+! of this software and associated documentation files (the "Software"), to deal
+! in the Software without restriction, including without limitation the rights
+! to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+! copies of the Software, and to permit persons to whom the Software is
+! furnished to do so, subject to the following conditions:
+!
+! The above copyright notice and this permission notice shall be included in all
+! copies or substantial portions of the Software.
+!
+! THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+! IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+! FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+! AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+! LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+! SOFTWARE.
+
+! Fypp variables. This allows us to generate an edge flux subroutine for each direction
+! and still allow the compiler to optimize
+#:set DIRECTIONS = ['i', 'j']
+
+module mod_roe_solver
+  !< Summary: Provide a solver based on the Roe family of schemes
+  !< Date: 07/15/2020
+  !< Author: Sam Miller
+  !< Notes:
+  !< References:
+
+
+  use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit
+  use, intrinsic :: ieee_arithmetic
+  use mod_error, only: error_msg
+  use mod_field, only: field_2d_t
+  use mod_globals, only: debug_print, LOW_MACH
+  use mod_floating_point_utils, only: neumaier_sum_4
+  use mod_boundary_conditions, only: boundary_condition_t
+  use mod_muscl_interpolator_factory, only: muscl_interpolator_factory
+  use mod_muscl_interpolation, only: muscl_interpolation_t
+  use mod_flux_solver, only: edge_split_flux_solver_t
+  use mod_eos, only: eos
+  use mod_grid_block_2d, only: grid_block_2d_t
+  use mod_input, only: input_t
+
+  implicit none
+
+  private
+  public :: roe_solver_t
+
+  type, extends(edge_split_flux_solver_t) :: roe_solver_t
+    !< Implementation of the Roe scheme
+    private
+    real(rk) :: gamma = 0.0_rk
+  contains
+    ! Public methods
+    procedure, public :: initialize => initialize_roe
+    procedure, public :: solve => solve_roe
+    procedure, public, pass(lhs) :: copy => copy_roe
+    ! procedure, public :: flux_split_edges
+    ! Private methods
+    #:for DIR in DIRECTIONS
+      procedure, private :: get_${DIR}$flux
+    #:endfor
+    final :: finalize
+
+    ! Operators
+    generic :: assignment(=) => copy
+  endtype roe_solver_t
+contains
+  subroutine initialize_roe(self, input, time)
+    !< Constructor for the Roe solver
+    class(roe_solver_t), intent(inout) :: self
+    class(input_t), intent(in) :: input
+    real(rk), intent(in) :: time
+
+    self%input = input
+    self%time = time
+    self%gamma = eos%get_gamma()
+    self%name = 'Roe_'//input%limiter
+  endsubroutine initialize_roe
+
+  subroutine copy_roe(lhs, rhs)
+    !< Implement LHS = RHS
+    class(roe_solver_t), intent(inout) :: lhs
+    type(roe_solver_t), intent(in) :: rhs
+
+    call debug_print('Running copy_roe%copy()', __FILE__, __LINE__)
+
+    lhs%input = rhs%input
+    lhs%iteration = rhs%iteration
+    lhs%time = rhs%time
+    lhs%dt = rhs%dt
+    lhs%gamma = rhs%gamma
+
+  endsubroutine copy_roe
+
+  subroutine solve_roe(self, dt, grid, rho, u, v, p, d_rho_dt, d_rho_u_dt, d_rho_v_dt, d_rho_E_dt)
+    !< Solve and flux the edges
+    class(roe_solver_t), intent(inout) :: self
+    real(rk), intent(in) :: dt !< timestep delta t
+    class(grid_block_2d_t), intent(in) :: grid
+    class(field_2d_t), intent(inout) :: rho !< density
+    class(field_2d_t), intent(inout) :: u   !< x-velocity
+    class(field_2d_t), intent(inout) :: v   !< y-velocity
+    class(field_2d_t), intent(inout) :: p   !< pressure
+
+    real(rk), dimension(:, :), allocatable, intent(out) ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
+
+    class(muscl_interpolation_t), pointer :: edge_interpolator => null()
+    class(boundary_condition_t), allocatable:: bc_plus_x
+    class(boundary_condition_t), allocatable:: bc_plus_y
+    class(boundary_condition_t), allocatable:: bc_minus_x
+    class(boundary_condition_t), allocatable:: bc_minus_y
+
+    integer(ik) :: i, j
+    integer(ik) :: ilo, ihi, jlo, jhi
+
+    real(rk), dimension(:, :, :), allocatable :: rho_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for density
+    real(rk), dimension(:, :, :), allocatable :: rho_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for density
+
+    real(rk), dimension(:, :, :), allocatable ::   u_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for x-velocity
+    real(rk), dimension(:, :, :), allocatable ::   u_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for x-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   v_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for y-velocity
+    real(rk), dimension(:, :, :), allocatable ::   v_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for y-velocity
+
+    real(rk), dimension(:, :, :), allocatable ::   p_i_edges   !< ((1:2), i, j) i-interface (L/R state) values for pressure
+    real(rk), dimension(:, :, :), allocatable ::   p_j_edges   !< ((1:2), i, j) j-interface (L/R state) values for pressure
+
+    call debug_print('Running roe_solver_t%solve_roe()', __FILE__, __LINE__)
+
+    if(dt < tiny(1.0_rk)) then
+      call error_msg(module_name='mod_roe_solver', &
+                     class_name='roe_solver_t', &
+                     procedure_name='solve_roe', &
+                     message="The timestep dt is < tin_y(1.0_rk)", &
+                     file_name=__FILE__, line_number=__LINE__)
+    endif
+
+    self%time = self%time + dt
+    self%dt = dt
+    self%iteration = self%iteration + 1
+
+    call self%init_boundary_conditions(grid, &
+                                       bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                       bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+
+    call self%apply_primitive_bc(rho=rho, u=u, v=v, p=p, &
+                                 bc_plus_x=bc_plus_x, bc_minus_x=bc_minus_x, &
+                                 bc_plus_y=bc_plus_y, bc_minus_y=bc_minus_y)
+
+    edge_interpolator => muscl_interpolator_factory(self%input)
+
+    ! This is useful if e-MLP is used
+    call edge_interpolator%distinguish_continuous_regions(rho=rho, u=u, v=v, p=p)
+    call edge_interpolator%interpolate_edge_values(q=rho, i_edges=rho_i_edges, j_edges=rho_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=u, i_edges=u_i_edges, j_edges=u_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=v, i_edges=v_i_edges, j_edges=v_j_edges)
+    call edge_interpolator%interpolate_edge_values(q=p, i_edges=p_i_edges, j_edges=p_j_edges)
+
+    !
+    !                    jflux(i,j)  'R'
+    !               o--------------------o
+    !               |                'L' |
+    !               |                    |
+    ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !               |                    |
+    !               |                'L' | 'R'
+    !               o--------------------o
+    !                  jflux(i,j-1)
+    !
+    ! This is the numbering convention that this module uses
+
+    ilo = rho%lbounds(1)
+    ihi = rho%ubounds(1)
+    jlo = rho%lbounds(2)
+    jhi = rho%ubounds(2)
+
+    if(allocated(self%iflux)) deallocate(self%iflux)
+    if(allocated(self%jflux)) deallocate(self%jflux)
+
+    allocate(self%iflux(4, ilo - 1:ihi, jlo:jhi))
+    allocate(self%jflux(4, ilo:ihi, jlo - 1:jhi))
+
+    call self%get_iflux(grid=grid, &
+                        lbounds=lbound(rho_i_edges), &
+                        eflux_lbounds=lbound(self%iflux), &
+                        rho_bar=rho, u_bar=u, v_bar=v, p_bar=p, &
+                        rho_edge=rho_i_edges, u_edge=u_i_edges, &
+                        v_edge=v_i_edges, p_edge=p_i_edges, &
+                        edge_flux=self%iflux)
+
+    call self%get_jflux(grid=grid, &
+                        lbounds=lbound(rho_j_edges), &
+                        eflux_lbounds=lbound(self%jflux), &
+                        rho_bar=rho, u_bar=u, v_bar=v, p_bar=p, &
+                        rho_edge=rho_j_edges, u_edge=u_j_edges, &
+                        v_edge=v_j_edges, p_edge=p_j_edges, &
+                        edge_flux=self%jflux)
+
+    ! Now flux the edges to get the next solution
+    call self%flux_split_edges(grid=grid, d_rho_dt=d_rho_dt, d_rho_u_dt=d_rho_u_dt, d_rho_v_dt=d_rho_v_dt, d_rho_E_dt=d_rho_E_dt)
+
+    deallocate(edge_interpolator)
+
+    deallocate(rho_i_edges)
+    deallocate(rho_j_edges)
+    deallocate(u_i_edges)
+    deallocate(u_j_edges)
+    deallocate(v_i_edges)
+    deallocate(v_j_edges)
+    deallocate(p_i_edges)
+    deallocate(p_j_edges)
+    deallocate(bc_plus_x)
+    deallocate(bc_plus_y)
+    deallocate(bc_minus_x)
+    deallocate(bc_minus_y)
+
+    deallocate(self%iflux)
+    deallocate(self%jflux)
+  endsubroutine solve_roe
+
+  #:for DIR in DIRECTIONS
+    subroutine get_${DIR}$flux(self, grid, lbounds, rho_edge, u_edge, v_edge, p_edge, &
+                               rho_bar, u_bar, v_bar, p_bar, eflux_lbounds, edge_flux)
+      !< Construct the fluxes for each edge in the ${DIR}$ direction. This is templated via the Fypp pre-processor
+      class(roe_solver_t), intent(inout) :: self
+      class(grid_block_2d_t), intent(in) :: grid
+      integer(ik), dimension(3), intent(in) :: lbounds !< bounds of the primitive variable arrays
+      class(field_2d_t), intent(in) :: rho_bar    !< (i,j); cell averaged value ofdensity; needed for critical Mach number calcs
+      class(field_2d_t), intent(in) :: u_bar    !< (i,j); cell averaged value of x-velocity; needed for critical Mach number calcs
+      class(field_2d_t), intent(in) :: v_bar    !< (i,j); cell averaged value of y-velocity; needed for critical Mach number calcs
+      class(field_2d_t), intent(in) :: p_bar    !< (i,j); cell averaged value of pressure; needed for critical Mach number calcs
+
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: rho_edge    !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for density
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: u_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for x-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: v_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for y-velocity
+      real(rk), dimension(lbounds(1):, lbounds(2):, lbounds(3):), contiguous, intent(in) :: p_edge      !< (1:2, i,j); interpolated w/limiter of choice (L/R state) values for pressure
+
+      integer(ik), dimension(3), intent(in) :: eflux_lbounds !< bounds of the primitive variable arrays
+      real(rk), dimension(eflux_lbounds(1):, eflux_lbounds(2):, eflux_lbounds(3):), contiguous, intent(inout) :: edge_flux !< ((rho, u, v, p), i, j); edge fluxes
+
+      integer(ik) :: i, j
+      integer(ik) :: ilo, ihi, jlo, jhi
+      
+      real(rk) :: h1, h2, h3, h4, h5
+      real(rk) :: gamma, n_x, n_y, cs_tilde, psi
+      real(rk) :: rho_R, u_R, v_R, p_R, H_R, V_norm_R, cs_R, e_R
+      real(rk) :: rho_L, u_L, v_L, p_L, H_L, V_norm_L, cs_L, e_L
+      real(rk) :: rho_tilde, u_tilde, v_tilde, p_tilde, H_tilde, rho_denom, q_tilde_sq, V_norm_tilde, V_trans_tilde
+      real(rk) :: delta_rho, delta_u, delta_v, delta_p, delta_V_norm, delta_V_trans
+
+      real(rk) :: beta5, ds, nx, ny, gam1, rrho, rl, ul, vl, pl, hl, &
+                 rr, ur, vr, pr, hr, rav, dd, dd1, uav, vav, hav, q2a, &
+                 c2a, cav, uv, du, delta, eabs1, eabs2, eabs4, du_trans
+
+      real(rk), dimension(4) :: delta_f1, delta_f234, delta_f5, F_R, F_L, roe_matrix_term, dQ
+      real(rk), dimension(5) :: f_p
+
+      integer(ik), parameter :: BOTTOM_IDX = 1 !< edge index for the bottom edge of the current cell
+      integer(ik), parameter ::  RIGHT_IDX = 2 !< edge index for the right edge of the current cell
+      integer(ik), parameter ::    TOP_IDX = 3 !< edge index for the top edge of the current cell
+      integer(ik), parameter ::   LEFT_IDX = 4 !< edge index for the left edge of the current cell
+      
+      integer(ik), parameter ::   LEFT  = 1 !< left state
+      integer(ik), parameter ::   RIGHT = 2 !< right state
+
+      gamma = self%gamma
+
+      ilo = lbound(edge_flux, dim=2)
+      ihi = ubound(edge_flux, dim=2)
+      jlo = lbound(edge_flux, dim=3)
+      jhi = ubound(edge_flux, dim=3)
+
+    !                                   /\
+    !                  jflux(i,j)  'R'  |
+    !                o--------------------o
+    !                |                'L' |
+    !            <---|                    |--->
+    ! -iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !                |                    |
+    !                |                'L' | 'R'
+    !                o--------------------o
+    !                   jflux(i,j-1)   |
+    !                                 \/
+    !
+    ! This is the numbering convention that this module uses
+
+      do j = jlo, jhi
+        do i = ilo, ihi
+          #:if DIR == 'i'
+            nx = grid%edge_norm_vectors(1, RIGHT_IDX, i, j)
+            ny = grid%edge_norm_vectors(2, RIGHT_IDX, i, j)
+
+          #:elif DIR == 'j'
+            nx = grid%edge_norm_vectors(1, TOP_IDX, i, j)
+            ny = grid%edge_norm_vectors(2, TOP_IDX, i, j)
+
+          #:endif
+          
+          ! rho_tilde = sqrt(rho_R * rho_L)
+          ! rho_denom = sqrt(rho_R) + sqrt(rho_L)
+          
+          ! u_tilde = (u_L * sqrt(rho_L) + u_R * sqrt(rho_R)) / rho_denom
+          ! v_tilde = (v_L * sqrt(rho_L) + v_R * sqrt(rho_R)) / rho_denom
+          ! q_tilde_sq = u_tilde**2 + v_tilde**2
+          
+          ! ! H_L = (p_L / rho_L) + ((1.0_rk / (gamma - 1.0_rk)) * (p_L / rho_L) + 0.5_rk * (u_L**2 + v_L**2))
+          ! ! H_R = (p_R / rho_R) + ((1.0_rk / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_R**2 + v_R**2))
+
+          ! H_L = (gamma / (gamma - 1.0_rk)) * (p_L / rho_L) + 0.5_rk * (u_L**2 + v_L**2)
+          ! H_R = (gamma / (gamma - 1.0_rk)) * (p_R / rho_R) + 0.5_rk * (u_R**2 + v_R**2)
+
+          ! H_tilde = (H_L * sqrt(rho_L) + H_R * sqrt(rho_R)) / rho_denom
+          
+          ! V_norm_tilde = u_tilde * n_x + v_tilde * n_y
+          ! V_trans_tilde = -u_tilde * n_y + v_tilde * n_x
+
+          ! cs_tilde = sqrt((gamma - 1.0_rk) * (H_tilde - 0.5_rk * q_tilde_sq))
+          
+          ! delta_rho = rho_R - rho_L
+          ! delta_u = u_R - u_L
+          ! delta_v = v_R - v_L
+          ! delta_p = p_R - p_L
+
+          ! if (abs(delta_rho) < epsilon(1.0_rk)) delta_rho = 0.0_rk
+          ! if (abs(delta_u) < epsilon(1.0_rk)) delta_u = 0.0_rk
+          ! if (abs(delta_v) < epsilon(1.0_rk)) delta_v = 0.0_rk
+          ! if (abs(delta_p) < epsilon(1.0_rk)) delta_p = 0.0_rk
+
+          ! V_norm_R = u_R * n_x + u_R * n_y
+          ! V_norm_L = u_L * n_x + u_L * n_y
+          ! delta_V_norm = (u_R - u_L) * n_x + (v_R - v_L) * n_y
+          ! delta_V_trans = -(u_R - u_L) * n_y + (v_R - v_L) * n_x
+
+          ! delta_f1 = abs(V_norm_tilde - cs_tilde) * ((delta_p - rho_tilde * cs_tilde * delta_V_norm) / (2.0_rk * cs_tilde**2)) * &
+          !            [1.0_rk, &
+          !             u_tilde - cs_tilde * n_x, &
+          !             v_tilde - cs_tilde * n_y, &
+          !             H_tilde - cs_tilde * V_norm_tilde]
+
+          ! delta_f234 = abs(V_norm_tilde) * ((delta_rho - (delta_p / cs_tilde**2)) * [1.0_rk, u_tilde, v_tilde, 0.5_rk * q_tilde_sq] + &
+          !                  rho_tilde * [0.0_rk, &
+          !                               delta_u - delta_V_norm * n_x, &
+          !                               delta_v - delta_V_norm * n_y, &
+          !                               u_tilde * delta_u + v_tilde * delta_v - V_norm_tilde * delta_V_norm])
+                       
+          ! delta_f5 = abs(V_norm_tilde + cs_tilde) * ((delta_p + rho_tilde * cs_tilde * delta_V_norm) / (2.0_rk * cs_tilde**2)) * &
+          !                                            [1.0_rk, &
+          !                                             u_tilde + cs_tilde * n_x, &
+          !                                             v_tilde + cs_tilde * n_y, &
+          !                                             H_tilde + cs_tilde * V_norm_tilde]
+
+
+          ! roe_matrix_term(1) = abs(V_norm_tilde - cs_tilde) * (H_tilde * (n_x**2 + n_y**2) &
+          !                                      - n_x * (u_tilde * V_norm_tilde + v_tilde * V_trans_tilde) &
+          !                                      + n_y * (u_tilde * V_trans_tilde - V_norm_tilde * v_tilde)) / &
+          !                     ((H_tilde - 0.5_rk * q_tilde_sq) * (n_x**2 + n_y**2))
+
+          ! roe_matrix_term(2) = (abs(V_norm_tilde) * n_y**2) / (n_x**2 + n_y**2)
+
+          ! roe_matrix_term(3) = - (abs(V_norm_tilde) * (cs_tilde * n_y - v_tilde) &
+          !                         * (cs_tilde * V_trans_tilde * n_x + n_y * &
+          !                             (H_tilde - 0.5_rk * q_tilde_sq + cs_tilde * V_norm_tilde))) &
+          !                       / (2.0_rk * cs_tilde * (H_tilde - 0.5_rk * q_tilde_sq) * (n_x**2 + n_y**2))
+
+          ! roe_matrix_term(4) = abs(V_norm_tilde + cs_tilde) * (H_tilde + cs_tilde * V_norm_tilde) / (2.0_rk*(H_tilde - 0.5_rk * q_tilde_sq))
+          
+          ! e_R = (p_R / (rho_R * (gamma - 1.0_rk))) + 0.5_rk * (u_R * u_R + v_R * v_R)
+          ! e_L = (p_L / (rho_L * (gamma - 1.0_rk))) + 0.5_rk * (u_L * u_L + v_L * v_L)
+
+          ! dQ = [rho_R - rho_L, &
+          !       rho_R * u_R - rho_L * u_L, &
+          !       rho_R * v_R - rho_L * v_L, &
+          !       rho_R * e_R - rho_L * e_L]
+
+          ! print*, roe_matrix_term
+          ! write(*, '(10(es16.6))') H_tilde, ((H_tilde - 0.5_rk * q_tilde_sq) * (n_x**2 + n_y**2)), roe_matrix_term
+          ! where(abs(dQ) < epsilon(1.0_rk)) dQ = 0.0_rk
+          ! where(abs(delta_f1) < epsilon(1.0_rk)) delta_f1 = 0.0_rk
+          ! where(abs(delta_f234) < epsilon(1.0_rk)) delta_f234 = 0.0_rk
+          ! where(abs(delta_f5) < epsilon(1.0_rk)) delta_f5 = 0.0_rk
+
+          
+
+          ! F_R = [rho_R * V_norm_R, &
+          !        rho_R * u_R * V_norm_R + n_x * p_R, &
+          !        rho_R * v_R * V_norm_R + n_y * p_R, &
+          !        rho_R * H_R * V_norm_R]
+
+          ! F_L = [rho_L * V_norm_L, &
+          !        rho_L * u_R * V_norm_L + n_x * p_L, &
+          !        rho_L * v_R * V_norm_L + n_y * p_L, &
+          !        rho_L * H_R * V_norm_L]
+
+          ! roe_matrix_term = delta_f1 + delta_f234 + delta_f5
+          
+          
+
+          ! h1 = rho_tilde * cs_tilde * delta_V_norm
+          ! h2 = (delta_p - h1) / (2.0_rk * cs_tilde**2)
+          ! h3 = (delta_rho - delta_p / cs_tilde**2)
+          ! h4 = rho_tilde
+          ! h5 = (delta_p + h1) / (2.0_rk * cs_tilde**2)
+
+      
+          ! edge_flux(1, i, j) = h2 + h3 + h5
+          ! edge_flux(2, i, j) = h2 * (u_tilde - cs_tilde * n_x) + h3 * u_tilde + h4 * (delta_u - delta_V_norm * n_x) + h5 * (u_tilde + cs_tilde * n_x)
+          ! edge_flux(3, i, j) = h2 * (v_tilde - cs_tilde * n_y) + h3 * v_tilde + h4 * (delta_v - delta_V_norm * n_y) + h5 * (v_tilde + cs_tilde * n_y)
+          ! edge_flux(4, i, j) = h2 * (H_tilde-cs_tilde * V_norm_tilde) + &
+          !                      h3 * (0.5_rk * q_tilde_sq) + &
+          !                      h4 * (u_tilde * delta_u + v_tilde * delta_v - V_norm_tilde * delta_V_norm) + &
+          !                      h5 * (H_tilde+cs_tilde * V_norm_tilde)
+
+          rl = abs(rho_edge(LEFT, i, j))
+          ul =       u_edge(LEFT, i, j)
+          vl =       v_edge(LEFT, i, j)
+          pl =   abs(p_edge(LEFT, i, j))
+          hl = (gamma / (gamma - 1.0_rk)) * (pl / rl) + 0.5_rk * (ul**2 + vl**2)
+          
+          rr =  abs(rho_edge(RIGHT, i, j))
+          ur =        u_edge(RIGHT, i, j)
+          vr =        v_edge(RIGHT, i, j)
+          pr = abs(p_edge(RIGHT, i, j))
+          hr = (gamma / (gamma - 1.0_rk)) * (pr / rr) + 0.5_rk * (ur**2 + vr**2)
+    
+          ! print*, i, j, rl, rr, pl, pr
+    ! --- Roe's average
+    
+          rav      = sqrt(rl*rr)
+          gam1     = gamma - 1.0_rk
+          dd       = rav/rl
+          dd1      = 1.0_rk/(1.0_rk+dd)
+          uav      = (ul+dd*ur)*dd1
+          vav      = (vl+dd*vr)*dd1
+          hav      = (hl+dd*hr)*dd1
+          q2a      = 0.5_rk*(uav*uav+vav*vav)
+          c2a      = gam1*(hav-q2a)
+          cav      = sqrt(c2a)
+          uv       = uav*nx + vav*ny
+          du       = (ur-ul)*nx + (vr-vl)*ny
+          du_trans = -(ur-ul)*ny + (vr-vl)*nx
+    
+          cs_R = sqrt(gamma * pr / rr)
+          cs_L = sqrt(gamma * pl / rl)
+
+          h1    = abs(min(uv - cav, (ul*nx + vl*ny) - cs_L))
+          h2    = abs(uv)
+          h4    = abs(max(uv + cav, (ur*nx + vr*ny) + cs_R))
+
+          ! h1 = abs(uv - cav)
+          ! h2 = abs(uv)
+          ! h4 = abs(uv + cav)
+    
+          ! eabs1 = entropy_correction(h1, delta)
+          ! eabs2 = entropy_correction(h2, delta)
+          ! eabs4 = entropy_correction(h4, delta)
+          eabs1 = h1
+          eabs2 = h2
+          eabs4 = h4
+
+          h1 = rav * cav * du
+          h2 = eabs1 * (pr-pl - h1)/(2.0_rk * c2a)
+          h3 = eabs2 * (rr-rl - (pr-pl)/c2a)
+          h4 = eabs2 * rav
+          h5 = eabs4 * (pr-pl + h1)/(2.0_rk * c2a)
+    
+          psi = abs(cs_R - cs_L) / max(cs_R, cs_L)
+
+          F_R = [rr * uv, &
+                 rr * ur * uv + nx * pr, &
+                 rr * vr * uv + ny * pr, &
+                 rr * hr * uv]
+
+          F_L = [rl * uv, &
+                 rl * ul * uv + nx * pl, &
+                 rl * vl * uv + ny * pl, &
+                 rl * hl * uv]
+
+          roe_matrix_term(1) = (h2 + h3 + h5)
+          roe_matrix_term(2) = (h2*(uav-cav*nx) + h3 * uav + h4*(ur-ul-du*nx) + h5*(uav+cav*nx))
+          roe_matrix_term(3) = (h2*(vav-cav*ny) + h3 * vav + h4*(vr-vl-du*ny) + h5*(vav+cav*ny))
+          roe_matrix_term(4) = (h2*(hav-cav*uv) + h3 * q2a + h4*(uav*(ur-ul)+vav*(vr-vl)-uv*du) + h5*(hav+cav*uv))
+
+          edge_flux(1, i, j) = 0.5_rk * (F_R(1) + F_L(1) - roe_matrix_term(1))
+          edge_flux(2, i, j) = 0.5_rk * (F_R(2) + F_L(2) - roe_matrix_term(2))
+          edge_flux(3, i, j) = 0.5_rk * (F_R(3) + F_L(3) - roe_matrix_term(3))
+          edge_flux(4, i, j) = 0.5_rk * (F_R(4) + F_L(4) - roe_matrix_term(4))
+
+          #:if DIR == 'i'
+            f_p(1) = f_h(p_bar%data(i, j), p_bar%data(i+1, j))
+            f_p(2) = f_h(p_bar%data(i, j), p_bar%data(i, j+1))
+            f_p(3) = f_h(p_bar%data(i, j), p_bar%data(i, j-1))
+            f_p(4) = f_h(p_bar%data(i, j+1), p_bar%data(i+1, j+1))
+            f_p(5) = f_h(p_bar%data(i, j-1), p_bar%data(i+1, j-1))
+
+          #:elif DIR == 'j'
+            f_p(1) = f_h(p_bar%data(i, j), p_bar%data(i, j+1))
+            f_p(2) = f_h(p_bar%data(i, j), p_bar%data(i-1, j))
+            f_p(3) = f_h(p_bar%data(i, j), p_bar%data(i+1, j))
+            f_p(4) = f_h(p_bar%data(i, j+1), p_bar%data(i-1, j+1))
+            f_p(5) = f_h(p_bar%data(i, j+1), p_bar%data(i+1, j+1))
+          #:endif
+
+          edge_flux(2, i, j) = edge_flux(2, i, j) - 0.5_rk * maxval(f_p) * rav * cav * (-du_trans * ny + psi * du * nx) 
+          edge_flux(3, i, j) = edge_flux(3, i, j) - 0.5_rk * maxval(f_p) * rav * cav * (du_trans * nx + psi * du * ny) 
+
+        enddo
+      enddo
+    end subroutine get_${DIR}$flux
+
+  #:endfor
+
+  real(rk) function f_h(p_L, p_R)
+    !< Pressure sensing function to detect shock waves
+    real(rk), intent(in) :: p_L, p_R
+    real(rk) :: ratio
+
+    f_h = 1.0_rk
+    ratio = abs(p_R - p_L) / (min(p_R, p_L) + 1e-16_rk)
+    if (ratio < 1.0_rk) f_h = 0.0_rk
+  end function f_h
+
+  real(rk) function entropy_correction(z, d)
+    real(rk), intent(in) :: z, d
+    if (z > d) then
+      entropy_correction = z
+    else
+      entropy_correction = 0.5_rk * (z * z + d * d) / d
+    endif
+  end function entropy_correction
+
+  subroutine finalize(self)
+    !< Cleanup the Roe solver
+    type(roe_solver_t), intent(inout) :: self
+    call debug_print('Running roe_solver_t%finalize()', __FILE__, __LINE__)
+    if(allocated(self%iflux)) deallocate(self%iflux) ! these should already be deallocated
+    if(allocated(self%jflux)) deallocate(self%jflux) ! these should already be deallocated
+  endsubroutine finalize
+
+endmodule mod_roe_solver

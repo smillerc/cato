@@ -107,11 +107,6 @@ contains
     real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_v_dt  !< d/dt of the rhov field
     real(rk), dimension(:, :), allocatable, intent(out) :: d_rho_E_dt  !< d/dt of the rhoE field
 
-    ! type(field_2d_t), intent(out)   ::   d_rho_dt    !< d/dt of the density field
-    ! type(field_2d_t), intent(out)   :: d_rho_u_dt    !< d/dt of the rhou field
-    ! type(field_2d_t), intent(out)   :: d_rho_v_dt    !< d/dt of the rhov field
-    ! type(field_2d_t), intent(out)   :: d_rho_E_dt    !< d/dt of the rhoE field
-
     class(muscl_interpolation_t), pointer :: edge_interpolator => null()
     class(boundary_condition_t), allocatable:: bc_plus_x
     class(boundary_condition_t), allocatable:: bc_plus_y
@@ -310,18 +305,19 @@ contains
       jlo = lbound(edge_flux, dim=3)
       jhi = ubound(edge_flux, dim=3)
 
-      !
-      !                    jflux(i,j)  'R'
-      !               o--------------------o
-      !               |                'L' |
-      !               |                    |
-      ! iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
-      !               |                    |
-      !               |                'L' | 'R'
-      !               o--------------------o
-      !                  jflux(i,j-1)
-      !
-      ! This is the numbering convention that this module uses
+    !                                   /\
+    !                  jflux(i,j)  'R'  |
+    !                o--------------------o
+    !                |                'L' |
+    !            <---|                    |--->
+    ! -iflux(i-1, j) |     cell (i,j)     | iflux(i, j)
+    !                |                    |
+    !                |                'L' | 'R'
+    !                o--------------------o
+    !                   jflux(i,j-1)   |
+    !                                 \/
+    !
+    ! This is the numbering convention that this module uses
 
       !$omp parallel default(none), &
       !$omp firstprivate(gamma, ilo, ihi, jlo, jhi, apply_low_mach_fix) &
