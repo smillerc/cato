@@ -16,7 +16,7 @@ export OMP_NUM_THREADS=1
 cato_dir=../../../build
 run_dir=`pwd`
 rm -rf results
-python generate_ic.py
+python generate_ic.py perturbed
 
 if [ -f "cato.x" ]; then rm cato.x; fi
 if [ -f "std.err" ]; then rm std.err; fi

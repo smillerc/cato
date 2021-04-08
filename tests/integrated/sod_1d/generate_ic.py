@@ -15,7 +15,7 @@ from pycato import *
 
 # Make the empty grid
 shock_tube = make_1d_in_x_uniform_grid(
-    n_cells=500, limits=(0, 1.0), input_file="input.ini"
+    n_cells=250, limits=(0, 1.0), input_file="input.ini"
 )
 
 # Set the initial conditions
@@ -43,25 +43,25 @@ shock_tube["rho"] = shock_tube["rho"] * ureg("g/cc")
 write_initial_hdf5(filename="shock_tube_1d", initial_condition_dict=shock_tube)
 
 # Plot the results
-try:
-    # fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
-    # for ax, v in zip([ax1, ax2], ["rho", "p"]):
-    #     vc = ax.plot(shock_tube["xc"][:, 1], shock_tube[v][:, 1], "-o")
-    #     ax.set_ylabel(v)
-    #     ax.set_xlabel("X")
-    # plt.show()
+# try:
+#     # fig, (ax1, ax2) = plt.subplots(figsize=(18, 8), nrows=2, ncols=1)
+#     # for ax, v in zip([ax1, ax2], ["rho", "p"]):
+#     #     vc = ax.plot(shock_tube["xc"][:, 1], shock_tube[v][:, 1], "-o")
+#     #     ax.set_ylabel(v)
+#     #     ax.set_xlabel("X")
+#     # plt.show()
 
-    plt.figure(figsize=(10, 2))
-    plt.pcolormesh(
-        shock_tube["x"].m,
-        shock_tube["y"].m,
-        shock_tube["rho"].m,
-        ec="k",
-        lw=0.1,
-        antialiased=True,
-        cmap="viridis",
-    )
-    plt.axis("equal")
-    plt.show()
-except Exception:
-    pass
+#     plt.figure(figsize=(10, 2))
+#     plt.pcolormesh(
+#         shock_tube["x"].m,
+#         shock_tube["y"].m,
+#         shock_tube["rho"].m,
+#         ec="k",
+#         lw=0.1,
+#         antialiased=True,
+#         cmap="viridis",
+#     )
+#     plt.axis("equal")
+#     plt.show()
+# except Exception:
+#     pass

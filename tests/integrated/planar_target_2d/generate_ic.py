@@ -1,51 +1,76 @@
-# -*- coding: utf-8 -*-
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    pass
-
-from configparser import ConfigParser
-import numpy as np
-import sys
 import os
+import sys
+import json
+import matplotlib.pyplot as plt
+import numpy as np
+import pint
+from pathlib import Path
 
 sys.path.append(os.path.abspath("../../.."))
 from pycato import *
 
-
-# Physics
-gamma = 5.0 / 3.0
-init_pressure = 1e9 * ureg("barye")
-ice_density = 0.25 * ureg("g/cc")
-shell_density = 1.0 * ureg("g/cc")
-
-vacuum_pressure = 1e9 * ureg("barye")
-vacuum_density = 0.01 * ureg("g/cc")
-vacuum_u = np.sqrt(2.0 / (gamma + 1.0) * vacuum_pressure / shell_density).to("cm/s")
-
-# Mesh
-vacuum_feathering = 1.1
-wavelength = 0.5 * ureg("um")
 two_pi = (2 * np.pi) * ureg("radian")
-k = two_pi / wavelength
-print(f"k: {k}")
-y_thickness = (two_pi / k) / 2.0
-print(f"y_thickness: {y_thickness.to('um')}")
-dy = None  # will use smallest dx if None
 
-interface_loc = 5.0
-layer_thicknesses = [interface_loc, 10, 10] * ureg("um")
-layer_spacing = ["constant", "constant", "constant"]
-layer_resolution = [40, 40, 40] * ureg("1/um")
+# Read grid specs from a json file
+with open("grid_spec.json", "r") as f:
+    grid = json.load(f)
+
+wavelength = grid["perturbation_wavelength_um"] * ureg("um")
+k = two_pi / wavelength
+
+if grid["full_wavelength"]:
+    y_thickness = two_pi / k
+else:
+    y_thickness = (two_pi / k) / 2.0
+
+if "cell/wavelength" in grid["y_spacing"]:
+    # set y-resolution based on wavelength
+    print("Applying cells/wavelength")
+    cells_per_wavelength = float(grid["y_spacing"].split(" ")[0])
+
+    wavelength_fraction = y_thickness / wavelength
+    cells_per_micron_y = int(cells_per_wavelength * wavelength_fraction.m)
+    dy = y_thickness / cells_per_micron_y
+else:
+    print("Applying cells/micron")
+    cells_per_micron_y = float(grid["y_spacing"].split(" ")[0]) * ureg("1 / um")
+    dy = (1.0 / cells_per_micron_y.m) * ureg("um")
+
+layer_thicknesses = grid["layer_thicknesses"] * ureg(grid["length_units"])
+n_layers = len(grid["layer_thicknesses"])
+
+if isinstance(grid["x_spacing"], list):
+    raise Exception("Unable to handle a list for 'x_spacing' for now...")
+else:
+    layer_resolution = (
+        [float(grid["x_spacing"].split(" ")[0])] * n_layers * ureg("1/um")
+    )
+    layer_spacing = ["constant"] * n_layers
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
 ).m.astype(int)
 
-layer_density = [ice_density, shell_density, vacuum_density]
-layer_u = [0, 0, -vacuum_u.m] * ureg("cm/s")
-layer_v = [0, 0, 0] * ureg("cm/s")
-layer_pressure = [init_pressure, init_pressure, vacuum_pressure]
+
+init_vac_vel = False
+try:
+    init_vac_vel = grid["init_vacuum_velocity"]
+except:
+    pass
+
+gamma = grid["gamma"]
+layer_density = grid["density"] * ureg(grid["density_units"])
+layer_u = grid["x_velocity"] * ureg(grid["velocity_units"])
+layer_v = grid["y_velocity"] * ureg(grid["velocity_units"])
+layer_pressure = grid["pressure"] * ureg(grid["pressure_units"])
+
+# Initialize the vacuum with a velocity
+if init_vac_vel:
+    print("Initializing a velocity in the vacuum layer")
+    layer_u[-1] = -np.sqrt(
+        2.0 / (gamma + 1.0) * layer_pressure[-1] / layer_density[-2]
+    ).to("cm/s")
+    print("Layer velocity", layer_u)
 
 domain = make_2d_layered_grid(
     layer_thicknesses,
@@ -57,51 +82,51 @@ domain = make_2d_layered_grid(
     y_thickness,
     dy=dy,
     layer_spacing=layer_spacing,
-    spacing_scale_factor=vacuum_feathering,
-    input_file="input.ini",
+    spacing_scale_factor=None,
 )
 
 x = domain["xc"].to("um")
 y = domain["yc"].to("um")
 
 # Perturbation
-do_pert = False
-if do_pert:
-    x0 = (interface_loc + 5) * ureg("um")  # perturbation location
+x0 = grid["perturbation_x0"] * ureg("um")  # perturbation location
+print(f"Perturbing at {x0}")
 
-    pert_x = np.exp(-k.m * ((x - x0).m) ** 2)
-    pert_x[pert_x < 1e-4] = 0.0
+pert_x = np.exp(-k.m * ((x - x0).m) ** 2)
+pert_x[pert_x < 1e-6] = 0.0
 
-    pert_y = -((1.0 - np.cos(k * y)) / 2.0).to_base_units().m
-    perturbation_loc = pert_x * pert_y
-    perturbation_frac = 0.5
+pert_y = -((1.0 - np.cos(k * y)) / 2.0).to_base_units().m
+perturbation_loc = pert_x * pert_y
 
-    perturbation = np.abs(perturbation_loc * perturbation_frac)
-    perturbation[perturbation < 1e-4] = 0.0
+perturbation = np.abs(perturbation_loc * grid["perturbation_fraction"])
+perturbation[perturbation < 1e-6] = 0.0
 
-    domain["rho"] = domain["rho"] * (1.0 - perturbation)
-    # Cutoff the perturbation below 1e-6 otherwise there
-    # will be weird noise issues
+rho = domain["rho"]
+
+# Cutoff the perturbation below 1e-6 otherwise there
+# will be weird noise issues
+rho = rho * (1.0 - perturbation)
+
+domain["rho"] = rho
 
 # Save to file
 write_initial_hdf5(filename="initial_conditions", initial_condition_dict=domain)
 
 # Plot the results
-plot = True
-if plot:
-    fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
+fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
 
-    vc = ax1.pcolormesh(
-        domain["x"].to("um").m,
-        domain["y"].to("um").m,
-        domain["rho"].m,
-        edgecolor="k",
-        lw=0.001,
-        cmap="RdBu",
-        antialiased=True,
-    )
-    fig.colorbar(vc, ax=ax1, label="Density")
-    ax1.set_xlabel("X")
-    ax1.set_ylabel("Y")
-    ax1.axis("equal")
-    plt.show()
+vc = ax1.pcolormesh(
+    domain["x"].to("um").m,
+    domain["y"].to("um").m,
+    domain["rho"].m,
+    edgecolor="k",
+    lw=0.1,
+    cmap="RdBu_r",
+    antialiased=True,
+)
+fig.colorbar(vc, ax=ax1, label="Density")
+ax1.set_xlabel("X")
+ax1.set_ylabel("Y")
+ax1.axis("equal")
+# plt.show()
+plt.savefig("ic.png")

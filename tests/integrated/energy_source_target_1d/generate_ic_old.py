@@ -8,7 +8,8 @@ import os
 import argparse
 from pathlib import Path
 
-sys.path.append(os.path.abspath("../../.."))
+cato_dir = Path.home() / "cato"
+sys.path.append(str(cato_dir))
 from pycato import *
 
 parser = argparse.ArgumentParser()
@@ -24,36 +25,36 @@ if args.perturbed == "perturbed":
     apply_perturbations = True
 
 # Physics
-gamma = 5.0 / 3.0
-fill_density = 1e-3 * ureg("g/cc")
+gamma = 5.0/3.0
+fill_density = 1e-2 * ureg("g/cc")
 init_pressure = 1e9 * ureg("barye")
 ice_density = 0.25 * ureg("g/cc")
 shell_density = 1.0 * ureg("g/cc")
-vacuum_press = 10 * ureg('Mbar')
-vacuum_density = 0.005 * ureg("g/cc")
+vacuum_density = 1e-3 * ureg("g/cc")
 
 # Mesh
-layer_thicknesses = [30, 6, 3] * ureg("um")
+layer_thicknesses = [100, 30, 10, 2] * ureg("um")
 interface_loc = np.cumsum(layer_thicknesses)[1]
 gas_ice_interface_loc = layer_thicknesses[0]
-layer_spacing = ["constant"] * len(layer_thicknesses)
+layer_spacing = ["constant", "constant", "constant", "constant"]
 cells_per_micron_x = 10
-dy = None  # 1D
+dy = None # 1D
 
-layer_resolution = [cells_per_micron_x, cells_per_micron_x, cells_per_micron_x,] * ureg(
-    "1/um"
-)
+layer_resolution = [
+    cells_per_micron_x,
+    cells_per_micron_x,
+    cells_per_micron_x,
+    cells_per_micron_x,
+] * ureg("1/um")
 
 layer_n_cells = np.round(
     (layer_thicknesses * layer_resolution).to_base_units()
 ).m.astype(int)
 
-v_shell = np.sqrt(2.0 / (gamma + 1.0) * vacuum_press / shell_density).to("cm/s").m
-
-layer_density = [ice_density, shell_density, vacuum_density]
-layer_u = [0, 0, 0] * ureg("cm/s")
-layer_v = [0, 0, 0] * ureg("cm/s")
-layer_pressure = [init_pressure, init_pressure, init_pressure]
+layer_density = [fill_density, ice_density, shell_density, vacuum_density]
+layer_u = [0, 0, 0, 0] * ureg("cm/s")
+layer_v = [0, 0, 0, 0] * ureg("cm/s")
+layer_pressure = [init_pressure, init_pressure, init_pressure, init_pressure]
 
 domain = make_2d_layered_grid(
     layer_thicknesses,
@@ -66,7 +67,7 @@ domain = make_2d_layered_grid(
     layer_spacing=layer_spacing,
 )
 
-if False:
+if apply_perturbations:
     print("Applying perturbations to the initial conditions")
     x = domain["xc"].to("um")
 
@@ -77,7 +78,7 @@ if False:
 
     # perturbation location
     # x0 = interface_loc - 2 * ureg('um')
-    x0 = gas_ice_interface_loc + 2 * ureg("um")
+    x0 = gas_ice_interface_loc + 2 * ureg('um')
 
     pert_x = np.exp(-k.m * ((x - x0).m) ** 2)
     pert_x[pert_x < 1e-6] = 0.0

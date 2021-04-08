@@ -42,20 +42,20 @@ domain["v"] = domain["v"] * 0.0
 
 write_initial_hdf5(filename="sedov", initial_condition_dict=domain)
 
-# Plot the results
-fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
+# # Plot the results
+# fig, (ax1) = plt.subplots(figsize=(18, 8), nrows=1, ncols=1)
 
-vc = ax1.pcolormesh(
-    domain["x"].m,
-    domain["y"].m,
-    domain["p"].m,
-    edgecolor="k",
-    lw=0.001,
-    cmap="RdBu",
-    antialiased=True,
-)
-fig.colorbar(vc, ax=ax1, label="Pressure")
-ax1.set_xlabel("X")
-ax1.set_ylabel("Y")
-ax1.axis("equal")
-plt.show()
+# vc = ax1.pcolormesh(
+#     domain["x"].m,
+#     domain["y"].m,
+#     domain["p"].m,
+#     edgecolor="k",
+#     lw=0.001,
+#     cmap="RdBu",
+#     antialiased=True,
+# )
+# fig.colorbar(vc, ax=ax1, label="Pressure")
+# ax1.set_xlabel("X")
+# ax1.set_ylabel("Y")
+# ax1.axis("equal")
+# plt.show()

@@ -7,8 +7,8 @@ export UCX_LOG_LEVEL=error
 
 cato_dir=../../../build
 run_dir=`pwd`
-# rm -rf results
-# python generate_ic.py
+rm -rf results
+python generate_ic.py
 
 if [ -f "cato.x" ]; then rm cato.x; fi
 if [ -f "std.err" ]; then rm std.err; fi
