@@ -110,10 +110,19 @@ contains
     real(rk), intent(in) :: time
     allocate(new_source)
 
-    new_source%source_type = 'energy'
+    
+    select case(trim(input%source_term_type))
+    case ('energy')
+      new_source%source_type = 'energy'
+      new_source%nondim_scale_factor = pow_to_nondim
+    case ('force')
+      new_source%source_type = 'force'
+      new_source%nondim_scale_factor = force_to_nondim
+    end select
+    
+
     new_source%time = time
     new_source%multiplier = input%source_scale_factor
-    new_source%nondim_scale_factor = pow_to_nondim
     new_source%source_geometry = trim(input%source_geometry)
     new_source%constant_source = input%apply_constant_source
 
@@ -339,7 +348,7 @@ contains
     enddo
 
     self%x_center = max_to_all(x_center)
-    self%x_center = self%x_center + 5e-4_rk
+    self%x_center = self%x_center ! + 20e-5_rk ! + (self%fwhm_x*1.1)
 
   endsubroutine find_deposition_location
 
@@ -395,19 +404,13 @@ contains
         associate(x => self%centroid_x, x0 => self%x_center)
           do j = jlo, jhi
             do i = ilo, ihi
-              if(x(i, j) > x0) then               
+              if(x(i, j) < x0) then               
                 self%q_dot_h%data(i, j) = p_input * exp(-(x(i, j)/x0) ** 1.5_rk) / exp(-1.0_rk)
               else
-                self%q_dot_h%data(i, j) = p_input * exp(-1000 * ((x(i, j) - x0)/x0) ** 2)
+                self%q_dot_h%data(i, j) = p_input * exp(-1e4 * ((x(i, j) - x0)/x0) ** 2)
               endif
             enddo
           enddo
-
-          ! max_q = maxval(self%q_dot_h%data)
-          ! max_q = max_to_all(max_q)
-          ! if (max_q > 0.0_rk) then
-          !   self%q_dot_h%data = (self%q_dot_h%data / max_q) * p_input
-          ! endif
         endassociate
       case('2d_gaussian')
 
@@ -419,12 +422,6 @@ contains
         endassociate
       endselect
     endif
-
-    ! total_q = sum_to_all(sum(self%q_dot_h%data))
-    ! if (total_q > 0.0_rk) then
-    !   self%q_dot_h%data = (self%q_dot_h%data / total_q ) * p_input
-    !   total_q = sum_to_all(sum(self%q_dot_h%data))
-    ! endif
   endsubroutine get_source_field
 
   subroutine finalize(self)
