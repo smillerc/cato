@@ -51,6 +51,7 @@ program cato
   integer(ik) :: iteration = 0
   integer(ik) :: last_io_iteration = 0
   logical :: file_exists = .false.
+  logical :: constant_dt = .false.
   real(rk) :: contour_interval_dt, max_time
 
   open(std_error, file='std.err')
@@ -116,6 +117,8 @@ program cato
   call timer%start()
   if(input%use_constant_delta_t) then
     delta_t = input%initial_delta_t * t_to_nondim
+  else if (input%enable_startup_time) then
+    delta_t = input%startup_delta_t * t_to_nondim
   else
     if(input%initial_delta_t > 0.0_rk) then
       delta_t = input%initial_delta_t * t_to_nondim
@@ -134,15 +137,32 @@ program cato
 
   do while(time < max_time .and. iteration < input%max_iterations)
 
+    constant_dt = .false.
+    if (input%enable_startup_time) then
+      if (time <= input%startup_period * t_to_nondim) then
+        constant_dt = .true.
+        delta_t =  input%startup_delta_t * t_to_nondim
+      endif
+    else if (input%use_constant_delta_t .or. (iteration == 0 .and. input%initial_delta_t > 0.0_rk)) then
+      constant_dt = .true.
+      delta_t = input%initial_delta_t * t_to_nondim
+    endif
+
     if(this_image() == 1) write(std_out, '(2(a, es10.3), a, i0)') 'Time =', time * io_time_units * t_to_dim, &
       ' '//trim(io_time_label)//', Delta t =', delta_t * t_to_dim, ' s, Iteration: ', iteration
 
-    ! Integrate in time
-    if(input%use_constant_delta_t .or. (iteration == 0 .and. input%initial_delta_t > 0.0_rk)) then
-      call master%integrate(error_code=error_code, dt=input%initial_delta_t * t_to_nondim)
+    if (constant_dt) then
+      call master%integrate(error_code=error_code, dt=delta_t)
     else
       call master%integrate(error_code=error_code)
     endif
+
+    ! ! Integrate in time
+    ! if(input%use_constant_delta_t .or. (iteration == 0 .and. input%initial_delta_t > 0.0_rk)) then
+    !   call master%integrate(error_code=error_code, dt=input%initial_delta_t * t_to_nondim)
+    ! else
+    !   call master%integrate(error_code=error_code)
+    ! endif
 
     delta_t = master%dt
     new_time = master%time

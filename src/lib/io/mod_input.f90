@@ -113,6 +113,9 @@ module mod_input
 
     ! timing
     real(rk) :: max_time = 1.0_rk
+    logical :: enable_startup_time = .false.
+    real(rk) :: startup_delta_t = 0.0_rk
+    real(rk) :: startup_period = 0.0_rk
     real(rk) :: cfl = 0.1_rk ! Courant–Friedrichs–Lewy condition
     real(rk) :: initial_delta_t = 0.0_rk
     logical :: use_constant_delta_t = .false.
@@ -237,6 +240,14 @@ contains
     call cfg%get("time", "max_time", self%max_time)
     call cfg%get("time", "initial_delta_t", self%initial_delta_t, 0.0_rk)
     call cfg%get("time", "use_constant_delta_t", self%use_constant_delta_t, .false.)
+    
+    call cfg%get("time", "enable_startup_time", self%enable_startup_time, .false.)
+    
+    if (self%enable_startup_time) then
+      call cfg%get("time", "startup_period", self%startup_period)
+      call cfg%get("time", "startup_delta_t", self%startup_delta_t)
+    endif
+
     call cfg%get("time", "cfl", self%cfl, 0.1_rk)
     call cfg%get("time", "integration_strategy", char_buffer)
     call cfg%get("time", "max_iterations", self%max_iterations, huge(1))
