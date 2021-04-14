@@ -32,7 +32,7 @@ module mod_fluid
   use, intrinsic :: iso_fortran_env, only: ik => int32, rk => real64, std_err => error_unit, std_out => output_unit
   use, intrinsic :: ieee_arithmetic
 
-  use mod_field, only: field_2d_t, field_2d
+  use mod_field, only: field_2d_t, field_2d, field_shapes_match
   use mod_error, only: ALL_OK, NEG_DENSITY, NEG_PRESSURE, NANS_FOUND, error_msg
   use mod_globals, only: enable_debug_print, debug_print, print_evolved_cell_data, print_recon_data, n_ghost_layers
   use mod_nondimensionalization
@@ -126,8 +126,10 @@ module mod_fluid
     ! Public methods
     procedure, public :: initialize
     procedure, public :: set_time
+    procedure, public :: check_nans
     procedure, public :: get_timestep
     procedure, public :: integrate
+    procedure, public :: print_stats
     procedure, public :: t => time_derivative
 
     ! Finalizer
@@ -457,19 +459,20 @@ contains
     call self%p%sync_edges()
   endsubroutine sync_fields
 
-  function time_derivative(self, grid, source_term_d_dt) result(d_dt)
+  subroutine time_derivative(self, dt, grid, source_term_d_dt, d_dt)
     !< Implementation of the time derivative
     class(fluid_t), intent(inout) :: self
+    real(rk), intent(in) :: dt !< timestep
     class(grid_block_t), intent(in) :: grid  !< grid class - the solver needs grid topology
-    type(fluid_t), allocatable :: d_dt          !< dU/dt
+    type(fluid_t), intent(inout) :: d_dt          !< dU/dt
     class(field_2d_t), intent(in), optional :: source_term_d_dt
 
     integer(ik) :: ilo, ihi, jlo, jhi
 
-    real(rk), dimension(:, :), allocatable ::   d_rho_dt  !< d/dt of the density field
-    real(rk), dimension(:, :), allocatable :: d_rho_u_dt  !< d/dt of the rhou field
-    real(rk), dimension(:, :), allocatable :: d_rho_v_dt  !< d/dt of the rhov field
-    real(rk), dimension(:, :), allocatable :: d_rho_E_dt  !< d/dt of the rhoE field
+    real(rk), dimension(:, :), allocatable, save ::   d_rho_dt  !< d/dt of the density field
+    real(rk), dimension(:, :), allocatable, save :: d_rho_u_dt  !< d/dt of the rhou field
+    real(rk), dimension(:, :), allocatable, save :: d_rho_v_dt  !< d/dt of the rhov field
+    real(rk), dimension(:, :), allocatable, save :: d_rho_E_dt  !< d/dt of the rhoE field
 
     ihi = grid%ubounds(1)
     ilo = grid%lbounds(1)
@@ -478,12 +481,12 @@ contains
 
     if(enable_debug_print) call debug_print('Running fluid_t%time_derivative()', __FILE__, __LINE__)
 
-    allocate(d_dt, source=self)
-
+    ! allocate(d_dt, source=self)
+    self%dt = dt
     select type(grid)
     class is(grid_block_2d_t)
       call self%sync_fields()
-      call self%solver%solve(dt=self%dt, grid=grid, &
+      call self%solver%solve(dt=dt, grid=grid, &
                              rho=self%rho, u=self%u, v=self%v, p=self%p, &
                              d_rho_dt=d_rho_dt, &
                              d_rho_u_dt=d_rho_u_dt, &
@@ -509,11 +512,11 @@ contains
       endif
     endselect
 
-    deallocate(d_rho_dt)
-    deallocate(d_rho_u_dt)
-    deallocate(d_rho_v_dt)
-    deallocate(d_rho_E_dt)
-  endfunction time_derivative
+    ! deallocate(d_rho_dt)
+    ! deallocate(d_rho_u_dt)
+    ! deallocate(d_rho_v_dt)
+    ! deallocate(d_rho_E_dt)
+  end subroutine time_derivative
 
   real(rk) function get_timestep(self, grid) result(delta_t)
     class(fluid_t), intent(inout) :: self
@@ -533,11 +536,11 @@ contains
     class is(grid_block_2d_t)
       err_msg = ''
 
-      ilo = self%u%lbounds(1)-2
-      ihi = self%u%ubounds(1)+2
+      ilo = self%u%lbounds(1)
+      ihi = self%u%ubounds(1)
 
-      jlo = self%u%lbounds(2)-2
-      jhi = self%u%ubounds(2)+2
+      jlo = self%u%lbounds(2)
+      jhi = self%u%ubounds(2)
 
       min_dt = huge(1.0_rk)
       do j = jlo, jhi
@@ -685,27 +688,27 @@ contains
     lhs%rho_v = rhs%rho_v
     lhs%rho_E = rhs%rho_E
 
-    select case(trim(rhs%flux_solver_type))
-    case('Roe', 'S-Roe', 'SP-Roe')
-      allocate(roe_solver_t :: solver)
-    case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
-      allocate(slau_solver_t :: solver)
-    case('M-AUSMPW+')
-      allocate(m_ausmpw_plus_solver_t :: solver)
-    case('AUSMPW+')
-      allocate(ausmpw_plus_solver_t :: solver)
-    case default
-      call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
-                     message="Invalid flux solver. It must be one of the following: "// &
-                     "['AUSMPW+', 'M-AUSMPW+', 'Roe', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
-                     "the input was: '"//trim(rhs%flux_solver_type)//"'", &
-                     file_name=__FILE__, line_number=__LINE__)
-    endselect
+    ! select case(trim(rhs%flux_solver_type))
+    ! case('Roe', 'S-Roe', 'SP-Roe')
+    !   allocate(roe_solver_t :: solver)
+    ! case('SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2')
+    !   allocate(slau_solver_t :: solver)
+    ! case('M-AUSMPW+')
+    !   allocate(m_ausmpw_plus_solver_t :: solver)
+    ! case('AUSMPW+')
+    !   allocate(ausmpw_plus_solver_t :: solver)
+    ! case default
+    !   call error_msg(module_name='mod_fluid', class_name='fluid_t', procedure_name='assign_fluid', &
+    !                  message="Invalid flux solver. It must be one of the following: "// &
+    !                  "['AUSMPW+', 'M-AUSMPW+', 'Roe', 'SLAU', 'SLAU2', 'SD-SLAU', 'SD-SLAU2'], "// &
+    !                  "the input was: '"//trim(rhs%flux_solver_type)//"'", &
+    !                  file_name=__FILE__, line_number=__LINE__)
+    ! endselect
 
-    if(allocated(lhs%solver)) deallocate(lhs%solver)
-    call solver%initialize(rhs%input, rhs%time)
-    allocate(lhs%solver, source=solver)
-    deallocate(solver)
+    ! if(allocated(lhs%solver)) deallocate(lhs%solver)
+    ! call solver%initialize(rhs%input, rhs%time)
+    ! allocate(lhs%solver, source=solver)
+    ! deallocate(solver)
 
     lhs%time_integration_scheme = rhs%time_integration_scheme
     lhs%time = rhs%time
@@ -722,6 +725,48 @@ contains
 
     call lhs%calculate_derived_quantities()
   endsubroutine assign_fluid
+
+  subroutine update(from, to)
+    class(fluid_t), intent(in) :: from
+    class(fluid_t), intent(inout) :: to
+
+    to%time_integration_scheme = from%time_integration_scheme
+    to%time = from%time
+    to%dt = from%dt
+    to%iteration = from%iteration
+    to%prim_vars_updated = from%prim_vars_updated
+    to%residual_hist_file = from%residual_hist_file
+    to%residual_hist_header_written = from%residual_hist_header_written
+
+  end subroutine
+
+  subroutine check_nans(self)
+    class(fluid_t), intent(in) :: self
+
+    call self%rho%check_for_nans()
+    call self%u%check_for_nans()
+    call self%v%check_for_nans()
+    call self%p%check_for_nans()
+
+  end subroutine
+
+  subroutine print_stats(self)
+    class(fluid_t), intent(in) :: self
+
+    print*,  self%time_integration_scheme, &
+      self%flux_solver_type, &
+      self%cfl, &
+      self%time * t_to_dim, &
+      self%dt   * t_to_dim, &
+      self%iteration, &
+      self%prim_vars_updated, &
+      self%residual_hist_file, &
+      self%residual_hist_header_written, &
+      'solver allocated: ', allocated(self%solver), &
+      'fields allocated: ', all([allocated(self%rho%data), allocated(self%cs%data)]), &
+      self%solver%dt, self%solver%iteration, self%solver%time
+
+  end subroutine
 
   subroutine sanity_check(self, error_code)
     !< Run checks on the conserved variables. Density and pressure need to be > 0. No NaNs or Inifinite numbers either.
@@ -743,9 +788,10 @@ contains
     class(source_t), allocatable, intent(inout), optional :: source_term
     class(field_2d_t), allocatable, save :: d_dt_source_term
 
-    type(fluid_t), allocatable :: U_1 !< first stage
-    type(fluid_t), allocatable :: U_2 !< second stage
-    type(fluid_t), allocatable :: U_3 !< final stage
+    type(fluid_t), allocatable, save :: U_1, U_2, U_3
+    type(fluid_t), allocatable, save :: dUdt, dUdt_1, dUdt_2
+
+    integer(ik) :: ilo, ihi, jlo, jhi
     integer(ik), intent(out) :: error_code
     real(rk), dimension(4) :: convergence_L2norm
     real(rk) :: dt, time, new_dt
@@ -755,86 +801,171 @@ contains
     real(rk) :: stage_1_energy, stage_n_energy, added_energy
     logical :: do_subcycle
 
+    real(rk), parameter :: one_third  = 1.0_rk / 3.0_rk
+    real(rk), parameter :: two_thirds = 2.0_rk / 3.0_rk
+    real(rk), parameter :: one_fourth = 1.0_rk / 4.0_rk
+    real(rk), parameter :: three_fourth = 3.0_rk / 4.0_rk
+
     call debug_print('Running fluid_t%ssp_rk_3_3()', __FILE__, __LINE__)
 
     dt = U%dt
     time = U%time
     convergence_L2norm = 0.0_rk
 
+    ihi = grid%ubounds(1)
+    ilo = grid%lbounds(1)
+    jhi = grid%ubounds(2)
+    jlo = grid%lbounds(2)
+
+    if (.not. allocated(U_1   )) allocate(U_1, source=U)
+    if (.not. allocated(U_2   )) allocate(U_2, source=U)
+    if (.not. allocated(U_3   )) allocate(U_3, source=U)
+    if (.not. allocated(dUdt  )) allocate(dUdt, source=U)
+    if (.not. allocated(dUdt_1)) allocate(dUdt_1, source=U)
+    if (.not. allocated(dUdt_2)) allocate(dUdt_2, source=U)
+
+    U_1 = U
+    U_2 = U
+    U_3 = U
+
+    ! U_1%time = U%time
+    ! U_1%iteration = U%iteration
+    ! 
+    ! U_2%time = U%time
+    ! U_2%iteration = U%iteration
+! 
+    ! U_3%time = U%time
+    ! U_3%iteration = U%iteration
+    
+    ! dUdt  %dt = dt
+    ! dUdt_1%dt = dt
+    ! dUdt_2%dt = dt
+    
+    ! call update(from=U, to=U_1)
+    ! call update(from=U, to=U_2)
+    ! call update(from=U, to=U_3)
+    ! call update(from=U, to=dUdt)
+    ! call update(from=U, to=dUdt_1)
+    ! call update(from=U, to=dUdt_2)
+
+    ! print*, dt, U_1%dt,    U_2%dt,    U_3%dt    
+    ! sync all
+    ! call U_1   %print_stats()
+    ! call U_2   %print_stats()
+    ! call U_3   %print_stats()
+    ! call dUdt  %print_stats()
+    ! call dUdt_1%print_stats()
+    ! call dUdt_2%print_stats()
+
     ! 1st stage
     if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
-    do
-      U%dt = dt
-      if(present(source_term)) then
-        d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
-      endif
+    ! associate(rho   =>   U%rho%data, rhou   =>   U%rho_u%data, rhov   =>   U%rho_v%data, rhoe   =>   U%rho_E%data, &
+    !           rho_1 => U_1%rho%data, rhou_1 => U_1%rho_u%data, rhov_1 => U_1%rho_v%data, rhoe_1 => U_1%rho_E%data, &
+    !           rho_2 => U_2%rho%data, rhou_2 => U_2%rho_u%data, rhov_2 => U_2%rho_v%data, rhoe_2 => U_2%rho_E%data, &
+    !           rho_3 => U_3%rho%data, rhou_3 => U_3%rho_u%data, rhov_3 => U_3%rho_v%data, rhoe_3 => U_3%rho_E%data, &
+    !           drho_dt     => dUdt%rho%data, drhou_dt   =>   dUdt%rho_u%data,   drhov_dt =>   dUdt%rho_v%data, drhoe_dt   =>   dUdt%rho_E%data, &
+    !           drho_dt_1 => dUdt_1%rho%data, drhou_dt_1 => dUdt_1%rho_u%data, drhov_dt_1 => dUdt_1%rho_v%data, drhoe_dt_1 => dUdt_1%rho_E%data, &
+    !           drho_dt_2 => dUdt_2%rho%data, drhou_dt_2 => dUdt_2%rho_u%data, drhov_dt_2 => dUdt_2%rho_v%data, drhoe_dt_2 => dUdt_2%rho_E%data)
+      
+    !   ! print*, maxval(rho_1), minval(rho_1), maxval(rho), minval(rho), maxval(drho_dt), minval(drho_dt)
+    !   ! error stop 'done'
+    !   ! dUdt = U%t(grid)
+    !   call U%t(grid=grid, dt=dt, d_dt=dUdt)
+    !   !U_1 = U + U%t(grid) * dt
+    !   rho_1 =  rho  + drho_dt  * dt
+    !   rhou_1 = rhou + drhou_dt * dt
+    !   rhov_1 = rhov + drhov_dt * dt
+    !   rhoe_1 = rhoe + drhoe_dt * dt
 
-      if (.not. allocated(U_1)) allocate(U_1, source=U)
-      if(present(source_term)) then
-        U_1 = U + U%t(grid, d_dt_source_term) * dt
-      else
-        U_1 = U + U%t(grid) * dt
-      endif
+    !   ! dUdt_1 = U_1%t(grid)
+    !   call U_1%t(grid=grid, dt=dt, d_dt=dUdt_1)
 
-      ! 2nd stage
-      if (.not. allocated(U_2)) allocate(U_2, source=U)
-      if(present(source_term)) then
-        U_2 = U * (3.0_rk / 4.0_rk) &
-              + U_1 * (1.0_rk / 4.0_rk) &
-              + U_1%t(grid, d_dt_source_term) * ((1.0_rk / 4.0_rk) * dt)
-      else
-        U_2 = U * (3.0_rk / 4.0_rk) + U_1 * (1.0_rk / 4.0_rk) + U_1%t(grid) * ((1.0_rk / 4.0_rk) * dt)
-      endif
+    !   ! U_2 = U * (3.0_rk / 4.0_rk) + U_1 * (1.0_rk / 4.0_rk) + U_1%t(grid) * ((1.0_rk / 4.0_rk) * dt)
+    !   rho_2  = rho  * (3.0_rk / 4.0_rk) +  rho_1 * (1.0_rk / 4.0_rk) +  drho_dt_1  * ((1.0_rk / 4.0_rk) * dt)
+    !   rhou_2 = rhou * (3.0_rk / 4.0_rk) + rhou_1 * (1.0_rk / 4.0_rk) + drhou_dt_1  * ((1.0_rk / 4.0_rk) * dt)
+    !   rhov_2 = rhov * (3.0_rk / 4.0_rk) + rhov_1 * (1.0_rk / 4.0_rk) + drhov_dt_1  * ((1.0_rk / 4.0_rk) * dt)
+    !   rhoe_2 = rhoe * (3.0_rk / 4.0_rk) + rhoe_1 * (1.0_rk / 4.0_rk) + drhoe_dt_1  * ((1.0_rk / 4.0_rk) * dt)
+      
+    !   ! dUdt_2 = U_2%t(grid)
+    !   call U_2%t(grid=grid, dt=dt, d_dt=dUdt_2)
 
-      ! Final stage
-      if (.not. allocated(U_3)) allocate(U_3, source=U)
-      if(present(source_term)) then
-        U_3 = U * (1.0_rk / 3.0_rk) &
-            + U_2 * (2.0_rk / 3.0_rk) &
-            + U_2%t(grid, d_dt_source_term) * ((2.0_rk / 3.0_rk) * dt)
-      else
-        U_3 = U * (1.0_rk / 3.0_rk) &
-            + U_2 * (2.0_rk / 3.0_rk) &
-            + U_2%t(grid) * ((2.0_rk / 3.0_rk) * dt)
-      endif
+    !   !  U_3   = U *  (1.0_rk / 3.0_rk) + U_2 * (2.0_rk / 3.0_rk) + U_2%t(grid) * ((2.0_rk / 3.0_rk) * dt)
+    !     rho_3 = rho  * (1.0_rk / 3.0_rk) +  rho_2 * (2.0_rk / 3.0_rk) +  drho_dt_2  * ((2.0_rk / 3.0_rk) * dt)
+    !   rhou_3 = rhou * (1.0_rk / 3.0_rk) + rhou_2 * (2.0_rk / 3.0_rk) + drhou_dt_2  * ((2.0_rk / 3.0_rk) * dt)
+    !   rhov_3 = rhov * (1.0_rk / 3.0_rk) + rhov_2 * (2.0_rk / 3.0_rk) + drhov_dt_2  * ((2.0_rk / 3.0_rk) * dt)
+    !   rhoe_3 = rhoe * (1.0_rk / 3.0_rk) + rhoe_2 * (2.0_rk / 3.0_rk) + drhoe_dt_2  * ((2.0_rk / 3.0_rk) * dt)
+    ! end associate
+    ! associate(rho   =>   U%rho%data, rhou   =>   U%rho_u%data, rhov   =>   U%rho_v%data, rhoe   =>   U%rho_E%data, &
+    !           rho_1 => U_1%rho%data, rhou_1 => U_1%rho_u%data, rhov_1 => U_1%rho_v%data, rhoe_1 => U_1%rho_E%data, &
+    !           rho_2 => U_2%rho%data, rhou_2 => U_2%rho_u%data, rhov_2 => U_2%rho_v%data, rhoe_2 => U_2%rho_E%data, &
+    !           rho_3 => U_3%rho%data, rhou_3 => U_3%rho_u%data, rhov_3 => U_3%rho_v%data, rhoe_3 => U_3%rho_E%data, &
+    !           drho_dt     => dUdt%rho%data, drhou_dt   =>   dUdt%rho_u%data,   drhov_dt =>   dUdt%rho_v%data, drhoe_dt   =>   dUdt%rho_E%data, &
+    !           drho_dt_1 => dUdt_1%rho%data, drhou_dt_1 => dUdt_1%rho_u%data, drhov_dt_1 => dUdt_1%rho_v%data, drhoe_dt_1 => dUdt_1%rho_E%data, &
+    !           drho_dt_2 => dUdt_2%rho%data, drhou_dt_2 => dUdt_2%rho_u%data, drhov_dt_2 => dUdt_2%rho_v%data, drhoe_dt_2 => dUdt_2%rho_E%data)
+      
+      ! print*, maxval(rho_1), minval(rho_1), maxval(rho), minval(rho), maxval(drho_dt), minval(drho_dt)
+      ! error stop 'done'
+      ! dUdt = U%t(grid)
+      call U%t(grid=grid, dt=dt, d_dt=dUdt)
+      !U_1 = U + U%t(grid) * dt
+      U_1%rho  %data=  U%rho  %data +  dUdt%rho%data   * dt
+      U_1%rho_u%data = U%rho_u%data +  dUdt%rho_u%data * dt
+      U_1%rho_v%data = U%rho_v%data +  dUdt%rho_v%data * dt
+      U_1%rho_e%data = U%rho_e%data +  dUdt%rho_E%data * dt
 
-      ! Convergence history
-      call calculate_convergence(U_1, U_3, convergence_L2norm)
+      ! dUdt_1 = U_1%t(grid)
+      call U_1%t(grid=grid, dt=dt, d_dt=dUdt_1)
+
+      ! U_2 = U * (3.0_rk / 4.0_rk) + U_1 * (1.0_rk / 4.0_rk) + U_1%t(grid) * ((1.0_rk / 4.0_rk) * dt)
+      U_2%rho  %data = U%rho  %data * (3.0_rk / 4.0_rk) + U_1%rho%data * (1.0_rk / 4.0_rk) +   dUdt_1%rho%data   * ((1.0_rk / 4.0_rk) * dt)
+      U_2%rho_u%data = U%rho_u%data * (3.0_rk / 4.0_rk) + U_1%rho_u%data * (1.0_rk / 4.0_rk) + dUdt_1%rho_u%data  * ((1.0_rk / 4.0_rk) * dt)
+      U_2%rho_v%data = U%rho_v%data * (3.0_rk / 4.0_rk) + U_1%rho_v%data * (1.0_rk / 4.0_rk) + dUdt_1%rho_v%data  * ((1.0_rk / 4.0_rk) * dt)
+      U_2%rho_e%data = U%rho_e%data * (3.0_rk / 4.0_rk) + U_1%rho_e%data * (1.0_rk / 4.0_rk) + dUdt_1%rho_E%data  * ((1.0_rk / 4.0_rk) * dt)
+      
+      ! dUdt_2 = U_2%t(grid)
+      call U_2%t(grid=grid, dt=dt, d_dt=dUdt_2)
+
+      !  U_3   = U *  (1.0_rk / 3.0_rk) + U_2 * (2.0_rk / 3.0_rk) + U_2%t(grid) * ((2.0_rk / 3.0_rk) * dt)
+      U_3%rho  %data = U%rho  %data * (1.0_rk / 3.0_rk) +  U_2%rho%data * (2.0_rk / 3.0_rk) +  dUdt_2%rho%data  * ((2.0_rk / 3.0_rk) * dt)
+      U_3%rho_u%data = U%rho_u%data * (1.0_rk / 3.0_rk) + U_2%rho_u%data * (2.0_rk / 3.0_rk) + dUdt_2%rho_u%data  * ((2.0_rk / 3.0_rk) * dt)
+      U_3%rho_v%data = U%rho_v%data * (1.0_rk / 3.0_rk) + U_2%rho_v%data * (2.0_rk / 3.0_rk) + dUdt_2%rho_v%data  * ((2.0_rk / 3.0_rk) * dt)
+      U_3%rho_e%data = U%rho_e%data * (1.0_rk / 3.0_rk) + U_2%rho_e%data * (2.0_rk / 3.0_rk) + dUdt_2%rho_E%data  * ((2.0_rk / 3.0_rk) * dt)
+    ! end associate
+
+    ! Convergence history
 
 
-      if(present(source_term)) then
-        stage_1_energy = sum_to_all(sum(U%rho_E%data))
-        stage_n_energy = sum_to_all(sum(U_3%rho_E%data))
-        added_energy = sum_to_all(source_term%q_dot_h%sum()) * dt
 
-        ! write(*, '(a, 3(es16.6))') 'energy cons', abs(stage_n_energy - (stage_1_energy + added_energy))
-      endif
+    if(present(source_term)) then
+      stage_1_energy = sum_to_all(sum(U%rho_E%data))
+      stage_n_energy = sum_to_all(sum(U_3%rho_E%data))
+      added_energy = sum_to_all(source_term%q_dot_h%sum()) * dt
+    endif
 
-      call subcycle_check(U=U, CFL_dt=dt, residual_L2_norms=convergence_L2norm, &
-                          new_dt=new_dt, do_subcycle=do_subcycle)
-
-      if (do_subcycle) then
-        dt = new_dt
-      else
-        exit
-      endif
-    end do
 
     U%rho  %data = U_3%rho  %data
     U%rho_u%data = U_3%rho_u%data
     U%rho_v%data = U_3%rho_v%data
     U%rho_E%data = U_3%rho_E%data
-    U%dt = U_3%dt
-    U%time = U_3%time + U_3%dt
 
+    ! U%time = U%time + dt
+    ! U%iteration = U%iteration + 1
+
+
+
+    call calculate_convergence(U_1, U_3, convergence_L2norm)
     call U%sanity_check(error_code)
     call U%calculate_derived_quantities()
+    call U%rho%check_for_nans()
+    call U%u%check_for_nans()
+    call U%v%check_for_nans()
+    call U%p%check_for_nans()
 
     call write_residual_history(U, convergence_L2norm)
-    if (allocated(U_1)) deallocate(U_1)
-    if (allocated(U_2)) deallocate(U_2)
-    if (allocated(U_3)) deallocate(U_3)
+    ! if (allocated(U_1)) deallocate(U_1)
+    ! if (allocated(U_2)) deallocate(U_2)
+    ! if (allocated(U_3)) deallocate(U_3)
 
   endsubroutine ssp_rk_3_3
 
@@ -896,98 +1027,98 @@ contains
     real(rk) :: stage_1_energy, stage_n_energy, added_energy
     real(rk), parameter :: err_tol = 1e-2_rk
 
-    call debug_print('Running fluid_t%ssp_rk_3_3()', __FILE__, __LINE__)
+    ! call debug_print('Running fluid_t%ssp_rk_3_3()', __FILE__, __LINE__)
 
-    dt = U%dt
-    time = U%time
-    sub_cycle = 0
-    convergence_L2norm = 0.0_rk
+    ! dt = U%dt
+    ! time = U%time
+    ! sub_cycle = 0
+    ! convergence_L2norm = 0.0_rk
 
-    if (.not. allocated(alpha)) then
-      allocate(alpha(nstages))
-      alpha = 0.0_rk
-    endif
+    ! if (.not. allocated(alpha)) then
+    !   allocate(alpha(nstages))
+    !   alpha = 0.0_rk
+    ! endif
 
-    select case(temporal_order)
-    case(1)
-      select case(nstages)
-      case(3)
-        alpha = [0.1481_rk, 0.4_rk, 1.0_rk]
-      case(4)
-        alpha = [0.0833_rk, 0.2069_rk, 0.4265_rk, 1.0_rk]
-      case(5)
-        alpha = [0.0533_rk, 0.1263_rk, 0.2375_rk, 0.4414_rk, 1.0_rk]
-      end select
-    case(2)
-      select case(nstages)
-      case(3)
-        alpha = [0.1918_rk, 0.4929_rk, 1.0_rk]
-      case(4)
-        alpha = [0.1084_rk, 0.2602_rk, 0.5052_rk, 1.0_rk]
-      case(5)
-        alpha = [0.0695_rk, 0.1602_rk, 0.2898_rk, 0.5060_rk, 1.0_rk]
-      end select
-    end select
+    ! select case(temporal_order)
+    ! case(1)
+    !   select case(nstages)
+    !   case(3)
+    !     alpha = [0.1481_rk, 0.4_rk, 1.0_rk]
+    !   case(4)
+    !     alpha = [0.0833_rk, 0.2069_rk, 0.4265_rk, 1.0_rk]
+    !   case(5)
+    !     alpha = [0.0533_rk, 0.1263_rk, 0.2375_rk, 0.4414_rk, 1.0_rk]
+    !   end select
+    ! case(2)
+    !   select case(nstages)
+    !   case(3)
+    !     alpha = [0.1918_rk, 0.4929_rk, 1.0_rk]
+    !   case(4)
+    !     alpha = [0.1084_rk, 0.2602_rk, 0.5052_rk, 1.0_rk]
+    !   case(5)
+    !     alpha = [0.0695_rk, 0.1602_rk, 0.2898_rk, 0.5060_rk, 1.0_rk]
+    !   end select
+    ! end select
 
-    ! 1st stage
-    if(present(source_term)) then
-      if (.not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
-      d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
-    endif
+    ! ! 1st stage
+    ! if(present(source_term)) then
+    !   if (.not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
+    !   d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
+    ! endif
 
-    if (.not. allocated(U_0)) allocate(U_0, source=U)
-    if (.not. allocated(U_prev)) allocate(U_prev, source=U)
-    if (.not. allocated(U_curr)) allocate(U_curr, source=U)
-    U_0 = U
-    do m = 1, nstages
-      ! print*, 'stage', m, 'alpha', alpha(m)
-      if(present(source_term)) then
-        U_curr = U_0 + (U_prev%t(grid, d_dt_source_term) * (dt * alpha(m)))
-      else
-        U_curr = U_0 + (U_prev%t(grid) * (dt * alpha(m)))
-      endif
-
-      U_prev = U_curr
-    end do
-
-
-    !   ! Convergence history
-    call calculate_convergence(U_0, U_curr, convergence_L2norm)
-
+    ! if (.not. allocated(U_0)) allocate(U_0, source=U)
+    ! if (.not. allocated(U_prev)) allocate(U_prev, source=U)
+    ! if (.not. allocated(U_curr)) allocate(U_curr, source=U)
+    ! U_0 = U
+    ! do m = 1, nstages
+    !   ! print*, 'stage', m, 'alpha', alpha(m)
     !   if(present(source_term)) then
-    !     stage_1_energy = sum_to_all(sum(U%rho_E%data/U%rho%data))
-    !     stage_n_energy = sum_to_all(sum(U_3%rho_E%data/U_3%rho%data))
-    !     added_energy = sum_to_all(source_term%q_dot_h%sum()) * dt
-
-    !     ! write(*, '(a, 3(es16.6))') 'energy cons', abs(stage_n_energy - (stage_1_energy + added_energy))
-    !   endif
-
-
-    !   if (abs(maxval(convergence_L2norm(1:3))) < err_tol) then
-    !     exit
+    !     U_curr = U_0 + (U_prev%t(grid, d_dt_source_term) * (dt * alpha(m)))
     !   else
-    !     dt = dt / 10
-    !     sub_cycle = sub_cycle + 1
-    !     if(this_image() == 1) print*, "Subcycle", sub_cycle, "dt", dt, convergence_L2norm
+    !     U_curr = U_0 + (U_prev%t(grid) * (dt * alpha(m)))
     !   endif
 
+    !   U_prev = U_curr
+    ! end do
 
-    U%rho  %data = U_curr%rho  %data
-    U%rho_u%data = U_curr%rho_u%data
-    U%rho_v%data = U_curr%rho_v%data
-    U%rho_E%data = U_curr%rho_E%data
-    U%dt = U_curr%dt
-    U%time = U_curr%time + U_curr%dt
 
-    ! ! call move_alloc(U_3, U)
-    call U%sanity_check(error_code)
-    call U%calculate_derived_quantities()
+    ! !   ! Convergence history
+    ! call calculate_convergence(U_0, U_curr, convergence_L2norm)
+
+    ! !   if(present(source_term)) then
+    ! !     stage_1_energy = sum_to_all(sum(U%rho_E%data/U%rho%data))
+    ! !     stage_n_energy = sum_to_all(sum(U_3%rho_E%data/U_3%rho%data))
+    ! !     added_energy = sum_to_all(source_term%q_dot_h%sum()) * dt
+
+    ! !     ! write(*, '(a, 3(es16.6))') 'energy cons', abs(stage_n_energy - (stage_1_energy + added_energy))
+    ! !   endif
+
+
+    ! !   if (abs(maxval(convergence_L2norm(1:3))) < err_tol) then
+    ! !     exit
+    ! !   else
+    ! !     dt = dt / 10
+    ! !     sub_cycle = sub_cycle + 1
+    ! !     if(this_image() == 1) print*, "Subcycle", sub_cycle, "dt", dt, convergence_L2norm
+    ! !   endif
+
+
+    ! U%rho  %data = U_curr%rho  %data
+    ! U%rho_u%data = U_curr%rho_u%data
+    ! U%rho_v%data = U_curr%rho_v%data
+    ! U%rho_E%data = U_curr%rho_E%data
+    ! U%dt = U_curr%dt
+    ! U%time = U_curr%time + U_curr%dt
+
+    ! ! ! call move_alloc(U_3, U)
+    ! call U%sanity_check(error_code)
+    ! call U%calculate_derived_quantities()
 
     
-    call write_residual_history(U, convergence_L2norm)
-    if (allocated(U_0))    deallocate(U_0)
-    if (allocated(U_prev)) deallocate(U_prev)
-    if (allocated(U_curr)) deallocate(U_curr)
+    ! call write_residual_history(U, convergence_L2norm)
+    ! if (allocated(U_0))    deallocate(U_0)
+    ! if (allocated(U_prev)) deallocate(U_prev)
+    ! if (allocated(U_curr)) deallocate(U_curr)
 
   endsubroutine rk_multistage
 
@@ -1086,61 +1217,61 @@ contains
     dt = U%dt
     time = U%time
 
-    allocate(U_1, source=U)
+    ! allocate(U_1, source=U)
 
-    ! 1st stage
-    if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
+    ! ! 1st stage
+    ! if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
-    do
-      U%dt = dt
-      if(present(source_term)) then
-        d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
-      endif
+    ! do
+    !   U%dt = dt
+    !   if(present(source_term)) then
+    !     d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
+    !   endif
 
-      if(present(source_term)) then
-        d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
-        U_1 = U + U%t(grid, d_dt_source_term) * dt
-      else
-        U_1 = U + U%t(grid) * dt
-      endif
+    !   if(present(source_term)) then
+    !     d_dt_source_term = source_term%integrate(time=time, dt=dt, density=U%rho)
+    !     U_1 = U + U%t(grid, d_dt_source_term) * dt
+    !   else
+    !     U_1 = U + U%t(grid) * dt
+    !   endif
 
-      ! 2nd stage
-      if (.not. allocated(U_2)) allocate(U_2, source=U)
+    !   ! 2nd stage
+    !   if (.not. allocated(U_2)) allocate(U_2, source=U)
 
-      if(present(source_term)) then
-        U_2 = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, d_dt_source_term) * (0.5_rk * dt)
-      else
-        U_2 = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid) * (0.5_rk * dt)
-      endif
+    !   if(present(source_term)) then
+    !     U_2 = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid, d_dt_source_term) * (0.5_rk * dt)
+    !   else
+    !     U_2 = U * 0.5_rk + U_1 * 0.5_rk + U_1%t(grid) * (0.5_rk * dt)
+    !   endif
 
-      ! Convergence history
-      call calculate_convergence(U_1, U_2, convergence_L2norm)
+    !   ! Convergence history
+    !   call calculate_convergence(U_1, U_2, convergence_L2norm)
 
-      call subcycle_check(U=U, CFL_dt=dt, residual_L2_norms=convergence_L2norm, &
-                          new_dt=new_dt, do_subcycle=do_subcycle)
+    !   call subcycle_check(U=U, CFL_dt=dt, residual_L2_norms=convergence_L2norm, &
+    !                       new_dt=new_dt, do_subcycle=do_subcycle)
 
-      if (do_subcycle) then
-        dt = new_dt
-      else
-        exit
-      endif
-    end do
+    !   if (do_subcycle) then
+    !     dt = new_dt
+    !   else
+    !     exit
+    !   endif
+    ! end do
 
-    U%rho  %data = U_2%rho  %data
-    U%rho_u%data = U_2%rho_u%data
-    U%rho_v%data = U_2%rho_v%data
-    U%rho_E%data = U_2%rho_E%data
-    U%dt = U_2%dt
-    U%time = U_2%time + U_2%dt
+    ! U%rho  %data = U_2%rho  %data
+    ! U%rho_u%data = U_2%rho_u%data
+    ! U%rho_v%data = U_2%rho_v%data
+    ! U%rho_E%data = U_2%rho_E%data
+    ! U%dt = U_2%dt
+    ! U%time = U_2%time + U_2%dt
 
-    call U%sanity_check(error_code)
-    call U%calculate_derived_quantities()
+    ! call U%sanity_check(error_code)
+    ! call U%calculate_derived_quantities()
 
-    ! ! Convergence history
-    call write_residual_history(U, convergence_L2norm)
+    ! ! ! Convergence history
+    ! call write_residual_history(U, convergence_L2norm)
 
-    deallocate(U_1)
-    deallocate(U_2)
+    ! deallocate(U_1)
+    ! deallocate(U_2)
 
   endsubroutine ssp_rk_2_2
 

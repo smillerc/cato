@@ -25,7 +25,7 @@ module mod_field
   implicit none
 
   private
-  public :: field_2d_t, field_2d
+  public :: field_2d_t, field_2d, field_shapes_match
 
   type :: field_2d_t
     !< A base class that encapsulates 2D data with knowledge of its parallel neighbors and bounds
