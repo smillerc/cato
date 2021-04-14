@@ -518,47 +518,47 @@ contains
   real(rk) function get_timestep(self, grid) result(delta_t)
     class(fluid_t), intent(inout) :: self
     class(grid_block_t), intent(in) :: grid
-    real(rk) :: min_delta_t !< the max allowable timestep on each subdomain/image
-    integer(ik) :: ilo, ihi, jlo, jhi ! fluid lo/hi indicies
+    real(rk) :: min_delta_t, min_delta_t2 !< the max allowable timestep on each subdomain/image
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi ! fluid lo/hi indicies
     integer(ik) :: g_ilo, g_ihi, g_jlo, g_jhi ! grid lo/hi indices
     character(len=200) :: err_msg
 
-    real(rk), allocatable, save, dimension(:, :) :: dx, dy
+    real(rk) :: v_i, v_j, spec_radius_i, spec_radius_j, min_dt
+    real(rk) :: ave_n_i(2), ave_n_j(2), ave_ds_i, ave_ds_j
 
     ! This seems silly to have to do, but the master class requires
     ! that the grid is a grid_block_t type, even though this fluid class
     ! will always use a grid_block_2d_t type.
     select type(grid)
     class is(grid_block_2d_t)
-      g_ilo = grid%lbounds(1)
-      g_ihi = grid%ubounds(1)
-      g_jlo = grid%lbounds(2)
-      g_jhi = grid%ubounds(2)
+      err_msg = ''
 
-      if(.not. allocated(dx)) allocate(dx(g_ilo:g_ihi, g_jlo:g_jhi))
-      if(.not. allocated(dy)) allocate(dy(g_ilo:g_ihi, g_jlo:g_jhi))
+      ilo = self%u%lbounds(1)-2
+      ihi = self%u%ubounds(1)+2
 
-      dx = grid%dx(g_ilo:g_ihi, g_jlo:g_jhi)
-      dy = grid%dy(g_ilo:g_ihi, g_jlo:g_jhi)
+      jlo = self%u%lbounds(2)-2
+      jhi = self%u%ubounds(2)+2
+
+      min_dt = huge(1.0_rk)
+      do j = jlo, jhi
+        do i = ilo, ihi
+          ave_n_i  = 0.5_rk * (grid%edge_norm_vectors(:,2,i,j) - grid%edge_norm_vectors(:,4,i,j))
+          ave_ds_i = 0.5_rk * (grid%edge_lengths(2,i,j)        + grid%edge_lengths(4,i,j))
+          v_i      = ave_n_i(1) * self%u%data(i,j)             + ave_n_i(2) * self%v%data(i,j)
+          spec_radius_i = (abs(v_i) + self%cs%data(i,j)) * ave_ds_i
+          
+          ave_n_j  = 0.5_rk * (grid%edge_norm_vectors(:,3,i,j) - grid%edge_norm_vectors(:,1,i,j))
+          ave_ds_j = 0.5_rk * (grid%edge_lengths(1,i,j)        + grid%edge_lengths(3,i,j))
+          v_j      = ave_n_j(1) * self%u%data(i,j)             + ave_n_j(2) * self%v%data(i,j)
+          spec_radius_j = (abs(v_j) + self%cs%data(i,j)) * ave_ds_j
+
+          min_dt = min(min_dt, grid%volume(i,j) / (spec_radius_i + spec_radius_j))
+        enddo
+      enddo
+
+      min_dt = self%cfl * min_to_all(min_dt)
+      delta_t = min_dt
     endselect
-
-    err_msg = ''
-
-    ilo = self%u%lbounds(1)
-    ihi = self%u%ubounds(1)
-
-    jlo = self%u%lbounds(2)
-    jhi = self%u%ubounds(2)
-
-    ! I would have put this in a cleaner associate block, but GFortran+OpenCoarrays bugs out on this
-    min_delta_t = minval(self%cfl / &
-                         (((abs(self%u%data(ilo:ihi, jlo:jhi)) + &
-                            self%cs%data(ilo:ihi, jlo:jhi)) / dx) + &
-                          ((abs(self%v%data(ilo:ihi, jlo:jhi)) + &
-                            self%cs%data(ilo:ihi, jlo:jhi)) / dy)))
-
-    min_delta_t = min_to_all(min_delta_t)
-    delta_t = min_delta_t
   endfunction get_timestep
 
   subroutine calculate_derived_quantities(self)
@@ -784,9 +784,7 @@ contains
               + U_1 * (1.0_rk / 4.0_rk) &
               + U_1%t(grid, d_dt_source_term) * ((1.0_rk / 4.0_rk) * dt)
       else
-        U_2 = U * (3.0_rk / 4.0_rk) &
-              + U_1 * (1.0_rk / 4.0_rk) &
-              + U_1%t(grid) * ((1.0_rk / 4.0_rk) * dt)
+        U_2 = U * (3.0_rk / 4.0_rk) + U_1 * (1.0_rk / 4.0_rk) + U_1%t(grid) * ((1.0_rk / 4.0_rk) * dt)
       endif
 
       ! Final stage
@@ -821,18 +819,6 @@ contains
       else
         exit
       endif
-
-      ! if (.not. U%allow_subcycle .or. abs(maxval(convergence_L2norm)) < err_tol) then
-      !   exit
-      ! else
-      !   dt = dt / 10
-      !   sub_cycle = sub_cycle + 1
-      !   if (this_image() == 1) then
-      !     write(*, '(a, es16.6, a, 4(es16.6), a)') "    Subcycling to reach error tolerance in the L2-Norm convergence history, new dt:", &
-      !                                               dt, ", current L2-Norm: [", convergence_L2norm, "]"
-      !   endif
-      ! endif
-
     end do
 
     U%rho  %data = U_3%rho  %data
@@ -845,7 +831,6 @@ contains
     call U%sanity_check(error_code)
     call U%calculate_derived_quantities()
 
-    
     call write_residual_history(U, convergence_L2norm)
     if (allocated(U_1)) deallocate(U_1)
     if (allocated(U_2)) deallocate(U_2)
