@@ -580,15 +580,15 @@ contains
     self%mach_v = self%v / self%cs
 
     ! Filter out the super small Mach numbers
-    where(abs(self%mach_v%data) < 1e-13_rk)
-      self%v%data = 0.0_rk
-      self%mach_v%data = 0.0_rk
-    endwhere
+    ! where(abs(self%mach_v%data) < 1e-13_rk)
+    !   self%v%data = 0.0_rk
+    !   self%mach_v%data = 0.0_rk
+    ! endwhere
 
-    where(abs(self%mach_u%data) < 1e-13_rk)
-      self%u%data = 0.0_rk
-      self%mach_u%data = 0.0_rk
-    endwhere
+    ! where(abs(self%mach_u%data) < 1e-13_rk)
+    !   self%u%data = 0.0_rk
+    !   self%mach_u%data = 0.0_rk
+    ! endwhere
 
     self%prim_vars_updated = .true.
   endsubroutine calculate_derived_quantities
@@ -683,10 +683,10 @@ contains
 
     lhs%input = rhs%input
     lhs%residual_hist_header_written = rhs%residual_hist_header_written
-    lhs%rho = rhs%rho
-    lhs%rho_u = rhs%rho_u
-    lhs%rho_v = rhs%rho_v
-    lhs%rho_E = rhs%rho_E
+    lhs%rho  %data = rhs%rho%data
+    lhs%rho_u%data = rhs%rho_u%data
+    lhs%rho_v%data = rhs%rho_v%data
+    lhs%rho_E%data = rhs%rho_E%data
 
     ! select case(trim(rhs%flux_solver_type))
     ! case('Roe', 'S-Roe', 'SP-Roe')
@@ -791,7 +791,7 @@ contains
     type(fluid_t), allocatable, save :: U_1, U_2, U_3
     type(fluid_t), allocatable, save :: dUdt, dUdt_1, dUdt_2
 
-    integer(ik) :: ilo, ihi, jlo, jhi
+    integer(ik) :: i, j, ilo, ihi, jlo, jhi
     integer(ik), intent(out) :: error_code
     real(rk), dimension(4) :: convergence_L2norm
     real(rk) :: dt, time, new_dt
@@ -828,114 +828,47 @@ contains
     U_2 = U
     U_3 = U
 
-    ! U_1%time = U%time
-    ! U_1%iteration = U%iteration
-    ! 
-    ! U_2%time = U%time
-    ! U_2%iteration = U%iteration
-! 
-    ! U_3%time = U%time
-    ! U_3%iteration = U%iteration
-    
-    ! dUdt  %dt = dt
-    ! dUdt_1%dt = dt
-    ! dUdt_2%dt = dt
-    
-    ! call update(from=U, to=U_1)
-    ! call update(from=U, to=U_2)
-    ! call update(from=U, to=U_3)
-    ! call update(from=U, to=dUdt)
-    ! call update(from=U, to=dUdt_1)
-    ! call update(from=U, to=dUdt_2)
-
-    ! print*, dt, U_1%dt,    U_2%dt,    U_3%dt    
-    ! sync all
-    ! call U_1   %print_stats()
-    ! call U_2   %print_stats()
-    ! call U_3   %print_stats()
-    ! call dUdt  %print_stats()
-    ! call dUdt_1%print_stats()
-    ! call dUdt_2%print_stats()
-
     ! 1st stage
     if(present(source_term) .and. .not. allocated(d_dt_source_term)) allocate(d_dt_source_term)
 
-    ! associate(rho   =>   U%rho%data, rhou   =>   U%rho_u%data, rhov   =>   U%rho_v%data, rhoe   =>   U%rho_E%data, &
-    !           rho_1 => U_1%rho%data, rhou_1 => U_1%rho_u%data, rhov_1 => U_1%rho_v%data, rhoe_1 => U_1%rho_E%data, &
-    !           rho_2 => U_2%rho%data, rhou_2 => U_2%rho_u%data, rhov_2 => U_2%rho_v%data, rhoe_2 => U_2%rho_E%data, &
-    !           rho_3 => U_3%rho%data, rhou_3 => U_3%rho_u%data, rhov_3 => U_3%rho_v%data, rhoe_3 => U_3%rho_E%data, &
-    !           drho_dt     => dUdt%rho%data, drhou_dt   =>   dUdt%rho_u%data,   drhov_dt =>   dUdt%rho_v%data, drhoe_dt   =>   dUdt%rho_E%data, &
-    !           drho_dt_1 => dUdt_1%rho%data, drhou_dt_1 => dUdt_1%rho_u%data, drhov_dt_1 => dUdt_1%rho_v%data, drhoe_dt_1 => dUdt_1%rho_E%data, &
-    !           drho_dt_2 => dUdt_2%rho%data, drhou_dt_2 => dUdt_2%rho_u%data, drhov_dt_2 => dUdt_2%rho_v%data, drhoe_dt_2 => dUdt_2%rho_E%data)
-      
-    !   ! print*, maxval(rho_1), minval(rho_1), maxval(rho), minval(rho), maxval(drho_dt), minval(drho_dt)
-    !   ! error stop 'done'
-    !   ! dUdt = U%t(grid)
-    !   call U%t(grid=grid, dt=dt, d_dt=dUdt)
-    !   !U_1 = U + U%t(grid) * dt
-    !   rho_1 =  rho  + drho_dt  * dt
-    !   rhou_1 = rhou + drhou_dt * dt
-    !   rhov_1 = rhov + drhov_dt * dt
-    !   rhoe_1 = rhoe + drhoe_dt * dt
-
-    !   ! dUdt_1 = U_1%t(grid)
-    !   call U_1%t(grid=grid, dt=dt, d_dt=dUdt_1)
-
-    !   ! U_2 = U * (3.0_rk / 4.0_rk) + U_1 * (1.0_rk / 4.0_rk) + U_1%t(grid) * ((1.0_rk / 4.0_rk) * dt)
-    !   rho_2  = rho  * (3.0_rk / 4.0_rk) +  rho_1 * (1.0_rk / 4.0_rk) +  drho_dt_1  * ((1.0_rk / 4.0_rk) * dt)
-    !   rhou_2 = rhou * (3.0_rk / 4.0_rk) + rhou_1 * (1.0_rk / 4.0_rk) + drhou_dt_1  * ((1.0_rk / 4.0_rk) * dt)
-    !   rhov_2 = rhov * (3.0_rk / 4.0_rk) + rhov_1 * (1.0_rk / 4.0_rk) + drhov_dt_1  * ((1.0_rk / 4.0_rk) * dt)
-    !   rhoe_2 = rhoe * (3.0_rk / 4.0_rk) + rhoe_1 * (1.0_rk / 4.0_rk) + drhoe_dt_1  * ((1.0_rk / 4.0_rk) * dt)
-      
-    !   ! dUdt_2 = U_2%t(grid)
-    !   call U_2%t(grid=grid, dt=dt, d_dt=dUdt_2)
-
-    !   !  U_3   = U *  (1.0_rk / 3.0_rk) + U_2 * (2.0_rk / 3.0_rk) + U_2%t(grid) * ((2.0_rk / 3.0_rk) * dt)
-    !     rho_3 = rho  * (1.0_rk / 3.0_rk) +  rho_2 * (2.0_rk / 3.0_rk) +  drho_dt_2  * ((2.0_rk / 3.0_rk) * dt)
-    !   rhou_3 = rhou * (1.0_rk / 3.0_rk) + rhou_2 * (2.0_rk / 3.0_rk) + drhou_dt_2  * ((2.0_rk / 3.0_rk) * dt)
-    !   rhov_3 = rhov * (1.0_rk / 3.0_rk) + rhov_2 * (2.0_rk / 3.0_rk) + drhov_dt_2  * ((2.0_rk / 3.0_rk) * dt)
-    !   rhoe_3 = rhoe * (1.0_rk / 3.0_rk) + rhoe_2 * (2.0_rk / 3.0_rk) + drhoe_dt_2  * ((2.0_rk / 3.0_rk) * dt)
-    ! end associate
-    ! associate(rho   =>   U%rho%data, rhou   =>   U%rho_u%data, rhov   =>   U%rho_v%data, rhoe   =>   U%rho_E%data, &
-    !           rho_1 => U_1%rho%data, rhou_1 => U_1%rho_u%data, rhov_1 => U_1%rho_v%data, rhoe_1 => U_1%rho_E%data, &
-    !           rho_2 => U_2%rho%data, rhou_2 => U_2%rho_u%data, rhov_2 => U_2%rho_v%data, rhoe_2 => U_2%rho_E%data, &
-    !           rho_3 => U_3%rho%data, rhou_3 => U_3%rho_u%data, rhov_3 => U_3%rho_v%data, rhoe_3 => U_3%rho_E%data, &
-    !           drho_dt     => dUdt%rho%data, drhou_dt   =>   dUdt%rho_u%data,   drhov_dt =>   dUdt%rho_v%data, drhoe_dt   =>   dUdt%rho_E%data, &
-    !           drho_dt_1 => dUdt_1%rho%data, drhou_dt_1 => dUdt_1%rho_u%data, drhov_dt_1 => dUdt_1%rho_v%data, drhoe_dt_1 => dUdt_1%rho_E%data, &
-    !           drho_dt_2 => dUdt_2%rho%data, drhou_dt_2 => dUdt_2%rho_u%data, drhov_dt_2 => dUdt_2%rho_v%data, drhoe_dt_2 => dUdt_2%rho_E%data)
-      
-      ! print*, maxval(rho_1), minval(rho_1), maxval(rho), minval(rho), maxval(drho_dt), minval(drho_dt)
-      ! error stop 'done'
       ! dUdt = U%t(grid)
       call U%t(grid=grid, dt=dt, d_dt=dUdt)
+
       !U_1 = U + U%t(grid) * dt
-      U_1%rho  %data=  U%rho  %data +  dUdt%rho%data   * dt
-      U_1%rho_u%data = U%rho_u%data +  dUdt%rho_u%data * dt
-      U_1%rho_v%data = U%rho_v%data +  dUdt%rho_v%data * dt
-      U_1%rho_e%data = U%rho_e%data +  dUdt%rho_E%data * dt
+      do j = jlo, jhi
+        do i = ilo, ihi
+          U_1%rho  %data(i,j) = U%rho  %data(i,j) +  dUdt%rho%data(i,j)   * dt
+          U_1%rho_u%data(i,j) = U%rho_u%data(i,j) +  dUdt%rho_u%data(i,j) * dt
+          U_1%rho_v%data(i,j) = U%rho_v%data(i,j) +  dUdt%rho_v%data(i,j) * dt
+          U_1%rho_e%data(i,j) = U%rho_e%data(i,j) +  dUdt%rho_E%data(i,j) * dt
+        enddo
+      enddo
 
       ! dUdt_1 = U_1%t(grid)
       call U_1%t(grid=grid, dt=dt, d_dt=dUdt_1)
 
       ! U_2 = U * (3.0_rk / 4.0_rk) + U_1 * (1.0_rk / 4.0_rk) + U_1%t(grid) * ((1.0_rk / 4.0_rk) * dt)
-      U_2%rho  %data = U%rho  %data * (3.0_rk / 4.0_rk) + U_1%rho%data * (1.0_rk / 4.0_rk) +   dUdt_1%rho%data   * ((1.0_rk / 4.0_rk) * dt)
-      U_2%rho_u%data = U%rho_u%data * (3.0_rk / 4.0_rk) + U_1%rho_u%data * (1.0_rk / 4.0_rk) + dUdt_1%rho_u%data  * ((1.0_rk / 4.0_rk) * dt)
-      U_2%rho_v%data = U%rho_v%data * (3.0_rk / 4.0_rk) + U_1%rho_v%data * (1.0_rk / 4.0_rk) + dUdt_1%rho_v%data  * ((1.0_rk / 4.0_rk) * dt)
-      U_2%rho_e%data = U%rho_e%data * (3.0_rk / 4.0_rk) + U_1%rho_e%data * (1.0_rk / 4.0_rk) + dUdt_1%rho_E%data  * ((1.0_rk / 4.0_rk) * dt)
-      
+      do j = jlo, jhi
+        do i = ilo, ihi
+          U_2%rho  %data(i,j) = U%rho  %data(i,j) * three_fourth +   U_1%rho%data(i,j) * one_fourth +   dUdt_1%rho%data(i,j)  * (one_fourth * dt)
+          U_2%rho_u%data(i,j) = U%rho_u%data(i,j) * three_fourth + U_1%rho_u%data(i,j) * one_fourth + dUdt_1%rho_u%data(i,j)  * (one_fourth * dt)
+          U_2%rho_v%data(i,j) = U%rho_v%data(i,j) * three_fourth + U_1%rho_v%data(i,j) * one_fourth + dUdt_1%rho_v%data(i,j)  * (one_fourth * dt)
+          U_2%rho_e%data(i,j) = U%rho_e%data(i,j) * three_fourth + U_1%rho_e%data(i,j) * one_fourth + dUdt_1%rho_E%data(i,j)  * (one_fourth * dt)
+        enddo
+      enddo
       ! dUdt_2 = U_2%t(grid)
       call U_2%t(grid=grid, dt=dt, d_dt=dUdt_2)
 
-      !  U_3   = U *  (1.0_rk / 3.0_rk) + U_2 * (2.0_rk / 3.0_rk) + U_2%t(grid) * ((2.0_rk / 3.0_rk) * dt)
-      U_3%rho  %data = U%rho  %data * (1.0_rk / 3.0_rk) +  U_2%rho%data * (2.0_rk / 3.0_rk) +  dUdt_2%rho%data  * ((2.0_rk / 3.0_rk) * dt)
-      U_3%rho_u%data = U%rho_u%data * (1.0_rk / 3.0_rk) + U_2%rho_u%data * (2.0_rk / 3.0_rk) + dUdt_2%rho_u%data  * ((2.0_rk / 3.0_rk) * dt)
-      U_3%rho_v%data = U%rho_v%data * (1.0_rk / 3.0_rk) + U_2%rho_v%data * (2.0_rk / 3.0_rk) + dUdt_2%rho_v%data  * ((2.0_rk / 3.0_rk) * dt)
-      U_3%rho_e%data = U%rho_e%data * (1.0_rk / 3.0_rk) + U_2%rho_e%data * (2.0_rk / 3.0_rk) + dUdt_2%rho_E%data  * ((2.0_rk / 3.0_rk) * dt)
+      do j = jlo, jhi
+        do i = ilo, ihi
+          !  U_3   = U *  (1.0_rk / 3.0_rk) + U_2 * (2.0_rk / 3.0_rk) + U_2%t(grid) * ((2.0_rk / 3.0_rk) * dt)
+          U_3%rho  %data(i,j) = U%rho  %data(i,j) * one_third +   U_2%rho%data(i,j) * two_thirds +  dUdt_2%rho%data(i,j)  *  (two_thirds * dt)
+          U_3%rho_u%data(i,j) = U%rho_u%data(i,j) * one_third + U_2%rho_u%data(i,j) * two_thirds + dUdt_2%rho_u%data(i,j)  * (two_thirds * dt)
+          U_3%rho_v%data(i,j) = U%rho_v%data(i,j) * one_third + U_2%rho_v%data(i,j) * two_thirds + dUdt_2%rho_v%data(i,j)  * (two_thirds * dt)
+          U_3%rho_e%data(i,j) = U%rho_e%data(i,j) * one_third + U_2%rho_e%data(i,j) * two_thirds + dUdt_2%rho_E%data(i,j)  * (two_thirds * dt)
+        enddo
+      enddo
     ! end associate
-
-    ! Convergence history
-
-
 
     if(present(source_term)) then
       stage_1_energy = sum_to_all(sum(U%rho_E%data))
@@ -948,11 +881,6 @@ contains
     U%rho_u%data = U_3%rho_u%data
     U%rho_v%data = U_3%rho_v%data
     U%rho_E%data = U_3%rho_E%data
-
-    ! U%time = U%time + dt
-    ! U%iteration = U%iteration + 1
-
-
 
     call calculate_convergence(U_1, U_3, convergence_L2norm)
     call U%sanity_check(error_code)
