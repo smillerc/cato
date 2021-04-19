@@ -160,7 +160,7 @@ contains
           allocate(edge_values(1:2, ilo:ihi, jlo - 1:jhi))
         #:endif
 
-        edge_values = 0.0_rk
+        ! edge_values = 0.0_rk
         !
         !                    jflux(i,j)  'R'
         !               o--------------------o

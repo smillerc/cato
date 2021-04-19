@@ -216,10 +216,20 @@ contains
 
     ! Locals
     real(rk) :: gamma_m_one
+    integer(ik) :: i, j
 
     gamma_m_one = self%gamma - 1.0_rk
 
-    E = (p / (rho * gamma_m_one)) + (0.5_rk * (u * u + v * v))
+    ! E = (p / (rho * gamma_m_one)) + (0.5_rk * (u * u + v * v))
+
+    do j = rho%jlo, rho%jhi
+      !$omp simd
+      do i = rho%ilo, rho%ihi
+        E%data(i,j) = (p%data(i,j) / (rho%data(i,j) * gamma_m_one)) + (0.5_rk * (u%data(i,j) * u%data(i,j) + v%data(i,j) * v%data(i,j)))
+      enddo
+      !$omp end simd
+    enddo
+
     E%name = 'E'
 
   endsubroutine total_energy_field_2d
@@ -233,7 +243,21 @@ contains
     class(field_2d_t), intent(in) :: p    !< pressure
     class(field_2d_t), intent(inout) :: H !< total enthalpy
 
-    H = (p / rho) * (self%gamma / (self%gamma - 1.0_rk)) + (0.5_rk * (u * u + v * v))
+    real(rk) :: gamma_term
+    integer(ik) :: i, j
+
+    gamma_term = self%gamma / (self%gamma - 1.0_rk)
+
+    ! H = (p / rho) * (self%gamma / (self%gamma - 1.0_rk)) + (0.5_rk * (u * u + v * v))
+
+    do j = rho%jlo, rho%jhi
+      !$omp simd
+      do i = rho%ilo, rho%ihi
+        H%data(i,j) = (p%data(i,j) / rho%data(i,j)) * gamma_term + (0.5_rk * (u%data(i,j) * u%data(i,j) + v%data(i,j) * v%data(i,j)))
+      enddo
+      !$omp end simd
+    enddo
+
     H%name = 'H'
 
   endsubroutine total_enthalpy_field_2d
@@ -245,10 +269,20 @@ contains
     class(field_2d_t), intent(in) :: p   !< pressure
     class(field_2d_t), intent(in) :: rho !< density
     class(field_2d_t), intent(inout) :: cs !< sound speed
+    
     integer(ik) :: i, j
+    real(rk) :: sqrt_gamma
 
-    cs = self%gamma * (p / rho)
-    cs%data = sqrt(cs%data)
+    sqrt_gamma = sqrt(self%gamma)
+
+    do j = rho%jlo, rho%jhi
+      !$omp simd
+      do i = rho%ilo, rho%ihi
+        cs%data(i,j) = sqrt_gamma * sqrt(p%data(i,j)/ rho%data(i,j))
+      enddo
+      !$omp end simd
+    enddo
+
     cs%name = 'cs'
   endsubroutine sound_speed_field_2d
 
@@ -280,16 +314,34 @@ contains
 
     ! Locals
     real(rk) :: gamma_m_one
+    integer(ik) :: i, j
 
     gamma_m_one = self%gamma - 1.0_rk
 
-    u = rho_u / rho
+    ! u = rho_u / rho
+    ! v = rho_v / rho
+    
+    do j = rho%jlo, rho%jhi
+      !$omp simd
+      do i = rho%ilo, rho%ihi
+        u%data(i,j) = rho_u%data(i,j) / rho%data(i,j)
+        v%data(i,j) = rho_v%data(i,j) / rho%data(i,j)
+      enddo
+      !$omp end simd
+    enddo
+
+    ! p = rho * gamma_m_one * ((rho_E / rho) - (0.5_rk * (u * u + v * v)))
+    do j = rho%jlo, rho%jhi
+      !$omp simd
+      do i = rho%ilo, rho%ihi
+        p%data(i,j) = rho%data(i,j) * gamma_m_one * ((rho_E%data(i,j) / rho%data(i,j)) - &
+                      (0.5_rk * (u%data(i,j) * u%data(i,j) + v%data(i,j) * v%data(i,j))))
+      enddo
+      !$omp end simd
+    enddo
+
     u%name = 'u'
-
-    v = rho_v / rho
     v%name = 'v'
-
-    p = rho * gamma_m_one * ((rho_E / rho) - (0.5_rk * (u * u + v * v)))
     p%name = 'p'
 
   endsubroutine conserved_to_primitive_field_2d
@@ -308,19 +360,25 @@ contains
     class(field_2d_t), intent(inout) :: rho_E
 
     ! Locals
-    real(rk) :: gamma_m_one
+    real(rk) :: inv_gamma_m_one
+    integer(ik) :: i, j
 
-    gamma_m_one = self%gamma - 1.0_rk
+    inv_gamma_m_one = 1.0_rk  / (self%gamma - 1.0_rk)
 
-    rho_u = u * rho
-    rho_u%name = 'rho_u'
-
-    rho_v = v * rho
+    do j = rho%jlo, rho%jhi
+      !$omp simd
+      do i = rho%ilo, rho%ihi
+        rho_u%data(i, j) = u%data(i, j) * rho%data(i, j)
+        rho_v%data(i, j) = v%data(i, j) * rho%data(i, j)
+        rho_E%data(i, j) = (p%data(i, j) * inv_gamma_m_one) + rho%data(i, j) * \
+                            0.5_rk * (u%data(i, j) * u%data(i, j) + v%data(i, j) * v%data(i, j))        
+      enddo
+      !$omp end simd
+    enddo
+    
     rho_v%name = 'rho_v'
-
-    rho_E = (p / gamma_m_one) + rho * 0.5_rk * (u * u + v * v)
     rho_E%name = 'rho_E'
-
+    rho_u%name = 'rho_u'
   endsubroutine primitive_to_conserved_field_2d
 
 endmodule mod_eos
