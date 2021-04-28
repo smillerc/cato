@@ -576,19 +576,8 @@ contains
 
     call eos%sound_speed(p=self%p, rho=self%rho, cs=self%cs)
 
-    self%mach_u = self%u / self%cs
-    self%mach_v = self%v / self%cs
-
-    ! Filter out the super small Mach numbers
-    ! where(abs(self%mach_v%data) < 1e-13_rk)
-    !   self%v%data = 0.0_rk
-    !   self%mach_v%data = 0.0_rk
-    ! endwhere
-
-    ! where(abs(self%mach_u%data) < 1e-13_rk)
-    !   self%u%data = 0.0_rk
-    !   self%mach_u%data = 0.0_rk
-    ! endwhere
+    self%mach_u%data = self%u%data / self%cs%data
+    self%mach_v%data = self%v%data / self%cs%data
 
     self%prim_vars_updated = .true.
   endsubroutine calculate_derived_quantities
