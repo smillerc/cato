@@ -157,10 +157,14 @@ def load_bc_file_to_dataset(ds):
     except AttributeError:
         return
 
+    
     try:
         bc = np.loadtxt(bc_file, skiprows=1, delimiter=",")
     except ValueError:
         bc = np.loadtxt(bc_file, skiprows=1)
+    except:
+        print(f"Unable to read {bc_file}")
+        return ds
 
     bc_t = bc[:, 0] * ureg("s")
     bc_p = bc[:, 1] * ureg("barye")
