@@ -9,8 +9,8 @@
     8.0,
     0.5
   ],
-  "x_spacing": "20 cell/um",
-  "y_spacing": "20 cell/um",
+  "x_spacing": "30 cell/um",
+  "y_spacing": "5 cell/um",
   "pressure": [
     1.0e9,
     1.0e9,
@@ -38,7 +38,7 @@
   "gamma": 1.6666666667,
   "init_vacuum_velocity": true,
   "perturbation_fraction": -0.01,
-  "perturbation_x0": 70,
+  "perturbation_x0": 60.5,
   "perturbation_y0": null,
   "perturbation_wavelength_um": 2.0,
   "full_wavelength": false
